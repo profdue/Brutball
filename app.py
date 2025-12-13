@@ -83,54 +83,22 @@ st.markdown("""
         background-color: #fff8e1;
         color: #ff8f00;
     }
-    .learning-highlight {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 10px;
-        margin: 15px 0;
-    }
-    .performance-metric {
-        background-color: white;
-        border-radius: 10px;
-        padding: 15px;
-        margin: 10px 0;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .pattern-performance {
-        background-color: #f5f5f5;
-        border-radius: 5px;
-        padding: 10px;
-        margin: 5px 0;
-    }
-    .fix-highlight {
-        background-color: #e8f5e9;
-        border: 2px solid #4CAF50;
-        border-radius: 10px;
-        padding: 15px;
-        margin: 15px 0;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 # ========== SIMPLE DATABASE ==========
 class SimpleDatabase:
-    """Simple in-memory database"""
-    
     def __init__(self):
         self.predictions = []
         self.outcomes = []
         self.pattern_stats = {}
-        
+    
     def save_prediction(self, prediction_data):
-        """Save a prediction"""
         try:
-            # Create hash
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             hash_input = f"{prediction_data.get('home_name', '')}_{prediction_data.get('away_name', '')}_{timestamp}"
             prediction_hash = hashlib.md5(hash_input.encode()).hexdigest()
             
-            # Store prediction
             prediction_record = {
                 'hash': prediction_hash,
                 'timestamp': datetime.now(),
@@ -153,7 +121,6 @@ class SimpleDatabase:
             
             self.predictions.append(prediction_record)
             
-            # Initialize pattern stats if not exists
             pattern_name = prediction_record['analysis'].get('context', 'unknown')
             if pattern_name not in self.pattern_stats:
                 self.pattern_stats[pattern_name] = {
@@ -164,13 +131,11 @@ class SimpleDatabase:
             
             return prediction_hash
             
-        except Exception as e:
+        except Exception:
             return f"pred_{len(self.predictions)}"
     
     def record_outcome(self, prediction_hash, actual_home_goals, actual_away_goals, notes=""):
-        """Record actual outcome"""
         try:
-            # Find the prediction
             prediction = None
             for pred in self.predictions:
                 if pred.get('hash') == prediction_hash:
@@ -180,14 +145,11 @@ class SimpleDatabase:
             if not prediction:
                 return False
             
-            # Calculate outcome
             actual_total = actual_home_goals + actual_away_goals
             actual_over_under = "OVER 2.5" if actual_total > 2.5 else "UNDER 2.5"
-            
             predicted_over_under = prediction['analysis'].get('prediction', '')
             outcome_accuracy = "CORRECT" if predicted_over_under == actual_over_under else "INCORRECT"
             
-            # Store outcome
             outcome_record = {
                 'prediction_hash': prediction_hash,
                 'actual_home_goals': actual_home_goals,
@@ -201,16 +163,12 @@ class SimpleDatabase:
             
             self.outcomes.append(outcome_record)
             
-            # Update pattern stats
             pattern_name = prediction['analysis'].get('context', 'unknown')
             if pattern_name in self.pattern_stats:
                 stats = self.pattern_stats[pattern_name]
                 stats['total_predictions'] += 1
-                
                 if outcome_accuracy == "CORRECT":
                     stats['correct_predictions'] += 1
-                
-                # Calculate xG error
                 predicted_xg = prediction['analysis'].get('adjusted_total_xg', 0)
                 xg_error = abs(predicted_xg - actual_total)
                 stats['xg_errors'].append(xg_error)
@@ -221,25 +179,19 @@ class SimpleDatabase:
             return False
     
     def get_performance_stats(self):
-        """Get performance statistics"""
         total_predictions = len([o for o in self.outcomes])
         correct_predictions = len([o for o in self.outcomes if o.get('outcome_accuracy') == "CORRECT"])
         accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0
         
-        # Get pattern stats
         pattern_stats_list = []
         for pattern_name, stats in self.pattern_stats.items():
             pattern_total = stats.get('total_predictions', 0)
             pattern_correct = stats.get('correct_predictions', 0)
             pattern_accuracy = pattern_correct / pattern_total if pattern_total > 0 else 0
-            
-            # Calculate average xG error
             xg_errors = stats.get('xg_errors', [])
             avg_error = sum(xg_errors) / len(xg_errors) if xg_errors else 0
-            
             pattern_stats_list.append((pattern_name, pattern_accuracy, pattern_total, avg_error))
         
-        # Sort by accuracy
         pattern_stats_list.sort(key=lambda x: x[1], reverse=True)
         
         return {
@@ -250,14 +202,10 @@ class SimpleDatabase:
         }
     
     def get_recent_predictions(self, limit=5):
-        """Get recent predictions"""
         recent = []
-        
-        # Get recent outcomes
         recent_outcomes = sorted(self.outcomes, key=lambda x: x.get('recorded_at', datetime.min), reverse=True)[:limit]
         
         for outcome in recent_outcomes:
-            # Find matching prediction
             prediction = None
             for pred in self.predictions:
                 if pred.get('hash') == outcome.get('prediction_hash'):
@@ -281,10 +229,7 @@ class SimpleDatabase:
 
 # ========== FIXED PREDICTION ENGINE ==========
 class FixedPredictionEngine:
-    """Fixed engine with working pattern logic"""
-    
     def __init__(self):
-        # Patterns with FIXED structure
         self.learned_patterns = {
             'relegation_battle': {
                 'base_multiplier': 0.65,
@@ -321,7 +266,6 @@ class FixedPredictionEngine:
                 'base_badge': 'badge-quality',
                 'psychology': 'Quality creates AND prevents goals'
             },
-            # FIXED: TOP vs BOTTOM patterns
             'top_vs_bottom_domination': {
                 'base_multiplier': 1.05,
                 'description': 'Top team good/excellent form vs bottom team → MODERATE SCORING (2-1 type)',
@@ -345,7 +289,6 @@ class FixedPredictionEngine:
             }
         }
         
-        # Form adjustments
         self.form_adjustments = {
             'excellent': 1.20,
             'good': 1.10,
@@ -354,7 +297,7 @@ class FixedPredictionEngine:
             'very_poor': 0.80
         }
         
-        # Prediction thresholds - ADDED THIS
+        # CRITICAL FIX: Added thresholds dictionary
         self.thresholds = {
             'relegation_battle': {'over': 2.3, 'under': 2.7},
             'top_vs_bottom_domination': {'over': 2.6, 'under': 2.4},
@@ -366,10 +309,7 @@ class FixedPredictionEngine:
         }
     
     def analyze_match_context(self, home_pos, away_pos, total_teams, games_played, home_form, away_form):
-        """Analyze match context"""
         gap = abs(home_pos - away_pos)
-        
-        # Define zones
         bottom_cutoff = total_teams - 3
         top_cutoff = 4
         
@@ -432,7 +372,6 @@ class FixedPredictionEngine:
         }
     
     def calculate_form(self, team_avg, recent_goals):
-        """Calculate form factor"""
         if team_avg <= 0:
             return 1.0, 'average'
         
@@ -451,14 +390,11 @@ class FixedPredictionEngine:
             return self.form_adjustments['very_poor'], 'very_poor'
     
     def predict_match(self, match_data):
-        """Make prediction"""
-        # Extract data
         home_pos = match_data.get('home_pos', 10)
         away_pos = match_data.get('away_pos', 10)
         total_teams = match_data.get('total_teams', 20)
         games_played = match_data.get('games_played', 19)
         
-        # Calculate form
         home_attack = match_data.get('home_attack', 1.4)
         away_attack = match_data.get('away_attack', 1.3)
         home_defense = match_data.get('home_defense', 1.2)
@@ -470,7 +406,6 @@ class FixedPredictionEngine:
         home_form_factor, home_form_level = self.calculate_form(home_attack, home_goals5)
         away_form_factor, away_form_level = self.calculate_form(away_attack, away_goals5)
         
-        # Analyze context
         context_analysis = self.analyze_match_context(
             home_pos, away_pos, total_teams, games_played,
             home_form_level, away_form_level
@@ -480,12 +415,10 @@ class FixedPredictionEngine:
         pattern = self.learned_patterns.get(context, self.learned_patterns['hierarchical'])
         thresholds = self.thresholds.get(context, self.thresholds['default'])
         
-        # Calculate xG
         raw_home_xg = (home_attack + away_defense) / 2
         raw_away_xg = (away_attack + home_defense) / 2
         raw_total_xg = raw_home_xg + raw_away_xg
         
-        # Apply adjustments
         form_home_xg = raw_home_xg * home_form_factor
         form_away_xg = raw_away_xg * away_form_factor
         form_total_xg = form_home_xg + form_away_xg
@@ -493,7 +426,6 @@ class FixedPredictionEngine:
         psychology_multiplier = pattern['base_multiplier']
         adjusted_total_xg = form_total_xg * psychology_multiplier
         
-        # Make prediction
         if context == 'top_vs_bottom_domination':
             if adjusted_total_xg > 2.5:
                 prediction = 'OVER 2.5'
@@ -512,13 +444,11 @@ class FixedPredictionEngine:
                 prediction = 'OVER 2.5' if adjusted_total_xg > 2.5 else 'UNDER 2.5'
                 confidence = 'MEDIUM'
         
-        # Calculate confidence
         base_confidence = pattern['base_confidence']
         data_quality = 0.7 if games_played < 10 else 0.85 if games_played < 15 else 1.0
         confidence_score = (base_confidence * 0.6 + data_quality * 0.4)
         confidence_level = 'HIGH' if confidence_score > 0.85 else 'MEDIUM' if confidence_score > 0.7 else 'LOW'
         
-        # Stake recommendation
         if confidence_level == 'HIGH' and base_confidence > 0.85:
             stake = 'MAX BET (2x normal)'
             stake_color = 'green'
@@ -529,7 +459,7 @@ class FixedPredictionEngine:
             stake = 'SMALL BET (0.5x) or AVOID'
             stake_color = 'red'
         
-        # Return analysis WITH thresholds_used key
+        # CRITICAL: Return thresholds_used key
         return {
             'prediction': prediction,
             'confidence': confidence_level,
@@ -554,7 +484,7 @@ class FixedPredictionEngine:
             'pattern_confidence': pattern['base_confidence'],
             'pattern_psychology': pattern['psychology'],
             
-            # THIS WAS MISSING - FIXED!
+            # FIXED: This key was missing causing KeyError
             'thresholds_used': thresholds,
             
             'zones': context_analysis.get('zones', {})
@@ -622,22 +552,22 @@ if 'match_data' not in st.session_state:
 # ========== MAIN APP ==========
 def main():
     st.markdown('<div class="main-header">⚽ FIXED FOOTBALL PREDICTOR</div>', unsafe_allow_html=True)
-    st.markdown("### **Working Version - No KeyErrors**")
+    st.markdown("### **Complete Working Version - No KeyErrors**")
     
     # ===== SIDEBAR =====
     with st.sidebar:
-        st.markdown("## 📊 Performance")
+        st.markdown("## 📊 Performance Dashboard")
         
         perf_stats = st.session_state.db.get_performance_stats()
         
         col_sb1, col_sb2 = st.columns(2)
         with col_sb1:
-            st.metric("Total", perf_stats['total_predictions'])
+            st.metric("Total Predictions", perf_stats['total_predictions'])
         with col_sb2:
             accuracy = f"{perf_stats['accuracy']*100:.1f}%" if perf_stats['total_predictions'] > 0 else "N/A"
             st.metric("Accuracy", accuracy)
         
-        st.markdown("### Recent")
+        st.markdown("### Recent Predictions")
         recent = st.session_state.db.get_recent_predictions(3)
         
         for pred in recent:
@@ -667,7 +597,7 @@ def main():
     
     # ===== INPUT SECTION =====
     st.markdown('<div class="input-section">', unsafe_allow_html=True)
-    st.markdown("### 📝 Match Data")
+    st.markdown("### 📝 Enter Match Data")
     
     col1, col2 = st.columns(2)
     
@@ -679,7 +609,7 @@ def main():
             key="home_name_input"
         )
         home_pos = st.number_input(
-            "League Position",
+            "League Position (1 = Best)",
             min_value=1,
             max_value=40,
             value=st.session_state.match_data.get('home_pos', 10),
@@ -694,7 +624,7 @@ def main():
             key="home_attack_input"
         )
         home_goals5 = st.number_input(
-            "Goals Last 5",
+            "Goals Last 5 Games",
             min_value=0,
             max_value=30,
             value=st.session_state.match_data.get('home_goals5', 7),
@@ -709,7 +639,7 @@ def main():
             key="away_name_input"
         )
         away_pos = st.number_input(
-            "League Position",
+            "League Position (1 = Best)",
             min_value=1,
             max_value=40,
             value=st.session_state.match_data.get('away_pos', 10),
@@ -724,7 +654,7 @@ def main():
             key="away_attack_input"
         )
         away_goals5 = st.number_input(
-            "Goals Last 5",
+            "Goals Last 5 Games",
             min_value=0,
             max_value=30,
             value=st.session_state.match_data.get('away_goals5', 6),
@@ -735,14 +665,14 @@ def main():
     
     with col3:
         total_teams = st.number_input(
-            "Total Teams",
+            "Total Teams in League",
             min_value=10,
             max_value=30,
             value=st.session_state.match_data.get('total_teams', 20),
             key="total_teams_input"
         )
         games_played = st.number_input(
-            "Games Played",
+            "Games Played This Season",
             min_value=1,
             max_value=50,
             value=st.session_state.match_data.get('games_played', 19),
@@ -769,7 +699,7 @@ def main():
     
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # Analyze button - FIXED
+    # ===== ANALYZE BUTTON =====
     if st.button("🚀 ANALYZE MATCH", type="primary", use_container_width=True):
         try:
             match_data = {
@@ -787,10 +717,8 @@ def main():
                 'away_goals5': away_goals5
             }
             
-            # Make prediction
             analysis = st.session_state.engine.predict_match(match_data)
             
-            # Save to database - CORRECT STRUCTURE
             prediction_data = {
                 'home_name': home_name,
                 'away_name': away_name,
@@ -804,7 +732,7 @@ def main():
                 'away_defense': away_defense,
                 'home_goals5': home_goals5,
                 'away_goals5': away_goals5,
-                'analysis': analysis  # This is the correct key
+                'analysis': analysis
             }
             
             prediction_hash = st.session_state.db.save_prediction(prediction_data)
@@ -818,8 +746,8 @@ def main():
             st.rerun()
             
         except Exception as e:
-            st.error(f"Error: {str(e)}")
-            st.info("Please check inputs and try again.")
+            st.error(f"Error during analysis: {str(e)}")
+            st.info("Please check your inputs and try again.")
     
     # ===== PREDICTION RESULTS =====
     if st.session_state.current_prediction:
@@ -829,7 +757,7 @@ def main():
         prediction_hash = pred_data['prediction_hash']
         
         st.markdown("---")
-        st.markdown(f"## 📊 Prediction: {match_data.get('home_name')} vs {match_data.get('away_name')}")
+        st.markdown(f"## 📊 Prediction Results: {match_data.get('home_name')} vs {match_data.get('away_name')}")
         
         # Key metrics
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
@@ -839,12 +767,12 @@ def main():
         with col_m2:
             st.metric("Confidence", analysis.get('confidence', 'N/A'))
         with col_m3:
-            st.metric("xG", analysis.get('adjusted_total_xg', 0))
+            st.metric("Expected Goals", analysis.get('adjusted_total_xg', 0))
         with col_m4:
             context = analysis.get('context', 'unknown')
             st.metric("Pattern", context.replace('_', ' ').title())
         
-        # Psychology badge - FIXED access
+        # Psychology badge
         psychology = analysis.get('psychology', {})
         badge_class = psychology.get('badge', 'badge-caution')
         primary_text = psychology.get('primary', 'ANALYSIS')
@@ -854,14 +782,25 @@ def main():
             <span class="psychology-badge {badge_class}">
                 {primary_text}
             </span>
+            <small style="margin-left: 10px; color: #666;">{psychology.get('description', '')}</small>
         </div>
         """, unsafe_allow_html=True)
+        
+        # Pattern application info
+        if analysis.get('context') in ['top_vs_bottom_domination', 'top_vs_bottom_dominance']:
+            st.info(f"""
+            **✅ Universal Pattern Applied:** This pattern applies to ALL matches where:
+            - Top 4 team vs Bottom 4 team
+            - Top team has GOOD/EXCELLENT form
+            - Position gap > 8 places
+            - {analysis.get('context').replace('_', ' ').title()}: {analysis.get('pattern_description', '')}
+            """)
         
         # Prediction breakdown
         col_b1, col_b2 = st.columns(2)
         
         with col_b1:
-            st.markdown("### 📈 xG Breakdown")
+            st.markdown("### 📈 Expected Goals Breakdown")
             
             try:
                 fig = go.Figure()
@@ -877,75 +816,68 @@ def main():
                 fig.add_trace(go.Bar(
                     x=stages,
                     y=values,
-                    marker_color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4']
+                    marker_color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4'],
+                    text=[f'{v:.2f}' for v in values],
+                    textposition='auto'
                 ))
                 
                 fig.add_hline(y=2.5, line_dash="dash", line_color="gray", opacity=0.5)
                 
                 fig.update_layout(
-                    height=300,
+                    height=350,
                     showlegend=False,
-                    yaxis_title="Expected Goals"
+                    yaxis_title="Expected Goals",
+                    title="How the Prediction was Calculated"
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
-            except:
-                st.info("Chart data not available")
+            except Exception as e:
+                st.info("Chart display not available")
         
         with col_b2:
-            st.markdown("### ⚙️ Adjustment Factors")
+            st.markdown("### ⚙️ Calculation Factors")
             
-            # FIXED: Using .get() for safe access
+            # FIXED: Safe access to thresholds
             thresholds = analysis.get('thresholds_used', {'over': 2.7, 'under': 2.3})
             
             st.markdown(f"""
-            **Form Levels:**  
-            Home: {analysis.get('form_level_home', 'average').upper()} (×{analysis.get('form_multiplier_home', 1.0):.2f})  
-            Away: {analysis.get('form_level_away', 'average').upper()} (×{analysis.get('form_multiplier_away', 1.0):.2f})  
+            **📊 Statistical Factors:**
+            - Base xG (statistics only): **{analysis.get('raw_total_xg', 0):.2f}**
+            - Form adjusted xG: **{analysis.get('form_total_xg', 0):.2f}**
             
-            **Psychology Multiplier:**  
-            {primary_text}: ×{analysis.get('base_psychology_multiplier', 1.0):.2f}  
+            **🎯 Adjustment Factors:**
+            - Home form: {analysis.get('form_level_home', 'average').upper()} (×{analysis.get('form_multiplier_home', 1.0):.2f})
+            - Away form: {analysis.get('form_level_away', 'average').upper()} (×{analysis.get('form_multiplier_away', 1.0):.2f})
+            - Psychology: {primary_text} (×{analysis.get('base_psychology_multiplier', 1.0):.2f})
             
-            **Prediction Thresholds:**  
-            OVER if > {thresholds.get('over', 2.7)}  
-            UNDER if < {thresholds.get('under', 2.3)}  
+            **⚖️ Decision Thresholds:**
+            - OVER 2.5 if > **{thresholds.get('over', 2.7)}**
+            - UNDER 2.5 if < **{thresholds.get('under', 2.3)}**
             
-            **Pattern:** {analysis.get('pattern_description', '')}
-            
-            **Position Gap:** {analysis.get('gap', 0)} positions
+            **📈 Final Calculation:**
+            - Adjusted xG: **{analysis.get('adjusted_total_xg', 0):.2f}**
+            - Result: **{analysis.get('prediction', '')}** ({analysis.get('confidence', '')} confidence)
+            - Stake: **{analysis.get('stake_recommendation', '')}**
             """)
-        
-        # Universal application info
-        if analysis.get('context') in ['top_vs_bottom_domination', 'top_vs_bottom_dominance']:
-            st.markdown('<div class="fix-highlight">', unsafe_allow_html=True)
-            st.markdown(f"""
-            ### ✅ **UNIVERSAL PATTERN APPLIED**
-            **This pattern applies to ALL matches meeting:**
-            1. Top 4 vs Bottom 4 teams
-            2. Top team has GOOD/EXCELLENT form
-            3. Position gap > 8
-            4. Bottom team form determines domination (2-1) vs dominance (1-0)
-            """)
-            st.markdown('</div>', unsafe_allow_html=True)
         
         # Outcome recording
         st.markdown("---")
-        st.markdown("### 📝 Record Actual Outcome")
+        st.markdown("### 📝 Record Actual Outcome (For Learning)")
         
         col_out1, col_out2, col_out3 = st.columns(3)
         
         with col_out1:
-            actual_home = st.number_input("Home Goals", 0, 10, 0, key="actual_home")
+            actual_home = st.number_input("Home Goals", 0, 10, 0, key="actual_home_input")
         
         with col_out2:
-            actual_away = st.number_input("Away Goals", 0, 10, 0, key="actual_away")
+            actual_away = st.number_input("Away Goals", 0, 10, 0, key="actual_away_input")
         
         with col_out3:
-            notes = st.text_input("Notes", key="outcome_notes")
+            notes = st.text_input("Match Notes (optional)", key="outcome_notes_input")
         
-        if st.button("✅ Record Outcome", type="secondary"):
+        if st.button("✅ Save Actual Result", type="secondary"):
             if actual_home == 0 and actual_away == 0:
-                st.warning("Enter scores to record outcome.")
+                st.warning("Please enter actual scores (at least one goal)")
             else:
                 success = st.session_state.db.record_outcome(
                     prediction_hash,
@@ -955,8 +887,27 @@ def main():
                 )
                 
                 if success:
-                    st.success("Outcome recorded! Learning updated.")
+                    st.success("✅ Outcome recorded! The system will learn from this result.")
+                    
+                    # Show learning feedback
+                    actual_total = actual_home + actual_away
+                    predicted_result = analysis.get('prediction', '')
+                    actual_result_type = "OVER 2.5" if actual_total > 2.5 else "UNDER 2.5"
+                    is_correct = predicted_result == actual_result_type
+                    
+                    st.info(f"""
+                    **Learning Update:**
+                    - Predicted: **{predicted_result}**
+                    - Actual: **{actual_result_type}** ({actual_home}-{actual_away})
+                    - Result: **{'✅ CORRECT' if is_correct else '❌ INCORRECT'}**
+                    - Pattern: {analysis.get('context', '').replace('_', ' ').title()}
+                    
+                    *This helps improve future predictions for similar matches.*
+                    """)
+                    
                     st.rerun()
+                else:
+                    st.error("Failed to record outcome. Please try again.")
 
 if __name__ == "__main__":
     main()
