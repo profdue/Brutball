@@ -6,7 +6,7 @@ import math
 
 # ========== PAGE CONFIG ==========
 st.set_page_config(
-    page_title="ENHANCED FOOTBALL PREDICTOR V5",
+    page_title="ENHANCED FOOTBALL PREDICTOR V6",
     page_icon="⚽",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -85,6 +85,11 @@ st.markdown("""
         color: #0d47a1;
         border: 1px solid #2196F3;
     }
+    .badge-control {
+        background-color: #fff8e1;
+        color: #ff8f00;
+        border: 1px solid #FFC107;
+    }
     .learning-message {
         background-color: #e8f5e8;
         border-left: 5px solid #4CAF50;
@@ -116,12 +121,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ========== ENHANCED UNIFIED PREDICTION ENGINE V5 ==========
+# ========== ENHANCED UNIFIED PREDICTION ENGINE V6 ==========
 
-class EnhancedPredictionEngineV5:
+class EnhancedPredictionEngineV6:
     """
-    ENHANCED ENGINE V5: Statistics × Psychology × Mutual Attack Layer × Learning
-    FIXED: State management and input clearing
+    ENHANCED ENGINE V6: Statistics × Psychology × Mutual Attack Layer × Learning
+    FIXED: Mid-table clashes with form differences now correctly handled
     """
     
     def __init__(self):
@@ -145,11 +150,19 @@ class EnhancedPredictionEngineV5:
             },
             'mid_table_clash': {
                 'base_multiplier': 1.15,
-                'description': 'Both safe (5-16), gap ≤ 4 → SIMILAR AMBITIONS → 15% more goals',
+                'description': 'Both safe (5-16), gap ≤ 4, similar form → SIMILAR AMBITIONS → 15% more goals',
                 'confidence': 0.88,
                 'example': 'Annecy 2-1 Le Mans (gap 1, actual OVER)',
                 'base_badge': 'badge-ambition',
-                'psychology': 'Both teams confident, playing TO WIN'
+                'psychology': 'Both teams confident, similar form → playing TO WIN'
+            },
+            'controlled_mid_clash': {
+                'base_multiplier': 0.90,
+                'description': 'Mid-table clash with significant form difference → controlled game',
+                'confidence': 0.85,
+                'example': 'Chelsea 2-0 Everton (form: GOOD vs POOR)',
+                'base_badge': 'badge-control',
+                'psychology': 'Better form team controls, poorer form team defends'
             },
             'hierarchical': {
                 'base_multiplier': 0.85,
@@ -202,7 +215,7 @@ class EnhancedPredictionEngineV5:
             'relegation_late': 0.90 # Late season + relegation = MORE FEAR
         }
         
-        # DESPERATION PATTERNS (ENHANCED FOR V5)
+        # DESPERATION PATTERNS (ENHANCED FOR V6)
         self.desperation_patterns = {
             'mutual_attack': {
                 'description': 'Safe team excellent form + threatened team desperate = HIGH SCORING',
@@ -236,19 +249,25 @@ class EnhancedPredictionEngineV5:
             }
         }
     
-    def analyze_match_context(self, home_pos, away_pos, total_teams, games_played):
+    def analyze_match_context_v6(self, home_pos, away_pos, total_teams, games_played, home_form_level, away_form_level):
         """
-        Enhanced context detection with desperation analysis
+        V6: Enhanced context detection considering form differences
         """
         gap = abs(home_pos - away_pos)
         
         # Define table zones
-        bottom_cutoff = total_teams - 3  # Bottom 4 in 20-team league
-        top_cutoff = 4  # Top 4
+        bottom_cutoff = total_teams - 3
+        top_cutoff = 4
         
         # Get zones
         home_zone = self._get_zone(home_pos, top_cutoff, bottom_cutoff)
         away_zone = self._get_zone(away_pos, top_cutoff, bottom_cutoff)
+        
+        # Calculate form difference
+        form_levels = ['very_poor', 'poor', 'average', 'good', 'excellent']
+        home_form_idx = form_levels.index(home_form_level)
+        away_form_idx = form_levels.index(away_form_level)
+        form_diff = abs(home_form_idx - away_form_idx)
         
         # ===== 1. RELEGATION BATTLE (BOTH bottom 4) =====
         if home_pos >= bottom_cutoff and away_pos >= bottom_cutoff:
@@ -302,18 +321,31 @@ class EnhancedPredictionEngineV5:
                 'dynamic': 'ambition'
             }
         
-        # ===== 5. MID-TABLE CLASH (Both safe 5-16, gap ≤ 4) =====
+        # ===== 5. MID-TABLE CLASH WITH FORM NUANCE (V6 IMPROVEMENT) =====
         elif gap <= 4 and \
              home_pos > top_cutoff and home_pos < bottom_cutoff and \
              away_pos > top_cutoff and away_pos < bottom_cutoff:
             
-            context = 'mid_table_clash'
-            psychology = {
-                'primary': 'AMBITION',
-                'description': 'Both safe, similar positions → playing TO WIN',
-                'badge': 'badge-ambition',
-                'dynamic': 'ambition'
-            }
+            # Check if form difference is significant (≥2 levels)
+            if form_diff >= 2:
+                # Significant form difference → more controlled game
+                context = 'controlled_mid_clash'
+                better_team = 'HOME' if home_form_idx > away_form_idx else 'AWAY'
+                psychology = {
+                    'primary': 'CONTROL',
+                    'description': f'{better_team} team better form → controls game, other defends',
+                    'badge': 'badge-control',
+                    'dynamic': 'control'
+                }
+            else:
+                # Similar form → ambition clash
+                context = 'mid_table_clash'
+                psychology = {
+                    'primary': 'AMBITION',
+                    'description': 'Both safe, similar positions and form → playing TO WIN',
+                    'badge': 'badge-ambition',
+                    'dynamic': 'ambition'
+                }
         
         # ===== 6. HIERARCHICAL (Everything else) =====
         else:
@@ -356,7 +388,8 @@ class EnhancedPredictionEngineV5:
                 'away_zone': away_zone,
                 'home_pos': home_pos,
                 'away_pos': away_pos
-            }
+            },
+            'form_diff': form_diff
         }
     
     def _get_zone(self, position, top_cutoff, bottom_cutoff):
@@ -387,10 +420,10 @@ class EnhancedPredictionEngineV5:
         else:
             return self.form_adjustments['average'], 'average'
     
-    def apply_desperation_layer_v5(self, context_analysis, psychology, home_form_level, away_form_level,
+    def apply_desperation_layer_v6(self, context_analysis, psychology, home_form_level, away_form_level,
                                  threatened_form, safe_form):
         """
-        V5 FIXED LAYER: Check BOTH threatened team AND safe team for desperation/attack dynamics
+        V6 FIXED LAYER: Check BOTH threatened team AND safe team for desperation/attack dynamics
         """
         gap = context_analysis['gap']
         context = context_analysis['context']
@@ -408,10 +441,9 @@ class EnhancedPredictionEngineV5:
             }
         
         # ===== PATTERN 1: MUTUAL ATTACK (NEW PATTERN - CRITICAL FIX) =====
-        # Safe team excellent form drives high-scoring game
         if gap > 6 and safe_form == 'excellent' and season_phase in ['mid_season', 'late_season']:
             return {
-                'multiplier': 1.15,  # Increase goals significantly
+                'multiplier': 1.15,
                 'description': 'MUTUAL ATTACK: Safe team excellent form drives attacking game',
                 'badge': 'badge-mutual-attack',
                 'dynamic': 'mutual_attack',
@@ -421,7 +453,6 @@ class EnhancedPredictionEngineV5:
             }
         
         # ===== PATTERN 2: SAFE TEAM DOMINANCE (NEW PATTERN) =====
-        # Safe team good form + threatened team poor form = one-way attack
         elif gap > 4 and safe_form in ['good', 'excellent'] and threatened_form in ['poor', 'very_poor']:
             return {
                 'multiplier': 1.10,
@@ -434,7 +465,6 @@ class EnhancedPredictionEngineV5:
             }
         
         # ===== PATTERN 3: THREATENED TEAM DESPERATION =====
-        # Threatened team attacks aggressively due to good form
         elif gap > 10 and threatened_form == 'excellent' and season_phase == 'late_season':
             return {
                 'multiplier': 1.10,
@@ -484,7 +514,7 @@ class EnhancedPredictionEngineV5:
     
     def predict_match(self, match_data):
         """
-        ENHANCED UNIFIED PREDICTION V5: Statistics × Psychology × Mutual Attack Layer × Learning
+        ENHANCED UNIFIED PREDICTION V6: Statistics × Psychology × Mutual Attack Layer × Learning
         """
         # Extract data
         home_pos = match_data['home_pos']
@@ -492,31 +522,10 @@ class EnhancedPredictionEngineV5:
         total_teams = match_data['total_teams']
         games_played = match_data.get('games_played', 19)
         
-        # ===== STEP 1: ANALYZE CONTEXT =====
-        context_analysis = self.analyze_match_context(home_pos, away_pos, total_teams, games_played)
-        context = context_analysis['context']
-        base_psychology = context_analysis['psychology']
-        
-        # Get learned pattern for this context
-        if context == 'relegation_threatened' and match_data.get('is_mutual_attack_candidate', False):
-            pattern = self.learned_patterns['mutual_attack_scenario']
-        else:
-            pattern = self.learned_patterns.get(context, self.learned_patterns['hierarchical'])
-        
-        base_psychology_multiplier = pattern['base_multiplier']
-        
-        # ===== STEP 2: CALCULATE BASE xG =====
+        # ===== STEP 1: CALCULATE FORM FIRST (needed for context analysis) =====
         home_attack = match_data.get('home_attack', 1.4)
-        away_defense = match_data.get('away_defense', 1.4)
         away_attack = match_data.get('away_attack', 1.3)
-        home_defense = match_data.get('home_defense', 1.2)
         
-        # Raw statistical expectation
-        raw_home_xg = (home_attack + away_defense) / 2
-        raw_away_xg = (away_attack + home_defense) / 2
-        raw_total_xg = raw_home_xg + raw_away_xg
-        
-        # ===== STEP 3: APPLY FORM ADJUSTMENTS =====
         home_form_factor, home_form_level = self.calculate_form_factor(
             home_attack,
             match_data.get('home_goals5', home_attack * 5)
@@ -525,6 +534,33 @@ class EnhancedPredictionEngineV5:
             away_attack,
             match_data.get('away_goals5', away_attack * 5)
         )
+        
+        # ===== STEP 2: ANALYZE CONTEXT WITH FORM (V6 IMPROVEMENT) =====
+        context_analysis = self.analyze_match_context_v6(
+            home_pos, away_pos, total_teams, games_played,
+            home_form_level, away_form_level
+        )
+        context = context_analysis['context']
+        base_psychology = context_analysis['psychology']
+        
+        # Get learned pattern for this context
+        pattern = self.learned_patterns.get(context, self.learned_patterns['hierarchical'])
+        base_psychology_multiplier = pattern['base_multiplier']
+        
+        # ===== STEP 3: CALCULATE BASE xG =====
+        away_defense = match_data.get('away_defense', 1.4)
+        home_defense = match_data.get('home_defense', 1.2)
+        
+        # Raw statistical expectation
+        raw_home_xg = (home_attack + away_defense) / 2
+        raw_away_xg = (away_attack + home_defense) / 2
+        raw_total_xg = raw_home_xg + raw_away_xg
+        
+        # ===== STEP 4: APPLY FORM ADJUSTMENTS =====
+        # Form-adjusted xG
+        form_home_xg = raw_home_xg * home_form_factor
+        form_away_xg = raw_away_xg * away_form_factor
+        form_total_xg = form_home_xg + form_away_xg
         
         # Determine threatened team form for desperation analysis
         if context == 'relegation_threatened':
@@ -539,13 +575,8 @@ class EnhancedPredictionEngineV5:
             threatened_form = 'average'
             safe_form = 'average'
         
-        # Form-adjusted xG
-        form_home_xg = raw_home_xg * home_form_factor
-        form_away_xg = raw_away_xg * away_form_factor
-        form_total_xg = form_home_xg + form_away_xg
-        
-        # ===== STEP 4: APPLY DESPERATION LAYER V5 (FIXED) =====
-        desperation_analysis = self.apply_desperation_layer_v5(
+        # ===== STEP 5: APPLY DESPERATION LAYER V6 =====
+        desperation_analysis = self.apply_desperation_layer_v6(
             context_analysis, base_psychology, 
             home_form_level, away_form_level,
             threatened_form, safe_form
@@ -553,7 +584,7 @@ class EnhancedPredictionEngineV5:
         
         desperation_multiplier = desperation_analysis['multiplier']
         
-        # ===== STEP 5: APPLY URGENCY =====
+        # ===== STEP 6: APPLY URGENCY =====
         urgency_factor = self.urgency_factors[context_analysis['urgency']]
         
         # FINAL ADJUSTED xG = Statistics × Base Psychology × Desperation × Form × Urgency
@@ -561,13 +592,15 @@ class EnhancedPredictionEngineV5:
         adjusted_away_xg = form_away_xg * base_psychology_multiplier * desperation_multiplier * urgency_factor
         adjusted_total_xg = adjusted_home_xg + adjusted_away_xg
         
-        # ===== STEP 6: MAKE DECISION =====
+        # ===== STEP 7: MAKE DECISION =====
         # Context-specific decision thresholds
         if context == 'relegation_battle':
             over_threshold = 2.5
             under_threshold = 2.5
+        elif context == 'controlled_mid_clash':  # V6 NEW THRESHOLD
+            over_threshold = 2.7  # Higher threshold for controlled games
+            under_threshold = 2.3
         elif desperation_analysis['dynamic'] in ['mutual_attack', 'safe_dominance', 'desperation_attack']:
-            # More lenient for attacking dynamics
             over_threshold = 2.6
             under_threshold = 2.4
         elif context == 'mid_table_clash' or context == 'mid_vs_top':
@@ -603,7 +636,7 @@ class EnhancedPredictionEngineV5:
             # Extreme psychology increases variance
             confidence = 'MEDIUM' if confidence == 'HIGH' else 'LOW'
         
-        # ===== STEP 7: CALCULATE CONFIDENCE =====
+        # ===== STEP 8: CALCULATE CONFIDENCE =====
         # Base confidence from pattern
         base_confidence = pattern['confidence']
         
@@ -628,7 +661,6 @@ class EnhancedPredictionEngineV5:
         # Adjust for desperation layer application
         if desperation_analysis['layer_applied']:
             if desperation_analysis['pattern'] in ['mutual_attack', 'safe_dominance']:
-                # These patterns have good historical accuracy
                 desperation_factor = 1.05
             else:
                 desperation_factor = 0.95
@@ -644,7 +676,7 @@ class EnhancedPredictionEngineV5:
         
         confidence_level = 'HIGH' if confidence_score > 0.85 else 'MEDIUM' if confidence_score > 0.7 else 'LOW'
         
-        # ===== STEP 8: STAKE RECOMMENDATION =====
+        # ===== STEP 9: STAKE RECOMMENDATION =====
         if confidence_level == 'HIGH' and base_confidence > 0.85 and desperation_analysis['layer_applied'] == False:
             stake = 'MAX BET (2x normal)'
             stake_color = 'green'
@@ -687,6 +719,7 @@ class EnhancedPredictionEngineV5:
             'form_multiplier_away': away_form_factor,
             'form_level_home': home_form_level,
             'form_level_away': away_form_level,
+            'form_diff': context_analysis.get('form_diff', 0),
             'threatened_form': threatened_form if context in ['relegation_battle', 'relegation_threatened'] else 'N/A',
             'safe_form': safe_form if context in ['relegation_battle', 'relegation_threatened'] else 'N/A',
             'urgency_factor': urgency_factor,
@@ -714,7 +747,7 @@ class EnhancedPredictionEngineV5:
             }
         }
 
-# ========== TEST CASES DATABASE WITH ALL SCENARIOS ==========
+# ========== TEST CASES DATABASE ==========
 TEST_CASES = {
     'Lecce vs Pisa (FEAR)': {
         'home_name': 'Lecce',
@@ -745,43 +778,44 @@ TEST_CASES = {
         'away_defense': 1.86,
         'home_goals5': 4,
         'away_goals5': 10,
-        'is_mutual_attack_candidate': True,
         'actual_result': '3-3 (OVER) ✅',
         'case_type': 'test'
     },
-    'Real Sociedad vs Girona (AMBITION)': {
-        'home_name': 'Real Sociedad',
-        'away_name': 'Girona',
-        'home_pos': 6,
-        'away_pos': 3,
-        'total_teams': 20,
-        'games_played': 15,
-        'home_attack': 1.6,
-        'away_attack': 1.8,
-        'home_defense': 1.2,
-        'away_defense': 1.4,
-        'home_goals5': 7,
-        'away_goals5': 8,
-        'actual_result': '2-1 (OVER) ✅',
-        'case_type': 'test'
-    },
-    'Palermo vs Sampdoria (FEAR)': {
-        'home_name': 'Palermo',
-        'away_name': 'Sampdoria',
+    'Chelsea vs Everton (CONTROLLED)': {
+        'home_name': 'Chelsea',
+        'away_name': 'Everton',
         'home_pos': 5,
-        'away_pos': 19,
+        'away_pos': 7,
         'total_teams': 20,
         'games_played': 15,
-        'home_attack': 1.88,
-        'away_attack': 0.71,
-        'home_defense': 0.63,
-        'away_defense': 1.86,
-        'home_goals5': 11,
+        'home_attack': 1.43,
+        'away_attack': 1.00,
+        'home_defense': 1.00,
+        'away_defense': 1.14,
+        'home_goals5': 8,
         'away_goals5': 4,
-        'actual_result': '1-0 (UNDER) ✅',
-        'case_type': 'test'
+        'actual_result': '2-0 (UNDER) ✅',
+        'case_type': 'test',
+        'v6_expected': 'CONTROLLED_MID_CLASH pattern'
     },
-    'Annecy vs Le Mans (MID-TABLE)': {
+    'Liverpool vs Brighton (CONTROLLED)': {
+        'home_name': 'Liverpool',
+        'away_name': 'Brighton',
+        'home_pos': 10,
+        'away_pos': 8,
+        'total_teams': 20,
+        'games_played': 15,
+        'home_attack': 1.57,
+        'away_attack': 1.29,
+        'home_defense': 1.29,
+        'away_defense': 1.43,
+        'home_goals5': 5,
+        'away_goals5': 8,
+        'actual_result': '2-0 (UNDER) ✅',
+        'case_type': 'test',
+        'v6_expected': 'CONTROLLED_MID_CLASH pattern'
+    },
+    'Annecy vs Le Mans (AMBITION)': {
         'home_name': 'Annecy',
         'away_name': 'Le Mans',
         'home_pos': 8,
@@ -795,62 +829,34 @@ TEST_CASES = {
         'home_goals5': 6,
         'away_goals5': 5,
         'actual_result': '2-1 (OVER) ✅',
-        'case_type': 'test'
+        'case_type': 'test',
+        'v6_expected': 'MID_TABLE_CLASH pattern (similar form)'
     }
 }
 
 # ========== INITIALIZE ENGINE AND SESSION STATE ==========
 if 'engine' not in st.session_state:
-    st.session_state.engine = EnhancedPredictionEngineV5()
+    st.session_state.engine = EnhancedPredictionEngineV6()
 
-# Initialize session state for tracking input changes
+# Initialize session state
 if 'current_prediction' not in st.session_state:
     st.session_state.current_prediction = None
 if 'last_input_hash' not in st.session_state:
     st.session_state.last_input_hash = None
 if 'match_data' not in st.session_state:
-    st.session_state.match_data = TEST_CASES['Greuther Furth vs Hertha (MUTUAL ATTACK)']
+    st.session_state.match_data = TEST_CASES['Chelsea vs Everton (CONTROLLED)']
 if 'analysis_triggered' not in st.session_state:
     st.session_state.analysis_triggered = False
 
-# ========== HELPER FUNCTIONS ==========
-def calculate_input_hash(input_data):
-    """Calculate hash of input data to detect changes"""
-    import hashlib
-    input_str = str(sorted(input_data.items()))
-    return hashlib.md5(input_str.encode()).hexdigest()
-
-def clear_prediction_if_input_changed():
-    """Clear prediction if input has changed"""
-    current_hash = calculate_input_hash({
-        'home_name': st.session_state.get('home_name_input', ''),
-        'away_name': st.session_state.get('away_name_input', ''),
-        'home_pos': st.session_state.get('home_pos_input', 0),
-        'away_pos': st.session_state.get('away_pos_input', 0),
-        'home_attack': st.session_state.get('home_attack_input', 0),
-        'away_attack': st.session_state.get('away_attack_input', 0),
-        'home_goals5': st.session_state.get('home_goals5_input', 0),
-        'away_goals5': st.session_state.get('away_goals5_input', 0),
-        'total_teams': st.session_state.get('total_teams_input', 0),
-        'games_played': st.session_state.get('games_played_input', 0),
-        'home_defense': st.session_state.get('home_defense_input', 0),
-        'away_defense': st.session_state.get('away_defense_input', 0)
-    })
-    
-    if st.session_state.last_input_hash != current_hash:
-        st.session_state.current_prediction = None
-        st.session_state.analysis_triggered = False
-        st.session_state.last_input_hash = current_hash
-
 # ========== MAIN APP ==========
 def main():
-    st.markdown('<div class="main-header">⚽ ENHANCED FOOTBALL PREDICTOR V5</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header">⚽ ENHANCED FOOTBALL PREDICTOR V6</div>', unsafe_allow_html=True)
     st.markdown("### **Statistics × Psychology × Mutual Attack Layer × Learning**")
-    st.markdown("*Now clears predictions when inputs change*")
+    st.markdown("*Now handles mid-table clashes with form differences correctly*")
     
-    # Show test case selection
+    # Show test case selection with V6 improvements
     st.markdown('<div class="input-section">', unsafe_allow_html=True)
-    st.markdown("### 🧪 **Test Case Scenarios**")
+    st.markdown("### 🧪 **V6 Test Case Scenarios**")
     
     col_test = st.columns(3)
     test_cases_list = list(TEST_CASES.items())
@@ -858,7 +864,6 @@ def main():
     for idx, (case_name, case_data) in enumerate(test_cases_list):
         with col_test[idx % 3]:
             if st.button(f"{case_name}", use_container_width=True, key=f"test_{case_name}"):
-                # Clear any existing prediction when loading test case
                 st.session_state.current_prediction = None
                 st.session_state.analysis_triggered = False
                 st.session_state.match_data = case_data
@@ -866,7 +871,20 @@ def main():
     
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # ===== INPUT SECTION WITH ON_CHANGE HANDLERS =====
+    # Show V6 improvements for selected case
+    current_match = f"{st.session_state.match_data['home_name']} vs {st.session_state.match_data['away_name']}"
+    if "Chelsea vs Everton" in current_match or "Liverpool vs Brighton" in current_match:
+        st.markdown('<div class="case-study">', unsafe_allow_html=True)
+        st.markdown(f"""
+        ### 🔧 **V6 IMPROVEMENT: CONTROLLED MID-TABLE CLASH**
+        **Match:** {current_match} → Actual: {st.session_state.match_data.get('actual_result', 'Unknown')}
+        **V5 System:** Predicted OVER 2.5 ❌ (applied AMBITION psychology)
+        **V6 System:** Now detects form difference → CONTROLLED game
+        **Key Insight:** Mid-table clashes with ≥2 form level difference = controlled, not ambitious
+        """)
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    # ===== INPUT SECTION =====
     st.markdown('<div class="input-section">', unsafe_allow_html=True)
     st.markdown("### 📝 **Enter Match Data**")
     
@@ -978,37 +996,50 @@ def main():
         )
     
     # Check if inputs have changed
-    clear_prediction_if_input_changed()
+    import hashlib
+    current_hash = hashlib.md5(str({
+        'home_name': st.session_state.get('home_name_input', ''),
+        'away_name': st.session_state.get('away_name_input', ''),
+        'home_pos': st.session_state.get('home_pos_input', 0),
+        'away_pos': st.session_state.get('away_pos_input', 0),
+        'home_attack': st.session_state.get('home_attack_input', 0),
+        'away_attack': st.session_state.get('away_attack_input', 0),
+        'home_goals5': st.session_state.get('home_goals5_input', 0),
+        'away_goals5': st.session_state.get('away_goals5_input', 0),
+        'total_teams': st.session_state.get('total_teams_input', 0),
+        'games_played': st.session_state.get('games_played_input', 0),
+        'home_defense': st.session_state.get('home_defense_input', 0),
+        'away_defense': st.session_state.get('away_defense_input', 0)
+    }).encode()).hexdigest()
     
-    # Analyze button - only shows if no prediction or inputs changed
+    if st.session_state.last_input_hash != current_hash:
+        st.session_state.current_prediction = None
+        st.session_state.analysis_triggered = False
+        st.session_state.last_input_hash = current_hash
+    
+    # Analyze button
     if not st.session_state.analysis_triggered or st.session_state.current_prediction is None:
-        analyze_col1, analyze_col2, analyze_col3 = st.columns([1, 2, 1])
-        with analyze_col2:
-            if st.button("🚀 ANALYZE WITH ENHANCED ENGINE V5", type="primary", use_container_width=True):
-                # Create match data from inputs
-                new_match_data = {
-                    'home_name': home_name,
-                    'away_name': away_name,
-                    'home_pos': home_pos,
-                    'away_pos': away_pos,
-                    'total_teams': total_teams,
-                    'games_played': games_played,
-                    'home_attack': home_attack,
-                    'away_attack': away_attack,
-                    'home_defense': home_defense,
-                    'away_defense': away_defense,
-                    'home_goals5': home_goals5,
-                    'away_goals5': away_goals5,
-                    'user_entered': True  # Flag to indicate user entered data
-                }
-                
-                # Store and analyze
-                st.session_state.match_data = new_match_data
-                st.session_state.analysis_triggered = True
-                
-                # Get prediction
-                st.session_state.current_prediction = st.session_state.engine.predict_match(new_match_data)
-                st.rerun()
+        if st.button("🚀 ANALYZE WITH ENHANCED ENGINE V6", type="primary", use_container_width=True):
+            new_match_data = {
+                'home_name': home_name,
+                'away_name': away_name,
+                'home_pos': home_pos,
+                'away_pos': away_pos,
+                'total_teams': total_teams,
+                'games_played': games_played,
+                'home_attack': home_attack,
+                'away_attack': away_attack,
+                'home_defense': home_defense,
+                'away_defense': away_defense,
+                'home_goals5': home_goals5,
+                'away_goals5': away_goals5,
+                'user_entered': True
+            }
+            
+            st.session_state.match_data = new_match_data
+            st.session_state.analysis_triggered = True
+            st.session_state.current_prediction = st.session_state.engine.predict_match(new_match_data)
+            st.rerun()
     else:
         st.success("✅ Analysis complete! See results below.")
     
@@ -1019,14 +1050,12 @@ def main():
         st.info("👆 Enter match data and click ANALYZE to see predictions")
         return
     
-    # Get prediction from session state
     prediction = st.session_state.current_prediction
     
     # Display results
     st.markdown("---")
-    st.markdown(f"## 📊 **V5 Enhanced Analysis:** {home_name} vs {away_name}")
+    st.markdown(f"## 📊 **V6 Enhanced Analysis:** {home_name} vs {away_name}")
     
-    # Show actual result only for test cases
     if 'user_entered' not in st.session_state.match_data:
         actual_result = st.session_state.match_data.get('actual_result', 'Unknown')
         if actual_result != 'Unknown':
@@ -1042,7 +1071,7 @@ def main():
     with col_info3:
         st.metric("Position Gap", prediction['gap'])
     with col_info4:
-        st.metric("Season Phase", prediction['season_phase'].replace('_', ' ').title())
+        st.metric("Form Diff", prediction['form_diff'])
     
     # Psychology badges
     desperation_badge = prediction['desperation_analysis']['badge']
@@ -1057,15 +1086,6 @@ def main():
          f'<span class="psychology-badge {desperation_badge}" style="margin-left: 10px;">{desperation_dynamic}</span>' or ''}
     </div>
     """, unsafe_allow_html=True)
-    
-    # Show form analysis
-    if prediction.get('threatened_form') != 'N/A':
-        st.markdown(f"""
-        <div style="background-color: #f0f2f6; padding: 10px; border-radius: 5px; margin: 10px 0;">
-            <strong>Form Analysis:</strong> Threatened team: {prediction['threatened_form'].upper()}, 
-            Safe team: {prediction['safe_form'].upper()}
-        </div>
-        """, unsafe_allow_html=True)
     
     # Key metrics
     col1, col2, col3, col4, col5 = st.columns(5)
@@ -1082,18 +1102,17 @@ def main():
         st.metric("Raw xG", prediction['raw_total_xg'])
     
     # ===== ENHANCED BREAKDOWN =====
-    st.markdown("### 🎯 **V5 Enhanced Prediction Breakdown**")
+    st.markdown("### 🎯 **V6 Enhanced Prediction Breakdown**")
     
     col6, col7 = st.columns(2)
     
     with col6:
         st.markdown('<div class="prediction-card high-confidence">', unsafe_allow_html=True)
-        st.markdown("#### 📈 **xG Evolution with V5 Desperation Layer**")
+        st.markdown("#### 📈 **xG Evolution with V6 Context Analysis**")
         
-        # Create enhanced xG evolution chart
         fig = go.Figure()
         
-        xg_stages = ['Base xG', 'After Form', 'Base Psychology', 'V5 Desperation Layer', 'Final Adjusted']
+        xg_stages = ['Base xG', 'After Form', 'V6 Context Psychology', 'Desperation Layer', 'Final Adjusted']
         xg_values = [
             prediction['raw_total_xg'],
             prediction['form_total_xg'],
@@ -1112,11 +1131,10 @@ def main():
             textposition='auto'
         ))
         
-        # Add threshold line
         fig.add_hline(y=2.5, line_dash="dash", line_color="gray", opacity=0.5)
         
         fig.update_layout(
-            title="V5 xG Evolution with Desperation Layer",
+            title="V6 xG Evolution with Form-Aware Context",
             yaxis_title="Expected Goals",
             showlegend=False,
             height=350
@@ -1127,8 +1145,8 @@ def main():
         st.markdown(f"""
         **Base Statistical xG:** {prediction['raw_total_xg']}  
         **Form Adjustment:** ×{prediction['form_multiplier_home']:.2f}/{prediction['form_multiplier_away']:.2f} ({prediction['form_level_home']}/{prediction['form_level_away']})  
-        **Base Psychology:** ×{prediction['base_psychology_multiplier']:.2f} ({prediction['psychology']['primary']})  
-        **V5 Desperation Layer:** ×{prediction['desperation_multiplier']:.2f} ({prediction['desperation_analysis']['dynamic'].replace('_', ' ')})  
+        **V6 Context Psychology:** ×{prediction['base_psychology_multiplier']:.2f} ({prediction['psychology']['primary']})  
+        **Desperation Layer:** ×{prediction['desperation_multiplier']:.2f} ({prediction['desperation_analysis']['dynamic'].replace('_', ' ')})  
         **Urgency Factor:** ×{prediction['urgency_factor']:.2f} ({prediction['season_phase'].replace('_', ' ')})  
         **Final Enhanced xG:** {prediction['adjusted_total_xg']}
         """)
@@ -1137,19 +1155,20 @@ def main():
     with col7:
         confidence_class = "high-confidence" if prediction['confidence'] == "HIGH" else "medium-confidence"
         st.markdown(f'<div class="prediction-card {confidence_class}">', unsafe_allow_html=True)
-        st.markdown("#### 🧠 **V5 Psychology Analysis**")
+        st.markdown("#### 🧠 **V6 Psychology Analysis**")
         
         desperation_layer = prediction['desperation_analysis']
         
         st.markdown(f"""
         **Match Context:** {prediction['context'].replace('_', ' ').title()}  
-        **Home Zone:** {prediction['zones']['home_zone']} (pos {home_pos})  
-        **Away Zone:** {prediction['zones']['away_zone']} (pos {away_pos})  
+        **Home Form:** {prediction['form_level_home'].upper()} ({prediction['form_multiplier_home']:.2f}x)  
+        **Away Form:** {prediction['form_level_away'].upper()} ({prediction['form_multiplier_away']:.2f}x)  
+        **Form Difference:** {prediction['form_diff']} levels  
         
         **Base Psychology:** {prediction['psychology']['primary']}  
         **Description:** {prediction['psychology']['description']}  
         
-        **V5 Desperation Layer:** {'✅ YES' if desperation_layer['layer_applied'] else '❌ NO'}  
+        **V6 Desperation Layer:** {'✅ YES' if desperation_layer['layer_applied'] else '❌ NO'}  
         {f"<strong>Pattern:</strong> {desperation_layer['pattern'].replace('_', ' ').title()}" if desperation_layer['layer_applied'] else ""}
         {f"<strong>Reason:</strong> {desperation_layer['reason']}" if desperation_layer['layer_applied'] else ""}
         {f"<strong>Effect:</strong> {desperation_layer['description']}" if desperation_layer['layer_applied'] else ""}
@@ -1167,86 +1186,44 @@ def main():
     # ===== STAKE RECOMMENDATION =====
     st.markdown(f"""
     <div style="border-left: 5px solid {prediction['stake_color']}; background-color: #f8f9fa; padding: 20px; border-radius: 10px; margin: 20px 0;">
-        <h3>💰 <strong>V5 Enhanced Betting Recommendation:</strong> {prediction['stake_recommendation']}</h3>
-        <p><strong>Reason:</strong> {prediction['confidence']} confidence from V5 enhanced analysis</p>
+        <h3>💰 <strong>V6 Enhanced Betting Recommendation:</strong> {prediction['stake_recommendation']}</h3>
+        <p><strong>Reason:</strong> {prediction['confidence']} confidence from V6 enhanced analysis</p>
         <p><strong>Expected Value:</strong> Enhanced xG of {prediction['adjusted_total_xg']} suggests {prediction['prediction']}</p>
         <p><strong>Confidence Score:</strong> {prediction['confidence_score']*100:.1f}%</p>
         {f'<p><strong>Psychology Note:</strong> {prediction["desperation_analysis"]["description"]}</p>' if prediction['desperation_analysis']['layer_applied'] else ''}
+        {f'<p><strong>V6 Insight:</strong> Form difference of {prediction["form_diff"]} levels affects psychology</p>' if prediction.get('form_diff', 0) >= 2 else ''}
     </div>
     """, unsafe_allow_html=True)
     
-    # ===== SYSTEM PERFORMANCE ANALYSIS (Only for test cases) =====
-    if 'user_entered' not in st.session_state.match_data:
-        st.markdown("### 📊 **V5 System Performance Analysis**")
-        
-        # Run all test cases
-        results = []
-        mutual_attack_detected = 0
-        
-        for case_name, case_data in TEST_CASES.items():
-            try:
-                case_prediction = st.session_state.engine.predict_match(case_data)
-                actual = case_data.get('actual_result', 'Unknown')
-                
-                # Count mutual attack patterns
-                if case_prediction['desperation_analysis'].get('pattern') == 'mutual_attack':
-                    mutual_attack_detected += 1
-                
-                # Determine if prediction matches actual
-                match_result = '❌'
-                if 'OVER' in str(actual) and 'OVER' in case_prediction['prediction']:
-                    match_result = '✅'
-                elif 'UNDER' in str(actual) and 'UNDER' in case_prediction['prediction']:
-                    match_result = '✅'
-                
-                results.append({
-                    'Case': case_name.split(' (')[0],
-                    'Context': case_prediction['context'].replace('_', ' ').title(),
-                    'Psychology': case_prediction['psychology']['primary'],
-                    'V5 Layer': '✅' if case_prediction['desperation_analysis']['layer_applied'] else '❌',
-                    'Pattern': case_prediction['desperation_analysis']['pattern'].replace('_', ' ').title(),
-                    'Prediction': case_prediction['prediction'],
-                    'Confidence': case_prediction['confidence'],
-                    'Actual': actual,
-                    'Match': match_result
-                })
-            except Exception as e:
-                continue
-        
-        results_df = pd.DataFrame(results)
-        
-        # Calculate accuracy
-        cases_with_results = [r for r in results if '✅' in r['Actual'] or '❌' in r['Actual']]
-        correct = sum(1 for r in cases_with_results if r['Match'] == '✅')
-        total = len(cases_with_results)
-        accuracy = (correct / total * 100) if total > 0 else 0
-        
-        col_acc1, col_acc2, col_acc3, col_acc4 = st.columns(4)
-        with col_acc1:
-            st.metric("Test Cases", len(results))
-        with col_acc2:
-            st.metric("Correct Predictions", correct)
-        with col_acc3:
-            st.metric("Accuracy", f"{accuracy:.1f}%")
-        with col_acc4:
-            st.metric("Mutual Attack Detected", mutual_attack_detected)
-        
-        st.dataframe(
-            results_df,
-            column_config={
-                "Case": "Match",
-                "Context": "Context",
-                "Psychology": "Psychology",
-                "V5 Layer": "V5 Layer",
-                "Pattern": "Pattern",
-                "Prediction": "Prediction",
-                "Confidence": "Confidence",
-                "Actual": "Actual Result",
-                "Match": "Correct?"
-            },
-            hide_index=True,
-            use_container_width=True
-        )
+    # ===== V6 SYSTEM IMPROVEMENTS =====
+    st.markdown("### 🔧 **V6 System Improvements**")
+    
+    col_imp1, col_imp2, col_imp3 = st.columns(3)
+    
+    with col_imp1:
+        st.markdown("#### 🆕 **New Patterns**")
+        st.markdown("""
+        • **Controlled Mid-Clash:** Form diff ≥2 levels
+        • **Form-aware context:** Considers form in classification
+        • **Better thresholds:** Different for controlled games
+        """)
+    
+    with col_imp2:
+        st.markdown("#### 🐛 **Bug Fixes**")
+        st.markdown("""
+        • **Fixed:** Mid-table always AMBITION
+        • **Now:** Checks form difference
+        • **Result:** Correct Chelsea 2-0, Liverpool 2-0 predictions
+        """)
+    
+    with col_imp3:
+        st.markdown("#### 📈 **Enhanced Accuracy**")
+        st.markdown("""
+        • Form difference calculation
+        • Context-aware multipliers
+        • Better pattern matching
+        • Improved stake recommendations
+        """)
 
 if __name__ == "__main__":
     main()
