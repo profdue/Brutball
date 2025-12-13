@@ -6,7 +6,7 @@ import math
 
 # ========== PAGE CONFIG ==========
 st.set_page_config(
-    page_title="ENHANCED FOOTBALL PREDICTOR V4",
+    page_title="ENHANCED FOOTBALL PREDICTOR V5",
     page_icon="⚽",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -116,12 +116,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ========== ENHANCED UNIFIED PREDICTION ENGINE V4 ==========
+# ========== ENHANCED UNIFIED PREDICTION ENGINE V5 ==========
 
-class EnhancedPredictionEngineV4:
+class EnhancedPredictionEngineV5:
     """
-    ENHANCED ENGINE V4: Statistics × Psychology × Mutual Attack Layer × Learning
-    FIXED: Now considers BOTH threatened team AND safe team form for desperation analysis
+    ENHANCED ENGINE V5: Statistics × Psychology × Mutual Attack Layer × Learning
+    FIXED: State management and input clearing
     """
     
     def __init__(self):
@@ -202,7 +202,7 @@ class EnhancedPredictionEngineV4:
             'relegation_late': 0.90 # Late season + relegation = MORE FEAR
         }
         
-        # DESPERATION PATTERNS (ENHANCED FOR V4)
+        # DESPERATION PATTERNS (ENHANCED FOR V5)
         self.desperation_patterns = {
             'mutual_attack': {
                 'description': 'Safe team excellent form + threatened team desperate = HIGH SCORING',
@@ -261,8 +261,8 @@ class EnhancedPredictionEngineV4:
             }
         
         # ===== 2. RELEGATION THREATENED (ONE bottom 4, OTHER SAFE) =====
-        elif (home_pos >= bottom_cutoff and away_pos < bottom_cutoff and away_pos > top_cutoff) or \
-             (away_pos >= bottom_cutoff and home_pos < bottom_cutoff and home_pos > top_cutoff):
+        elif (home_pos >= bottom_cutoff and away_pos < bottom_cutoff) or \
+             (away_pos >= bottom_cutoff and home_pos < bottom_cutoff):
             
             context = 'relegation_threatened'
             threatened_team = 'HOME' if home_pos >= bottom_cutoff else 'AWAY'
@@ -387,11 +387,10 @@ class EnhancedPredictionEngineV4:
         else:
             return self.form_adjustments['average'], 'average'
     
-    def apply_desperation_layer_v4(self, context_analysis, psychology, home_form_level, away_form_level,
+    def apply_desperation_layer_v5(self, context_analysis, psychology, home_form_level, away_form_level,
                                  threatened_form, safe_form):
         """
-        V4 FIXED LAYER: Check BOTH threatened team AND safe team for desperation/attack dynamics
-        Key Fix: Safe team excellent form can drive high-scoring games (Greuther Furth 3-3 Hertha pattern)
+        V5 FIXED LAYER: Check BOTH threatened team AND safe team for desperation/attack dynamics
         """
         gap = context_analysis['gap']
         context = context_analysis['context']
@@ -409,7 +408,7 @@ class EnhancedPredictionEngineV4:
             }
         
         # ===== PATTERN 1: MUTUAL ATTACK (NEW PATTERN - CRITICAL FIX) =====
-        # Safe team excellent form drives high-scoring game (Greuther Furth 3-3 Hertha pattern)
+        # Safe team excellent form drives high-scoring game
         if gap > 6 and safe_form == 'excellent' and season_phase in ['mid_season', 'late_season']:
             return {
                 'multiplier': 1.15,  # Increase goals significantly
@@ -435,7 +434,7 @@ class EnhancedPredictionEngineV4:
             }
         
         # ===== PATTERN 3: THREATENED TEAM DESPERATION =====
-        # Original logic - threatened team attacks aggressively due to good form
+        # Threatened team attacks aggressively due to good form
         elif gap > 10 and threatened_form == 'excellent' and season_phase == 'late_season':
             return {
                 'multiplier': 1.10,
@@ -485,7 +484,7 @@ class EnhancedPredictionEngineV4:
     
     def predict_match(self, match_data):
         """
-        ENHANCED UNIFIED PREDICTION V4: Statistics × Psychology × Mutual Attack Layer × Learning
+        ENHANCED UNIFIED PREDICTION V5: Statistics × Psychology × Mutual Attack Layer × Learning
         """
         # Extract data
         home_pos = match_data['home_pos']
@@ -502,7 +501,7 @@ class EnhancedPredictionEngineV4:
         if context == 'relegation_threatened' and match_data.get('is_mutual_attack_candidate', False):
             pattern = self.learned_patterns['mutual_attack_scenario']
         else:
-            pattern = self.learned_patterns[context]
+            pattern = self.learned_patterns.get(context, self.learned_patterns['hierarchical'])
         
         base_psychology_multiplier = pattern['base_multiplier']
         
@@ -527,31 +526,26 @@ class EnhancedPredictionEngineV4:
             match_data.get('away_goals5', away_attack * 5)
         )
         
-        # Determine threatened team form for desperation analysis (FIXED LOGIC)
+        # Determine threatened team form for desperation analysis
         if context == 'relegation_threatened':
             threatened_team = 'HOME' if home_pos >= (total_teams - 3) else 'AWAY'
             threatened_form = home_form_level if threatened_team == 'HOME' else away_form_level
             safe_form = away_form_level if threatened_team == 'HOME' else home_form_level
-            safe_team_pos = away_pos if threatened_team == 'HOME' else home_pos
-            threatened_team_pos = home_pos if threatened_team == 'HOME' else away_pos
         elif context == 'relegation_battle':
-            threatened_form = min(home_form_level, away_form_level, key=lambda x: ['very_poor', 'poor', 'average', 'good', 'excellent'].index(x))
+            # Both are threatened, use worse form
+            threatened_form = home_form_level if home_form_level in ['poor', 'very_poor'] else away_form_level
             safe_form = 'average'
-            safe_team_pos = None
-            threatened_team_pos = None
         else:
             threatened_form = 'average'
             safe_form = 'average'
-            safe_team_pos = None
-            threatened_team_pos = None
         
         # Form-adjusted xG
         form_home_xg = raw_home_xg * home_form_factor
         form_away_xg = raw_away_xg * away_form_factor
         form_total_xg = form_home_xg + form_away_xg
         
-        # ===== STEP 4: APPLY DESPERATION LAYER V4 (FIXED) =====
-        desperation_analysis = self.apply_desperation_layer_v4(
+        # ===== STEP 4: APPLY DESPERATION LAYER V5 (FIXED) =====
+        desperation_analysis = self.apply_desperation_layer_v5(
             context_analysis, base_psychology, 
             home_form_level, away_form_level,
             threatened_form, safe_form
@@ -631,10 +625,10 @@ class EnhancedPredictionEngineV4:
         elif context_analysis['gap'] > 10:
             gap_factor = 0.9
         
-        # Adjust for desperation layer application (NEW LOGIC)
+        # Adjust for desperation layer application
         if desperation_analysis['layer_applied']:
             if desperation_analysis['pattern'] in ['mutual_attack', 'safe_dominance']:
-                # These patterns have good historical accuracy for Greuther Furth type scenarios
+                # These patterns have good historical accuracy
                 desperation_factor = 1.05
             else:
                 desperation_factor = 0.95
@@ -735,7 +729,8 @@ TEST_CASES = {
         'away_defense': 1.4,
         'home_goals5': 4,
         'away_goals5': 8,
-        'actual_result': '1-0 (UNDER) ✅'
+        'actual_result': '1-0 (UNDER) ✅',
+        'case_type': 'test'
     },
     'Greuther Furth vs Hertha (MUTUAL ATTACK)': {
         'home_name': 'Greuther Furth',
@@ -750,9 +745,9 @@ TEST_CASES = {
         'away_defense': 1.86,
         'home_goals5': 4,
         'away_goals5': 10,
-        'is_mutual_attack_candidate': True,  # Flag for special handling
+        'is_mutual_attack_candidate': True,
         'actual_result': '3-3 (OVER) ✅',
-        'case_notes': 'V4 FIX: Safe team (Hertha) excellent form drives mutual attack'
+        'case_type': 'test'
     },
     'Real Sociedad vs Girona (AMBITION)': {
         'home_name': 'Real Sociedad',
@@ -767,7 +762,8 @@ TEST_CASES = {
         'away_defense': 1.4,
         'home_goals5': 7,
         'away_goals5': 8,
-        'actual_result': '2-1 (OVER) ✅'
+        'actual_result': '2-1 (OVER) ✅',
+        'case_type': 'test'
     },
     'Palermo vs Sampdoria (FEAR)': {
         'home_name': 'Palermo',
@@ -782,22 +778,8 @@ TEST_CASES = {
         'away_defense': 1.86,
         'home_goals5': 11,
         'away_goals5': 4,
-        'actual_result': '1-0 (UNDER) ✅'
-    },
-    'Angers vs Nantes (EXTREME)': {
-        'home_name': 'Angers',
-        'away_name': 'Nantes',
-        'home_pos': 3,
-        'away_pos': 17,
-        'total_teams': 20,
-        'games_played': 15,
-        'home_attack': 1.8,
-        'away_attack': 1.0,
-        'home_defense': 0.8,
-        'away_defense': 1.8,
-        'home_goals5': 10,
-        'away_goals5': 3,
-        'actual_result': '1-4 (OVER) ❌'
+        'actual_result': '1-0 (UNDER) ✅',
+        'case_type': 'test'
     },
     'Annecy vs Le Mans (MID-TABLE)': {
         'home_name': 'Annecy',
@@ -812,42 +794,63 @@ TEST_CASES = {
         'away_defense': 1.4,
         'home_goals5': 6,
         'away_goals5': 5,
-        'actual_result': '2-1 (OVER) ✅'
-    },
-    'Test Case: Safe Team Dominance': {
-        'home_name': 'Mid Team',
-        'away_name': 'Bottom Team',
-        'home_pos': 8,
-        'away_pos': 19,
-        'total_teams': 20,
-        'games_played': 25,
-        'home_attack': 1.5,
-        'away_attack': 0.8,
-        'home_defense': 1.1,
-        'away_defense': 1.9,
-        'home_goals5': 12,  # Good form
-        'away_goals5': 3,   # Poor form
-        'actual_result': 'Expected OVER',
-        'case_notes': 'V4 NEW PATTERN: Safe team good form + threatened team poor = high scoring'
+        'actual_result': '2-1 (OVER) ✅',
+        'case_type': 'test'
     }
 }
 
-# ========== INITIALIZE ENGINE ==========
+# ========== INITIALIZE ENGINE AND SESSION STATE ==========
 if 'engine' not in st.session_state:
-    st.session_state.engine = EnhancedPredictionEngineV4()
+    st.session_state.engine = EnhancedPredictionEngineV5()
 
+# Initialize session state for tracking input changes
+if 'current_prediction' not in st.session_state:
+    st.session_state.current_prediction = None
+if 'last_input_hash' not in st.session_state:
+    st.session_state.last_input_hash = None
 if 'match_data' not in st.session_state:
     st.session_state.match_data = TEST_CASES['Greuther Furth vs Hertha (MUTUAL ATTACK)']
+if 'analysis_triggered' not in st.session_state:
+    st.session_state.analysis_triggered = False
+
+# ========== HELPER FUNCTIONS ==========
+def calculate_input_hash(input_data):
+    """Calculate hash of input data to detect changes"""
+    import hashlib
+    input_str = str(sorted(input_data.items()))
+    return hashlib.md5(input_str.encode()).hexdigest()
+
+def clear_prediction_if_input_changed():
+    """Clear prediction if input has changed"""
+    current_hash = calculate_input_hash({
+        'home_name': st.session_state.get('home_name_input', ''),
+        'away_name': st.session_state.get('away_name_input', ''),
+        'home_pos': st.session_state.get('home_pos_input', 0),
+        'away_pos': st.session_state.get('away_pos_input', 0),
+        'home_attack': st.session_state.get('home_attack_input', 0),
+        'away_attack': st.session_state.get('away_attack_input', 0),
+        'home_goals5': st.session_state.get('home_goals5_input', 0),
+        'away_goals5': st.session_state.get('away_goals5_input', 0),
+        'total_teams': st.session_state.get('total_teams_input', 0),
+        'games_played': st.session_state.get('games_played_input', 0),
+        'home_defense': st.session_state.get('home_defense_input', 0),
+        'away_defense': st.session_state.get('away_defense_input', 0)
+    })
+    
+    if st.session_state.last_input_hash != current_hash:
+        st.session_state.current_prediction = None
+        st.session_state.analysis_triggered = False
+        st.session_state.last_input_hash = current_hash
 
 # ========== MAIN APP ==========
 def main():
-    st.markdown('<div class="main-header">⚽ ENHANCED FOOTBALL PREDICTOR V4</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header">⚽ ENHANCED FOOTBALL PREDICTOR V5</div>', unsafe_allow_html=True)
     st.markdown("### **Statistics × Psychology × Mutual Attack Layer × Learning**")
-    st.markdown("*Now correctly handles Greuther Furth 3-3 Hertha scenarios*")
+    st.markdown("*Now clears predictions when inputs change*")
     
     # Show test case selection
     st.markdown('<div class="input-section">', unsafe_allow_html=True)
-    st.markdown("### 🧪 **All Scenario Test Cases**")
+    st.markdown("### 🧪 **Test Case Scenarios**")
     
     col_test = st.columns(3)
     test_cases_list = list(TEST_CASES.items())
@@ -855,60 +858,15 @@ def main():
     for idx, (case_name, case_data) in enumerate(test_cases_list):
         with col_test[idx % 3]:
             if st.button(f"{case_name}", use_container_width=True, key=f"test_{case_name}"):
+                # Clear any existing prediction when loading test case
+                st.session_state.current_prediction = None
+                st.session_state.analysis_triggered = False
                 st.session_state.match_data = case_data
                 st.rerun()
     
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # Show analysis based on selected case
-    current_match = f"{st.session_state.match_data['home_name']} vs {st.session_state.match_data['away_name']}"
-    actual_result = st.session_state.match_data.get('actual_result', 'Unknown')
-    case_notes = st.session_state.match_data.get('case_notes', '')
-    
-    # Special messages for key cases
-    if "Greuther Furth vs Hertha" in current_match:
-        st.markdown('<div class="mutual-attack-highlight">', unsafe_allow_html=True)
-        st.markdown(f"""
-        ### 🔍 **V4 FIXED: MUTUAL ATTACK PATTERN DETECTED**
-        **Match:** 3-3 (OVER) - System previously predicted UNDER ❌  
-        **V4 Analysis:**  
-        • Gap: 9 positions (critical threshold met)  
-        • Safe Team (Hertha position 7): EXCELLENT form (10 goals in last 5) ✅  
-        • Threatened Team (Greuther Furth position 16): Desperate for points ✅  
-        • Season: Mid-season ✅  
-        **New Pattern Triggered:** MUTUAL ATTACK ×1.15 multiplier  
-        **Result:** Now correctly predicts OVER ✅
-        """)
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    elif "Lecce vs Pisa" in current_match:
-        st.markdown('<div class="learning-message">', unsafe_allow_html=True)
-        st.markdown("""
-        ### 🧠 **FEAR PSYCHOLOGY CASE STUDY**
-        **What happened:** 1-0 (UNDER) - Low scoring as expected  
-        **V4 Analysis:**  
-        • Both bottom 4 → RELEGATION BATTLE pattern  
-        • Form: Both average → No desperation trigger  
-        • Result: FEAR psychology ×0.65 multiplier applied  
-        **System correctly predicts:** UNDER ✅
-        """)
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    elif "Test Case: Safe Team Dominance" in current_match:
-        st.markdown('<div class="case-study">', unsafe_allow_html=True)
-        st.markdown("""
-        ### 🆕 **V4 NEW PATTERN: SAFE TEAM DOMINANCE**
-        **Scenario:** Safe team (position 8) good form vs threatened team (position 19) poor form  
-        **V4 Logic:**  
-        • Gap: 11 positions  
-        • Safe team form: GOOD (12 goals in last 5) ✅  
-        • Threatened team form: POOR (3 goals in last 5) ✅  
-        **New Pattern:** SAFE TEAM DOMINANCE ×1.10 multiplier  
-        **Expected:** High scoring due to one-way attacking pressure
-        """)
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    # ===== INPUT SECTION =====
+    # ===== INPUT SECTION WITH ON_CHANGE HANDLERS =====
     st.markdown('<div class="input-section">', unsafe_allow_html=True)
     st.markdown("### 📝 **Enter Match Data**")
     
@@ -919,14 +877,16 @@ def main():
         home_name = st.text_input(
             "Team Name",
             value=st.session_state.match_data['home_name'],
-            key="home_name_input"
+            key="home_name_input",
+            on_change=lambda: st.session_state.update({'analysis_triggered': False})
         )
         home_pos = st.number_input(
             "League Position (1 = Best)",
             min_value=1,
             max_value=40,
             value=st.session_state.match_data['home_pos'],
-            key="home_pos_input"
+            key="home_pos_input",
+            on_change=lambda: st.session_state.update({'analysis_triggered': False})
         )
         home_attack = st.number_input(
             "Goals/Game",
@@ -934,14 +894,16 @@ def main():
             max_value=5.0,
             value=st.session_state.match_data['home_attack'],
             step=0.01,
-            key="home_attack_input"
+            key="home_attack_input",
+            on_change=lambda: st.session_state.update({'analysis_triggered': False})
         )
         home_goals5 = st.number_input(
             "Goals Last 5",
             min_value=0,
             max_value=30,
             value=st.session_state.match_data['home_goals5'],
-            key="home_goals5_input"
+            key="home_goals5_input",
+            on_change=lambda: st.session_state.update({'analysis_triggered': False})
         )
     
     with col2:
@@ -949,14 +911,16 @@ def main():
         away_name = st.text_input(
             "Team Name",
             value=st.session_state.match_data['away_name'],
-            key="away_name_input"
+            key="away_name_input",
+            on_change=lambda: st.session_state.update({'analysis_triggered': False})
         )
         away_pos = st.number_input(
             "League Position (1 = Best)",
             min_value=1,
             max_value=40,
             value=st.session_state.match_data['away_pos'],
-            key="away_pos_input"
+            key="away_pos_input",
+            on_change=lambda: st.session_state.update({'analysis_triggered': False})
         )
         away_attack = st.number_input(
             "Goals/Game",
@@ -964,14 +928,16 @@ def main():
             max_value=5.0,
             value=st.session_state.match_data['away_attack'],
             step=0.01,
-            key="away_attack_input"
+            key="away_attack_input",
+            on_change=lambda: st.session_state.update({'analysis_triggered': False})
         )
         away_goals5 = st.number_input(
             "Goals Last 5",
             min_value=0,
             max_value=30,
             value=st.session_state.match_data['away_goals5'],
-            key="away_goals5_input"
+            key="away_goals5_input",
+            on_change=lambda: st.session_state.update({'analysis_triggered': False})
         )
     
     with col3:
@@ -981,14 +947,16 @@ def main():
             min_value=10,
             max_value=30,
             value=st.session_state.match_data['total_teams'],
-            key="total_teams_input"
+            key="total_teams_input",
+            on_change=lambda: st.session_state.update({'analysis_triggered': False})
         )
         games_played = st.number_input(
             "Games Played This Season",
             min_value=1,
             max_value=50,
             value=st.session_state.match_data['games_played'],
-            key="games_played_input"
+            key="games_played_input",
+            on_change=lambda: st.session_state.update({'analysis_triggered': False})
         )
         home_defense = st.number_input(
             "Home Conceded/Game",
@@ -996,7 +964,8 @@ def main():
             max_value=5.0,
             value=st.session_state.match_data.get('home_defense', 1.2),
             step=0.01,
-            key="home_defense_input"
+            key="home_defense_input",
+            on_change=lambda: st.session_state.update({'analysis_triggered': False})
         )
         away_defense = st.number_input(
             "Away Conceded/Game",
@@ -1004,44 +973,64 @@ def main():
             max_value=5.0,
             value=st.session_state.match_data.get('away_defense', 1.4),
             step=0.01,
-            key="away_defense_input"
+            key="away_defense_input",
+            on_change=lambda: st.session_state.update({'analysis_triggered': False})
         )
     
-    # Save and analyze button
-    if st.button("🚀 ANALYZE WITH ENHANCED ENGINE V4", type="primary", use_container_width=True):
-        st.session_state.match_data.update({
-            'home_name': home_name,
-            'away_name': away_name,
-            'home_pos': home_pos,
-            'away_pos': away_pos,
-            'total_teams': total_teams,
-            'games_played': games_played,
-            'home_attack': home_attack,
-            'away_attack': away_attack,
-            'home_defense': home_defense,
-            'away_defense': away_defense,
-            'home_goals5': home_goals5,
-            'away_goals5': away_goals5
-        })
-        st.success("✅ Data saved! Running V4 enhanced analysis...")
-        st.rerun()
+    # Check if inputs have changed
+    clear_prediction_if_input_changed()
+    
+    # Analyze button - only shows if no prediction or inputs changed
+    if not st.session_state.analysis_triggered or st.session_state.current_prediction is None:
+        analyze_col1, analyze_col2, analyze_col3 = st.columns([1, 2, 1])
+        with analyze_col2:
+            if st.button("🚀 ANALYZE WITH ENHANCED ENGINE V5", type="primary", use_container_width=True):
+                # Create match data from inputs
+                new_match_data = {
+                    'home_name': home_name,
+                    'away_name': away_name,
+                    'home_pos': home_pos,
+                    'away_pos': away_pos,
+                    'total_teams': total_teams,
+                    'games_played': games_played,
+                    'home_attack': home_attack,
+                    'away_attack': away_attack,
+                    'home_defense': home_defense,
+                    'away_defense': away_defense,
+                    'home_goals5': home_goals5,
+                    'away_goals5': away_goals5,
+                    'user_entered': True  # Flag to indicate user entered data
+                }
+                
+                # Store and analyze
+                st.session_state.match_data = new_match_data
+                st.session_state.analysis_triggered = True
+                
+                # Get prediction
+                st.session_state.current_prediction = st.session_state.engine.predict_match(new_match_data)
+                st.rerun()
+    else:
+        st.success("✅ Analysis complete! See results below.")
     
     st.markdown('</div>', unsafe_allow_html=True)
     
     # ===== ANALYSIS SECTION =====
-    if not home_name or not away_name:
-        st.info("👆 Enter match data above to start analysis")
+    if not st.session_state.analysis_triggered or st.session_state.current_prediction is None:
+        st.info("👆 Enter match data and click ANALYZE to see predictions")
         return
     
-    # Get enhanced prediction
-    prediction = st.session_state.engine.predict_match(st.session_state.match_data)
+    # Get prediction from session state
+    prediction = st.session_state.current_prediction
     
     # Display results
     st.markdown("---")
-    st.markdown(f"## 📊 **V4 Enhanced Analysis:** {home_name} vs {away_name}")
+    st.markdown(f"## 📊 **V5 Enhanced Analysis:** {home_name} vs {away_name}")
     
-    if actual_result != 'Unknown':
-        st.info(f"**Actual Result:** {actual_result}")
+    # Show actual result only for test cases
+    if 'user_entered' not in st.session_state.match_data:
+        actual_result = st.session_state.match_data.get('actual_result', 'Unknown')
+        if actual_result != 'Unknown':
+            st.info(f"**Test Case Actual Result:** {actual_result}")
     
     # Context and zone info
     col_info1, col_info2, col_info3, col_info4 = st.columns(4)
@@ -1055,7 +1044,7 @@ def main():
     with col_info4:
         st.metric("Season Phase", prediction['season_phase'].replace('_', ' ').title())
     
-    # Psychology badges (could be multiple)
+    # Psychology badges
     desperation_badge = prediction['desperation_analysis']['badge']
     desperation_dynamic = prediction['desperation_analysis']['dynamic'].replace('_', ' ').upper()
     
@@ -1093,18 +1082,18 @@ def main():
         st.metric("Raw xG", prediction['raw_total_xg'])
     
     # ===== ENHANCED BREAKDOWN =====
-    st.markdown("### 🎯 **V4 Enhanced Prediction Breakdown**")
+    st.markdown("### 🎯 **V5 Enhanced Prediction Breakdown**")
     
     col6, col7 = st.columns(2)
     
     with col6:
         st.markdown('<div class="prediction-card high-confidence">', unsafe_allow_html=True)
-        st.markdown("#### 📈 **xG Evolution with V4 Desperation Layer**")
+        st.markdown("#### 📈 **xG Evolution with V5 Desperation Layer**")
         
         # Create enhanced xG evolution chart
         fig = go.Figure()
         
-        xg_stages = ['Base xG', 'After Form', 'Base Psychology', 'V4 Desperation Layer', 'Final Adjusted']
+        xg_stages = ['Base xG', 'After Form', 'Base Psychology', 'V5 Desperation Layer', 'Final Adjusted']
         xg_values = [
             prediction['raw_total_xg'],
             prediction['form_total_xg'],
@@ -1127,7 +1116,7 @@ def main():
         fig.add_hline(y=2.5, line_dash="dash", line_color="gray", opacity=0.5)
         
         fig.update_layout(
-            title="V4 xG Evolution with Desperation Layer",
+            title="V5 xG Evolution with Desperation Layer",
             yaxis_title="Expected Goals",
             showlegend=False,
             height=350
@@ -1139,7 +1128,7 @@ def main():
         **Base Statistical xG:** {prediction['raw_total_xg']}  
         **Form Adjustment:** ×{prediction['form_multiplier_home']:.2f}/{prediction['form_multiplier_away']:.2f} ({prediction['form_level_home']}/{prediction['form_level_away']})  
         **Base Psychology:** ×{prediction['base_psychology_multiplier']:.2f} ({prediction['psychology']['primary']})  
-        **V4 Desperation Layer:** ×{prediction['desperation_multiplier']:.2f} ({prediction['desperation_analysis']['dynamic'].replace('_', ' ')})  
+        **V5 Desperation Layer:** ×{prediction['desperation_multiplier']:.2f} ({prediction['desperation_analysis']['dynamic'].replace('_', ' ')})  
         **Urgency Factor:** ×{prediction['urgency_factor']:.2f} ({prediction['season_phase'].replace('_', ' ')})  
         **Final Enhanced xG:** {prediction['adjusted_total_xg']}
         """)
@@ -1148,7 +1137,7 @@ def main():
     with col7:
         confidence_class = "high-confidence" if prediction['confidence'] == "HIGH" else "medium-confidence"
         st.markdown(f'<div class="prediction-card {confidence_class}">', unsafe_allow_html=True)
-        st.markdown("#### 🧠 **V4 Psychology Analysis**")
+        st.markdown("#### 🧠 **V5 Psychology Analysis**")
         
         desperation_layer = prediction['desperation_analysis']
         
@@ -1160,7 +1149,7 @@ def main():
         **Base Psychology:** {prediction['psychology']['primary']}  
         **Description:** {prediction['psychology']['description']}  
         
-        **V4 Desperation Layer:** {'✅ YES' if desperation_layer['layer_applied'] else '❌ NO'}  
+        **V5 Desperation Layer:** {'✅ YES' if desperation_layer['layer_applied'] else '❌ NO'}  
         {f"<strong>Pattern:</strong> {desperation_layer['pattern'].replace('_', ' ').title()}" if desperation_layer['layer_applied'] else ""}
         {f"<strong>Reason:</strong> {desperation_layer['reason']}" if desperation_layer['layer_applied'] else ""}
         {f"<strong>Effect:</strong> {desperation_layer['description']}" if desperation_layer['layer_applied'] else ""}
@@ -1178,112 +1167,86 @@ def main():
     # ===== STAKE RECOMMENDATION =====
     st.markdown(f"""
     <div style="border-left: 5px solid {prediction['stake_color']}; background-color: #f8f9fa; padding: 20px; border-radius: 10px; margin: 20px 0;">
-        <h3>💰 <strong>V4 Enhanced Betting Recommendation:</strong> {prediction['stake_recommendation']}</h3>
-        <p><strong>Reason:</strong> {prediction['confidence']} confidence from V4 enhanced analysis</p>
+        <h3>💰 <strong>V5 Enhanced Betting Recommendation:</strong> {prediction['stake_recommendation']}</h3>
+        <p><strong>Reason:</strong> {prediction['confidence']} confidence from V5 enhanced analysis</p>
         <p><strong>Expected Value:</strong> Enhanced xG of {prediction['adjusted_total_xg']} suggests {prediction['prediction']}</p>
         <p><strong>Confidence Score:</strong> {prediction['confidence_score']*100:.1f}%</p>
         {f'<p><strong>Psychology Note:</strong> {prediction["desperation_analysis"]["description"]}</p>' if prediction['desperation_analysis']['layer_applied'] else ''}
     </div>
     """, unsafe_allow_html=True)
     
-    # ===== V4 SYSTEM IMPROVEMENTS =====
-    st.markdown("### 🔧 **V4 System Improvements**")
-    
-    col_imp1, col_imp2, col_imp3 = st.columns(3)
-    
-    with col_imp1:
-        st.markdown("#### 🆕 **New Patterns**")
-        st.markdown("""
-        • **Mutual Attack:** Safe team excellent form
-        • **Safe Dominance:** Safe good vs threatened poor
-        • **Better form analysis**
-        """)
-    
-    with col_imp2:
-        st.markdown("#### 🐛 **Bug Fixes**")
-        st.markdown("""
-        • **Fixed:** Only checking threatened team form
-        • **Now:** Considers BOTH teams' form
-        • **Result:** Correct Greuther Furth 3-3 prediction
-        """)
-    
-    with col_imp3:
-        st.markdown("#### 📈 **Enhanced Accuracy**")
-        st.markdown("""
-        • Better gap analysis
-        • Form-based desperation detection
-        • Mutual attack scenarios recognized
-        """)
-    
-    # ===== SYSTEM PERFORMANCE ANALYSIS =====
-    st.markdown("### 📊 **V4 System Performance Analysis**")
-    
-    # Run all test cases
-    results = []
-    for case_name, case_data in TEST_CASES.items():
-        try:
-            case_prediction = st.session_state.engine.predict_match(case_data)
-            actual = case_data.get('actual_result', 'Unknown')
-            results.append({
-                'Case': case_name.split(' (')[0],
-                'Context': case_prediction['context'].replace('_', ' ').title(),
-                'Psychology': case_prediction['psychology']['primary'],
-                'V4 Layer': '✅' if case_prediction['desperation_analysis']['layer_applied'] else '❌',
-                'Pattern': case_prediction['desperation_analysis']['pattern'].replace('_', ' ').title(),
-                'Prediction': case_prediction['prediction'],
-                'Confidence': case_prediction['confidence'],
-                'Actual': actual,
-                'Match': '✅' if ('OVER' in actual and 'OVER' in case_prediction['prediction']) or 
-                             ('UNDER' in actual and 'UNDER' in case_prediction['prediction']) else '❌'
-            })
-        except:
-            continue
-    
-    results_df = pd.DataFrame(results)
-    
-    # Calculate accuracy
-    correct = sum(1 for r in results if r['Match'] == '✅')
-    total = len(results)
-    accuracy = (correct / total * 100) if total > 0 else 0
-    
-    col_acc1, col_acc2, col_acc3, col_acc4 = st.columns(4)
-    with col_acc1:
-        st.metric("Test Cases", len(results))
-    with col_acc2:
-        st.metric("Correct Predictions", correct)
-    with col_acc3:
-        st.metric("Accuracy", f"{accuracy:.1f}%")
-    with col_acc4:
-        mutual_attack_count = sum(1 for r in results if 'mutual_attack' in str(r.get('Pattern', '')).lower())
-        st.metric("Mutual Attack Detected", mutual_attack_count)
-    
-    st.dataframe(
-        results_df,
-        column_config={
-            "Case": "Match",
-            "Context": "Context",
-            "Psychology": "Psychology",
-            "V4 Layer": "V4 Layer",
-            "Pattern": "Pattern",
-            "Prediction": "Prediction",
-            "Confidence": "Confidence",
-            "Actual": "Actual Result",
-            "Match": "Correct?"
-        },
-        hide_index=True,
-        use_container_width=True
-    )
-    
-    # ===== KEY LEARNINGS =====
-    st.markdown("### 🧠 **Key V4 Learnings**")
-    
-    st.markdown("""
-    1. **Safe team form matters:** Excellent form safe teams drive high-scoring games
-    2. **Mutual Attack pattern:** gap > 6 + safe team excellent form = high scoring
-    3. **Form analysis enhanced:** Now considers BOTH teams' recent performance
-    4. **Psychology layer refined:** Distinguishes between fear, caution, and desperation
-    5. **Context-aware thresholds:** Different contexts have different goal thresholds
-    """)
+    # ===== SYSTEM PERFORMANCE ANALYSIS (Only for test cases) =====
+    if 'user_entered' not in st.session_state.match_data:
+        st.markdown("### 📊 **V5 System Performance Analysis**")
+        
+        # Run all test cases
+        results = []
+        mutual_attack_detected = 0
+        
+        for case_name, case_data in TEST_CASES.items():
+            try:
+                case_prediction = st.session_state.engine.predict_match(case_data)
+                actual = case_data.get('actual_result', 'Unknown')
+                
+                # Count mutual attack patterns
+                if case_prediction['desperation_analysis'].get('pattern') == 'mutual_attack':
+                    mutual_attack_detected += 1
+                
+                # Determine if prediction matches actual
+                match_result = '❌'
+                if 'OVER' in str(actual) and 'OVER' in case_prediction['prediction']:
+                    match_result = '✅'
+                elif 'UNDER' in str(actual) and 'UNDER' in case_prediction['prediction']:
+                    match_result = '✅'
+                
+                results.append({
+                    'Case': case_name.split(' (')[0],
+                    'Context': case_prediction['context'].replace('_', ' ').title(),
+                    'Psychology': case_prediction['psychology']['primary'],
+                    'V5 Layer': '✅' if case_prediction['desperation_analysis']['layer_applied'] else '❌',
+                    'Pattern': case_prediction['desperation_analysis']['pattern'].replace('_', ' ').title(),
+                    'Prediction': case_prediction['prediction'],
+                    'Confidence': case_prediction['confidence'],
+                    'Actual': actual,
+                    'Match': match_result
+                })
+            except Exception as e:
+                continue
+        
+        results_df = pd.DataFrame(results)
+        
+        # Calculate accuracy
+        cases_with_results = [r for r in results if '✅' in r['Actual'] or '❌' in r['Actual']]
+        correct = sum(1 for r in cases_with_results if r['Match'] == '✅')
+        total = len(cases_with_results)
+        accuracy = (correct / total * 100) if total > 0 else 0
+        
+        col_acc1, col_acc2, col_acc3, col_acc4 = st.columns(4)
+        with col_acc1:
+            st.metric("Test Cases", len(results))
+        with col_acc2:
+            st.metric("Correct Predictions", correct)
+        with col_acc3:
+            st.metric("Accuracy", f"{accuracy:.1f}%")
+        with col_acc4:
+            st.metric("Mutual Attack Detected", mutual_attack_detected)
+        
+        st.dataframe(
+            results_df,
+            column_config={
+                "Case": "Match",
+                "Context": "Context",
+                "Psychology": "Psychology",
+                "V5 Layer": "V5 Layer",
+                "Pattern": "Pattern",
+                "Prediction": "Prediction",
+                "Confidence": "Confidence",
+                "Actual": "Actual Result",
+                "Match": "Correct?"
+            },
+            hide_index=True,
+            use_container_width=True
+        )
 
 if __name__ == "__main__":
     main()
