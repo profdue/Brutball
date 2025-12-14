@@ -64,6 +64,19 @@ st.markdown("""
         text-align: center;
         margin: 1rem 0;
     }
+    .load-button {
+        background-color: #10B981;
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        border: none;
+        font-weight: bold;
+        width: 100%;
+        margin-top: 1rem;
+    }
+    .load-button:hover {
+        background-color: #0DA271;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -120,8 +133,8 @@ class PublicSentimentAnalyzer:
         if (odds_data.get('over_odds', 2.0) < 1.65 and
             odds_data.get('under_odds', 2.0) > 2.25 and
             match_data.get('home_team') in self.BIG_SIX and
-            match_data.get('home_last_5_goals', 0) > 10 and
-            odds_data.get('public_over_percentage', 0) > 70):
+            match_data.get('total_goals_last_5_home', 0) > 10 and
+            odds_data.get('public_bet_percentage', 0) > 70):
             traps.append({
                 'type': 'OVER_HYPE_TRAP',
                 'description': 'Public overestimates favorite attacking power',
@@ -132,9 +145,9 @@ class PublicSentimentAnalyzer:
         # Check for Under Fear Trap
         if (odds_data.get('under_odds', 2.0) < 1.70 and
             odds_data.get('over_odds', 2.0) > 2.20 and
-            match_data.get('home_last_3_conceded', 0) >= 5 and
-            match_data.get('away_last_3_conceded', 0) >= 5 and
-            odds_data.get('public_under_percentage', 0) < 30):
+            match_data.get('both_teams_conceded_5plus_last_3', False) and
+            match_data.get('is_relegation_battle', False) and
+            odds_data.get('public_bet_percentage', 0) < 30):
             traps.append({
                 'type': 'UNDER_FEAR_TRAP',
                 'description': 'Public overestimates defensive capabilities',
@@ -145,8 +158,8 @@ class PublicSentimentAnalyzer:
         # Check for Historical Data Trap
         if (match_data.get('h2h_over_percentage', 0) > 70 and
             match_data.get('recent_over_percentage', 0) < 40 and
-            odds_data.get('odds_trend', '') == 'over_down' and
-            match_data.get('new_manager', False)):
+            odds_data.get('odds_movement_favors_over', False) and
+            match_data.get('new_manager_any_team', False)):
             traps.append({
                 'type': 'HISTORICAL_DATA_TRAP',
                 'description': 'Historical data outdated due to team changes',
@@ -162,8 +175,8 @@ class PublicSentimentAnalyzer:
     
     def _calculate_bias_score(self, odds_data: Dict) -> float:
         """Calculate public bias score (0-1)"""
-        public_over = odds_data.get('public_over_percentage', 50)
-        return abs(public_over - 50) / 50
+        public_bet = odds_data.get('public_bet_percentage', 50)
+        return abs(public_bet - 50) / 50
 
 
 class FormHistoryConflictDetector:
@@ -187,8 +200,8 @@ class FormHistoryConflictDetector:
             adjustment_factors.append(0.75)
         
         # 2. DEFENSIVE IMPROVEMENT CONFLICT
-        hist_conceded = historical_stats.get('avg_conceded', 1.5)
-        recent_conceded = recent_stats.get('avg_conceded_last_5', 1.5)
+        hist_conceded = historical_stats.get('conceded_pg', 1.5)
+        recent_conceded = recent_stats.get('conceded_pg_last_5', 1.5)
         
         if hist_conceded > 1.5 and recent_conceded < 1.0:
             conflicts.append({
@@ -224,8 +237,16 @@ class FormHistoryConflictDetector:
         """Calculate weighted form average"""
         weights = [0.1, 0.15, 0.25, 0.25, 0.25]  # Last 5 games weights
         
-        goals_for = recent_stats.get('goals_for_last_5', [1, 1, 1, 1, 1])
-        goals_against = recent_stats.get('goals_against_last_5', [1, 1, 1, 1, 1])
+        # Parse goals lists
+        goals_for_str = recent_stats.get('goals_for_last_5', '1,1,1,1,1')
+        goals_against_str = recent_stats.get('goals_against_last_5', '1,1,1,1,1')
+        
+        try:
+            goals_for = [int(x.strip()) for x in goals_for_str.split(',')]
+            goals_against = [int(x.strip()) for x in goals_against_str.split(',')]
+        except:
+            goals_for = [1, 1, 1, 1, 1]
+            goals_against = [1, 1, 1, 1, 1]
         
         weighted_gf = sum(g * w for g, w in zip(goals_for, weights[-len(goals_for):]))
         weighted_ga = sum(g * w for g, w in zip(goals_against, weights[-len(goals_against):]))
@@ -262,6 +283,8 @@ class PressureContextAnalyzer:
         away_pos = context_data.get('away_position', 10)
         if (8 <= home_pos <= 12 and
             8 <= away_pos <= 12 and
+            context_data.get('both_safe_from_relegation', True) and
+            context_data.get('both_cannot_qualify_europe', False) and
             context_data.get('games_remaining', 10) <= 5):
             scenarios.append({
                 'type': 'NOTHING_TO_PLAY_FOR',
@@ -273,7 +296,7 @@ class PressureContextAnalyzer:
             adjustments.append(1.20)
         
         # DERBY_PRESSURE_COOKER
-        if context_data.get('is_derby', False):
+        if context_data.get('is_local_derby', False):
             scenarios.append({
                 'type': 'DERBY_PRESSURE_COOKER',
                 'psychology': 'FEAR_OF_LOSING > DESIRE_TO_WIN',
@@ -309,7 +332,7 @@ class PressureContextAnalyzer:
             score += 0.3
         
         # Derby pressure
-        if context_data.get('is_derby', False):
+        if context_data.get('is_local_derby', False):
             score += 0.2
         
         return min(score, 1.0)
@@ -527,27 +550,31 @@ def load_sample_data():
                 'date': '2024-03-15',
                 'historical_stats': {
                     'avg_goals': 3.2,
-                    'avg_conceded': 1.8,
+                    'conceded_pg': 1.8,
                     'manager': 'Old Manager',
-                    'h2h_over_percentage': 75
                 },
                 'recent_stats': {
                     'avg_goals_last_5': 1.8,
-                    'avg_conceded_last_5': 0.9,
+                    'conceded_pg_last_5': 0.9,
                     'manager': 'New Manager',
-                    'home_last_5_goals': 12,
-                    'home_last_3_conceded': 6,
-                    'away_last_3_conceded': 5,
-                    'goals_for_last_5': [2, 1, 0, 3, 1],
-                    'goals_against_last_5': [1, 0, 1, 0, 2]
+                    'total_goals_last_5_home': 12,
+                    'both_teams_conceded_5plus_last_3': False,
+                    'h2h_over_percentage': 75,
+                    'recent_over_percentage': 40,
+                    'new_manager_any_team': True,
+                    'goals_for_last_5': '2,1,0,3,1',
+                    'goals_against_last_5': '1,0,1,0,2'
                 }
             },
             'odds_data': {
                 'over_odds': 1.62,
                 'under_odds': 2.40,
-                'public_over_percentage': 78,
-                'public_under_percentage': 22,
-                'odds_volatility': 0.35
+                'public_bet_percentage': 78,
+                'opening_over_odds': 1.70,
+                'opening_under_odds': 2.20,
+                'odds_volatility': 0.35,
+                'bet_volume_over': 78,
+                'bet_volume_under': 22
             },
             'context_data': {
                 'home_position': 16,
@@ -556,49 +583,96 @@ def load_sample_data():
                 'away_points': 35,
                 'home_last_5_wins': 1,
                 'games_remaining': 8,
-                'is_derby': False
-            }
-        },
-        'match_2': {
-            'match_data': {
-                'home_team': 'Leicester',
-                'away_team': 'Everton',
-                'date': '2024-03-16',
-                'historical_stats': {
-                    'avg_goals': 2.5,
-                    'avg_conceded': 1.6,
-                    'manager': 'Same Manager',
-                    'h2h_over_percentage': 50
-                },
-                'recent_stats': {
-                    'avg_goals_last_5': 2.8,
-                    'avg_conceded_last_5': 1.2,
-                    'manager': 'Same Manager',
-                    'home_last_5_goals': 8,
-                    'home_last_3_conceded': 3,
-                    'away_last_3_conceded': 4,
-                    'goals_for_last_5': [2, 3, 1, 4, 2],
-                    'goals_against_last_5': [1, 2, 0, 1, 2]
-                }
-            },
-            'odds_data': {
-                'over_odds': 1.95,
-                'under_odds': 1.95,
-                'public_over_percentage': 45,
-                'public_under_percentage': 55,
-                'odds_volatility': 0.15
-            },
-            'context_data': {
-                'home_position': 9,
-                'away_position': 11,
-                'home_points': 32,
-                'away_points': 29,
-                'home_last_5_wins': 2,
-                'games_remaining': 4,
-                'is_derby': False
+                'is_local_derby': False,
+                'both_safe_from_relegation': False,
+                'both_cannot_qualify_europe': True,
+                'table_position_close': False
             }
         }
     }
+
+
+def process_csv_data(df: pd.DataFrame) -> Dict:
+    """Convert CSV data to match format for our system"""
+    matches = {}
+    
+    for idx, row in df.iterrows():
+        match_id = f"match_{idx + 1}"
+        
+        # Convert string lists to proper format
+        home_goals_list = str(row.get('home_goals_for_last_5', '1,1,1,1,1')).replace('"', '')
+        home_conceded_list = str(row.get('home_goals_against_last_5', '1,1,1,1,1')).replace('"', '')
+        away_goals_list = str(row.get('away_goals_for_last_5', '1,1,1,1,1')).replace('"', '')
+        away_conceded_list = str(row.get('away_goals_against_last_5', '1,1,1,1,1')).replace('"', '')
+        
+        match_data = {
+            'home_team': row.get('home_team', 'Unknown'),
+            'away_team': row.get('away_team', 'Unknown'),
+            'date': row.get('date', '2024-01-01'),
+            'historical_stats': {
+                'avg_goals': float(row.get('historical_avg_goals_home', 2.5)),
+                'conceded_pg': float(row.get('historical_conceded_pg_home', 1.5)),
+                'manager': str(row.get('home_manager', 'Unknown'))
+            },
+            'recent_stats': {
+                'avg_goals_last_5': float(row.get('recent_avg_goals_home', 2.5)),
+                'conceded_pg_last_5': float(row.get('recent_conceded_pg_home', 1.5)),
+                'manager': str(row.get('home_manager', 'Unknown')),
+                'total_goals_last_5_home': int(row.get('total_goals_last_5_home', 10)),
+                'both_teams_conceded_5plus_last_3': bool(row.get('both_teams_conceded_5plus_last_3', 0)),
+                'h2h_over_percentage': float(row.get('h2h_over_percentage', 50)),
+                'recent_over_percentage': float(row.get('recent_over_percentage', 50)),
+                'new_manager_any_team': bool(row.get('new_manager_any_team', 0)),
+                'goals_for_last_5': home_goals_list,
+                'goals_against_last_5': home_conceded_list
+            }
+        }
+        
+        # Add away team historical stats
+        match_data['historical_stats_away'] = {
+            'avg_goals': float(row.get('historical_avg_goals_away', 2.5)),
+            'conceded_pg': float(row.get('historical_conceded_pg_away', 1.5)),
+            'manager': str(row.get('away_manager', 'Unknown'))
+        }
+        
+        match_data['recent_stats_away'] = {
+            'avg_goals_last_5': float(row.get('recent_avg_goals_away', 2.5)),
+            'conceded_pg_last_5': float(row.get('recent_conceded_pg_away', 1.5)),
+            'goals_for_last_5': away_goals_list,
+            'goals_against_last_5': away_conceded_list
+        }
+        
+        odds_data = {
+            'over_odds': float(row.get('over_odds', 2.0)),
+            'under_odds': float(row.get('under_odds', 2.0)),
+            'public_bet_percentage': float(row.get('public_bet_percentage', 50)),
+            'opening_over_odds': float(row.get('opening_over_odds', 2.0)),
+            'opening_under_odds': float(row.get('opening_under_odds', 2.0)),
+            'odds_volatility': 0.2,  # Default
+            'bet_volume_over': float(row.get('bet_volume_over', 50)),
+            'bet_volume_under': float(row.get('bet_volume_under', 50))
+        }
+        
+        context_data = {
+            'home_position': int(row.get('home_position', 10)),
+            'away_position': int(row.get('away_position', 10)),
+            'home_points': int(row.get('home_points', 30)),
+            'away_points': 30,  # Default if not in CSV
+            'home_last_5_wins': int(row.get('home_last_5_wins', 2)),
+            'games_remaining': int(row.get('games_remaining', 10)),
+            'is_local_derby': bool(row.get('is_local_derby', 0)),
+            'both_safe_from_relegation': bool(row.get('both_safe_from_relegation', 1)),
+            'both_cannot_qualify_europe': bool(row.get('both_cannot_qualify_europe', 0)),
+            'table_position_close': bool(row.get('table_position_close', 0))
+        }
+        
+        matches[match_id] = {
+            'match_data': match_data,
+            'odds_data': odds_data,
+            'context_data': context_data
+        }
+    
+    return matches
 
 
 # Main App
@@ -607,23 +681,73 @@ def main():
     st.markdown('<h1 class="main-header">🎯 ANTI-MANIPULATION FOOTBALL PREDICTION SYSTEM</h1>', unsafe_allow_html=True)
     st.markdown("### Predicting when the market's prediction is wrong")
     
+    # Initialize session state
+    if 'csv_data' not in st.session_state:
+        st.session_state.csv_data = None
+    if 'csv_matches' not in st.session_state:
+        st.session_state.csv_matches = None
+    
     # Sidebar
     with st.sidebar:
         st.markdown('<div class="emoji-large">⚽</div>', unsafe_allow_html=True)
         st.title("System Configuration")
         
-        st.subheader("Analysis Settings")
-        min_edge = st.slider("Minimum Edge %", 0.0, 10.0, 2.0, 0.5)
-        max_bet_size = st.slider("Max Bet Size %", 1, 20, 10, 1)
-        
         st.subheader("Data Source")
         data_source = st.selectbox(
             "Select Data Source",
-            ["Sample Data", "CSV Upload", "API Connection"]
+            ["Sample Data", "Upload CSV File"]
         )
         
-        if data_source == "CSV Upload":
-            uploaded_file = st.file_uploader("Upload match data CSV", type=['csv'])
+        uploaded_file = None
+        csv_loaded = False
+        
+        if data_source == "Upload CSV File":
+            uploaded_file = st.file_uploader("Upload match data CSV", type=['csv'], key="csv_uploader")
+            
+            if uploaded_file is not None:
+                # Show file info
+                st.success(f"✅ File selected: {uploaded_file.name}")
+                
+                # Try to preview the CSV
+                try:
+                    df_preview = pd.read_csv(uploaded_file)
+                    st.info(f"📊 File contains: {len(df_preview)} rows, {len(df_preview.columns)} columns")
+                    
+                    with st.expander("Preview first 3 rows"):
+                        st.dataframe(df_preview.head(3))
+                    
+                    # Store the DataFrame in session state for the load button
+                    st.session_state.uploaded_df = df_preview
+                    
+                except Exception as e:
+                    st.error(f"Error reading CSV: {e}")
+                    st.session_state.uploaded_df = None
+                
+                # ADDED: LOAD BUTTON
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("🚀 Load CSV", type="primary", use_container_width=True):
+                        if 'uploaded_df' in st.session_state and st.session_state.uploaded_df is not None:
+                            # Process the CSV data
+                            st.session_state.csv_data = st.session_state.uploaded_df
+                            st.session_state.csv_matches = process_csv_data(st.session_state.csv_data)
+                            csv_loaded = True
+                            st.success("✅ CSV successfully loaded!")
+                            st.rerun()
+                        else:
+                            st.error("Please select a CSV file first")
+                
+                with col2:
+                    if st.button("🔄 Clear CSV", type="secondary", use_container_width=True):
+                        if 'csv_data' in st.session_state:
+                            st.session_state.csv_data = None
+                        if 'csv_matches' in st.session_state:
+                            st.session_state.csv_matches = None
+                        st.rerun()
+        
+        st.subheader("Analysis Settings")
+        min_edge = st.slider("Minimum Edge %", 0.0, 10.0, 2.0, 0.5)
+        max_bet_size = st.slider("Max Bet Size %", 1, 20, 10, 1)
         
         st.subheader("Filters")
         league_filter = st.multiselect(
@@ -633,7 +757,16 @@ def main():
         )
         
         st.markdown("---")
-        st.info("**System Status**: 🟢 Operational")
+        
+        # Show current data source status
+        if data_source == "Sample Data":
+            st.info("**Current Data**: Using Sample Data")
+        elif data_source == "Upload CSV File":
+            if st.session_state.csv_data is not None:
+                st.success(f"**Current Data**: CSV Loaded ({len(st.session_state.csv_data)} matches)")
+            else:
+                st.warning("**Current Data**: No CSV loaded yet")
+        
         st.warning("**Remember**: No bet is better than a forced bet")
     
     # Main content area
@@ -642,108 +775,120 @@ def main():
     with tab1:
         st.markdown('<h2 class="sub-header">Live Match Predictions</h2>', unsafe_allow_html=True)
         
-        # Load data
-        sample_data = load_sample_data()
-        
         # Initialize engine
         engine = AntiManipulationPredictionEngine()
         
+        # Determine which data to use
+        if data_source == "Upload CSV File" and st.session_state.csv_matches is not None:
+            # Use uploaded CSV data
+            sample_data = st.session_state.csv_matches
+            st.success(f"📊 Showing predictions from uploaded CSV ({len(sample_data)} matches)")
+        else:
+            # Use sample data
+            sample_data = load_sample_data()
+            st.info("📋 Showing predictions from sample data")
+        
         # Display predictions for each match
-        for match_id, match_info in sample_data.items():
-            with st.container():
-                col1, col2, col3 = st.columns([2, 1, 1])
-                
-                with col1:
-                    match = match_info['match_data']
-                    st.subheader(f"⚽ {match['home_team']} vs {match['away_team']}")
-                    st.caption(f"Date: {match['date']}")
-                
-                with col2:
-                    odds = match_info['odds_data']
-                    st.metric("Over 2.5", f"{odds['over_odds']:.2f}")
-                    st.metric("Under 2.5", f"{odds['under_odds']:.2f}")
-                
-                with col3:
-                    st.metric("Public on Over", f"{odds['public_over_percentage']}%")
-                    st.metric("Public on Under", f"{odds['public_under_percentage']}%")
-                
-                # Run prediction
-                prediction = engine.predict_match(
-                    match_info['match_data'],
-                    match_info['odds_data'],
-                    match_info['context_data']
-                )
-                
-                # Display result
-                col_a, col_b, col_c = st.columns(3)
-                
-                with col_a:
-                    if prediction['prediction'] == 'NO_VALUE_BET':
-                        st.error("NO BET RECOMMENDED")
-                    elif prediction['edge_percentage'] >= 5:
-                        st.success(f"🎯 **{prediction['prediction']}**")
-                    else:
-                        st.info(f"⚡ **{prediction['prediction']}**")
-                    
-                    st.metric("Edge", f"{prediction['edge_percentage']:.1f}%")
-                
-                with col_b:
-                    confidence_percent = prediction['confidence'] * 100
-                    st.metric("Confidence", f"{confidence_percent:.0f}%")
-                    
-                    bet_size = prediction['bet_size'] * 100
-                    st.metric("Bet Size", f"{bet_size:.1f}%")
-                
-                with col_c:
-                    traps = prediction['traps_detected']
-                    if traps:
-                        st.warning(f"🚨 {len(traps)} Traps Detected")
-                        for trap in traps[:2]:  # Show first 2 traps
-                            st.caption(f"• {trap['type']}")
-                    else:
-                        st.success("✅ No Traps Detected")
-                
-                # Expand for details
-                with st.expander("View Detailed Analysis"):
-                    col1, col2 = st.columns(2)
+        if not sample_data:
+            st.warning("No match data available. Please load a CSV file.")
+        else:
+            for match_id, match_info in sample_data.items():
+                with st.container():
+                    col1, col2, col3 = st.columns([2, 1, 1])
                     
                     with col1:
-                        st.markdown("**📈 Form vs History Analysis**")
-                        form_analysis = prediction['analyses']['form_vs_history']
-                        if form_analysis['conflicts']:
-                            for conflict in form_analysis['conflicts']:
-                                st.warning(f"{conflict['type']}: {conflict['message']}")
-                        else:
-                            st.success("No significant conflicts")
-                        
-                        st.metric("Form Adjustment", f"{form_analysis['overall_adjustment']:.2f}")
+                        match = match_info['match_data']
+                        st.subheader(f"⚽ {match['home_team']} vs {match['away_team']}")
+                        st.caption(f"Date: {match.get('date', 'N/A')}")
+                        if data_source == "Upload CSV File":
+                            st.caption(f"Data Source: Uploaded CSV")
                     
                     with col2:
-                        st.markdown("**🎭 Pressure Context**")
-                        pressure_analysis = prediction['analyses']['pressure_context']
-                        if pressure_analysis['scenarios']:
-                            for scenario in pressure_analysis['scenarios']:
-                                st.info(f"{scenario['type']}: {scenario['pattern']}")
+                        odds = match_info['odds_data']
+                        st.metric("Over 2.5", f"{odds['over_odds']:.2f}")
+                        st.metric("Under 2.5", f"{odds['under_odds']:.2f}")
+                    
+                    with col3:
+                        st.metric("Public on Over", f"{odds['public_bet_percentage']:.0f}%")
+                        st.metric("Opening Over", f"{odds.get('opening_over_odds', 'N/A')}")
+                    
+                    # Run prediction
+                    prediction = engine.predict_match(
+                        match_info['match_data'],
+                        match_info['odds_data'],
+                        match_info['context_data']
+                    )
+                    
+                    # Display result
+                    col_a, col_b, col_c = st.columns(3)
+                    
+                    with col_a:
+                        if prediction['prediction'] == 'NO_VALUE_BET':
+                            st.error("NO BET RECOMMENDED")
+                        elif prediction['edge_percentage'] >= 5:
+                            st.success(f"🎯 **{prediction['prediction']}**")
                         else:
-                            st.info("Normal match context")
+                            st.info(f"⚡ **{prediction['prediction']}**")
                         
-                        st.metric("Pressure Score", f"{pressure_analysis['pressure_score']:.2f}")
+                        st.metric("Edge", f"{prediction['edge_percentage']:.1f}%")
                     
-                    # True vs Implied Probability
-                    st.markdown("**📊 Probability Analysis**")
-                    prob_data = prediction['value_opportunity']['true_probabilities']
-                    impl_data = prediction['value_opportunity']['implied_probabilities']
+                    with col_b:
+                        confidence_percent = prediction['confidence'] * 100
+                        st.metric("Confidence", f"{confidence_percent:.0f}%")
+                        
+                        bet_size = prediction['bet_size'] * 100
+                        st.metric("Bet Size", f"{bet_size:.1f}%")
                     
-                    fig = go.Figure(data=[
-                        go.Bar(name='True Probability', x=['Over 2.5', 'Under 2.5'], 
-                               y=[prob_data['over_25'], prob_data['under_25']]),
-                        go.Bar(name='Implied Probability', x=['Over 2.5', 'Under 2.5'],
-                               y=[impl_data['over'], impl_data['under']])
-                    ])
-                    fig.update_layout(barmode='group', height=300)
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                st.divider()
+                    with col_c:
+                        traps = prediction['traps_detected']
+                        if traps:
+                            st.warning(f"🚨 {len(traps)} Traps Detected")
+                            for trap in traps[:2]:  # Show first 2 traps
+                                st.caption(f"• {trap['type']}")
+                        else:
+                            st.success("✅ No Traps Detected")
+                    
+                    # Expand for details
+                    with st.expander("View Detailed Analysis"):
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.markdown("**📈 Form vs History Analysis**")
+                            form_analysis = prediction['analyses']['form_vs_history']
+                            if form_analysis['conflicts']:
+                                for conflict in form_analysis['conflicts']:
+                                    st.warning(f"{conflict['type']}: {conflict['message']}")
+                            else:
+                                st.success("No significant conflicts")
+                            
+                            st.metric("Form Adjustment", f"{form_analysis['overall_adjustment']:.2f}")
+                        
+                        with col2:
+                            st.markdown("**🎭 Pressure Context**")
+                            pressure_analysis = prediction['analyses']['pressure_context']
+                            if pressure_analysis['scenarios']:
+                                for scenario in pressure_analysis['scenarios']:
+                                    st.info(f"{scenario['type']}: {scenario['pattern']}")
+                            else:
+                                st.info("Normal match context")
+                            
+                            st.metric("Pressure Score", f"{pressure_analysis['pressure_score']:.2f}")
+                        
+                        # True vs Implied Probability
+                        st.markdown("**📊 Probability Analysis**")
+                        prob_data = prediction['value_opportunity']['true_probabilities']
+                        impl_data = prediction['value_opportunity']['implied_probabilities']
+                        
+                        fig = go.Figure(data=[
+                            go.Bar(name='True Probability', x=['Over 2.5', 'Under 2.5'], 
+                                   y=[prob_data['over_25'], prob_data['under_25']]),
+                            go.Bar(name='Implied Probability', x=['Over 2.5', 'Under 2.5'],
+                                   y=[impl_data['over'], impl_data['under']])
+                        ])
+                        fig.update_layout(barmode='group', height=300)
+                        st.plotly_chart(fig, use_container_width=True)
+                    
+                    st.divider()
     
     with tab2:
         st.markdown('<h2 class="sub-header">System Analysis Dashboard</h2>', unsafe_allow_html=True)
