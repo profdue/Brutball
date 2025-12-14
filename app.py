@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 import logging
-import math
 
 # ========== SETUP LOGGING ==========
 logging.basicConfig(
@@ -158,7 +157,6 @@ st.markdown("""
     .status-safe { color: #4CAF50; font-weight: bold; }
     .status-danger { color: #F44336; font-weight: bold; }
     .status-mid { color: #FF9800; font-weight: bold; }
-    .status-uncertain { color: #2196F3; font-weight: bold; }
     .season-early { color: #2196F3; font-weight: bold; }
     .season-mid { color: #FF9800; font-weight: bold; }
     .season-late { color: #F44336; font-weight: bold; }
@@ -198,11 +196,6 @@ st.markdown("""
         margin: 10px 0;
         border-left: 4px solid #F44336;
     }
-    .bet-reason {
-        font-size: 0.85rem;
-        color: #666;
-        margin-top: 5px;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -227,7 +220,6 @@ class PersistentFootballDatabase:
                     logger.info(f"Loaded {len(self.predictions)} predictions from {self.storage_file}")
         except Exception as e:
             logger.error(f"Error loading database: {e}")
-            # Start fresh if file is corrupted
             self.predictions = []
             self.outcomes = []
     
@@ -320,7 +312,6 @@ class PersistentFootballDatabase:
         for pred in self.predictions:
             hash_val = pred.get('hash')
             conf = pred.get('analysis', {}).get('confidence', 'MEDIUM')
-            # Find matching outcome
             outcome = next((o for o in self.outcomes if o.get('prediction_hash') == hash_val), None)
             if outcome:
                 if conf not in conf_stats:
@@ -348,7 +339,6 @@ class PersistentFootballDatabase:
         recent = self.outcomes[-limit:] if self.outcomes else []
         formatted = []
         for outcome in recent:
-            # Find the matching prediction
             pred = next((p for p in self.predictions if p.get('hash') == outcome.get('prediction_hash')), None)
             if pred:
                 match_data = pred.get('match_data', {})
@@ -363,233 +353,164 @@ class PersistentFootballDatabase:
                 })
         return formatted
 
-# ========== ENHANCED PREDICTION ENGINE ==========
-class BalancedPredictionEngine:
+# ========== ORIGINAL PREDICTION ENGINE (YOUR WORKING LOGIC) ==========
+class OriginalPredictionEngine:
     def __init__(self):
+        # YOUR ORIGINAL PATTERNS - FIXED VALUES
         self.learned_patterns = {
             'top_vs_bottom_domination': {
-                'base_multiplier': 1.08,
+                'base_multiplier': 1.05,
                 'description': 'Top team good form vs bottom team → 2-1 type scores',
                 'psychology': 'DOMINATION',
                 'badge': 'badge-domination',
-                'accuracy_weight': 1.1,
-                'over_bias': 0.15  # Bias towards OVER
             },
             'relegation_battle': {
-                'base_multiplier': 0.70,
+                'base_multiplier': 0.65,
                 'description': 'Both fighting relegation → defensive football',
                 'psychology': 'FEAR',
                 'badge': 'badge-fear',
-                'accuracy_weight': 0.9,
-                'under_bias': 0.20  # Bias towards UNDER
             },
             'mid_table_ambition': {
-                'base_multiplier': 1.12,
+                'base_multiplier': 1.15,  # YOUR ORIGINAL VALUE - stays 1.15
                 'description': 'Both safe mid-table → attacking football',
                 'psychology': 'AMBITION',
                 'badge': 'badge-ambition',
-                'accuracy_weight': 1.05,
-                'over_bias': 0.10
             },
             'controlled_mid_clash': {
-                'base_multiplier': 0.95,
+                'base_multiplier': 0.90,
                 'description': 'Mid-table with form difference → controlled game',
                 'psychology': 'CONTROL',
                 'badge': 'badge-control',
-                'accuracy_weight': 1.0,
-                'neutral_bias': 0.0
             },
             'top_team_battle': {
-                'base_multiplier': 0.92,
+                'base_multiplier': 0.95,
                 'description': 'Top teams facing → quality creates and prevents goals',
                 'psychology': 'QUALITY',
                 'badge': 'badge-quality',
-                'accuracy_weight': 0.95,
-                'neutral_bias': 0.0
             },
             'top_vs_bottom_dominance': {
-                'base_multiplier': 0.88,
+                'base_multiplier': 0.85,
                 'description': 'Top team excellent form vs very poor bottom → 1-0 type',
                 'psychology': 'DOMINANCE',
                 'badge': 'badge-dominance',
-                'accuracy_weight': 1.08,
-                'under_bias': 0.10
             }
         }
         
+        # YOUR ORIGINAL EDGE PATTERNS
         self.edge_patterns = {
             'new_manager_bounce': {
-                'multiplier': 1.20,
-                'edge_value': 0.18,
-                'description': 'Players desperate to impress new manager',
-                'bet_type': 'HOME_WIN',
-                'accuracy_boost': 0.05,
-                'over_bias': 0.08
-            },
-            'derby_fear': {
-                'multiplier': 0.70,
-                'edge_value': 0.25,
-                'description': 'Fear of losing derby > desire to win',
-                'bet_type': 'UNDER_2_0',
-                'accuracy_boost': 0.07,
-                'under_bias': 0.15
-            },
-            'european_hangover': {
-                'multiplier': 0.80,
-                'edge_value': 0.22,
-                'description': 'Physical/mental exhaustion from European travel',
-                'bet_type': 'OPPONENT_DOUBLE_CHANCE',
-                'accuracy_boost': 0.06,
-                'under_bias': 0.10
-            },
-            'dead_rubber': {
                 'multiplier': 1.25,
                 'edge_value': 0.20,
+                'description': 'Players desperate to impress new manager',
+                'bet_type': 'HOME_WIN'
+            },
+            'derby_fear': {
+                'multiplier': 0.60,
+                'edge_value': 0.30,
+                'description': 'Fear of losing derby > desire to win',
+                'bet_type': 'UNDER_2_0'
+            },
+            'european_hangover': {
+                'multiplier': 0.75,
+                'edge_value': 0.28,
+                'description': 'Physical/mental exhaustion from European travel',
+                'bet_type': 'OPPONENT_DOUBLE_CHANCE'
+            },
+            'dead_rubber': {
+                'multiplier': 1.30,
+                'edge_value': 0.25,
                 'description': 'Beach football mentality, relaxed play',
-                'bet_type': 'OVER_2_5',
-                'accuracy_boost': 0.08,
-                'over_bias': 0.12
+                'bet_type': 'OVER_2_5'
             }
         }
         
-        # Dynamic thresholds based on match context
+        # YOUR ORIGINAL THRESHOLDS
         self.thresholds = {
-            'relegation_battle': {'over': 2.4, 'under': 2.6},
-            'top_vs_bottom_domination': {'over': 2.7, 'under': 2.3},
-            'dead_rubber': {'over': 2.3, 'under': 2.7},
-            'derby_fear': {'over': 2.9, 'under': 2.1},
-            'mid_table_ambition': {'over': 2.6, 'under': 2.4},
-            'top_team_battle': {'over': 2.8, 'under': 2.2},
-            'top_vs_bottom_dominance': {'over': 2.8, 'under': 2.2},
-            'controlled_mid_clash': {'over': 2.7, 'under': 2.3},
+            'relegation_battle': {'over': 2.3, 'under': 2.7},
+            'top_vs_bottom_domination': {'over': 2.6, 'under': 2.4},
+            'dead_rubber': {'over': 2.4, 'under': 2.6},
+            'derby_fear': {'over': 2.8, 'under': 2.2},
+            'mid_table_ambition': {'over': 2.6, 'under': 2.4},  # ADDED SPECIFIC THRESHOLD
             'default': {'over': 2.7, 'under': 2.3}
         }
     
     def auto_detect_context(self, match_data):
-        """Enhanced auto-detection with early season handling"""
+        """YOUR ORIGINAL LOGIC - 3-phase system with percentages"""
         total_teams = match_data.get('total_teams', 20)
         games_played = match_data.get('games_played', 1)
         home_pos = match_data.get('home_pos', 10)
         away_pos = match_data.get('away_pos', 10)
         
-        # Validate inputs
-        if games_played < 1:
-            games_played = 1
-        if home_pos < 1 or home_pos > total_teams:
-            home_pos = min(max(1, home_pos), total_teams)
-        if away_pos < 1 or away_pos > total_teams:
-            away_pos = min(max(1, away_pos), total_teams)
-        
-        # 1. Calculate season phase with enhanced logic
-        total_games_season = total_teams * 2
+        # 1. Calculate season phase - YOUR ORIGINAL LOGIC
+        total_games_season = total_teams * 2  # Double round-robin
         season_progress = (games_played / total_games_season) * 100
         
-        # More nuanced season phases
-        if games_played < 6:  # Very early
-            season_phase = 'very_early'
-            is_late_season = False
-            season_factor = 0.65
-        elif season_progress <= 33.33:
+        if season_progress <= 33.33:
             season_phase = 'early'
             is_late_season = False
-            season_factor = 0.8
         elif season_progress <= 66.66:
             season_phase = 'mid'
             is_late_season = False
-            season_factor = 1.0
-        elif season_progress <= 85:
+        else:
             season_phase = 'late'
             is_late_season = True
-            season_factor = 1.1
-        else:  # Very late
-            season_phase = 'very_late'
-            is_late_season = True
-            season_factor = 1.2
         
-        # 2. Calculate team safety zones
-        safe_cutoff = int(total_teams * 0.7)
-        danger_cutoff = total_teams - 3
-        relegation_zone = total_teams - 5
+        # 2. Calculate team safety zones - YOUR ORIGINAL LOGIC
+        safe_cutoff = int(total_teams * 0.7)  # Top 70% safe
+        danger_cutoff = total_teams - 3  # Bottom 3 always danger
         
-        # More nuanced statuses
-        if home_pos <= safe_cutoff:
-            home_status = 'safe'
-        elif home_pos <= relegation_zone:
-            home_status = 'mid'
-        else:
-            home_status = 'danger'
-            
-        if away_pos <= safe_cutoff:
-            away_status = 'safe'
-        elif away_pos <= relegation_zone:
-            away_status = 'mid'
-        else:
-            away_status = 'danger'
+        home_status = 'safe' if home_pos <= safe_cutoff else 'danger'
+        away_status = 'safe' if away_pos <= safe_cutoff else 'danger'
         
-        both_safe = home_status == 'safe' and away_status == 'safe'
-        both_danger = home_status == 'danger' and away_status == 'danger'
+        both_safe = home_pos < danger_cutoff and away_pos < danger_cutoff
         
-        # 3. Detect team classification
-        top_cutoff = 4
-        europe_cutoff = 7
+        # 3. Detect top/bottom classification - YOUR ORIGINAL 3-CLASS SYSTEM
+        top_cutoff = 4  # Top 4 considered elite
+        bottom_cutoff = total_teams - 5  # Bottom 5 considered poor
         
+        # SIMPLE 3-CLASS SYSTEM: top, mid, bottom
         if home_pos <= top_cutoff:
             home_class = 'top'
-        elif home_pos <= europe_cutoff:
-            home_class = 'europe'
         elif home_pos <= safe_cutoff:
             home_class = 'mid'
-        elif home_pos <= relegation_zone:
-            home_class = 'low_mid'
         else:
             home_class = 'bottom'
-            
+        
         if away_pos <= top_cutoff:
             away_class = 'top'
-        elif away_pos <= europe_cutoff:
-            away_class = 'europe'
         elif away_pos <= safe_cutoff:
             away_class = 'mid'
-        elif away_pos <= relegation_zone:
-            away_class = 'low_mid'
         else:
             away_class = 'bottom'
         
-        # 4. Position gap and form indicators
+        # 4. Position gap for pattern detection
         position_gap = abs(home_pos - away_pos)
         
         return {
             'season_phase': season_phase,
             'season_progress': season_progress,
-            'season_factor': season_factor,
             'home_status': home_status,
             'away_status': away_status,
             'both_safe': both_safe,
-            'both_danger': both_danger,
             'home_class': home_class,
             'away_class': away_class,
             'position_gap': position_gap,
             'is_late_season': is_late_season,
             'safe_cutoff': safe_cutoff,
             'danger_cutoff': danger_cutoff,
-            'relegation_zone': relegation_zone
+            'top_cutoff': top_cutoff,
+            'bottom_cutoff': bottom_cutoff
         }
     
     def analyze_match(self, match_data, manual_edges):
-        # Validate inputs first
-        validation_errors = validate_match_data(match_data)
-        if validation_errors:
-            logger.warning(f"Validation errors in match data: {validation_errors}")
-            match_data = self._apply_defaults(match_data)
+        home_pos = match_data.get('home_pos', 10)
+        away_pos = match_data.get('away_pos', 10)
+        total_teams = match_data.get('total_teams', 20)
         
-        # Auto-detect context
+        # Auto-detect context first - YOUR ORIGINAL LOGIC
         auto_context = self.auto_detect_context(match_data)
-        match_data['auto_context'] = auto_context
         
-        # Detect core pattern
-        core_pattern = self._detect_core_pattern_auto(auto_context)
-        
-        # Detect edge patterns
+        # Use auto-detected values
         edge_conditions = {
             'new_manager': manual_edges.get('new_manager', False),
             'is_derby': manual_edges.get('is_derby', False),
@@ -598,405 +519,135 @@ class BalancedPredictionEngine:
             'both_safe': auto_context['both_safe']
         }
         
-        edge_patterns = []
-        for edge_name, condition in edge_conditions.items():
-            if condition and edge_name in ['new_manager', 'is_derby', 'european_game']:
-                edge_key = {
-                    'new_manager': 'new_manager_bounce',
-                    'is_derby': 'derby_fear',
-                    'european_game': 'european_hangover'
-                }[edge_name]
-                edge_patterns.append(self.edge_patterns[edge_key])
+        # Detect core pattern using YOUR ORIGINAL DECISION TREE
+        core_pattern = self._detect_core_pattern_original(
+            auto_context['home_class'],
+            auto_context['away_class'],
+            auto_context['position_gap'],
+            auto_context['both_safe']
+        )
         
-        if edge_conditions['late_season'] and edge_conditions['both_safe']:
+        # Detect edge patterns
+        edge_patterns = []
+        if edge_conditions.get('new_manager'):
+            edge_patterns.append(self.edge_patterns['new_manager_bounce'])
+        if edge_conditions.get('is_derby'):
+            edge_patterns.append(self.edge_patterns['derby_fear'])
+        if edge_conditions.get('european_game'):
+            edge_patterns.append(self.edge_patterns['european_hangover'])
+        if edge_conditions.get('late_season') and edge_conditions.get('both_safe'):
             edge_patterns.append(self.edge_patterns['dead_rubber'])
         
-        # Calculate base xG
+        # Calculate xG - YOUR ORIGINAL FORMULA
         base_xg = self._calculate_base_xg(match_data)
         
-        # Apply pattern multiplier
-        pattern_info = self.learned_patterns[core_pattern]
-        total_multiplier = pattern_info['base_multiplier']
-        
-        # Apply edge multipliers
+        # Apply multipliers - YOUR ORIGINAL LOGIC
+        total_multiplier = self.learned_patterns[core_pattern]['base_multiplier']
         edge_value = 0
-        accuracy_boost = 0
-        pattern_bias = pattern_info.get('over_bias', 0) - pattern_info.get('under_bias', 0)
         
         for edge in edge_patterns:
             total_multiplier *= edge['multiplier']
             edge_value += edge['edge_value']
-            accuracy_boost += edge.get('accuracy_boost', 0)
-            pattern_bias += edge.get('over_bias', 0) - edge.get('under_bias', 0)
         
         enhanced_xg = base_xg * total_multiplier
         
-        # Apply season factor
-        season_factor = auto_context.get('season_factor', 1.0)
-        if auto_context['season_phase'] in ['very_early', 'early']:
-            # Less predictable in early season
-            enhanced_xg = (enhanced_xg + 2.5) / 2  # Regress toward mean
-        
-        # Make prediction with dynamic thresholds
+        # Make prediction - YOUR ORIGINAL THRESHOLD CHECK
         thresholds = self.thresholds.get(core_pattern, self.thresholds['default'])
         
-        # Adjust thresholds based on pattern bias
-        over_threshold = thresholds['over'] - (pattern_bias * 0.2)
-        under_threshold = thresholds['under'] + (pattern_bias * 0.2)
-        
-        if enhanced_xg > over_threshold:
+        if enhanced_xg > thresholds['over']:
             prediction = 'OVER 2.5'
-            prediction_bias = 'over'
-        elif enhanced_xg < under_threshold:
+            # YOUR ORIGINAL CONFIDENCE LOGIC
+            confidence = 'HIGH' if enhanced_xg > 3.0 else 'MEDIUM'
+        elif enhanced_xg < thresholds['under']:
             prediction = 'UNDER 2.5'
-            prediction_bias = 'under'
+            confidence = 'HIGH' if enhanced_xg < 2.0 else 'MEDIUM'
         else:
-            # Close call - use bias to decide
-            if pattern_bias > 0:
-                prediction = 'OVER 2.5'
-                prediction_bias = 'over'
-            elif pattern_bias < 0:
-                prediction = 'UNDER 2.5'
-                prediction_bias = 'under'
-            else:
-                prediction = 'OVER 2.5' if enhanced_xg > 2.5 else 'UNDER 2.5'
-                prediction_bias = 'neutral'
-        
-        # Calculate probability - BALANCED APPROACH
-        # Base probability from xG deviation
-        if prediction_bias == 'over':
-            # For OVER predictions
-            xg_deviation = enhanced_xg - 2.5
-            base_prob = 0.5 + (xg_deviation * 0.12)  # 0.12 sensitivity
-            
-            # Adjust based on how far above threshold
-            if enhanced_xg > over_threshold + 0.3:
-                base_prob += 0.10
-            elif enhanced_xg > over_threshold + 0.1:
-                base_prob += 0.05
-        else:
-            # For UNDER predictions
-            xg_deviation = 2.5 - enhanced_xg
-            base_prob = 0.5 + (xg_deviation * 0.15)  # Slightly more sensitive for UNDER
-            
-            # Adjust based on how far below threshold
-            if enhanced_xg < under_threshold - 0.3:
-                base_prob += 0.12
-            elif enhanced_xg < under_threshold - 0.1:
-                base_prob += 0.06
-        
-        # Edge pattern boost
-        if edge_value > 0.20:
-            base_prob += 0.12
-        elif edge_value > 0.10:
-            base_prob += 0.06
-        elif edge_value > 0.05:
-            base_prob += 0.03
-        
-        # Position gap factor
-        position_gap = auto_context['position_gap']
-        if position_gap > 12:
-            base_prob += 0.10
-        elif position_gap > 8:
-            base_prob += 0.06
-        elif position_gap > 4:
-            base_prob += 0.03
-        
-        # Recent form consistency
-        home_form = match_data.get('home_goals5', 0) / 5
-        away_form = match_data.get('away_goals5', 0) / 5
-        home_consistency = 1 - abs(home_form - match_data.get('home_attack', 1.5)) / 2
-        away_consistency = 1 - abs(away_form - match_data.get('away_attack', 1.5)) / 2
-        
-        if home_consistency > 0.8 and away_consistency > 0.8:
-            base_prob += 0.06
-        elif home_consistency > 0.7 or away_consistency > 0.7:
-            base_prob += 0.03
-        
-        # Season adjustments
-        season_phase = auto_context['season_phase']
-        if season_phase == 'very_early':
-            base_prob *= 0.75
-        elif season_phase == 'early':
-            base_prob *= 0.85
-        elif season_phase == 'very_late':
-            base_prob *= 1.05  # Slight boost for very late season
-        
-        # Pattern accuracy weight
-        base_prob *= pattern_info['accuracy_weight']
-        
-        # Add accuracy boost from edge patterns
-        base_prob += accuracy_boost
-        
-        # Apply caps
-        base_prob = min(base_prob, 0.88)  # Max 88%
-        base_prob = max(base_prob, 0.42)  # Min 42%
-        
-        # Map to confidence labels
-        if base_prob > 0.75:
-            confidence = 'VERY HIGH'
-        elif base_prob > 0.65:
-            confidence = 'HIGH'
-        elif base_prob > 0.55:
+            # Close to 2.5
+            prediction = 'OVER 2.5' if enhanced_xg > 2.5 else 'UNDER 2.5'
             confidence = 'MEDIUM'
-        else:
-            confidence = 'LOW'
         
-        # Kelly Criterion stake recommendation
-        stake_recommendation = self.calculate_kelly_stake(
-            confidence, edge_value, base_prob, 
-            prediction_bias, auto_context['season_phase'],
-            enhanced_xg
-        )
+        # Boost confidence if edge patterns present - YOUR ORIGINAL LOGIC
+        if edge_value > 0.20:
+            confidence = 'VERY HIGH'
+        elif edge_value > 0.10:
+            confidence = 'HIGH'
+        
+        # Stake recommendation - YOUR ORIGINAL LOGIC
+        if confidence == 'VERY HIGH' and edge_value > 0.25:
+            stake = 'MAX BET (3x) 🔥'
+        elif confidence == 'HIGH' and edge_value > 0.15:
+            stake = 'HEAVY BET (2x) ⚡'
+        elif edge_value > 0.10:
+            stake = 'NORMAL BET (1x) ✅'
+        else:
+            stake = 'SMALL BET (0.5x) ⚖️'
+        
+        # Calculate probability for display (not in original but useful)
+        probability = self._calculate_probability(enhanced_xg, prediction)
         
         return {
             'prediction': prediction,
             'confidence': confidence,
-            'actual_probability': round(base_prob, 3),
+            'probability': probability,
             'base_xg': round(base_xg, 2),
             'enhanced_xg': round(enhanced_xg, 2),
             'total_multiplier': round(total_multiplier, 2),
             'core_pattern': core_pattern,
             'edge_patterns': edge_patterns,
             'total_edge_value': round(edge_value, 3),
-            'stake_recommendation': stake_recommendation,
-            'thresholds_used': {'over': round(over_threshold, 2), 'under': round(under_threshold, 2)},
-            'psychology': pattern_info['psychology'],
-            'badge': pattern_info['badge'],
-            'pattern_accuracy_weight': pattern_info['accuracy_weight'],
-            'prediction_bias': prediction_bias,
-            'pattern_bias': round(pattern_bias, 3),
-            'season_factor': auto_context.get('season_factor', 1.0)
+            'stake_recommendation': stake,
+            'thresholds_used': thresholds,
+            'psychology': self.learned_patterns[core_pattern]['psychology'],
+            'badge': self.learned_patterns[core_pattern]['badge']
         }, auto_context
     
-    def calculate_kelly_stake(self, confidence, edge_value, probability, prediction_bias, season_phase, enhanced_xg):
-        """
-        Balanced Kelly Criterion calculation for all scenarios
-        """
-        # Dynamic odds based on confidence and xG
-        if prediction_bias == 'over':
-            # OVER bets - odds adjust based on xG
-            if enhanced_xg > 3.2:
-                base_odds = 1.70  # Low odds for high xG
-            elif enhanced_xg > 2.8:
-                base_odds = 1.80
-            elif enhanced_xg > 2.5:
-                base_odds = 1.85
-            else:
-                base_odds = 1.90
-        else:
-            # UNDER bets - odds adjust based on xG
-            if enhanced_xg < 1.8:
-                base_odds = 1.70  # Low odds for very low xG
-            elif enhanced_xg < 2.2:
-                base_odds = 1.80
-            elif enhanced_xg < 2.5:
-                base_odds = 1.85
-            else:
-                base_odds = 1.90
+    def _detect_core_pattern_original(self, home_class, away_class, position_gap, both_safe):
+        """YOUR ORIGINAL DECISION TREE - EXACTLY AS IN YOUR LOGIC BREAKDOWN"""
         
-        # Confidence adjustment to odds
-        if confidence == 'VERY HIGH':
-            odds = base_odds * 0.95  # Better odds for high confidence
-        elif confidence == 'HIGH':
-            odds = base_odds * 0.97
-        elif confidence == 'MEDIUM':
-            odds = base_odds
-        else:  # LOW
-            odds = base_odds * 1.03  # Worse odds for low confidence
-        
-        # Edge value adjustment to probability
-        p_adj = probability + (edge_value * 0.6)  # Moderate edge impact
-        
-        # Season phase adjustment
-        if season_phase in ['very_early', 'early']:
-            p_adj *= 0.9  # Reduce confidence in early season
-            odds *= 1.05  # Increase odds (worse value)
-        elif season_phase == 'very_late':
-            p_adj *= 1.05  # Slight boost in very late season
-            odds *= 0.98  # Slightly better odds
-        
-        # Ensure probability is reasonable
-        p_adj = min(p_adj, 0.90)
-        p_adj = max(p_adj, 0.40)
-        
-        # Kelly formula
-        b = odds - 1
-        q = 1 - p_adj
-        expected_value = (b * p_adj - q) * 100
-        
-        # Calculate Kelly fraction
-        if expected_value <= 0:
-            return {
-                'recommendation': 'NO BET ❌',
-                'reason': f'Negative expected value ({expected_value:.1f}%)',
-                'kelly_percentage': 0.0,
-                'fractional_percentage': 0.0,
-                'expected_value': round(expected_value, 1),
-                'adjusted_probability': round(p_adj, 3),
-                'odds_used': round(odds, 2),
-                'quality': 'poor'
-            }
-        
-        f = (b * p_adj - q) / b
-        
-        # Conservative fractional Kelly with dynamic fraction
-        if confidence == 'VERY HIGH' and edge_value > 0.2:
-            fraction = 1/3  # More aggressive for high confidence + edge
-        elif confidence in ['HIGH', 'VERY HIGH']:
-            fraction = 1/4  # Standard conservative
-        elif confidence == 'MEDIUM':
-            fraction = 1/5  # More conservative
-        else:
-            fraction = 1/6  # Very conservative for low confidence
-        
-        f_fractional = f * fraction
-        
-        # Dynamic caps based on confidence
-        if confidence == 'VERY HIGH':
-            max_stake = 0.08  # 8% max
-        elif confidence == 'HIGH':
-            max_stake = 0.06  # 6% max
-        elif confidence == 'MEDIUM':
-            max_stake = 0.04  # 4% max
-        else:
-            max_stake = 0.02  # 2% max
-        
-        f_fractional = min(f_fractional, max_stake)
-        
-        # Minimum bet for positive EV
-        min_stake = 0.005  # 0.5% minimum
-        if expected_value > 5:  # Good EV
-            f_fractional = max(f_fractional, min_stake)
-        
-        # Determine stake level
-        if f_fractional > 0.05:
-            rec_text = f'HIGH BET ({f_fractional*100:.1f}% of bankroll) ⚡'
-            quality = 'excellent'
-        elif f_fractional > 0.03:
-            rec_text = f'MEDIUM BET ({f_fractional*100:.1f}% of bankroll) ✅'
-            quality = 'good'
-        elif f_fractional > 0.01:
-            rec_text = f'SMALL BET ({f_fractional*100:.1f}% of bankroll) ⚖️'
-            quality = 'moderate'
-        else:
-            rec_text = f'MINIMAL BET ({f_fractional*100:.1f}% of bankroll) 📉'
-            quality = 'low'
-        
-        # Reason based on factors
-        reasons = []
-        if edge_value > 0.15:
-            reasons.append(f"strong edge (+{edge_value*100:.0f}%)")
-        if confidence in ['HIGH', 'VERY HIGH']:
-            reasons.append(f"high confidence")
-        if expected_value > 10:
-            reasons.append(f"excellent value (+{expected_value:.1f}%)")
-        
-        reason_text = " + ".join(reasons) if reasons else "positive expected value"
-        
-        return {
-            'recommendation': rec_text,
-            'reason': f'Based on {reason_text}',
-            'kelly_percentage': round(f, 3),
-            'fractional_percentage': round(f_fractional, 3),
-            'expected_value': round(expected_value, 1),
-            'adjusted_probability': round(p_adj, 3),
-            'odds_used': round(odds, 2),
-            'quality': quality,
-            'full_kelly': round(f * 100, 1),
-            'fraction_used': f"1/{int(1/fraction)}"
-        }
-    
-    def _detect_core_pattern_auto(self, auto_context):
-        """Enhanced pattern detection"""
-        home_class = auto_context['home_class']
-        away_class = auto_context['away_class']
-        both_safe = auto_context['both_safe']
-        both_danger = auto_context['both_danger']
-        position_gap = auto_context['position_gap']
-        
-        # Top vs Bottom patterns
-        if (home_class in ['top', 'europe'] and away_class in ['bottom', 'low_mid']):
-            if position_gap > 10:
+        # 1. TOP vs BOTTOM DOMINATION
+        if (home_class == 'top' and away_class == 'bottom') or (away_class == 'top' and home_class == 'bottom'):
+            if position_gap > 8:
                 return 'top_vs_bottom_domination'
             else:
                 return 'top_vs_bottom_dominance'
         
-        if (away_class in ['top', 'europe'] and home_class in ['bottom', 'low_mid']):
-            if position_gap > 10:
-                return 'top_vs_bottom_domination'
-            else:
-                return 'top_vs_bottom_dominance'
-        
-        # Both in danger zone
-        if both_danger:
+        # 2. RELEGATION BATTLE (both fighting to survive)
+        if home_class == 'bottom' and away_class == 'bottom':
             return 'relegation_battle'
         
-        # Top team battle
-        if home_class in ['top', 'europe'] and away_class in ['top', 'europe']:
+        # 3. TOP TEAM BATTLE (both competing for titles)
+        if home_class == 'top' and away_class == 'top':
             return 'top_team_battle'
         
-        # Both safe mid-table
+        # 4. MID TABLE AMBITION (both safe, nothing to play for)
         if both_safe and home_class == 'mid' and away_class == 'mid':
             return 'mid_table_ambition'
         
-        # Late season dead rubber (detected separately)
-        
-        # Default
+        # 5. DEFAULT: Controlled game
         return 'controlled_mid_clash'
     
     def _calculate_base_xg(self, match_data):
-        """Calculate base expected goals with form consideration"""
+        """YOUR ORIGINAL xG FORMULA"""
         home_attack = match_data.get('home_attack', 1.4)
         away_attack = match_data.get('away_attack', 1.3)
         home_defense = match_data.get('home_defense', 1.2)
         away_defense = match_data.get('away_defense', 1.4)
-        home_goals5 = match_data.get('home_goals5', 7)
-        away_goals5 = match_data.get('away_goals5', 6)
         
-        # Apply bounds
-        home_attack = min(max(home_attack, 0.0), 5.0)
-        away_attack = min(max(away_attack, 0.0), 5.0)
-        home_defense = min(max(home_defense, 0.0), 5.0)
-        away_defense = min(max(away_defense, 0.0), 5.0)
-        
-        # Recent form adjustment (weighted 30% recent form, 70% season average)
-        home_recent = home_goals5 / 5
-        away_recent = away_goals5 / 5
-        
-        home_attack_adj = (home_attack * 0.7) + (home_recent * 0.3)
-        away_attack_adj = (away_attack * 0.7) + (away_recent * 0.3)
-        
-        # Calculate xG
-        home_xg = (home_attack_adj + away_defense) / 2
-        away_xg = (away_attack_adj + home_defense) / 2
+        home_xg = (home_attack + away_defense) / 2
+        away_xg = (away_attack + home_defense) / 2
         
         return home_xg + away_xg
     
-    def _apply_defaults(self, match_data):
-        """Apply default values for invalid inputs"""
-        defaults = {
-            'home_attack': 1.4,
-            'away_attack': 1.3,
-            'home_defense': 1.2,
-            'away_defense': 1.4,
-            'home_goals5': 7,
-            'away_goals5': 6,
-            'home_pos': 10,
-            'away_pos': 10,
-            'total_teams': 20,
-            'games_played': 25
-        }
+    def _calculate_probability(self, enhanced_xg, prediction):
+        """Calculate probability for display (not in original but useful)"""
+        if prediction == 'OVER 2.5':
+            # Probability increases as xG goes above 2.5
+            prob = 0.5 + min((enhanced_xg - 2.5) * 0.15, 0.35)
+        else:  # UNDER 2.5
+            # Probability increases as xG goes below 2.5
+            prob = 0.5 + min((2.5 - enhanced_xg) * 0.15, 0.35)
         
-        for key, default in defaults.items():
-            if key not in match_data or not isinstance(match_data[key], (int, float)):
-                match_data[key] = default
-            elif key in ['home_attack', 'away_attack', 'home_defense', 'away_defense']:
-                match_data[key] = min(max(match_data[key], 0.0), 5.0)
-            elif key in ['home_pos', 'away_pos']:
-                match_data[key] = min(max(int(match_data[key]), 1), match_data.get('total_teams', 20))
-        
-        return match_data
+        return min(max(prob, 0.35), 0.85)  # Keep between 35-85%
 
 # ========== TEST CASES ==========
 TEST_CASES = {
@@ -1076,7 +727,7 @@ TEST_CASES = {
             'european_game': False
         }
     },
-    'Brentford vs Leeds (Your Example)': {
+    'Brentford vs Leeds': {
         'home_name': 'Brentford',
         'away_name': 'Leeds United',
         'home_pos': 15,
@@ -1089,6 +740,25 @@ TEST_CASES = {
         'away_defense': 2.57,
         'home_goals5': 12,
         'away_goals5': 6,
+        'edge_conditions': {
+            'new_manager': False,
+            'is_derby': False,
+            'european_game': False
+        }
+    },
+    'Adelaide vs Brisbane (12-team)': {
+        'home_name': 'Adelaide',
+        'away_name': 'Brisbane',
+        'home_pos': 6,
+        'away_pos': 4,
+        'total_teams': 12,
+        'games_played': 6,
+        'home_attack': 1.5,
+        'away_attack': 1.1,
+        'home_defense': 1.37,
+        'away_defense': 1.29,
+        'home_goals5': 8,
+        'away_goals5': 2,
         'edge_conditions': {
             'new_manager': False,
             'is_derby': False,
@@ -1137,8 +807,8 @@ TEST_CASES = {
 
 # ========== INITIALIZE ==========
 if 'engine' not in st.session_state:
-    st.session_state.engine = BalancedPredictionEngine()
-    logger.info("BalancedPredictionEngine initialized")
+    st.session_state.engine = OriginalPredictionEngine()
+    logger.info("OriginalPredictionEngine initialized")
 
 if 'db' not in st.session_state:
     st.session_state.db = PersistentFootballDatabase()
@@ -1148,12 +818,12 @@ if 'db' not in st.session_state:
 if 'loaded_test_case' not in st.session_state:
     st.session_state.loaded_test_case = None
 if 'test_case_data' not in st.session_state:
-    st.session_state.test_case_data = TEST_CASES['Brentford vs Leeds (Your Example)']
+    st.session_state.test_case_data = TEST_CASES['Atletico Madrid vs Valencia']
 
 # ========== MAIN APP ==========
 def main():
     st.markdown('<div class="main-header">👑 ULTIMATE FOOTBALL PREDICTOR</div>', unsafe_allow_html=True)
-    st.markdown("### **Balanced Engine - Captures All Scenarios**")
+    st.markdown("### **Original Working Logic Restored**")
     
     # ===== SIDEBAR =====
     with st.sidebar:
@@ -1168,7 +838,6 @@ def main():
             accuracy = f"{perf_stats['accuracy']*100:.1f}%" if perf_stats['total'] > 0 else "N/A"
             st.metric("Accuracy", accuracy)
         
-        # Recent performance
         if perf_stats['recent_10_total'] > 0:
             st.markdown("### 📈 Recent Performance (Last 10)")
             col_rec1, col_rec2 = st.columns(2)
@@ -1178,7 +847,6 @@ def main():
                 recent_acc = f"{perf_stats['recent_10_accuracy']*100:.1f}%"
                 st.metric("Recent Accuracy", recent_acc)
         
-        # Confidence level accuracies
         if perf_stats['confidence_accuracies']:
             st.markdown("### 🎯 Confidence Performance")
             for conf, acc in perf_stats['confidence_accuracies'].items():
@@ -1189,7 +857,6 @@ def main():
                 </div>
                 """, unsafe_allow_html=True)
         
-        # Recent outcomes
         recent_outcomes = st.session_state.db.get_recent_outcomes(3)
         if recent_outcomes:
             st.markdown("### 📝 Recent Outcomes")
@@ -1211,13 +878,12 @@ def main():
                 st.session_state.loaded_test_case = case_name
                 st.rerun()
         
-        # Reset button
         if st.button("🔄 Reset All Inputs", type="secondary", use_container_width=True, key="reset_btn"):
             for key in list(st.session_state.keys()):
                 if key.endswith('_input'):
                     del st.session_state[key]
             st.session_state.loaded_test_case = None
-            st.session_state.test_case_data = TEST_CASES['Brentford vs Leeds (Your Example)']
+            st.session_state.test_case_data = TEST_CASES['Atletico Madrid vs Valencia']
             st.rerun()
     
     # ===== MAIN INPUT SECTION =====
@@ -1276,7 +942,7 @@ def main():
         away_defense = st.number_input("Defense: Conceded per Game", 
                                       min_value=0.0, max_value=5.0, step=0.1,
                                       value=current_data['away_defense'],
-                                     key="away_defense_input")
+                                      key="away_defense_input")
         
         away_goals5 = st.number_input("Goals in Last 5 Games", 
                                      min_value=0, max_value=30,
@@ -1335,53 +1001,51 @@ def main():
     col_auto1, col_auto2, col_auto3 = st.columns(3)
     
     with col_auto1:
-        # Season phase
         progress = auto_context['season_progress']
-        phase = auto_context['season_phase'].replace('_', ' ').title()
-        phase_class = f"season-{auto_context['season_phase'].split('_')[-1]}"
+        phase = auto_context['season_phase']
+        phase_class = f"season-{phase}"
         
         st.markdown(f"""
         <div class="auto-detection">
             <h4>📅 SEASON PHASE</h4>
             <p>Progress: <span style="font-size: 1.2em;"><strong>{progress:.1f}%</strong></span></p>
-            <p>Phase: <span class="{phase_class}">{phase}</span></p>
-            <p>Factor: <strong>{auto_context.get('season_factor', 1.0):.2f}x</strong></p>
+            <p>Phase: <span class="{phase_class}">{phase.upper()} SEASON</span></p>
             <small>Games: {games_played}/{total_teams * 2}</small>
         </div>
         """, unsafe_allow_html=True)
     
     with col_auto2:
-        # Team safety
         home_status = auto_context['home_status']
         away_status = auto_context['away_status']
-        
-        status_class_home = f"status-{home_status}"
-        status_class_away = f"status-{away_status}"
+        safe_cutoff = auto_context['safe_cutoff']
         
         st.markdown(f"""
         <div class="auto-detection">
             <h4>🛡️ TEAM SAFETY</h4>
             <p><strong>{home_name}:</strong> 
-            <span class="{status_class_home}">{home_status.upper()}</span></p>
+            <span class="status-{home_status}">{home_status.upper()}</span>
+            (Position {home_pos} ≤ {safe_cutoff})</p>
             <p><strong>{away_name}:</strong> 
-            <span class="{status_class_away}">{away_status.upper()}</span></p>
-            <p><strong>Both Safe:</strong> {'✓ YES' if auto_context['both_safe'] else '✗ NO'}</p>
-            <p><strong>Both Danger:</strong> {'✓ YES' if auto_context['both_danger'] else '✗ NO'}</p>
+            <span class="status-{away_status}">{away_status.upper()}</span>
+            (Position {away_pos} ≤ {safe_cutoff})</p>
+            <small>Safe if position ≤ {safe_cutoff}</small>
         </div>
         """, unsafe_allow_html=True)
     
     with col_auto3:
-        # Team classification
-        home_class = auto_context['home_class'].replace('_', ' ').title()
-        away_class = auto_context['away_class'].replace('_', ' ').title()
+        home_class = auto_context['home_class']
+        away_class = auto_context['away_class']
+        both_safe = auto_context['both_safe']
         
         st.markdown(f"""
         <div class="auto-detection">
             <h4>🏆 TEAM CLASS</h4>
-            <p><strong>{home_name}:</strong> {home_class}</p>
-            <p><strong>{away_name}:</strong> {away_class}</p>
-            <p><strong>Position Gap:</strong> {auto_context['position_gap']}</p>
-            <p><strong>Late Season:</strong> {'✓ YES' if auto_context['is_late_season'] else '✗ NO'}</p>
+            <p><strong>{home_name}:</strong> {home_class.upper()}</p>
+            <p><strong>{away_name}:</strong> {away_class.upper()}</p>
+            <p><strong>Both Teams Safe:</strong> 
+            <span class="{'status-safe' if both_safe else 'status-danger'}">
+            {'✓ YES' if both_safe else '✗ NO'}
+            </span></p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -1392,6 +1056,8 @@ def main():
     st.markdown("### 🎯 EDGE PATTERN CONDITIONS")
     
     edge_data = current_data['edge_conditions']
+    
+    st.info("ℹ️ **Note:** 'Late Season' and 'Both Teams Safe' are auto-detected based on league data above.")
     
     col_edge1, col_edge2 = st.columns(2)
     
@@ -1409,34 +1075,29 @@ def main():
                                    value=edge_data['european_game'],
                                    key="european_game_input")
         
-        # Show season phase info
-        season_phase = auto_context['season_phase'].replace('_', ' ').title()
+        is_late_season = auto_context['is_late_season']
         st.markdown(f"""
         <div style="background: #e8f5e9; padding: 15px; border-radius: 10px; border-left: 4px solid #4CAF50;">
-            <strong>📅 Season Context</strong>
-            <p style="margin: 5px 0;">Phase: <strong>{season_phase}</strong></p>
-            <p>Progress: {auto_context['season_progress']:.1f}%</p>
-            <p>Factor: {auto_context.get('season_factor', 1.0):.2f}x</p>
-            <small>Affects predictability and odds</small>
+            <strong>⏰ Late Season Detection:</strong>
+            <p style="margin: 5px 0;">Progress: {auto_context['season_progress']:.1f}% → 
+            <span class="{'season-late' if is_late_season else 'season-mid'}">
+            {'LATE SEASON' if is_late_season else 'NOT LATE SEASON'}
+            </span></p>
+            <small>Auto-detected: Late season = >66.6% of games played</small>
         </div>
         """, unsafe_allow_html=True)
     
-    # Team status summary
     both_safe_detected = auto_context['both_safe']
-    both_danger_detected = auto_context['both_danger']
-    
-    status_color = "#4CAF50" if both_safe_detected else "#F44336" if both_danger_detected else "#FF9800"
-    status_text = "BOTH SAFE" if both_safe_detected else "BOTH IN DANGER" if both_danger_detected else "MIXED STATUS"
-    
     st.markdown(f"""
-    <div style="background: #e3f2fd; padding: 15px; border-radius: 10px; margin-top: 15px; border-left: 4px solid {status_color};">
-        <strong>🛡️ Team Status Summary</strong>
+    <div style="background: #e3f2fd; padding: 15px; border-radius: 10px; margin-top: 15px; border-left: 4px solid #2196F3;">
+        <strong>🛡️ Both Teams Safe Detection:</strong>
         <p style="margin: 5px 0;">
-        <strong>{status_text}</strong>
+        {home_name} (pos {home_pos}) and {away_name} (pos {away_pos}) are 
+        <span class="{'status-safe' if both_safe_detected else 'status-danger'}">
+        {'BOTH SAFE' if both_safe_detected else 'NOT BOTH SAFE'}
+        </span>
         </p>
-        <p>{home_name}: {auto_context['home_class'].replace('_', ' ').title()} (pos {home_pos})</p>
-        <p>{away_name}: {auto_context['away_class'].replace('_', ' ').title()} (pos {away_pos})</p>
-        <small>Position gap: {auto_context['position_gap']} | Late season: {'Yes' if auto_context['is_late_season'] else 'No'}</small>
+        <small>Auto-detected: Safe = position < {auto_context['danger_cutoff']}</small>
     </div>
     """, unsafe_allow_html=True)
     
@@ -1451,7 +1112,7 @@ def main():
         if analyze_disabled:
             st.warning("⚠️ Fix validation errors before analysis")
         
-        if st.button("🚀 RUN BALANCED ANALYSIS", 
+        if st.button("🚀 RUN ORIGINAL ANALYSIS", 
                     type="primary", 
                     use_container_width=True,
                     disabled=analyze_disabled):
@@ -1472,14 +1133,14 @@ def main():
                     'away_goals5': away_goals5
                 }
                 
-                # Manual edge conditions
+                # Manual edge conditions only
                 manual_edges = {
                     'new_manager': new_manager,
                     'is_derby': is_derby,
                     'european_game': european_game
                 }
                 
-                # Run analysis
+                # Run analysis (auto-detection happens inside)
                 analysis, auto_context = st.session_state.engine.analyze_match(match_data, manual_edges)
                 
                 # Save to database
@@ -1515,143 +1176,93 @@ def main():
         auto_context = pred_data.get('auto_context', {})
         
         st.markdown("---")
-        st.markdown(f"## 📊 BALANCED RESULTS: {pred_data['teams']}")
+        st.markdown(f"## 📊 ORIGINAL RESULTS: {pred_data['teams']}")
         
         # Show auto-detection summary
-        st.markdown("### 🔍 CONTEXT ANALYSIS")
+        st.markdown("### 🔍 AUTO-DETECTION SUMMARY")
         col_sum1, col_sum2 = st.columns(2)
         
         with col_sum1:
-            season_phase = auto_context.get('season_phase', 'mid').replace('_', ' ').title()
+            season_progress = auto_context.get('season_progress', 0)
+            season_phase = auto_context.get('season_phase', 'mid')
+            phase_class = f"season-{season_phase}"
             
             st.markdown(f"""
             <div style="background: white; padding: 15px; border-radius: 10px; border: 1px solid #e0e0e0;">
-                <h4>📅 Season & Context</h4>
-                <p><strong>Phase:</strong> {season_phase}</p>
-                <p><strong>Progress:</strong> {auto_context.get('season_progress', 0):.1f}%</p>
-                <p><strong>Factor:</strong> {auto_context.get('season_factor', 1.0):.2f}x</p>
+                <h4>📅 Season Context</h4>
+                <p><strong>Progress:</strong> {season_progress:.1f}%</p>
+                <p><strong>Phase:</strong> <span class="{phase_class}">{season_phase.upper()} SEASON</span></p>
                 <p><strong>Games:</strong> {match_data['games_played']} / {match_data['total_teams'] * 2}</p>
-                <p><strong>Predictability:</strong> {'High' if auto_context.get('season_factor', 1.0) > 1.0 else 'Medium' if auto_context.get('season_factor', 1.0) == 1.0 else 'Lower'}</p>
             </div>
             """, unsafe_allow_html=True)
         
         with col_sum2:
-            home_class = auto_context.get('home_class', 'mid').replace('_', ' ').title()
-            away_class = auto_context.get('away_class', 'mid').replace('_', ' ').title()
+            home_class = auto_context.get('home_class', 'mid')
+            away_class = auto_context.get('away_class', 'mid')
+            both_safe = auto_context.get('both_safe', False)
             
             st.markdown(f"""
             <div style="background: white; padding: 15px; border-radius: 10px; border: 1px solid #e0e0e0;">
-                <h4>🏆 Team Analysis</h4>
-                <p><strong>{match_data['home_name']}:</strong> {home_class} (pos {match_data['home_pos']})</p>
-                <p><strong>{match_data['away_name']}:</strong> {away_class} (pos {match_data['away_pos']})</p>
-                <p><strong>Position Gap:</strong> {auto_context.get('position_gap', 0)}</p>
-                <p><strong>Match Type:</strong> {analysis['core_pattern'].replace('_', ' ').title()}</p>
-                <p><strong>Psychology:</strong> {analysis['psychology']}</p>
+                <h4>🏆 Team Status</h4>
+                <p><strong>{match_data['home_name']}:</strong> {home_class.upper()} (pos {match_data['home_pos']})</p>
+                <p><strong>{match_data['away_name']}:</strong> {away_class.upper()} (pos {match_data['away_pos']})</p>
+                <p><strong>Both Safe:</strong> 
+                <span class="{'status-safe' if both_safe else 'status-danger'}">
+                {'✓ YES' if both_safe else '✗ NO'}
+                </span></p>
             </div>
             """, unsafe_allow_html=True)
         
-        # Team info cards with form analysis
+        # Team info cards
         col_team1, col_team2 = st.columns(2)
         
         with col_team1:
-            home_avg_last5 = match_data['home_goals5'] / 5
-            form_consistency = 1 - abs(home_avg_last5 - match_data['home_attack']) / 2
-            form_status = "👍 Consistent" if form_consistency > 0.7 else "⚠️ Inconsistent" if form_consistency > 0.5 else "❌ Volatile"
-            
             st.markdown(f"""
             <div class="team-card">
                 <h3>🏠 {match_data['home_name']}</h3>
-                <p><strong>Position:</strong> {match_data['home_pos']} ({auto_context.get('home_class', 'mid').replace('_', ' ').title()})</p>
+                <p><strong>Position:</strong> {match_data['home_pos']}</p>
                 <p><strong>Attack:</strong> {match_data['home_attack']} goals/game</p>
                 <p><strong>Defense:</strong> {match_data['home_defense']} conceded/game</p>
-                <p><strong>Recent Form:</strong> {match_data['home_goals5']} goals in last 5 ({home_avg_last5:.1f}/game)</p>
-                <p><strong>Form Status:</strong> {form_status} ({form_consistency:.0%})</p>
+                <p><strong>Recent Form:</strong> {match_data['home_goals5']} goals in last 5</p>
             </div>
             """, unsafe_allow_html=True)
         
         with col_team2:
-            away_avg_last5 = match_data['away_goals5'] / 5
-            form_consistency = 1 - abs(away_avg_last5 - match_data['away_attack']) / 2
-            form_status = "👍 Consistent" if form_consistency > 0.7 else "⚠️ Inconsistent" if form_consistency > 0.5 else "❌ Volatile"
-            
             st.markdown(f"""
             <div class="team-card">
                 <h3>✈️ {match_data['away_name']}</h3>
-                <p><strong>Position:</strong> {match_data['away_pos']} ({auto_context.get('away_class', 'mid').replace('_', ' ').title()})</p>
+                <p><strong>Position:</strong> {match_data['away_pos']}</p>
                 <p><strong>Attack:</strong> {match_data['away_attack']} goals/game</p>
                 <p><strong>Defense:</strong> {match_data['away_defense']} conceded/game</p>
-                <p><strong>Recent Form:</strong> {match_data['away_goals5']} goals in last 5 ({away_avg_last5:.1f}/game)</p>
-                <p><strong>Form Status:</strong> {form_status} ({form_consistency:.0%})</p>
+                <p><strong>Recent Form:</strong> {match_data['away_goals5']} goals in last 5</p>
             </div>
             """, unsafe_allow_html=True)
         
         # Key prediction metrics
         st.markdown("### 🎯 PREDICTION SUMMARY")
         
-        col_metrics = st.columns(5)
+        col_metrics = st.columns(4)
         
         with col_metrics[0]:
             st.metric("Prediction", analysis['prediction'])
         with col_metrics[1]:
             st.metric("Confidence", analysis['confidence'])
         with col_metrics[2]:
-            st.metric("Probability", f"{analysis['actual_probability']*100:.1f}%")
+            st.metric("Probability", f"{analysis['probability']*100:.1f}%")
         with col_metrics[3]:
             st.metric("Expected Goals", analysis['enhanced_xg'])
-        with col_metrics[4]:
-            stake_info = analysis['stake_recommendation']
-            if isinstance(stake_info, dict):
-                st.metric("Stake", stake_info['recommendation'])
-            else:
-                st.metric("Stake", stake_info)
         
-        # Psychology badge and pattern info
+        # Psychology badge
         st.markdown(f"""
-        <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 10px; border: 1px solid #e0e0e0;">
+        <div style="margin: 20px 0;">
             <span class="psychology-badge {analysis['badge']}">
                 {analysis['psychology']} PSYCHOLOGY
             </span>
-            <div style="margin-top: 10px;">
-                <strong>Pattern:</strong> {analysis['core_pattern'].replace('_', ' ').title()}
-                <br><strong>Accuracy Weight:</strong> {analysis['pattern_accuracy_weight']}
-                <br><strong>Pattern Bias:</strong> {analysis['pattern_bias']}
-                <br><strong>Prediction Bias:</strong> {analysis['prediction_bias'].upper()}
-            </div>
+            <small style="margin-left: 15px; color: #666;">
+                Core Pattern: {analysis['core_pattern'].replace('_', ' ').title()}
+            </small>
         </div>
         """, unsafe_allow_html=True)
-        
-        # Kelly Criterion details
-        if isinstance(analysis['stake_recommendation'], dict):
-            stake_info = analysis['stake_recommendation']
-            
-            if stake_info['recommendation'] == 'NO BET ❌':
-                st.markdown(f"""
-                <div class="no-bet">
-                    <h4>💰 BETTING ANALYSIS</h4>
-                    <p><strong>Recommendation:</strong> {stake_info['recommendation']}</p>
-                    <p><strong>Reason:</strong> {stake_info['reason']}</p>
-                    <p><strong>Adjusted Probability:</strong> {stake_info.get('adjusted_probability', 0)*100:.1f}%</p>
-                    <p><strong>Market Odds:</strong> {stake_info.get('odds_used', 0):.2f}</p>
-                    <p><strong>Expected Value:</strong> {stake_info.get('expected_value', 0):.1f}%</p>
-                    <p class="bet-reason">No positive expected value found. Wait for better opportunities.</p>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown(f"""
-                <div class="kelly-bet">
-                    <h4>💰 KELLY CRITERION ANALYSIS</h4>
-                    <p><strong>Recommendation:</strong> {stake_info['recommendation']}</p>
-                    <p><strong>Reason:</strong> {stake_info['reason']}</p>
-                    <p><strong>Full Kelly:</strong> {stake_info.get('full_kelly', 0):.1f}% of bankroll</p>
-                    <p><strong>Fraction Used:</strong> {stake_info.get('fraction_used', '1/4')} Kelly</p>
-                    <p><strong>Your Stake:</strong> {stake_info.get('fractional_percentage', 0)*100:.1f}% of bankroll</p>
-                    <p><strong>Adjusted Probability:</strong> {stake_info.get('adjusted_probability', 0)*100:.1f}%</p>
-                    <p><strong>Market Odds:</strong> {stake_info.get('odds_used', 0):.2f}</p>
-                    <p><strong>Expected Value:</strong> +{stake_info.get('expected_value', 0):.1f}% per bet</p>
-                    <p><strong>Bet Quality:</strong> {stake_info.get('quality', 'moderate').upper()}</p>
-                    <p class="bet-reason">Based on probability {stake_info.get('adjusted_probability', 0)*100:.1f}% vs market odds {stake_info.get('odds_used', 0):.2f}</p>
-                </div>
-                """, unsafe_allow_html=True)
         
         # Edge patterns detected
         if analysis['edge_patterns']:
@@ -1659,9 +1270,9 @@ def main():
             
             for edge in analysis['edge_patterns']:
                 edge_value = edge['edge_value']
-                if edge_value > 0.20:
+                if edge_value > 0.25:
                     edge_class = "edge-high"
-                elif edge_value > 0.12:
+                elif edge_value > 0.15:
                     edge_class = "edge-medium"
                 else:
                     edge_class = "edge-low"
@@ -1677,10 +1288,7 @@ def main():
                             Bet Type: {edge['bet_type'].replace('_', ' ')}
                         </div>
                     </div>
-                    <p style="margin: 10px 0 5px 0;">
-                    Multiplier: ×{edge['multiplier']:.2f} | 
-                    Accuracy Boost: +{edge.get('accuracy_boost', 0)*100:.1f}%
-                    </p>
+                    <p style="margin: 10px 0 5px 0;">Multiplier: ×{edge['multiplier']:.2f}</p>
                 </div>
                 """, unsafe_allow_html=True)
         
@@ -1719,74 +1327,62 @@ def main():
             st.plotly_chart(fig, use_container_width=True)
         
         with col_viz2:
-            # Detailed analysis
-            season_phase = auto_context.get('season_phase', 'mid').replace('_', ' ').title()
-            season_warning = ""
-            
-            if auto_context.get('season_phase') in ['very_early', 'early']:
-                season_warning = "⚠️ **Early Season Caution:** Results are less predictable early in the season. "
-                season_warning += f"Confidence reduced by {int((1-auto_context.get('season_factor', 1.0))*100)}%."
-            
+            # Auto-detection details
             st.markdown(f"""
-            #### 🔍 DETAILED ANALYSIS
+            #### 🔍 AUTO-DETECTED CONTEXT
             
-            **Match Context:**
-            - Pattern: {analysis['core_pattern'].replace('_', ' ').title()}
-            - Season: {season_phase} ({auto_context.get('season_progress', 0):.1f}%)
+            **Season Phase:**
+            - Progress: {auto_context.get('season_progress', 0):.1f}%
+            - Phase: {auto_context.get('season_phase', 'mid').upper()} SEASON
+            - Late Season: {'YES' if auto_context.get('is_late_season', False) else 'NO'}
+            
+            **Team Safety:**
+            - {match_data['home_name']}: {auto_context.get('home_status', 'mid').upper()}
+            - {match_data['away_name']}: {auto_context.get('away_status', 'mid').upper()}
+            - Both Teams Safe: {'YES' if auto_context.get('both_safe', False) else 'NO'}
+            
+            **Team Classification:**
+            - {match_data['home_name']}: {auto_context.get('home_class', 'mid').upper()}
+            - {match_data['away_name']}: {auto_context.get('away_class', 'mid').upper()}
             - Position Gap: {auto_context.get('position_gap', 0)}
             
-            **Decision Framework:**
-            - Base xG: {analysis['base_xg']:.2f}
-            - Pattern Multiplier: ×{analysis['total_multiplier']:.2f}
-            - Season Factor: {auto_context.get('season_factor', 1.0):.2f}x
-            - Final xG: **{analysis['enhanced_xg']:.2f}**
+            **Decision Thresholds:**
+            - OVER if > {analysis['thresholds_used']['over']}
+            - UNDER if < {analysis['thresholds_used']['under']}
             
-            **Prediction Logic:**
-            - OVER if > {analysis['thresholds_used']['over']:.2f}
-            - UNDER if < {analysis['thresholds_used']['under']:.2f}
-            - Actual: {analysis['enhanced_xg']:.2f} → **{analysis['prediction']}**
-            
-            **Probability Assessment:**
-            - Base Probability: {analysis['actual_probability']*100:.1f}%
-            - Edge Value: +{analysis['total_edge_value']*100:.0f}%
-            - Pattern Weight: {analysis['pattern_accuracy_weight']:.2f}x
-            - Confidence: {analysis['confidence']}
-            
-            {season_warning}
+            **Final Calculation:**
+            - {analysis['base_xg']:.2f} × {analysis['total_multiplier']:.2f} = **{analysis['enhanced_xg']:.2f}**
+            - Prediction: **{analysis['prediction']}**
+            - Confidence: **{analysis['confidence']}**
+            - Stake: **{analysis['stake_recommendation']}**
             """)
         
         # Profit simulation
-        if isinstance(analysis['stake_recommendation'], dict):
-            stake_info = analysis['stake_recommendation']
-            if stake_info['recommendation'] != 'NO BET ❌':
-                kelly_pct = stake_info.get('fractional_percentage', 0.0)
-                expected_value = stake_info.get('expected_value', 0.0)
-                
-                if kelly_pct > 0 and expected_value > 0:
-                    st.markdown('<div class="profit-highlight">', unsafe_allow_html=True)
-                    st.markdown(f"""
-                    ### 💰 PROFIT POTENTIAL ANALYSIS
-                    
-                    **Match:** {match_data['home_name']} vs {match_data['away_name']}
-                    **Prediction:** {analysis['prediction']} ({analysis['confidence']} confidence)
-                    **Probability:** {analysis['actual_probability']*100:.1f}%
-                    **Recommended Stake:** {kelly_pct*100:.1f}% of bankroll
-                    **Expected Value:** +{expected_value:.1f}% per bet
-                    **Bet Quality:** {stake_info.get('quality', 'moderate').upper()}
-                    
-                    *Assuming $10,000 bankroll:*
-                    - Stake this match: **${kelly_pct*10000:.0f}**
-                    - Expected profit: **+${kelly_pct*10000 * expected_value/100:.0f}**
-                    - Weekly (5 similar bets): **+${kelly_pct*10000 * 5 * expected_value/100:.0f}**
-                    - Monthly (20 similar bets): **+${kelly_pct*10000 * 20 * expected_value/100:.0f}**
-                    
-                    *Risk Management:*
-                    - Max drawdown (5 losses): ${kelly_pct*10000 * 5:.0f}
-                    - Recovery needed: {((1/(1-kelly_pct*5))-1)*100:.1f}% win rate
-                    
-                    <small>*Note: Theoretical values. Real results vary. Never risk more than 10% of bankroll.*</small>
-                    """)
-                    st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div class="profit-highlight">', unsafe_allow_html=True)
+        stake_text = analysis['stake_recommendation']
+        stake_multiplier = 1.0
+        if '3x' in stake_text:
+            stake_multiplier = 3.0
+        elif '2x' in stake_text:
+            stake_multiplier = 2.0
+        elif '0.5x' in stake_text:
+            stake_multiplier = 0.5
+        
+        st.markdown(f"""
+        ### 💰 PROFIT POTENTIAL
+        
+        **Match:** {match_data['home_name']} vs {match_data['away_name']}
+        **Prediction:** {analysis['prediction']} ({analysis['confidence']} confidence)
+        **Edge Value:** +{analysis['total_edge_value']*100:.1f}%
+        **Stake:** {analysis['stake_recommendation']}
+        
+        *Assuming standard stake = $100:*
+        - Stake this match: **${100 * stake_multiplier:.0f}**
+        - Expected value per bet: **+${100 * stake_multiplier * analysis['total_edge_value']:.2f}**
+        - Weekly (5 bets): **+${100 * stake_multiplier * 5 * analysis['total_edge_value']:.0f}**
+        - Monthly (20 bets): **+${100 * stake_multiplier * 20 * analysis['total_edge_value']:.0f}**
+        """)
+        st.markdown('</div>', unsafe_allow_html=True)
         
         # Outcome recording
         st.markdown("---")
@@ -1827,13 +1423,13 @@ def main():
                     
                     st.info(f"""
                     **Learning Update:**
-                    - Predicted: **{predicted}** ({analysis['confidence']}, {analysis['actual_probability']*100:.1f}%)
+                    - Predicted: **{predicted}** ({analysis['confidence']})
                     - Actual: **{actual_type}** ({actual_home}-{actual_away})
                     - Result: **{'✅ CORRECT' if is_correct else '❌ INCORRECT'}**
                     - Pattern: {analysis['core_pattern'].replace('_', ' ').title()}
-                    - Season: {auto_context.get('season_phase', 'mid').replace('_', ' ').title()}
-                    - Edge Patterns: {len(analysis['edge_patterns'])} detected
-                    - Auto-detections recorded for future learning
+                    - Auto-detections: {auto_context.get('season_phase', 'mid').upper()} season, 
+                      {match_data['home_name']} ({auto_context.get('home_class', 'mid')}), 
+                      {match_data['away_name']} ({auto_context.get('away_class', 'mid')})
                     """)
                     
                     st.rerun()
