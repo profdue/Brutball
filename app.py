@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import hashlib
+import json
 
 # ========== PAGE CONFIG ==========
 st.set_page_config(
@@ -23,6 +24,20 @@ st.markdown("""
         -webkit-text-fill-color: transparent;
         text-align: center;
         margin-bottom: 1rem;
+    }
+    .input-section {
+        background-color: #f0f2f6;
+        border-radius: 15px;
+        padding: 25px;
+        margin: 20px 0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .team-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 10px 0;
+        border-left: 5px solid #1E88E5;
     }
     .edge-card {
         background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
@@ -53,12 +68,6 @@ st.markdown("""
         font-weight: 600;
         margin: 2px;
     }
-    .value-meter {
-        height: 10px;
-        background: linear-gradient(90deg, #F44336 0%, #FF9800 50%, #4CAF50 100%);
-        border-radius: 5px;
-        margin: 5px 0;
-    }
     .profit-highlight {
         background: linear-gradient(135deg, #00b09b 0%, #96c93d 100%);
         color: white;
@@ -66,710 +75,734 @@ st.markdown("""
         border-radius: 15px;
         margin: 20px 0;
     }
+    .badge-domination { background-color: #ede7f6; color: #5e35b1; }
+    .badge-fear { background-color: #ffebee; color: #c62828; }
+    .badge-ambition { background-color: #e8f5e9; color: #2e7d32; }
+    .badge-control { background-color: #fff8e1; color: #ff8f00; }
+    .badge-quality { background-color: #e3f2fd; color: #1565c0; }
+    .badge-dominance { background-color: #f3e5f5; color: #6a1b9a; }
 </style>
 """, unsafe_allow_html=True)
 
+# ========== DATABASE ==========
+class FootballDatabase:
+    def __init__(self):
+        self.predictions = []
+        self.outcomes = []
+        self.team_stats = {}
+    
+    def save_prediction(self, prediction_data):
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            hash_input = f"{prediction_data.get('match_data', {}).get('home_name', '')}_{prediction_data.get('match_data', {}).get('away_name', '')}_{timestamp}"
+            prediction_hash = hashlib.md5(hash_input.encode()).hexdigest()
+            
+            prediction_record = {
+                'hash': prediction_hash,
+                'timestamp': datetime.now(),
+                'match_data': prediction_data.get('match_data', {}),
+                'analysis': prediction_data.get('analysis', {})
+            }
+            
+            self.predictions.append(prediction_record)
+            
+            # Store team stats for learning
+            home_name = prediction_record['match_data'].get('home_name')
+            away_name = prediction_record['match_data'].get('away_name')
+            
+            if home_name not in self.team_stats:
+                self.team_stats[home_name] = {'predictions': 0, 'correct': 0}
+            if away_name not in self.team_stats:
+                self.team_stats[away_name] = {'predictions': 0, 'correct': 0}
+            
+            return prediction_hash
+        except Exception:
+            return f"pred_{len(self.predictions)}"
+    
+    def record_outcome(self, prediction_hash, actual_home, actual_away, notes=""):
+        try:
+            prediction = None
+            for pred in self.predictions:
+                if pred.get('hash') == prediction_hash:
+                    prediction = pred
+                    break
+            
+            if not prediction:
+                return False
+            
+            actual_total = actual_home + actual_away
+            actual_over_under = "OVER 2.5" if actual_total > 2.5 else "UNDER 2.5"
+            predicted_over_under = prediction['analysis'].get('prediction', '')
+            outcome_accuracy = "CORRECT" if predicted_over_under == actual_over_under else "INCORRECT"
+            
+            outcome_record = {
+                'prediction_hash': prediction_hash,
+                'actual_home': actual_home,
+                'actual_away': actual_away,
+                'actual_total': actual_total,
+                'actual_over_under': actual_over_under,
+                'outcome_accuracy': outcome_accuracy,
+                'notes': notes,
+                'recorded_at': datetime.now()
+            }
+            
+            self.outcomes.append(outcome_record)
+            
+            # Update team stats
+            home_name = prediction['match_data'].get('home_name')
+            away_name = prediction['match_data'].get('away_name')
+            
+            if home_name in self.team_stats:
+                self.team_stats[home_name]['predictions'] += 1
+                if outcome_accuracy == "CORRECT":
+                    self.team_stats[home_name]['correct'] += 1
+            
+            if away_name in self.team_stats:
+                self.team_stats[away_name]['predictions'] += 1
+                if outcome_accuracy == "CORRECT":
+                    self.team_stats[away_name]['correct'] += 1
+            
+            return True
+        except Exception:
+            return False
+    
+    def get_team_stats(self, team_name):
+        if team_name in self.team_stats:
+            stats = self.team_stats[team_name]
+            total = stats['predictions']
+            correct = stats['correct']
+            accuracy = correct / total if total > 0 else 0
+            return {'total': total, 'correct': correct, 'accuracy': accuracy}
+        return {'total': 0, 'correct': 0, 'accuracy': 0}
+    
+    def get_performance_stats(self):
+        total = len(self.outcomes)
+        correct = len([o for o in self.outcomes if o.get('outcome_accuracy') == "CORRECT"])
+        accuracy = correct / total if total > 0 else 0
+        return {'total': total, 'correct': correct, 'accuracy': accuracy}
+
 # ========== ULTIMATE PREDICTION ENGINE ==========
 class UltimatePredictionEngine:
-    """ULTIMATE ENGINE: Combines ALL 12 bookmaker-beating patterns"""
-    
     def __init__(self):
-        # CORE PATTERNS (Your existing system)
-        self.core_patterns = {
+        self.learned_patterns = {
             'top_vs_bottom_domination': {
                 'base_multiplier': 1.05,
-                'description': 'Top team attacks, bottom fights back → 2-1 type scores',
+                'description': 'Top team good form vs bottom team → 2-1 type scores',
                 'psychology': 'DOMINATION',
                 'badge': 'badge-domination',
-                'edge': 'HIGH'
+                'conditions': ['top_4_vs_bottom_4', 'gap_>8', 'good_form']
             },
             'relegation_battle': {
                 'base_multiplier': 0.65,
-                'description': 'Both terrified to lose → defensive football',
+                'description': 'Both fighting relegation → defensive football',
                 'psychology': 'FEAR',
                 'badge': 'badge-fear',
-                'edge': 'HIGH'
+                'conditions': ['both_bottom_4']
             },
             'mid_table_ambition': {
                 'base_multiplier': 1.15,
-                'description': 'Both playing to win → open game',
+                'description': 'Both safe mid-table → attacking football',
                 'psychology': 'AMBITION',
                 'badge': 'badge-ambition',
-                'edge': 'MEDIUM'
+                'conditions': ['both_mid_table', 'gap_<=4']
+            },
+            'controlled_mid_clash': {
+                'base_multiplier': 0.90,
+                'description': 'Mid-table with form difference → controlled game',
+                'psychology': 'CONTROL',
+                'badge': 'badge-control',
+                'conditions': ['both_mid_table', 'form_diff_>=2']
+            },
+            'top_team_battle': {
+                'base_multiplier': 0.95,
+                'description': 'Top teams facing → quality creates and prevents goals',
+                'psychology': 'QUALITY',
+                'badge': 'badge-quality',
+                'conditions': ['both_top_4']
+            },
+            'top_vs_bottom_dominance': {
+                'base_multiplier': 0.85,
+                'description': 'Top team excellent form vs very poor bottom → 1-0 type',
+                'psychology': 'DOMINANCE',
+                'badge': 'badge-dominance',
+                'conditions': ['top_4_vs_bottom_4', 'bottom_very_poor']
             }
         }
         
-        # BOOKMAKER-BEATING PATTERNS (Added)
+        # Bookmaker-beating edge patterns
         self.edge_patterns = {
-            # Pattern 1: NEW MANAGER BOUNCE
             'new_manager_bounce': {
-                'conditions': ['manager_change_last_2', 'home_game', 'opponent_mid_lower'],
-                'multiplier_effect': 1.25,
-                'confidence_boost': 0.15,
-                'bet_type': 'HOME_WIN',
-                'edge_value': 0.20,  # +20% value
-                'success_rate': 0.68,
-                'description': 'Players desperate to impress new boss'
-            },
-            
-            # Pattern 2: GHOST GAMES (Newly Promoted)
-            'ghost_games': {
-                'conditions': ['newly_promoted', 'early_kickoff', 'top_half_opponent'],
-                'multiplier_effect': 1.35,
-                'confidence_boost': 0.18,
-                'bet_type': 'DOUBLE_CHANCE_HOME',
-                'edge_value': 0.35,
-                'success_rate': 0.72,
-                'description': 'Small team fights harder, big team underestimates'
-            },
-            
-            # Pattern 3: DEAD RUBBER OVER
-            'dead_rubber': {
-                'conditions': ['late_season', 'both_safe', 'no_rivalry'],
-                'multiplier_effect': 1.30,
-                'confidence_boost': 0.12,
-                'bet_type': 'OVER_2_5',
-                'edge_value': 0.25,
-                'success_rate': 0.65,
-                'description': 'Beach football mentality'
-            },
-            
-            # Pattern 4: DERBY FEAR
-            'derby_fear': {
-                'conditions': ['local_derby', 'close_table', 'evening_kickoff'],
-                'multiplier_effect': 0.60,
-                'confidence_boost': 0.20,
-                'bet_type': 'UNDER_2_0',
-                'edge_value': 0.30,
-                'success_rate': 0.71,
-                'description': 'Fear of losing > desire to win'
-            },
-            
-            # Pattern 5: EUROPEAN HANGOVER
-            'european_hangover': {
-                'conditions': ['european_away_midweek', 'long_travel', '<72h_recovery'],
-                'multiplier_effect': 0.75,
-                'confidence_boost': 0.22,
-                'bet_type': 'OPPONENT_DOUBLE_CHANCE',
-                'edge_value': 0.28,
-                'success_rate': 0.69,
-                'description': 'Physical/mental exhaustion'
-            },
-            
-            # Pattern 6: GOALSCORER ABSENCE OVERREACTION
-            'stars_absence': {
-                'conditions': ['top_scorer_out', 'odds_drop_15pct', 'has_depth'],
-                'multiplier_effect': 1.15,
-                'confidence_boost': 0.10,
-                'bet_type': 'TEAM_TO_SCORE',
-                'edge_value': 0.22,
-                'success_rate': 0.66,
-                'description': 'Bookmakers overreact to star absence'
-            },
-            
-            # Pattern 7: RELEGATION SIX-POINTER (Enhanced)
-            'relegation_sixpointer': {
-                'conditions': ['both_bottom_6', 'gap_≤3', 'march_april'],
-                'multiplier_effect': 0.50,
-                'confidence_boost': 0.25,
-                'bet_type': 'UNDER_1_5',
-                'edge_value': 0.40,
-                'success_rate': 0.74,
-                'description': 'Both terrified, not desperate yet'
-            },
-            
-            # Pattern 8: POST-INTERNATIONAL BREAK
-            'post_international': {
-                'conditions': ['first_game_after_break', 'home_≤2_intl', 'away_≥6_intl'],
-                'multiplier_effect': 1.20,
-                'confidence_boost': 0.12,
-                'bet_type': 'HOME_WIN',
-                'edge_value': 0.18,
-                'success_rate': 0.67,
-                'description': 'Disrupted preparation advantage'
-            },
-            
-            # Pattern 9: CUP HANGOVER
-            'cup_hangover': {
-                'conditions': ['emotional_cup_midweek', 'extra_time', '≤3days_gap'],
-                'multiplier_effect': 0.90,
-                'confidence_boost': 0.15,
-                'bet_type': 'DRAW',
-                'edge_value': 0.24,
-                'success_rate': 0.31,  # Actual draw rate
-                'description': 'Emotional/physical depletion'
-            },
-            
-            # Pattern 10: CONTRACT MOTIVATION
-            'contract_motivation': {
-                'conditions': ['player_final_year', 'needs_stats', 'team_midtable'],
-                'multiplier_effect': 1.18,
-                'confidence_boost': 0.08,
-                'bet_type': 'PLAYER_TO_SCORE',
+                'conditions': ['manager_change_last_2', 'home_game'],
+                'multiplier': 1.25,
                 'edge_value': 0.20,
-                'success_rate': 'varies',
-                'description': 'Individual > team motivation'
+                'description': 'Players desperate to impress new manager',
+                'bet_type': 'HOME_WIN'
             },
-            
-            # Pattern 11: WEATHER SHOCK
-            'weather_shock': {
-                'conditions': ['temp_diff_>15C', 'first_2_days', 'extreme_conditions'],
-                'multiplier_effect': 1.23,
-                'confidence_boost': 0.14,
-                'bet_type': 'LOCAL_TEAM',
-                'edge_value': 0.23,
-                'success_rate': 0.66,
-                'description': 'Climate advantage for local team'
+            'derby_fear': {
+                'conditions': ['local_derby', 'close_table'],
+                'multiplier': 0.60,
+                'edge_value': 0.30,
+                'description': 'Fear of losing derby > desire to win',
+                'bet_type': 'UNDER_2_0'
             },
-            
-            # Pattern 12: REFEREE BIAS
-            'referee_bias': {
-                'conditions': ['ref_high_cards', 'team_high_cards', 'high_pressure'],
-                'multiplier_effect': 0.85,
-                'confidence_boost': 0.16,
-                'bet_type': 'UNDER_CARDS',
-                'edge_value': 0.19,
-                'success_rate': 0.64,
-                'description': 'Teams adjust to card-happy ref'
+            'european_hangover': {
+                'conditions': ['european_midweek', 'long_travel'],
+                'multiplier': 0.75,
+                'edge_value': 0.28,
+                'description': 'Physical/mental exhaustion from European travel',
+                'bet_type': 'OPPONENT_DOUBLE_CHANCE'
+            },
+            'dead_rubber': {
+                'conditions': ['late_season', 'both_safe'],
+                'multiplier': 1.30,
+                'edge_value': 0.25,
+                'description': 'Beach football mentality, relaxed play',
+                'bet_type': 'OVER_2_5'
             }
         }
         
-        # FORM ADJUSTMENTS (Enhanced)
-        self.form_adjustments = {
-            'excellent': {'multiplier': 1.20, 'psychology': 'CONFIDENT_ATTACKING'},
-            'good': {'multiplier': 1.10, 'psychology': 'POSITIVE_MOMENTUM'},
-            'average': {'multiplier': 1.00, 'psychology': 'NEUTRAL'},
-            'poor': {'multiplier': 0.90, 'psychology': 'LOW_CONFIDENCE'},
-            'very_poor': {'multiplier': 0.80, 'psychology': 'BROKEN_MENTALITY'}
-        }
-        
-        # DYNAMIC THRESHOLDS (Enhanced)
         self.thresholds = {
-            'relegation_battle': {'over': 2.3, 'under': 2.7, 'explanation': 'Fear reduces scoring 30%'},
-            'top_vs_bottom_domination': {'over': 2.6, 'under': 2.4, 'explanation': 'Attacking vs desperate defense'},
-            'dead_rubber': {'over': 2.4, 'under': 2.6, 'explanation': 'Relaxed football increases goals'},
-            'derby_fear': {'over': 2.8, 'under': 2.2, 'explanation': 'Caution reduces scoring 40%'},
-            'default': {'over': 2.7, 'under': 2.3, 'explanation': 'Standard context'}
+            'relegation_battle': {'over': 2.3, 'under': 2.7},
+            'top_vs_bottom_domination': {'over': 2.6, 'under': 2.4},
+            'dead_rubber': {'over': 2.4, 'under': 2.6},
+            'derby_fear': {'over': 2.8, 'under': 2.2},
+            'default': {'over': 2.7, 'under': 2.3}
         }
     
-    def detect_all_patterns(self, match_context, additional_data):
-        """Detect ALL applicable patterns (core + edge)"""
-        detected_patterns = []
+    def analyze_match(self, match_data, edge_conditions):
+        # Core statistics
+        home_pos = match_data.get('home_pos', 10)
+        away_pos = match_data.get('away_pos', 10)
+        total_teams = match_data.get('total_teams', 20)
         
-        # 1. DETECT CORE PATTERN (Your existing logic)
-        core_pattern = self._detect_core_pattern(match_context)
-        if core_pattern:
-            detected_patterns.append({
-                'type': 'CORE',
-                'name': core_pattern,
-                'data': self.core_patterns[core_pattern]
-            })
+        # Detect core pattern
+        core_pattern = self._detect_core_pattern(home_pos, away_pos, total_teams, 
+                                                match_data.get('home_form_level', 'average'),
+                                                match_data.get('away_form_level', 'average'))
         
-        # 2. DETECT EDGE PATTERNS (Bookmaker-beating)
-        edge_patterns = self._detect_edge_patterns(match_context, additional_data)
-        detected_patterns.extend(edge_patterns)
+        # Detect edge patterns
+        edge_patterns = self._detect_edge_patterns(edge_conditions)
         
-        return detected_patterns
-    
-    def _detect_core_pattern(self, context):
-        """Your existing pattern detection logic"""
-        home_pos = context.get('home_pos', 10)
-        away_pos = context.get('away_pos', 10)
-        total_teams = context.get('total_teams', 20)
-        
-        bottom_cutoff = total_teams - 3
-        top_cutoff = 4
-        
-        # Top vs Bottom Domination
-        if ((home_pos <= top_cutoff and away_pos >= bottom_cutoff) or 
-            (away_pos <= top_cutoff and home_pos >= bottom_cutoff)):
-            gap = abs(home_pos - away_pos)
-            if gap > 8:
-                return 'top_vs_bottom_domination'
-        
-        # Relegation Battle
-        if home_pos >= bottom_cutoff and away_pos >= bottom_cutoff:
-            return 'relegation_battle'
-        
-        # Mid-table Ambition
-        if (home_pos > top_cutoff and home_pos < bottom_cutoff and
-            away_pos > top_cutoff and away_pos < bottom_cutoff):
-            if abs(home_pos - away_pos) <= 4:
-                return 'mid_table_ambition'
-        
-        return 'hierarchical'
-    
-    def _detect_edge_patterns(self, context, additional_data):
-        """Detect bookmaker-beating patterns"""
-        patterns = []
-        
-        # Check each edge pattern
-        for pattern_name, pattern_data in self.edge_patterns.items():
-            if self._check_pattern_conditions(pattern_data['conditions'], context, additional_data):
-                patterns.append({
-                    'type': 'EDGE',
-                    'name': pattern_name,
-                    'data': pattern_data,
-                    'applied': True
-                })
-        
-        return patterns
-    
-    def _check_pattern_conditions(self, conditions, context, additional_data):
-        """Check if pattern conditions are met"""
-        # Simplified condition checking (in real app, implement full logic)
-        checks = {
-            'manager_change_last_2': additional_data.get('manager_changed', False),
-            'home_game': context.get('is_home', True),
-            'late_season': context.get('games_played', 0) > 30,
-            'both_safe': self._check_both_safe(context),
-            'local_derby': additional_data.get('is_derby', False),
-            'european_away_midweek': additional_data.get('european_game', False),
-            'top_scorer_out': additional_data.get('top_scorer_out', False),
-            'both_bottom_6': self._check_both_bottom_6(context),
-            'first_game_after_break': additional_data.get('after_international', False),
-            'emotional_cup_midweek': additional_data.get('cup_game', False),
-            'player_final_year': additional_data.get('contract_year', False),
-            'temp_diff_>15C': additional_data.get('temp_diff', 0) > 15,
-            'ref_high_cards': additional_data.get('ref_cards_avg', 0) > 4.5
-        }
-        
-        # Check if all required conditions are met
-        required_conditions = set(conditions)
-        actual_conditions = set([c for c, v in checks.items() if v])
-        
-        return required_conditions.issubset(actual_conditions)
-    
-    def _check_both_safe(self, context):
-        """Check if both teams are safe"""
-        total_teams = context.get('total_teams', 20)
-        bottom_cutoff = total_teams - 3
-        home_pos = context.get('home_pos', 10)
-        away_pos = context.get('away_pos', 10)
-        
-        return home_pos < bottom_cutoff and away_pos < bottom_cutoff
-    
-    def _check_both_bottom_6(self, context):
-        """Check if both in bottom 6"""
-        total_teams = context.get('total_teams', 20)
-        bottom_6_cutoff = total_teams - 5
-        home_pos = context.get('home_pos', 10)
-        away_pos = context.get('away_pos', 10)
-        
-        return home_pos >= bottom_6_cutoff and away_pos >= bottom_6_cutoff
-    
-    def calculate_enhanced_prediction(self, match_data, additional_data):
-        """ULTIMATE prediction with ALL patterns"""
-        # 1. Calculate base xG (your existing logic)
+        # Calculate xG
         base_xg = self._calculate_base_xg(match_data)
         
-        # 2. Detect all patterns
-        context = {
-            'home_pos': match_data.get('home_pos', 10),
-            'away_pos': match_data.get('away_pos', 10),
-            'total_teams': match_data.get('total_teams', 20),
-            'games_played': match_data.get('games_played', 19),
-            'is_home': True
-        }
+        # Apply multipliers
+        total_multiplier = self.learned_patterns[core_pattern]['base_multiplier']
+        edge_value = 0
+        applied_edge_patterns = []
         
-        patterns = self.detect_all_patterns(context, additional_data)
+        for edge in edge_patterns:
+            total_multiplier *= edge['multiplier']
+            edge_value += edge['edge_value']
+            applied_edge_patterns.append(edge)
         
-        # 3. Apply pattern multipliers
-        total_multiplier = 1.0
-        confidence_boost = 0.0
-        edge_value = 0.0
-        recommended_bets = []
-        
-        for pattern in patterns:
-            pattern_data = pattern['data']
-            if pattern['type'] == 'CORE':
-                total_multiplier *= pattern_data['base_multiplier']
-            else:  # EDGE pattern
-                total_multiplier *= pattern_data['multiplier_effect']
-                confidence_boost += pattern_data['confidence_boost']
-                edge_value += pattern_data['edge_value']
-                
-                recommended_bets.append({
-                    'pattern': pattern['name'],
-                    'bet_type': pattern_data['bet_type'],
-                    'edge_value': pattern_data['edge_value'],
-                    'success_rate': pattern_data['success_rate']
-                })
-        
-        # 4. Calculate enhanced xG
         enhanced_xg = base_xg * total_multiplier
         
-        # 5. Determine thresholds based on strongest pattern
-        thresholds = self._determine_thresholds(patterns)
+        # Make prediction
+        thresholds = self.thresholds.get(core_pattern, self.thresholds['default'])
         
-        # 6. Make prediction
-        prediction, confidence = self._make_prediction(enhanced_xg, thresholds, confidence_boost)
+        if enhanced_xg > thresholds['over']:
+            prediction = 'OVER 2.5'
+            confidence = 'HIGH' if enhanced_xg > 3.0 else 'MEDIUM'
+        elif enhanced_xg < thresholds['under']:
+            prediction = 'UNDER 2.5'
+            confidence = 'HIGH' if enhanced_xg < 2.0 else 'MEDIUM'
+        else:
+            prediction = 'OVER 2.5' if enhanced_xg > 2.5 else 'UNDER 2.5'
+            confidence = 'MEDIUM'
         
-        # 7. Calculate stake based on edge value
-        stake = self._calculate_stake(edge_value, confidence)
+        # Boost confidence if edge patterns present
+        if edge_value > 0.20:
+            confidence = 'VERY HIGH'
+        elif edge_value > 0.10:
+            confidence = 'HIGH'
+        
+        # Stake recommendation
+        if confidence == 'VERY HIGH' and edge_value > 0.25:
+            stake = 'MAX BET (3x) 🔥'
+        elif confidence == 'HIGH' and edge_value > 0.15:
+            stake = 'HEAVY BET (2x) ⚡'
+        elif edge_value > 0.10:
+            stake = 'NORMAL BET (1x) ✅'
+        else:
+            stake = 'SMALL BET (0.5x) ⚖️'
         
         return {
             'prediction': prediction,
             'confidence': confidence,
-            'enhanced_xg': round(enhanced_xg, 2),
             'base_xg': round(base_xg, 2),
+            'enhanced_xg': round(enhanced_xg, 2),
             'total_multiplier': round(total_multiplier, 2),
-            'patterns_detected': patterns,
-            'recommended_bets': recommended_bets,
+            'core_pattern': core_pattern,
+            'edge_patterns': applied_edge_patterns,
             'total_edge_value': round(edge_value, 3),
             'stake_recommendation': stake,
-            'thresholds_used': thresholds
+            'thresholds_used': thresholds,
+            'psychology': self.learned_patterns[core_pattern]['psychology'],
+            'badge': self.learned_patterns[core_pattern]['badge']
         }
     
+    def _detect_core_pattern(self, home_pos, away_pos, total_teams, home_form, away_form):
+        bottom_cutoff = total_teams - 3
+        top_cutoff = 4
+        
+        # Top vs Bottom patterns
+        if (home_pos <= top_cutoff and away_pos >= bottom_cutoff) or (away_pos <= top_cutoff and home_pos >= bottom_cutoff):
+            gap = abs(home_pos - away_pos)
+            if gap > 8:
+                if away_form == 'very_poor' if home_pos <= top_cutoff else home_form == 'very_poor':
+                    return 'top_vs_bottom_dominance'
+                else:
+                    return 'top_vs_bottom_domination'
+        
+        # Relegation battle
+        if home_pos >= bottom_cutoff and away_pos >= bottom_cutoff:
+            return 'relegation_battle'
+        
+        # Top team battle
+        if home_pos <= top_cutoff and away_pos <= top_cutoff:
+            return 'top_team_battle'
+        
+        # Mid-table patterns
+        if home_pos > top_cutoff and home_pos < bottom_cutoff and away_pos > top_cutoff and away_pos < bottom_cutoff:
+            # Check form difference
+            form_levels = {'very_poor': 0, 'poor': 1, 'average': 2, 'good': 3, 'excellent': 4}
+            home_form_idx = form_levels.get(home_form, 2)
+            away_form_idx = form_levels.get(away_form, 2)
+            
+            if abs(home_form_idx - away_form_idx) >= 2:
+                return 'controlled_mid_clash'
+            else:
+                return 'mid_table_ambition'
+        
+        return 'mid_table_ambition'  # Default
+    
+    def _detect_edge_patterns(self, conditions):
+        patterns = []
+        
+        if conditions.get('new_manager'):
+            patterns.append(self.edge_patterns['new_manager_bounce'])
+        
+        if conditions.get('is_derby'):
+            patterns.append(self.edge_patterns['derby_fear'])
+        
+        if conditions.get('european_game'):
+            patterns.append(self.edge_patterns['european_hangover'])
+        
+        if conditions.get('late_season') and conditions.get('both_safe'):
+            patterns.append(self.edge_patterns['dead_rubber'])
+        
+        return patterns
+    
     def _calculate_base_xg(self, match_data):
-        """Your existing xG calculation"""
         home_attack = match_data.get('home_attack', 1.4)
         away_attack = match_data.get('away_attack', 1.3)
         home_defense = match_data.get('home_defense', 1.2)
         away_defense = match_data.get('away_defense', 1.4)
         
-        raw_home_xg = (home_attack + away_defense) / 2
-        raw_away_xg = (away_attack + home_defense) / 2
+        home_xg = (home_attack + away_defense) / 2
+        away_xg = (away_attack + home_defense) / 2
         
-        return raw_home_xg + raw_away_xg
-    
-    def _determine_thresholds(self, patterns):
-        """Determine thresholds based on patterns"""
-        # Default thresholds
-        thresholds = self.thresholds['default'].copy()
-        
-        # Override based on strongest pattern
-        for pattern in patterns:
-            pattern_name = pattern['name']
-            if pattern_name in self.thresholds:
-                thresholds = self.thresholds[pattern_name].copy()
-                break
-        
-        return thresholds
-    
-    def _make_prediction(self, enhanced_xg, thresholds, confidence_boost):
-        """Make prediction with enhanced confidence"""
-        if enhanced_xg > thresholds['over']:
-            prediction = 'OVER 2.5'
-            base_confidence = 'HIGH' if enhanced_xg > 3.0 else 'MEDIUM'
-        elif enhanced_xg < thresholds['under']:
-            prediction = 'UNDER 2.5'
-            base_confidence = 'HIGH' if enhanced_xg < 2.0 else 'MEDIUM'
-        else:
-            prediction = 'OVER 2.5' if enhanced_xg > 2.5 else 'UNDER 2.5'
-            base_confidence = 'MEDIUM'
-        
-        # Boost confidence based on edge patterns
-        if confidence_boost > 0.15:
-            confidence = 'VERY HIGH'
-        elif confidence_boost > 0.10:
-            confidence = 'HIGH'
-        else:
-            confidence = base_confidence
-        
-        return prediction, confidence
-    
-    def _calculate_stake(self, edge_value, confidence):
-        """Calculate stake based on edge value and confidence"""
-        if confidence == 'VERY HIGH' and edge_value > 0.25:
-            return 'MAX BET (3x normal) 🔥'
-        elif confidence == 'HIGH' and edge_value > 0.20:
-            return 'HEAVY BET (2x normal) ⚡'
-        elif confidence in ['HIGH', 'MEDIUM'] and edge_value > 0.15:
-            return 'NORMAL BET (1x) ✅'
-        elif edge_value > 0.10:
-            return 'SMALL BET (0.5x) ⚖️'
-        else:
-            return 'AVOID or TINY BET (0.25x) ⚠️'
+        return home_xg + away_xg
 
-# ========== TEST CASES WITH EDGE PATTERNS ==========
+# ========== TEST CASES ==========
 TEST_CASES = {
-    'Atletico vs Valencia (DOMINATION + NEW MANAGER)': {
+    'Atletico Madrid vs Valencia': {
+        'home_name': 'Atletico Madrid',
+        'away_name': 'Valencia',
         'home_pos': 4,
         'away_pos': 17,
         'total_teams': 20,
-        'home_attack': 1.25,
-        'away_attack': 1.00,
-        'home_defense': 0.88,
-        'away_defense': 1.13,
-        'home_goals5': 14,
-        'away_goals5': 4,
-        'additional': {
-            'manager_changed': True,  # Valencia new manager
+        'games_played': 25,
+        'home_attack': 1.8,
+        'away_attack': 1.1,
+        'home_defense': 0.9,
+        'away_defense': 1.4,
+        'home_goals5': 12,
+        'away_goals5': 5,
+        'edge_conditions': {
+            'new_manager': True,
             'is_derby': False,
-            'top_scorer_out': False
+            'european_game': False,
+            'late_season': False,
+            'both_safe': False
         }
     },
-    'Liverpool vs Burnley (GHOST GAMES + WEATHER SHOCK)': {
+    'Liverpool vs Burnley': {
+        'home_name': 'Liverpool',
+        'away_name': 'Burnley',
         'home_pos': 2,
         'away_pos': 19,
         'total_teams': 20,
-        'home_attack': 2.10,
-        'away_attack': 0.80,
-        'home_defense': 0.90,
-        'away_defense': 1.80,
-        'home_goals5': 12,
-        'away_goals5': 3,
-        'additional': {
-            'newly_promoted': True,  # Burnley promoted
-            'temp_diff': 18,  # Burnley from cold to mild Liverpool
-            'early_kickoff': True
+        'games_played': 28,
+        'home_attack': 2.2,
+        'away_attack': 0.9,
+        'home_defense': 0.8,
+        'away_defense': 1.8,
+        'home_goals5': 14,
+        'away_goals5': 4,
+        'edge_conditions': {
+            'new_manager': False,
+            'is_derby': False,
+            'european_game': True,
+            'late_season': False,
+            'both_safe': False
         }
     },
-    'Derby Match (FEAR + REFEREE BIAS)': {
-        'home_pos': 12,
-        'away_pos': 14,
+    'Manchester Derby': {
+        'home_name': 'Manchester United',
+        'away_name': 'Manchester City',
+        'home_pos': 6,
+        'away_pos': 3,
         'total_teams': 20,
-        'home_attack': 1.40,
-        'away_attack': 1.30,
-        'home_defense': 1.30,
-        'away_defense': 1.40,
-        'home_goals5': 6,
-        'away_goals5': 5,
-        'additional': {
-            'is_derby': True,
-            'ref_cards_avg': 5.2,
-            'evening_kickoff': True
-        }
-    },
-    'Post-European Game (HANGOVER + TRAVEL)': {
-        'home_pos': 5,
-        'away_pos': 8,
-        'total_teams': 20,
-        'home_attack': 1.60,
-        'away_attack': 1.40,
-        'home_defense': 1.10,
-        'away_defense': 1.20,
+        'games_played': 30,
+        'home_attack': 1.5,
+        'away_attack': 2.1,
+        'home_defense': 1.3,
+        'away_defense': 0.9,
         'home_goals5': 8,
-        'away_goals5': 7,
-        'additional': {
-            'european_game': True,  # Away team played in Europe
-            'long_travel': True,
-            'recovery_hours': 65
+        'away_goals5': 15,
+        'edge_conditions': {
+            'new_manager': False,
+            'is_derby': True,
+            'european_game': False,
+            'late_season': True,
+            'both_safe': True
         }
     }
 }
 
+# ========== INITIALIZE ==========
+if 'engine' not in st.session_state:
+    st.session_state.engine = UltimatePredictionEngine()
+
+if 'db' not in st.session_state:
+    st.session_state.db = FootballDatabase()
+
+if 'current_prediction' not in st.session_state:
+    st.session_state.current_prediction = None
+
 # ========== MAIN APP ==========
 def main():
     st.markdown('<div class="main-header">👑 ULTIMATE FOOTBALL PREDICTOR</div>', unsafe_allow_html=True)
-    st.markdown("### **Psychology × Statistics × 12 Bookmaker-Beating Patterns**")
+    st.markdown("### **Complete Team Data Input + Psychology × Edge Patterns**")
     
-    # Initialize engine
-    if 'engine' not in st.session_state:
-        st.session_state.engine = UltimatePredictionEngine()
-    
-    # Edge explanation
-    with st.expander("🎯 **THE 12 BOOKMAKER-BEATING PATTERNS**", expanded=True):
-        col1, col2, col3 = st.columns(3)
+    # ===== SIDEBAR =====
+    with st.sidebar:
+        st.markdown("## 📊 Performance Dashboard")
         
-        with col1:
-            st.markdown("""
-            **🔥 HIGH EDGE (+20-40%):**
-            1. **New Manager Bounce** (+20%)
-            2. **Ghost Games** (+35%)
-            3. **Derby Fear** (+30%)
-            4. **Relegation Six-Pointer** (+40%)
-            5. **European Hangover** (+28%)
-            """)
+        perf_stats = st.session_state.db.get_performance_stats()
         
-        with col2:
-            st.markdown("""
-            **⚡ MEDIUM EDGE (+15-25%):**
-            6. **Dead Rubber Over** (+25%)
-            7. **Post-International** (+18%)
-            8. **Weather Shock** (+23%)
-            9. **Stars Absence** (+22%)
-            """)
+        col_sb1, col_sb2 = st.columns(2)
+        with col_sb1:
+            st.metric("Total Predictions", perf_stats['total'])
+        with col_sb2:
+            accuracy = f"{perf_stats['accuracy']*100:.1f}%" if perf_stats['total'] > 0 else "N/A"
+            st.metric("Accuracy", accuracy)
         
-        with col3:
-            st.markdown("""
-            **⚖️ LOW EDGE (+15-20%):**
-            10. **Cup Hangover** (+24%)
-            11. **Contract Motivation** (+20%)
-            12. **Referee Bias** (+19%)
-            
-            **Bookmaker Blind Spot:** Psychology + Context
-            """)
-    
-    # Test case selection
-    st.markdown("### 🧪 Edge Pattern Test Cases")
-    
-    col_test = st.columns(4)
-    test_cases = list(TEST_CASES.items())
-    
-    for idx, (case_name, case_data) in enumerate(test_cases):
-        with col_test[idx]:
-            if st.button(f"{case_name}", use_container_width=True, key=f"test_{idx}"):
-                st.session_state.selected_case = case_data
-                st.session_state.case_name = case_name
+        st.markdown("### Quick Test Cases")
+        
+        for case_name, case_data in TEST_CASES.items():
+            if st.button(case_name, use_container_width=True, key=f"case_{case_name}"):
+                st.session_state.current_prediction = None
+                st.session_state.test_case = case_data
                 st.rerun()
     
-    # Input section
-    st.markdown("### 📝 Enhanced Match Analysis")
+    # ===== MAIN INPUT SECTION =====
+    st.markdown('<div class="input-section">', unsafe_allow_html=True)
+    st.markdown("### 📝 TEAM DATA INPUT")
+    
+    # Use test case data if selected
+    if hasattr(st.session_state, 'test_case'):
+        default_data = st.session_state.test_case
+    else:
+        default_data = TEST_CASES['Atletico Madrid vs Valencia']
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("#### 📊 Core Statistics")
-        home_pos = st.number_input("Home Position", 1, 20, 
-                                  value=st.session_state.get('selected_case', {}).get('home_pos', 10),
+        st.markdown("#### 🏠 HOME TEAM")
+        home_name = st.text_input("Team Name", 
+                                 value=default_data['home_name'],
+                                 key="home_name")
+        
+        home_pos = st.number_input("League Position (1 = Best)", 
+                                  min_value=1, max_value=40,
+                                  value=default_data['home_pos'],
                                   key="home_pos")
-        away_pos = st.number_input("Away Position", 1, 20, 
-                                  value=st.session_state.get('selected_case', {}).get('away_pos', 10),
-                                  key="away_pos")
-        home_attack = st.number_input("Home Attack (goals/game)", 0.0, 5.0, 
-                                     value=st.session_state.get('selected_case', {}).get('home_attack', 1.4),
-                                     step=0.1, key="home_attack")
-        away_attack = st.number_input("Away Attack (goals/game)", 0.0, 5.0, 
-                                     value=st.session_state.get('selected_case', {}).get('away_attack', 1.3),
-                                     step=0.1, key="away_attack")
+        
+        home_attack = st.number_input("Attack: Goals per Game", 
+                                     min_value=0.0, max_value=5.0, step=0.1,
+                                     value=default_data['home_attack'],
+                                     key="home_attack")
+        
+        home_defense = st.number_input("Defense: Conceded per Game", 
+                                      min_value=0.0, max_value=5.0, step=0.1,
+                                      value=default_data['home_defense'],
+                                      key="home_defense")
+        
+        home_goals5 = st.number_input("Goals in Last 5 Games", 
+                                     min_value=0, max_value=30,
+                                     value=default_data['home_goals5'],
+                                     key="home_goals5")
+        
+        # Calculate form
+        home_form_level = "good" if home_goals5 / 5 > home_attack * 1.1 else "average"
+        st.info(f"**Form Level:** {home_form_level.upper()}")
     
     with col2:
-        st.markdown("#### 🎯 Edge Pattern Conditions")
+        st.markdown("#### ✈️ AWAY TEAM")
+        away_name = st.text_input("Team Name", 
+                                 value=default_data['away_name'],
+                                 key="away_name")
         
-        col_edge1, col_edge2 = st.columns(2)
+        away_pos = st.number_input("League Position (1 = Best)", 
+                                  min_value=1, max_value=40,
+                                  value=default_data['away_pos'],
+                                  key="away_pos")
         
-        with col_edge1:
-            manager_changed = st.checkbox("New Manager (last 2 games)", 
-                                         value=st.session_state.get('selected_case', {}).get('additional', {}).get('manager_changed', False))
-            is_derby = st.checkbox("Local Derby Match",
-                                  value=st.session_state.get('selected_case', {}).get('additional', {}).get('is_derby', False))
-            european_game = st.checkbox("European Game Midweek",
-                                       value=st.session_state.get('selected_case', {}).get('additional', {}).get('european_game', False))
-            top_scorer_out = st.checkbox("Top Scorer Out",
-                                        value=st.session_state.get('selected_case', {}).get('additional', {}).get('top_scorer_out', False))
+        away_attack = st.number_input("Attack: Goals per Game", 
+                                     min_value=0.0, max_value=5.0, step=0.1,
+                                     value=default_data['away_attack'],
+                                     key="away_attack")
         
-        with col_edge2:
-            newly_promoted = st.checkbox("Newly Promoted Team",
-                                        value=st.session_state.get('selected_case', {}).get('additional', {}).get('newly_promoted', False))
-            late_season = st.checkbox("Late Season (dead rubber)",
-                                     value=False)
-            temp_diff = st.number_input("Temperature Diff (°C)", 0, 30, 
-                                       value=st.session_state.get('selected_case', {}).get('additional', {}).get('temp_diff', 0))
-            ref_high_cards = st.checkbox("Card-Happy Referee",
-                                        value=st.session_state.get('selected_case', {}).get('additional', {}).get('ref_cards_avg', 0) > 4.5)
+        away_defense = st.number_input("Defense: Conceded per Game", 
+                                      min_value=0.0, max_value=5.0, step=0.1,
+                                      value=default_data['away_defense'],
+                                      key="away_defense")
+        
+        away_goals5 = st.number_input("Goals in Last 5 Games", 
+                                     min_value=0, max_value=30,
+                                     value=default_data['away_goals5'],
+                                     key="away_goals5")
+        
+        # Calculate form
+        away_form_level = "poor" if away_goals5 / 5 < away_attack * 0.9 else "average"
+        st.info(f"**Form Level:** {away_form_level.upper()}")
     
-    # Analyze button
-    if st.button("🚀 ULTIMATE ANALYSIS", type="primary", use_container_width=True):
-        # Prepare data
-        match_data = {
-            'home_pos': home_pos,
-            'away_pos': away_pos,
-            'total_teams': 20,
-            'games_played': 25,
-            'home_attack': home_attack,
-            'away_attack': away_attack,
-            'home_defense': 1.2,
-            'away_defense': 1.4,
-            'home_goals5': int(home_attack * 5),
-            'away_goals5': int(away_attack * 5)
-        }
-        
-        additional_data = {
-            'manager_changed': manager_changed,
-            'is_derby': is_derby,
-            'european_game': european_game,
-            'top_scorer_out': top_scorer_out,
-            'newly_promoted': newly_promoted,
-            'late_season': late_season,
-            'temp_diff': temp_diff,
-            'ref_cards_avg': 5.2 if ref_high_cards else 3.5
-        }
-        
-        # Run analysis
-        result = st.session_state.engine.calculate_enhanced_prediction(match_data, additional_data)
-        
-        # Store results
-        st.session_state.result = result
-        st.session_state.match_data = match_data
-        st.session_state.additional_data = additional_data
+    # League settings
+    st.markdown("#### ⚙️ LEAGUE SETTINGS")
+    col3, col4, col5 = st.columns(3)
     
-    # Display results
-    if hasattr(st.session_state, 'result'):
-        result = st.session_state.result
+    with col3:
+        total_teams = st.number_input("Total Teams in League", 
+                                     min_value=10, max_value=40,
+                                     value=default_data['total_teams'],
+                                     key="total_teams")
+    
+    with col4:
+        games_played = st.number_input("Games Played This Season", 
+                                      min_value=1, max_value=50,
+                                      value=default_data['games_played'],
+                                      key="games_played")
+    
+    with col5:
+        season_progress = (games_played / (total_teams * 2)) * 100
+        st.metric("Season Progress", f"{season_progress:.1f}%")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # ===== EDGE PATTERN CONDITIONS =====
+    st.markdown('<div class="input-section">', unsafe_allow_html=True)
+    st.markdown("### 🎯 EDGE PATTERN CONDITIONS")
+    
+    col_edge1, col_edge2, col_edge3 = st.columns(3)
+    
+    with col_edge1:
+        new_manager = st.checkbox("New Manager Effect", 
+                                 value=default_data['edge_conditions']['new_manager'],
+                                 key="new_manager")
+        
+        is_derby = st.checkbox("Local Derby Match", 
+                              value=default_data['edge_conditions']['is_derby'],
+                              key="is_derby")
+    
+    with col_edge2:
+        european_game = st.checkbox("European Game Midweek", 
+                                   value=default_data['edge_conditions']['european_game'],
+                                   key="european_game")
+        
+        late_season = st.checkbox("Late Season Match", 
+                                 value=default_data['edge_conditions']['late_season'],
+                                 key="late_season")
+    
+    with col_edge3:
+        # Calculate if both teams are safe
+        bottom_cutoff = total_teams - 3
+        both_safe = home_pos < bottom_cutoff and away_pos < bottom_cutoff
+        both_safe_box = st.checkbox("Both Teams Safe", 
+                                   value=both_safe,
+                                   disabled=True,
+                                   key="both_safe")
+        
+        st.caption(f"Teams safe if position < {bottom_cutoff}")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # ===== ANALYZE BUTTON =====
+    if st.button("🚀 RUN ULTIMATE ANALYSIS", type="primary", use_container_width=True):
+        try:
+            # Prepare match data
+            match_data = {
+                'home_name': home_name,
+                'away_name': away_name,
+                'home_pos': home_pos,
+                'away_pos': away_pos,
+                'total_teams': total_teams,
+                'games_played': games_played,
+                'home_attack': home_attack,
+                'away_attack': away_attack,
+                'home_defense': home_defense,
+                'away_defense': away_defense,
+                'home_goals5': home_goals5,
+                'away_goals5': away_goals5,
+                'home_form_level': home_form_level,
+                'away_form_level': away_form_level
+            }
+            
+            # Prepare edge conditions
+            edge_conditions = {
+                'new_manager': new_manager,
+                'is_derby': is_derby,
+                'european_game': european_game,
+                'late_season': late_season,
+                'both_safe': both_safe
+            }
+            
+            # Run analysis
+            analysis = st.session_state.engine.analyze_match(match_data, edge_conditions)
+            
+            # Save to database
+            prediction_data = {
+                'match_data': match_data,
+                'analysis': analysis
+            }
+            
+            prediction_hash = st.session_state.db.save_prediction(prediction_data)
+            
+            # Store in session
+            st.session_state.current_prediction = {
+                'analysis': analysis,
+                'match_data': match_data,
+                'edge_conditions': edge_conditions,
+                'prediction_hash': prediction_hash,
+                'teams': f"{home_name} vs {away_name}"
+            }
+            
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"Analysis error: {str(e)}")
+    
+    # ===== RESULTS DISPLAY =====
+    if st.session_state.current_prediction:
+        pred_data = st.session_state.current_prediction
+        analysis = pred_data['analysis']
+        match_data = pred_data['match_data']
         
         st.markdown("---")
-        st.markdown(f"## 📊 ULTIMATE PREDICTION ANALYSIS")
+        st.markdown(f"## 📊 RESULTS: {pred_data['teams']}")
         
-        # Key metrics
+        # Team info cards
+        col_team1, col_team2 = st.columns(2)
+        
+        with col_team1:
+            st.markdown(f"""
+            <div class="team-card">
+                <h3>🏠 {match_data['home_name']}</h3>
+                <p><strong>Position:</strong> {match_data['home_pos']}</p>
+                <p><strong>Attack:</strong> {match_data['home_attack']} goals/game</p>
+                <p><strong>Defense:</strong> {match_data['home_defense']} conceded/game</p>
+                <p><strong>Recent Form:</strong> {match_data['home_goals5']} goals in last 5</p>
+                <p><strong>Form Level:</strong> {match_data['home_form_level'].upper()}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col_team2:
+            st.markdown(f"""
+            <div class="team-card">
+                <h3>✈️ {match_data['away_name']}</h3>
+                <p><strong>Position:</strong> {match_data['away_pos']}</p>
+                <p><strong>Attack:</strong> {match_data['away_attack']} goals/game</p>
+                <p><strong>Defense:</strong> {match_data['away_defense']} conceded/game</p>
+                <p><strong>Recent Form:</strong> {match_data['away_goals5']} goals in last 5</p>
+                <p><strong>Form Level:</strong> {match_data['away_form_level'].upper()}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Key prediction metrics
+        st.markdown("### 🎯 PREDICTION SUMMARY")
+        
         col_metrics = st.columns(4)
         
         with col_metrics[0]:
-            st.metric("Prediction", result['prediction'])
+            st.metric("Prediction", analysis['prediction'])
         with col_metrics[1]:
-            st.metric("Confidence", result['confidence'])
+            st.metric("Confidence", analysis['confidence'])
         with col_metrics[2]:
-            st.metric("Edge Value", f"+{result['total_edge_value']*100:.1f}%")
+            st.metric("Expected Goals", analysis['enhanced_xg'])
         with col_metrics[3]:
-            st.metric("Recommended Stake", result['stake_recommendation'])
+            st.metric("Recommended Stake", analysis['stake_recommendation'])
         
-        # Edge value visualization
-        st.markdown(f"### 💰 **Total Edge Value: +{result['total_edge_value']*100:.1f}%**")
-        edge_percent = min(100, result['total_edge_value'] * 250)  # Scale for visualization
+        # Psychology badge
         st.markdown(f"""
-        <div style="width: 100%; background: #f0f0f0; border-radius: 10px; height: 30px; margin: 10px 0;">
-            <div style="width: {edge_percent}%; background: linear-gradient(90deg, #00b09b, #96c93d); 
-                       height: 100%; border-radius: 10px; display: flex; align-items: center; padding-left: 10px; color: white; font-weight: bold;">
-                {edge_percent:.0f}% of maximum possible edge
-            </div>
+        <div style="margin: 20px 0;">
+            <span class="psychology-badge {analysis['badge']}">
+                {analysis['psychology']} PSYCHOLOGY
+            </span>
+            <small style="margin-left: 15px; color: #666;">
+                Core Pattern: {analysis['core_pattern'].replace('_', ' ').title()}
+            </small>
         </div>
         """, unsafe_allow_html=True)
         
-        # Detected patterns
-        st.markdown("### 🎯 DETECTED PATTERNS")
-        
-        if result['patterns_detected']:
-            for pattern in result['patterns_detected']:
-                pattern_type = pattern['type']
-                pattern_data = pattern['data']
-                
-                if pattern_type == 'CORE':
-                    border_color = '#4CAF50'
-                    badge_text = 'CORE'
+        # Edge patterns detected
+        if analysis['edge_patterns']:
+            st.markdown("### ⚡ EDGE PATTERNS DETECTED")
+            
+            for edge in analysis['edge_patterns']:
+                edge_value = edge['edge_value']
+                if edge_value > 0.25:
+                    edge_class = "edge-high"
+                elif edge_value > 0.15:
+                    edge_class = "edge-medium"
                 else:
-                    border_color = '#2196F3'
-                    badge_text = f"EDGE +{pattern_data.get('edge_value', 0)*100:.0f}%"
+                    edge_class = "edge-low"
                 
                 st.markdown(f"""
-                <div class="edge-card" style="border-left-color: {border_color};">
+                <div class="edge-card {edge_class}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
-                            <strong>{pattern['name'].replace('_', ' ').title()}</strong>
-                            <span class="pattern-badge" style="background: {border_color}; color: white;">{badge_text}</span>
+                            <strong>{edge['description']}</strong>
+                            <span class="pattern-badge">+{edge_value*100:.0f}% EDGE</span>
                         </div>
                         <div style="font-size: 0.9rem; color: #666;">
-                            Success: {pattern_data.get('success_rate', 0)*100:.0f}%
+                            Bet Type: {edge['bet_type'].replace('_', ' ')}
                         </div>
                     </div>
-                    <p style="margin: 10px 0 5px 0;">{pattern_data.get('description', '')}</p>
-                    <div style="font-size: 0.85rem; color: #555;">
-                        Multiplier: ×{pattern_data.get('base_multiplier', pattern_data.get('multiplier_effect', 1.0)):.2f} | 
-                        Confidence: +{pattern_data.get('confidence_boost', 0)*100:.0f}%
-                    </div>
+                    <p style="margin: 10px 0 5px 0;">Multiplier: ×{edge['multiplier']:.2f}</p>
                 </div>
                 """, unsafe_allow_html=True)
         
-        # xG breakdown
-        st.markdown("### 📈 ENHANCED xG CALCULATION")
+        # xG visualization
+        st.markdown("### 📈 EXPECTED GOALS BREAKDOWN")
         
-        col_xg1, col_xg2 = st.columns(2)
+        col_viz1, col_viz2 = st.columns(2)
         
-        with col_xg1:
+        with col_viz1:
             fig = go.Figure()
             
-            stages = ['Base xG', 'Core Pattern', 'Edge Patterns', 'Final xG']
+            stages = ['Base xG', 'Pattern Adjustments', 'Final xG']
             values = [
-                result['base_xg'],
-                result['base_xg'] * 1.0,  # Placeholder
-                result['base_xg'] * result['total_multiplier'],
-                result['enhanced_xg']
+                analysis['base_xg'],
+                analysis['base_xg'] * analysis['total_multiplier'],
+                analysis['enhanced_xg']
             ]
             
             fig.add_trace(go.Bar(
                 x=stages,
                 y=values,
-                marker_color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4'],
+                marker_color=['#FF6B6B', '#4ECDC4', '#96CEB4'],
                 text=[f'{v:.2f}' for v in values],
                 textposition='auto'
             ))
@@ -780,112 +813,99 @@ def main():
                 height=350,
                 showlegend=False,
                 yaxis_title="Expected Goals",
-                title="xG Evolution with Pattern Adjustments"
+                title="xG Calculation Process"
             )
             
             st.plotly_chart(fig, use_container_width=True)
         
-        with col_xg2:
+        with col_viz2:
             st.markdown(f"""
-            #### ⚙️ Calculation Breakdown
+            #### 🧮 CALCULATION DETAILS
             
-            **Base Statistical xG:** {result['base_xg']:.2f}
+            **Base Statistical Model:**
+            - Home Attack + Away Defense: ({match_data['home_attack']} + {match_data['away_defense']}) / 2
+            - Away Attack + Home Defense: ({match_data['away_attack']} + {match_data['home_defense']}) / 2
+            - **Total Base xG:** {analysis['base_xg']:.2f}
             
-            **Pattern Multipliers Applied:**
-            - Core pattern: ×1.00 (baseline)
-            - Edge patterns: ×{result['total_multiplier']:.2f}
-            
-            **Final Enhanced xG:** **{result['enhanced_xg']:.2f}**
+            **Pattern Adjustments:**
+            - Core Pattern: {analysis['core_pattern'].replace('_', ' ').title()}
+            - Multiplier: ×{analysis['total_multiplier']:.2f}
+            - Edge Value: +{analysis['total_edge_value']*100:.1f}%
             
             **Decision Thresholds:**
-            - OVER 2.5 if > {result['thresholds_used'].get('over', 2.7)}
-            - UNDER 2.5 if < {result['thresholds_used'].get('under', 2.3)}
-            - *{result['thresholds_used'].get('explanation', 'Standard context')}*
+            - OVER if > {analysis['thresholds_used']['over']}
+            - UNDER if < {analysis['thresholds_used']['under']}
             
-            **Betting Recommendation:**
-            - **{result['prediction']}** at {result['confidence']} confidence
-            - **{result['stake_recommendation']}**
-            - **Expected Value: +{result['total_edge_value']*100:.1f}%**
-            """)
-        
-        # Recommended bets
-        if result.get('recommended_bets'):
-            st.markdown("### 💎 ADDITIONAL BETTING OPPORTUNITIES")
-            
-            for bet in result['recommended_bets']:
-                edge_value = bet['edge_value']
-                if edge_value > 0.15:
-                    border_color = '#4CAF50'
-                    emoji = '🔥'
-                elif edge_value > 0.10:
-                    border_color = '#FF9800'
-                    emoji = '⚡'
-                else:
-                    border_color = '#2196F3'
-                    emoji = '✅'
-                
-                st.markdown(f"""
-                <div class="edge-card" style="border-left-color: {border_color};">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <strong>{emoji} {bet['pattern'].replace('_', ' ').title()}</strong>
-                            <span class="pattern-badge" style="background: {border_color}; color: white;">
-                                +{edge_value*100:.0f}% EDGE
-                            </span>
-                        </div>
-                        <div style="font-size: 0.9rem;">
-                            Success: {bet['success_rate']*100:.0f}%
-                        </div>
-                    </div>
-                    <p style="margin: 10px 0 5px 0; font-weight: bold;">
-                        {bet['bet_type'].replace('_', ' ')}
-                    </p>
-                    <div class="value-meter" style="width: {min(100, edge_value*400)}%;"></div>
-                </div>
-                """, unsafe_allow_html=True)
-        
-        # Why this beats bookmakers
-        st.markdown("---")
-        st.markdown("### 🏆 WHY THIS BEATS BOOKMAKERS")
-        
-        col_book1, col_book2 = st.columns(2)
-        
-        with col_book1:
-            st.markdown("""
-            **📊 Bookmaker Limitations:**
-            1. **Fixed algorithms** - Can't adjust for psychological contexts
-            2. **Separate modeling** - Leagues and competitions modeled independently
-            3. **Public money bias** - Adjust odds based on betting patterns, not reality
-            4. **Statistical only** - Miss psychological and contextual factors
-            5. **Small sample blind spots** - Can't model rare events effectively
-            """)
-        
-        with col_book2:
-            st.markdown("""
-            **🎯 This System's Advantages:**
-            1. **Psychology × Statistics** - Your core innovation
-            2. **Contextual thresholds** - Dynamic, not fixed
-            3. **Cross-competition awareness** - European hangover, international breaks
-            4. **Temporal intelligence** - Season phases, timing effects
-            5. **Human factor modeling** - Manager changes, contracts, fatigue
+            **Final Calculation:**
+            - {analysis['base_xg']:.2f} × {analysis['total_multiplier']:.2f} = **{analysis['enhanced_xg']:.2f}**
+            - Prediction: **{analysis['prediction']}**
             """)
         
         # Profit simulation
         st.markdown('<div class="profit-highlight">', unsafe_allow_html=True)
         st.markdown(f"""
-        ### 💰 PROFIT SIMULATION (Based on Edge Value)
+        ### 💰 PROFIT POTENTIAL
         
-        Assuming normal stake = $100 per bet:
+        **Match:** {match_data['home_name']} vs {match_data['away_name']}
+        **Prediction:** {analysis['prediction']} ({analysis['confidence']} confidence)
+        **Edge Value:** +{analysis['total_edge_value']*100:.1f}%
+        **Stake:** {analysis['stake_recommendation']}
         
-        - **With {result['stake_recommendation'].split('(')[1].split('x')[0]} stake**: ${100 * float(result['stake_recommendation'].split('(')[1].split('x')[0])}
-        - **Edge value**: +{result['total_edge_value']*100:.1f}%
-        - **Expected value per bet**: +${100 * float(result['stake_recommendation'].split('(')[1].split('x')[0]) * result['total_edge_value']:.2f}
-        - **Monthly (20 bets)**: +${100 * 20 * float(result['stake_recommendation'].split('(')[1].split('x')[0]) * result['total_edge_value']:.0f}
-        - **Annual (250 bets)**: +${100 * 250 * float(result['stake_recommendation'].split('(')[1].split('x')[0]) * result['total_edge_value']:.0f}
-        
-        *Based on historical success rates of detected patterns*
+        *Assuming standard stake = $100:*
+        - Expected value per bet: **+${100 * analysis['total_edge_value']:.2f}**
+        - Weekly (5 bets): **+${100 * 5 * analysis['total_edge_value']:.0f}**
+        - Monthly (20 bets): **+${100 * 20 * analysis['total_edge_value']:.0f}**
         """)
         st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Outcome recording
+        st.markdown("---")
+        st.markdown("### 📝 RECORD ACTUAL OUTCOME")
+        
+        col_out1, col_out2, col_out3 = st.columns(3)
+        
+        with col_out1:
+            actual_home = st.number_input(f"{match_data['home_name']} Goals", 
+                                        0, 10, 0, key="actual_home")
+        
+        with col_out2:
+            actual_away = st.number_input(f"{match_data['away_name']} Goals", 
+                                        0, 10, 0, key="actual_away")
+        
+        with col_out3:
+            notes = st.text_input("Match Notes", key="outcome_notes")
+        
+        if st.button("✅ SAVE ACTUAL RESULT", type="secondary"):
+            if actual_home == 0 and actual_away == 0:
+                st.warning("Please enter actual scores (at least one goal)")
+            else:
+                success = st.session_state.db.record_outcome(
+                    pred_data['prediction_hash'],
+                    actual_home,
+                    actual_away,
+                    notes
+                )
+                
+                if success:
+                    st.success("Result saved! System learning updated.")
+                    
+                    # Show learning feedback
+                    actual_total = actual_home + actual_away
+                    predicted = analysis['prediction']
+                    actual_type = "OVER 2.5" if actual_total > 2.5 else "UNDER 2.5"
+                    is_correct = predicted == actual_type
+                    
+                    st.info(f"""
+                    **Learning Update:**
+                    - Predicted: **{predicted}**
+                    - Actual: **{actual_type}** ({actual_home}-{actual_away})
+                    - Result: **{'✅ CORRECT' if is_correct else '❌ INCORRECT'}**
+                    - Pattern: {analysis['core_pattern'].replace('_', ' ').title()}
+                    """)
+                    
+                    st.rerun()
+                else:
+                    st.error("Failed to save result")
 
 if __name__ == "__main__":
     main()
