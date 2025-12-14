@@ -419,44 +419,45 @@ def create_input_form():
     col1, col2 = st.columns(2)
     
     with col1:
-        home_team = st.text_input("Home Team", "Liverpool")
-        away_team = st.text_input("Away Team", "Brighton")
+        home_team = st.text_input("Home Team", "Burnley")
+        away_team = st.text_input("Away Team", "Fulham")
         match_date = st.date_input("Match Date", datetime.now())
     
     with col2:
-        over_odds = st.number_input("Over 2.5 Odds", min_value=1.1, max_value=10.0, value=1.55, step=0.05)
-        under_odds = st.number_input("Under 2.5 Odds", min_value=1.1, max_value=10.0, value=2.60, step=0.05)
-        public_percentage = st.slider("Public Betting % on Over", 0, 100, 66)
+        over_odds = st.number_input("Over 2.5 Odds", min_value=1.1, max_value=10.0, value=2.15, step=0.05)
+        under_odds = st.number_input("Under 2.5 Odds", min_value=1.1, max_value=10.0, value=1.85, step=0.05)
+        # CHANGED: Replaced slider with number input
+        public_percentage = st.number_input("Public Betting % on Over", min_value=0, max_value=100, value=60, step=1)
     
     st.markdown("### Historical vs Recent Form")
     
-    # Home Team Stats - NEW LAYOUT
+    # Home Team Stats
     st.markdown("#### **Home Team Stats**")
     col3, col4, col5 = st.columns(3)
     
     with col3:
         st.markdown('<div class="stat-label">Historical Avg Goals (Season)</div>', unsafe_allow_html=True)
-        home_hist_goals = st.number_input("", min_value=0.0, max_value=5.0, value=2.0, step=0.1, key="home_hist_goals")
+        home_hist_goals = st.number_input("", min_value=0.0, max_value=5.0, value=1.8, step=0.1, key="home_hist_goals")
         
         st.markdown('<div class="stat-label">Historical Avg Conceded (Season)</div>', unsafe_allow_html=True)
         home_hist_conceded = st.number_input("", min_value=0.0, max_value=5.0, value=1.3, step=0.1, key="home_hist_conceded")
     
     with col4:
         st.markdown('<div class="stat-label">Recent Avg Goals (Last 5 Home Games)</div>', unsafe_allow_html=True)
-        home_recent_goals = st.number_input("", min_value=0.0, max_value=5.0, value=1.6, step=0.1, key="home_recent_goals")
+        home_recent_goals = st.number_input("", min_value=0.0, max_value=5.0, value=0.6, step=0.1, key="home_recent_goals")
         
         st.markdown('<div class="stat-label">Recent Avg Conceded (Last 5 Home Games)</div>', unsafe_allow_html=True)
-        home_recent_conceded = st.number_input("", min_value=0.0, max_value=5.0, value=1.4, step=0.1, key="home_recent_conceded")
+        home_recent_conceded = st.number_input("", min_value=0.0, max_value=5.0, value=1.2, step=0.1, key="home_recent_conceded")
     
     with col5:
-        home_manager = st.text_input("Home Manager", "Jurgen Klopp", key="home_manager")
+        home_manager = st.text_input("Home Manager", "Slot", key="home_manager")
         st.markdown('<div class="help-text">Full season average for home games</div>', unsafe_allow_html=True)
         st.markdown('<div class="help-text">Last 5 home games only</div>', unsafe_allow_html=True)
     
     # Divider
     st.markdown("---")
     
-    # Away Team Stats - NEW LAYOUT
+    # Away Team Stats
     st.markdown("#### **Away Team Stats**")
     col6, col7, col8 = st.columns(3)
     
@@ -465,14 +466,14 @@ def create_input_form():
         away_hist_goals = st.number_input("", min_value=0.0, max_value=5.0, value=1.3, step=0.1, key="away_hist_goals")
         
         st.markdown('<div class="stat-label">Historical Avg Conceded (Season)</div>', unsafe_allow_html=True)
-        away_hist_conceded = st.number_input("", min_value=0.0, max_value=5.0, value=2.0, step=0.1, key="away_hist_conceded")
+        away_hist_conceded = st.number_input("", min_value=0.0, max_value=5.0, value=1.8, step=0.1, key="away_hist_conceded")
     
     with col7:
         st.markdown('<div class="stat-label">Recent Avg Goals (Last 5 Away Games)</div>', unsafe_allow_html=True)
-        away_recent_goals = st.number_input("", min_value=0.0, max_value=5.0, value=1.8, step=0.1, key="away_recent_goals")
+        away_recent_goals = st.number_input("", min_value=0.0, max_value=5.0, value=1.0, step=0.1, key="away_recent_goals")
         
         st.markdown('<div class="stat-label">Recent Avg Conceded (Last 5 Away Games)</div>', unsafe_allow_html=True)
-        away_recent_conceded = st.number_input("", min_value=0.0, max_value=5.0, value=1.2, step=0.1, key="away_recent_conceded")
+        away_recent_conceded = st.number_input("", min_value=0.0, max_value=5.0, value=2.2, step=0.1, key="away_recent_conceded")
     
     with col8:
         away_manager = st.text_input("Away Manager", "Roberto De Zerbi", key="away_manager")
@@ -484,29 +485,31 @@ def create_input_form():
     col9, col10 = st.columns(2)
     
     with col9:
-        home_position = st.number_input("Home Team League Position", min_value=1, max_value=20, value=10, key="home_position")
-        away_position = st.number_input("Away Team League Position", min_value=1, max_value=20, value=8, key="away_position")
-        home_points = st.number_input("Home Team Total Points", min_value=0, max_value=100, value=23, key="home_points")
+        home_position = st.number_input("Home Team League Position", min_value=1, max_value=20, value=19, key="home_position")
+        away_position = st.number_input("Away Team League Position", min_value=1, max_value=20, value=15, key="away_position")
+        home_points = st.number_input("Home Team Total Points", min_value=0, max_value=100, value=10, key="home_points")
     
     with col10:
-        home_last_5_wins = st.number_input("Home Wins in Last 5 Games", min_value=0, max_value=5, value=2, key="home_last_5_wins")
+        home_last_5_wins = st.number_input("Home Wins in Last 5 Games", min_value=0, max_value=5, value=1, key="home_last_5_wins")
         games_remaining = st.number_input("Games Remaining in Season", min_value=1, max_value=38, value=23, key="games_remaining")
         is_derby = st.checkbox("Is Local Derby?", key="is_derby")
-        is_relegation_battle = st.checkbox("Relegation Battle?", key="is_relegation_battle")
+        is_relegation_battle = st.checkbox("Relegation Battle?", value=True, key="is_relegation_battle")
     
-    # Additional data
+    # Additional data - CHANGED: Removed sliders
     with st.expander("Advanced Settings"):
         col11, col12 = st.columns(2)
         
         with col11:
-            total_goals_last_5_home = st.number_input("Total Goals in Last 5 Home Games", min_value=0, max_value=50, value=6, key="total_goals_last_5_home")
-            h2h_over_percentage = st.slider("Historical H2H Over 2.5 %", 0, 100, 69, key="h2h_over_percentage")
-            recent_over_percentage = st.slider("Recent Matches Over 2.5 %", 0, 100, 40, key="recent_over_percentage")
+            total_goals_last_5_home = st.number_input("Total Goals in Last 5 Home Games", min_value=0, max_value=50, value=9, key="total_goals_last_5_home")
+            # CHANGED: Replaced slider with number input
+            h2h_over_percentage = st.number_input("Historical H2H Over 2.5 %", min_value=0, max_value=100, value=50, step=1, key="h2h_over_percentage")
+            # CHANGED: Replaced slider with number input
+            recent_over_percentage = st.number_input("Recent Matches Over 2.5 %", min_value=0, max_value=100, value=40, step=1, key="recent_over_percentage")
             
         with col12:
             both_conceded_5plus = st.checkbox("Both Teams Conceded 5+ in Last 3 Games", key="both_conceded_5plus")
-            both_safe = st.checkbox("Both Teams Safe from Relegation", value=True, key="both_safe")
-            both_no_europe = st.checkbox("Both Cannot Qualify for Europe", key="both_no_europe")
+            both_safe = st.checkbox("Both Teams Safe from Relegation", value=False, key="both_safe")
+            both_no_europe = st.checkbox("Both Cannot Qualify for Europe", value=True, key="both_no_europe")
             new_manager = st.checkbox("New Manager (Either Team)?", key="new_manager")
     
     st.markdown('</div>', unsafe_allow_html=True)
@@ -531,8 +534,8 @@ def create_input_form():
                 'h2h_over_percentage': h2h_over_percentage,
                 'recent_over_percentage': recent_over_percentage,
                 'new_manager_any_team': new_manager,
-                'goals_for_last_5': '1,0,2,1,2',  # Default values
-                'goals_against_last_5': '1,3,0,2,1'
+                'goals_for_last_5': '1,1,0,2,0',  # Updated for Burnley
+                'goals_against_last_5': '2,1,1,0,1'  # Updated for Burnley
             },
             'historical_stats_away': {
                 'avg_goals': away_hist_goals,
@@ -542,8 +545,8 @@ def create_input_form():
             'recent_stats_away': {
                 'avg_goals_last_5': away_recent_goals,
                 'conceded_pg_last_5': away_recent_conceded,
-                'goals_for_last_5': '2,0,2,3,1',
-                'goals_against_last_5': '0,0,4,1,1'
+                'goals_for_last_5': '2,1,0,1,1',  # Updated for Fulham
+                'goals_against_last_5': '3,2,1,2,3'  # Updated for Fulham
             }
         },
         'odds_data': {
@@ -560,7 +563,7 @@ def create_input_form():
             'home_position': home_position,
             'away_position': away_position,
             'home_points': home_points,
-            'away_points': 23,  # Default
+            'away_points': 17,  # Default for Fulham at 15th position
             'home_last_5_wins': home_last_5_wins,
             'games_remaining': games_remaining,
             'is_local_derby': is_derby,
@@ -769,51 +772,15 @@ def main():
             **Recent Avg Goals (Last 5):**
             `Goals in last 5 home games ÷ 5`
             
-            **Example Liverpool:**
-            - Season: 18 home goals ÷ 10 games = **1.8**
-            - Last 5: 6 goals ÷ 5 games = **1.2**
+            **Example Burnley:**
+            - Season: 1.8 avg goals at home
+            - Last 5: 0.6 avg goals at home
             
             **Key Principle:**
             System weights **recent form (80%)** higher than **historical data (20%)**
             
             **Data Sources Tip:**
             Always check if stats are **home/away specific** not overall
-            """)
-        
-        st.divider()
-        
-        st.markdown("### 🎯 Common Bookmaker Traps")
-        
-        col3, col4 = st.columns(2)
-        
-        with col3:
-            st.markdown("""
-            **Over Hype Trap**
-            - When: Big team at home, public expects goals
-            - Odds: Over 2.5 < 1.65
-            - Reality: Often cagey, tactical 2-0, 1-0 wins
-            - Action: Consider Under
-            
-            **Historical Data Trap**
-            - When: H2H shows high scoring, but teams changed
-            - Odds: Over heavily favored based on history
-            - Reality: New managers play differently
-            - Action: Trust recent form over history
-            """)
-        
-        with col4:
-            st.markdown("""
-            **Under Fear Trap**
-            - When: Relegation battle, both teams "defensive"
-            - Odds: Under 2.5 < 1.70
-            - Reality: Pressure causes mistakes, 2-1 results
-            - Action: Consider Over
-            
-            **Emotional Pricing Trap**
-            - When: Derbies, rivalries, "must-win" games
-            - Odds: Set for entertainment value
-            - Reality: Fear of losing > desire to win
-            - Action: Expect lower scoring than odds suggest
             """)
 
 if __name__ == "__main__":
