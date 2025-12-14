@@ -684,7 +684,8 @@ class EnhancedPredictionEngine:
                 'recommendation': 'NO BET ❌',
                 'reason': 'Negative expected value',
                 'kelly_percentage': 0.0,
-                'fractional_percentage': 0.0
+                'fractional_percentage': 0.0,
+                'expected_value': 0.0  # Added this key
             }
         
         f = (b * p_adj - q) / b
@@ -704,12 +705,15 @@ class EnhancedPredictionEngine:
         else:
             rec_text = 'MINIMAL BET (≤1%) 📉'
         
+        # Calculate expected value
+        expected_value = (b * p_adj - q) * 100
+        
         return {
             'recommendation': rec_text,
             'reason': f'Kelly Criterion suggests {f*100:.1f}%, using 1/4 Kelly for safety',
             'kelly_percentage': round(f, 3),
             'fractional_percentage': round(f_fractional, 3),
-            'expected_value': round((b * p_adj - q) * 100, 1)
+            'expected_value': round(expected_value, 1)  # This key was missing!
         }
     
     def _detect_core_pattern_auto(self, auto_context, home_pos, away_pos, total_teams):
@@ -1355,16 +1359,19 @@ def main():
             else:
                 st.metric("Recommended Stake", stake_info)
         
-        # Kelly Criterion details
+        # Kelly Criterion details - FIXED HERE
         if isinstance(analysis['stake_recommendation'], dict):
             stake_info = analysis['stake_recommendation']
+            # Check if 'expected_value' exists before using it
+            expected_value = stake_info.get('expected_value', 0.0)
+            
             st.markdown(f"""
             <div class="kelly-bet">
                 <h4>💰 Kelly Criterion Analysis</h4>
-                <p><strong>Full Kelly Percentage:</strong> {stake_info['kelly_percentage']*100:.1f}% of bankroll</p>
-                <p><strong>Fractional Kelly (1/4):</strong> {stake_info['fractional_percentage']*100:.1f}% of bankroll</p>
-                <p><strong>Expected Value:</strong> +{stake_info['expected_value']}% per bet</p>
-                <p><small>{stake_info['reason']}</small></p>
+                <p><strong>Full Kelly Percentage:</strong> {stake_info.get('kelly_percentage', 0.0)*100:.1f}% of bankroll</p>
+                <p><strong>Fractional Kelly (1/4):</strong> {stake_info.get('fractional_percentage', 0.0)*100:.1f}% of bankroll</p>
+                <p><strong>Expected Value:</strong> +{expected_value:.1f}% per bet</p>
+                <p><small>{stake_info.get('reason', 'Based on probability and edge value')}</small></p>
             </div>
             """, unsafe_allow_html=True)
         
@@ -1478,12 +1485,13 @@ def main():
             - Probability: **{analysis['actual_probability']*100:.1f}%**
             """)
         
-        # Profit simulation
+        # Profit simulation - FIXED HERE TOO
         if isinstance(analysis['stake_recommendation'], dict):
             stake_info = analysis['stake_recommendation']
-            kelly_pct = stake_info['fractional_percentage']
+            kelly_pct = stake_info.get('fractional_percentage', 0.0)
+            expected_value = stake_info.get('expected_value', 0.0)
             
-            if kelly_pct > 0:
+            if kelly_pct > 0 and expected_value > 0:
                 st.markdown('<div class="profit-highlight">', unsafe_allow_html=True)
                 st.markdown(f"""
                 ### 💰 PROFIT POTENTIAL (Kelly Criterion)
@@ -1492,13 +1500,13 @@ def main():
                 **Prediction:** {analysis['prediction']} ({analysis['confidence']} confidence)
                 **Probability:** {analysis['actual_probability']*100:.1f}%
                 **Recommended Stake:** {kelly_pct*100:.1f}% of bankroll
-                **Expected Value:** +{stake_info['expected_value']}% per bet
+                **Expected Value:** +{expected_value:.1f}% per bet
                 
                 *Assuming $10,000 bankroll:*
                 - Stake this match: **${kelly_pct*10000:.0f}**
-                - Expected value: **+${kelly_pct*10000 * stake_info['expected_value']/100:.0f}**
-                - Weekly (5 bets): **+${kelly_pct*10000 * 5 * stake_info['expected_value']/100:.0f}**
-                - Monthly (20 bets): **+${kelly_pct*10000 * 20 * stake_info['expected_value']/100:.0f}**
+                - Expected value: **+${kelly_pct*10000 * expected_value/100:.0f}**
+                - Weekly (5 bets): **+${kelly_pct*10000 * 5 * expected_value/100:.0f}**
+                - Monthly (20 bets): **+${kelly_pct*10000 * 20 * expected_value/100:.0f}**
                 
                 <small>*Note: These are theoretical values. Real results will vary.*</small>
                 """)
