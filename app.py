@@ -80,6 +80,19 @@ st.markdown("""
     .badge-control { background-color: #fff8e1; color: #ff8f00; }
     .badge-quality { background-color: #e3f2fd; color: #1565c0; }
     .badge-dominance { background-color: #f3e5f5; color: #6a1b9a; }
+    .status-safe { color: #4CAF50; font-weight: bold; }
+    .status-danger { color: #F44336; font-weight: bold; }
+    .status-mid { color: #FF9800; font-weight: bold; }
+    .season-early { color: #2196F3; font-weight: bold; }
+    .season-mid { color: #FF9800; font-weight: bold; }
+    .season-late { color: #F44336; font-weight: bold; }
+    .auto-detection {
+        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        border-radius: 10px;
+        padding: 15px;
+        margin: 10px 0;
+        border-left: 4px solid #2196F3;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -100,7 +113,8 @@ class FootballDatabase:
                 'hash': prediction_hash,
                 'timestamp': datetime.now(),
                 'match_data': prediction_data.get('match_data', {}),
-                'analysis': prediction_data.get('analysis', {})
+                'analysis': prediction_data.get('analysis', {}),
+                'auto_detections': prediction_data.get('auto_detections', {})
             }
             
             self.predictions.append(prediction_record)
@@ -224,13 +238,85 @@ class UltimatePredictionEngine:
             'default': {'over': 2.7, 'under': 2.3}
         }
     
-    def analyze_match(self, match_data, edge_conditions):
+    def auto_detect_context(self, match_data):
+        """Automatically detect season phase, team safety, and edge conditions"""
+        total_teams = match_data.get('total_teams', 20)
+        games_played = match_data.get('games_played', 1)
+        home_pos = match_data.get('home_pos', 10)
+        away_pos = match_data.get('away_pos', 10)
+        
+        # 1. Calculate season phase
+        total_games_season = total_teams * 2  # Double round-robin
+        season_progress = (games_played / total_games_season) * 100
+        
+        if season_progress <= 33.33:
+            season_phase = 'early'
+            is_late_season = False
+        elif season_progress <= 66.66:
+            season_phase = 'mid'
+            is_late_season = False
+        else:
+            season_phase = 'late'
+            is_late_season = True
+        
+        # 2. Calculate team safety zones
+        # Top 4: Champions League/Europa
+        # Safe zone: Top 70% of table
+        # Danger zone: Bottom 30% (relegation battle)
+        safe_cutoff = int(total_teams * 0.7)  # Top 70% safe
+        danger_cutoff = total_teams - 3  # Bottom 3 always danger
+        
+        home_status = 'safe' if home_pos <= safe_cutoff else 'danger'
+        away_status = 'safe' if away_pos <= safe_cutoff else 'danger'
+        
+        # Both teams safe? (for dead rubber detection)
+        both_safe = home_pos < danger_cutoff and away_pos < danger_cutoff
+        
+        # 3. Detect top/bottom classification
+        top_cutoff = 4  # Top 4 considered elite
+        bottom_cutoff = total_teams - 5  # Bottom 5 considered poor
+        
+        home_class = 'top' if home_pos <= top_cutoff else 'mid' if home_pos <= safe_cutoff else 'bottom'
+        away_class = 'top' if away_pos <= top_cutoff else 'mid' if away_pos <= safe_cutoff else 'bottom'
+        
+        # 4. Position gap for pattern detection
+        position_gap = abs(home_pos - away_pos)
+        
+        return {
+            'season_phase': season_phase,
+            'season_progress': season_progress,
+            'home_status': home_status,
+            'away_status': away_status,
+            'both_safe': both_safe,
+            'home_class': home_class,
+            'away_class': away_class,
+            'position_gap': position_gap,
+            'is_late_season': is_late_season,
+            'safe_cutoff': safe_cutoff,
+            'danger_cutoff': danger_cutoff,
+            'top_cutoff': top_cutoff,
+            'bottom_cutoff': bottom_cutoff
+        }
+    
+    def analyze_match(self, match_data, manual_edges):
         home_pos = match_data.get('home_pos', 10)
         away_pos = match_data.get('away_pos', 10)
         total_teams = match_data.get('total_teams', 20)
         
-        # Detect core pattern
-        core_pattern = self._detect_core_pattern(home_pos, away_pos, total_teams)
+        # Auto-detect context first
+        auto_context = self.auto_detect_context(match_data)
+        
+        # Use auto-detected values, override with manual only if provided
+        edge_conditions = {
+            'new_manager': manual_edges.get('new_manager', False),
+            'is_derby': manual_edges.get('is_derby', False),
+            'european_game': manual_edges.get('european_game', False),
+            'late_season': auto_context['is_late_season'],  # Auto-detected!
+            'both_safe': auto_context['both_safe']  # Auto-detected!
+        }
+        
+        # Detect core pattern using auto-context
+        core_pattern = self._detect_core_pattern_auto(auto_context, home_pos, away_pos, total_teams)
         
         # Detect edge patterns
         edge_patterns = []
@@ -298,27 +384,54 @@ class UltimatePredictionEngine:
             'thresholds_used': thresholds,
             'psychology': self.learned_patterns[core_pattern]['psychology'],
             'badge': self.learned_patterns[core_pattern]['badge']
-        }
+        }, auto_context
     
     def _detect_core_pattern(self, home_pos, away_pos, total_teams):
+        """Legacy detection - keeping for backward compatibility"""
         bottom_cutoff = total_teams - 3
         top_cutoff = 4
         
-        # Top vs Bottom patterns
         if (home_pos <= top_cutoff and away_pos >= bottom_cutoff) or (away_pos <= top_cutoff and home_pos >= bottom_cutoff):
             gap = abs(home_pos - away_pos)
             if gap > 8:
                 return 'top_vs_bottom_domination'
         
-        # Relegation battle
         if home_pos >= bottom_cutoff and away_pos >= bottom_cutoff:
             return 'relegation_battle'
         
-        # Top team battle
         if home_pos <= top_cutoff and away_pos <= top_cutoff:
             return 'top_team_battle'
         
         return 'mid_table_ambition'
+    
+    def _detect_core_pattern_auto(self, auto_context, home_pos, away_pos, total_teams):
+        """Enhanced pattern detection using auto-context"""
+        home_class = auto_context['home_class']
+        away_class = auto_context['away_class']
+        position_gap = auto_context['position_gap']
+        both_safe = auto_context['both_safe']
+        
+        # Top vs Bottom patterns
+        if (home_class == 'top' and away_class == 'bottom') or (away_class == 'top' and home_class == 'bottom'):
+            if position_gap > 8:
+                return 'top_vs_bottom_domination'
+            else:
+                return 'top_vs_bottom_dominance'
+        
+        # Both in danger zone (relegation battle)
+        if home_class == 'bottom' and away_class == 'bottom':
+            return 'relegation_battle'
+        
+        # Top team battle
+        if home_class == 'top' and away_class == 'top':
+            return 'top_team_battle'
+        
+        # Both safe mid-table
+        if both_safe and home_class == 'mid' and away_class == 'mid':
+            return 'mid_table_ambition'
+        
+        # Default - controlled mid-table clash
+        return 'controlled_mid_clash'
     
     def _calculate_base_xg(self, match_data):
         home_attack = match_data.get('home_attack', 1.4)
@@ -349,9 +462,8 @@ TEST_CASES = {
         'edge_conditions': {
             'new_manager': True,
             'is_derby': False,
-            'european_game': False,
-            'late_season': False,
-            'both_safe': False
+            'european_game': False
+            # late_season and both_safe are now AUTO-DETECTED
         }
     },
     'Liverpool vs Burnley': {
@@ -370,9 +482,7 @@ TEST_CASES = {
         'edge_conditions': {
             'new_manager': False,
             'is_derby': False,
-            'european_game': True,
-            'late_season': False,
-            'both_safe': False
+            'european_game': True
         }
     },
     'Manchester Derby': {
@@ -391,9 +501,26 @@ TEST_CASES = {
         'edge_conditions': {
             'new_manager': False,
             'is_derby': True,
-            'european_game': False,
-            'late_season': True,
-            'both_safe': True
+            'european_game': False
+        }
+    },
+    'Late Season Dead Rubber': {
+        'home_name': 'West Ham',
+        'away_name': 'Brentford',
+        'home_pos': 8,
+        'away_pos': 12,
+        'total_teams': 20,
+        'games_played': 35,
+        'home_attack': 1.6,
+        'away_attack': 1.5,
+        'home_defense': 1.4,
+        'away_defense': 1.3,
+        'home_goals5': 7,
+        'away_goals5': 6,
+        'edge_conditions': {
+            'new_manager': False,
+            'is_derby': False,
+            'european_game': False
         }
     }
 }
@@ -414,7 +541,7 @@ if 'test_case_data' not in st.session_state:
 # ========== MAIN APP ==========
 def main():
     st.markdown('<div class="main-header">👑 ULTIMATE FOOTBALL PREDICTOR</div>', unsafe_allow_html=True)
-    st.markdown("### **Test Case Loading Enabled**")
+    st.markdown("### **Auto-Detection System Enabled**")
     
     # ===== SIDEBAR =====
     with st.sidebar:
@@ -432,10 +559,8 @@ def main():
         st.markdown("### 🧪 Quick Test Cases")
         st.markdown("*Click to load team names and data*")
         
-        # Test case buttons - FIXED to load data immediately
         for case_name, case_data in TEST_CASES.items():
             if st.button(case_name, use_container_width=True, key=f"btn_{case_name}"):
-                # Store the test case data in session state
                 st.session_state.test_case_data = case_data
                 st.session_state.loaded_test_case = case_name
                 st.rerun()
@@ -444,18 +569,15 @@ def main():
     st.markdown('<div class="input-section">', unsafe_allow_html=True)
     st.markdown("### 📝 TEAM DATA INPUT")
     
-    # Show which test case is loaded
     if st.session_state.loaded_test_case:
         st.success(f"✅ **Loaded:** {st.session_state.loaded_test_case}")
     
-    # Get current data (either from test case or previous input)
     current_data = st.session_state.test_case_data
     
     col1, col2 = st.columns(2)
     
     with col1:
         st.markdown("#### 🏠 HOME TEAM")
-        # Load team name from test case if available
         home_name = st.text_input("Team Name", 
                                  value=current_data['home_name'],
                                  key="home_name_input")
@@ -482,7 +604,6 @@ def main():
     
     with col2:
         st.markdown("#### ✈️ AWAY TEAM")
-        # Load team name from test case if available
         away_name = st.text_input("Team Name", 
                                  value=current_data['away_name'],
                                  key="away_name_input")
@@ -509,7 +630,7 @@ def main():
     
     # League settings
     st.markdown("#### ⚙️ LEAGUE SETTINGS")
-    col3, col4, col5 = st.columns(3)
+    col3, col4 = st.columns(2)
     
     with col3:
         total_teams = st.number_input("Total Teams in League", 
@@ -523,9 +644,72 @@ def main():
                                       value=current_data['games_played'],
                                       key="games_played_input")
     
-    with col5:
-        season_progress = (games_played / (total_teams * 2)) * 100
-        st.metric("Season Progress", f"{season_progress:.1f}%")
+    # ===== AUTO-DETECTION DISPLAY =====
+    st.markdown("### 🔍 AUTO-DETECTION SYSTEM")
+    
+    # Run auto-detection for display
+    match_data_temp = {
+        'total_teams': total_teams,
+        'games_played': games_played,
+        'home_pos': home_pos,
+        'away_pos': away_pos
+    }
+    
+    auto_context = st.session_state.engine.auto_detect_context(match_data_temp)
+    
+    col_auto1, col_auto2, col_auto3 = st.columns(3)
+    
+    with col_auto1:
+        # Season phase
+        progress = auto_context['season_progress']
+        phase = auto_context['season_phase']
+        phase_class = f"season-{phase}"
+        
+        st.markdown(f"""
+        <div class="auto-detection">
+            <h4>📅 SEASON PHASE</h4>
+            <p>Progress: <span style="font-size: 1.2em;"><strong>{progress:.1f}%</strong></span></p>
+            <p>Phase: <span class="{phase_class}">{phase.upper()} SEASON</span></p>
+            <small>Auto-detected from games played</small>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_auto2:
+        # Team safety
+        home_status = auto_context['home_status']
+        away_status = auto_context['away_status']
+        safe_cutoff = auto_context['safe_cutoff']
+        
+        st.markdown(f"""
+        <div class="auto-detection">
+            <h4>🛡️ TEAM SAFETY</h4>
+            <p><strong>{home_name}:</strong> 
+            <span class="status-{home_status}">{home_status.upper()}</span>
+            (Position {home_pos} ≤ {safe_cutoff})</p>
+            <p><strong>{away_name}:</strong> 
+            <span class="status-{away_status}">{away_status.upper()}</span>
+            (Position {away_pos} ≤ {safe_cutoff})</p>
+            <small>Safe if position ≤ {safe_cutoff}</small>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_auto3:
+        # Team classification
+        home_class = auto_context['home_class']
+        away_class = auto_context['away_class']
+        both_safe = auto_context['both_safe']
+        
+        st.markdown(f"""
+        <div class="auto-detection">
+            <h4>🏆 TEAM CLASS</h4>
+            <p><strong>{home_name}:</strong> {home_class.upper()}</p>
+            <p><strong>{away_name}:</strong> {away_class.upper()}</p>
+            <p><strong>Both Teams Safe:</strong> 
+            <span class="{'status-safe' if both_safe else 'status-danger'}">
+            {'✓ YES' if both_safe else '✗ NO'}
+            </span></p>
+        </div>
+        """, unsafe_allow_html=True)
     
     st.markdown('</div>', unsafe_allow_html=True)
     
@@ -533,10 +717,11 @@ def main():
     st.markdown('<div class="input-section">', unsafe_allow_html=True)
     st.markdown("### 🎯 EDGE PATTERN CONDITIONS")
     
-    # Load edge conditions from test case
     edge_data = current_data['edge_conditions']
     
-    col_edge1, col_edge2, col_edge3 = st.columns(3)
+    st.info("ℹ️ **Note:** 'Late Season' and 'Both Teams Safe' are now auto-detected based on league data above.")
+    
+    col_edge1, col_edge2 = st.columns(2)
     
     with col_edge1:
         new_manager = st.checkbox("New Manager Effect", 
@@ -552,19 +737,33 @@ def main():
                                    value=edge_data['european_game'],
                                    key="european_game_input")
         
-        late_season = st.checkbox("Late Season Match", 
-                                 value=edge_data['late_season'],
-                                 key="late_season_input")
+        # Show auto-detected late season status
+        is_late_season = auto_context['is_late_season']
+        st.markdown(f"""
+        <div style="background: #e8f5e9; padding: 15px; border-radius: 10px; border-left: 4px solid #4CAF50;">
+            <strong>⏰ Late Season Detection:</strong>
+            <p style="margin: 5px 0;">Progress: {auto_context['season_progress']:.1f}% → 
+            <span class="{'season-late' if is_late_season else 'season-mid'}">
+            {'LATE SEASON' if is_late_season else 'NOT LATE SEASON'}
+            </span></p>
+            <small>Auto-detected: Late season = >66.6% of games played</small>
+        </div>
+        """, unsafe_allow_html=True)
     
-    with col_edge3:
-        # Calculate if both teams are safe
-        bottom_cutoff = total_teams - 3
-        both_safe = home_pos < bottom_cutoff and away_pos < bottom_cutoff
-        both_safe_box = st.checkbox("Both Teams Safe", 
-                                   value=both_safe,
-                                   key="both_safe_input")
-        
-        st.caption(f"Teams safe if position < {bottom_cutoff}")
+    # Show auto-detected both teams safe status
+    both_safe_detected = auto_context['both_safe']
+    st.markdown(f"""
+    <div style="background: #e3f2fd; padding: 15px; border-radius: 10px; margin-top: 15px; border-left: 4px solid #2196F3;">
+        <strong>🛡️ Both Teams Safe Detection:</strong>
+        <p style="margin: 5px 0;">
+        {home_name} (pos {home_pos}) and {away_name} (pos {away_pos}) are 
+        <span class="{'status-safe' if both_safe_detected else 'status-danger'}">
+        {'BOTH SAFE' if both_safe_detected else 'NOT BOTH SAFE'}
+        </span>
+        </p>
+        <small>Auto-detected: Safe = position < {auto_context['danger_cutoff']}</small>
+    </div>
+    """, unsafe_allow_html=True)
     
     st.markdown('</div>', unsafe_allow_html=True)
     
@@ -587,22 +786,22 @@ def main():
                 'away_goals5': away_goals5
             }
             
-            # Prepare edge conditions
-            edge_conditions = {
+            # Manual edge conditions only
+            manual_edges = {
                 'new_manager': new_manager,
                 'is_derby': is_derby,
-                'european_game': european_game,
-                'late_season': late_season,
-                'both_safe': both_safe
+                'european_game': european_game
+                # late_season and both_safe are auto-detected
             }
             
-            # Run analysis
-            analysis = st.session_state.engine.analyze_match(match_data, edge_conditions)
+            # Run analysis (auto-detection happens inside)
+            analysis, auto_context = st.session_state.engine.analyze_match(match_data, manual_edges)
             
             # Save to database
             prediction_data = {
                 'match_data': match_data,
-                'analysis': analysis
+                'analysis': analysis,
+                'auto_detections': auto_context
             }
             
             prediction_hash = st.session_state.db.save_prediction(prediction_data)
@@ -611,7 +810,7 @@ def main():
             st.session_state.current_prediction = {
                 'analysis': analysis,
                 'match_data': match_data,
-                'edge_conditions': edge_conditions,
+                'auto_context': auto_context,
                 'prediction_hash': prediction_hash,
                 'teams': f"{home_name} vs {away_name}"
             }
@@ -626,9 +825,45 @@ def main():
         pred_data = st.session_state.current_prediction
         analysis = pred_data['analysis']
         match_data = pred_data['match_data']
+        auto_context = pred_data.get('auto_context', {})
         
         st.markdown("---")
         st.markdown(f"## 📊 RESULTS: {pred_data['teams']}")
+        
+        # Show auto-detection summary
+        st.markdown("### 🔍 AUTO-DETECTION SUMMARY")
+        col_sum1, col_sum2 = st.columns(2)
+        
+        with col_sum1:
+            season_progress = auto_context.get('season_progress', 0)
+            season_phase = auto_context.get('season_phase', 'mid')
+            phase_class = f"season-{season_phase}"
+            
+            st.markdown(f"""
+            <div style="background: white; padding: 15px; border-radius: 10px; border: 1px solid #e0e0e0;">
+                <h4>📅 Season Context</h4>
+                <p><strong>Progress:</strong> {season_progress:.1f}%</p>
+                <p><strong>Phase:</strong> <span class="{phase_class}">{season_phase.upper()} SEASON</span></p>
+                <p><strong>Games:</strong> {match_data['games_played']} / {match_data['total_teams'] * 2}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col_sum2:
+            home_class = auto_context.get('home_class', 'mid')
+            away_class = auto_context.get('away_class', 'mid')
+            both_safe = auto_context.get('both_safe', False)
+            
+            st.markdown(f"""
+            <div style="background: white; padding: 15px; border-radius: 10px; border: 1px solid #e0e0e0;">
+                <h4>🏆 Team Status</h4>
+                <p><strong>{match_data['home_name']}:</strong> {home_class.upper()} (pos {match_data['home_pos']})</p>
+                <p><strong>{match_data['away_name']}:</strong> {away_class.upper()} (pos {match_data['away_pos']})</p>
+                <p><strong>Both Safe:</strong> 
+                <span class="{'status-safe' if both_safe else 'status-danger'}">
+                {'✓ YES' if both_safe else '✗ NO'}
+                </span></p>
+            </div>
+            """, unsafe_allow_html=True)
         
         # Team info cards
         col_team1, col_team2 = st.columns(2)
@@ -744,18 +979,24 @@ def main():
             st.plotly_chart(fig, use_container_width=True)
         
         with col_viz2:
+            # Auto-detection details
             st.markdown(f"""
-            #### 🧮 CALCULATION DETAILS
+            #### 🔍 AUTO-DETECTED CONTEXT
             
-            **Base Statistical Model:**
-            - Home Attack + Away Defense: ({match_data['home_attack']} + {match_data['away_defense']}) / 2
-            - Away Attack + Home Defense: ({match_data['away_attack']} + {match_data['home_defense']}) / 2
-            - **Total Base xG:** {analysis['base_xg']:.2f}
+            **Season Phase:**
+            - Progress: {auto_context.get('season_progress', 0):.1f}%
+            - Phase: {auto_context.get('season_phase', 'mid').upper()} SEASON
+            - Late Season: {'YES' if auto_context.get('is_late_season', False) else 'NO'}
             
-            **Pattern Adjustments:**
-            - Core Pattern: {analysis['core_pattern'].replace('_', ' ').title()}
-            - Multiplier: ×{analysis['total_multiplier']:.2f}
-            - Edge Value: +{analysis['total_edge_value']*100:.1f}%
+            **Team Safety:**
+            - {match_data['home_name']}: {auto_context.get('home_status', 'mid').upper()}
+            - {match_data['away_name']}: {auto_context.get('away_status', 'mid').upper()}
+            - Both Teams Safe: {'YES' if auto_context.get('both_safe', False) else 'NO'}
+            
+            **Team Classification:**
+            - {match_data['home_name']}: {auto_context.get('home_class', 'mid').upper()}
+            - {match_data['away_name']}: {auto_context.get('away_class', 'mid').upper()}
+            - Position Gap: {auto_context.get('position_gap', 0)}
             
             **Decision Thresholds:**
             - OVER if > {analysis['thresholds_used']['over']}
@@ -826,6 +1067,9 @@ def main():
                     - Actual: **{actual_type}** ({actual_home}-{actual_away})
                     - Result: **{'✅ CORRECT' if is_correct else '❌ INCORRECT'}**
                     - Pattern: {analysis['core_pattern'].replace('_', ' ').title()}
+                    - Auto-detections: {auto_context.get('season_phase', 'mid').upper()} season, 
+                      {match_data['home_name']} ({auto_context.get('home_class', 'mid')}), 
+                      {match_data['away_name']} ({auto_context.get('away_class', 'mid')})
                     """)
                     
                     st.rerun()
