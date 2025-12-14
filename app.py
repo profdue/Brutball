@@ -3,12 +3,13 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-from datetime import datetime
+from datetime import datetime, timedelta
+from collections import Counter
 
 # Set page config
 st.set_page_config(
-    page_title="Anti-Manipulation Football Predictor",
-    page_icon="🎯",
+    page_title="TREND-BASED Football Predictor",
+    page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -22,392 +23,401 @@ st.markdown("""
         font-weight: bold;
         margin-bottom: 1rem;
     }
-    .sub-header {
-        font-size: 1.5rem;
-        color: #374151;
-        font-weight: 600;
-        margin-top: 1.5rem;
-        margin-bottom: 1rem;
-    }
-    .metric-card {
-        background-color: #EFF6FF;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        text-align: center;
-        margin: 0.5rem;
-    }
-    .emoji-large {
-        font-size: 4rem;
-        text-align: center;
-        margin: 1rem 0;
-    }
-    .input-section {
-        background-color: #F3F4F6;
-        padding: 1.5rem;
-        border-radius: 0.5rem;
-        margin-bottom: 1.5rem;
-    }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 2rem;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 3rem;
-        white-space: pre-wrap;
-        border-radius: 0.5rem 0.5rem 0 0;
-    }
-    .stat-label {
-        font-size: 0.9rem;
-        color: #6B7280;
-        margin-bottom: 0.25rem;
-    }
-    .help-text {
-        font-size: 0.8rem;
-        color: #9CA3AF;
-        font-style: italic;
-        margin-top: 0.25rem;
-    }
-    .trap-warning {
-        background-color: #FEF3C7;
-        border-left: 4px solid #F59E0B;
-        padding: 1rem;
-        margin: 0.5rem 0;
-        border-radius: 0.375rem;
-    }
+    .trend-up { color: #10B981; font-weight: bold; }
+    .trend-down { color: #EF4444; font-weight: bold; }
+    .trend-neutral { color: #6B7280; }
+    .streak-bad { background-color: #FEE2E2; padding: 0.25rem 0.5rem; border-radius: 0.25rem; }
+    .streak-good { background-color: #D1FAE5; padding: 0.25rem 0.5rem; border-radius: 0.25rem; }
+    .pattern-alert { background-color: #FEF3C7; padding: 0.5rem; border-radius: 0.375rem; margin: 0.5rem 0; }
 </style>
 """, unsafe_allow_html=True)
 
-# System Classes
-class PublicSentimentAnalyzer:
-    """Detect when bookmakers are manipulating public psychology"""
+# ========== TREND ANALYSIS ENGINE ==========
+class TrendAnalyzer:
+    """Analyze trends, streaks, and patterns instead of simple averages"""
     
-    BIG_SIX = ["Manchester United", "Manchester City", "Liverpool", 
-               "Chelsea", "Arsenal", "Tottenham"]
-    
-    def analyze(self, match_data: dict, odds_data: dict) -> dict:
-        """Analyze public sentiment and detect traps"""
-        traps = []
+    @staticmethod
+    def analyze_goal_trends(goals_list):
+        """Analyze goal scoring trends from last 5 games"""
+        if not goals_list or len(goals_list) < 3:
+            return {'trend': 'NEUTRAL', 'score': 0.5}
         
-        # Check for Over Hype Trap - FIXED LOGIC
-        public_percentage = odds_data.get('public_bet_percentage', 50)
-        over_odds = odds_data.get('over_odds', 2.0)
-        under_odds = odds_data.get('under_odds', 2.0)
+        goals = [int(g) for g in goals_list]
         
-        # Over Hype Trap: Public heavily betting Over but odds suggest caution
-        if (public_percentage > 60 and  # Changed from 70% to 60% for more sensitivity
-            over_odds < 1.80 and  # More flexible threshold
-            match_data.get('home_team') in self.BIG_SIX and
-            match_data.get('total_goals_last_5_home', 0) > 8):  # Lowered threshold
-            traps.append({
-                'type': 'OVER_HYPE_TRAP',
-                'description': f'Public {public_percentage}% on Over but recent form suggests lower scoring',
-                'recommendation': 'CONSIDER_UNDER',
-                'confidence': 0.7
-            })
+        # 1. Recent vs Previous comparison
+        if len(goals) >= 3:
+            recent_avg = np.mean(goals[:3])  # Last 3 games
+            prev_avg = np.mean(goals[3:]) if len(goals) > 3 else recent_avg
+            trend_direction = 'UP' if recent_avg > prev_avg else 'DOWN' if recent_avg < prev_avg else 'FLAT'
+        else:
+            trend_direction = 'FLAT'
         
-        # Check for Under Fear Trap - FIXED LOGIC
-        if (public_percentage < 40 and  # Changed from <30% to <40%
-            under_odds < 1.80 and  # More flexible threshold
-            match_data.get('both_teams_conceded_5plus_last_3', False) and
-            match_data.get('is_relegation_battle', False)):
-            traps.append({
-                'type': 'UNDER_FEAR_TRAP',
-                'description': 'Public underestimates goals in relegation battle',
-                'recommendation': 'CONSIDER_OVER',
-                'confidence': 0.75
-            })
+        # 2. Streak detection
+        current_streak = 0
+        streak_type = None
+        for i in range(min(3, len(goals))):
+            if goals[i] == 0:
+                if streak_type == 'GOALLESS' or streak_type is None:
+                    current_streak += 1
+                    streak_type = 'GOALLESS'
+                else:
+                    break
+            else:
+                break
         
-        # Check for Historical Data Trap - IMPROVED LOGIC
-        h2h_over = match_data.get('h2h_over_percentage', 0)
-        recent_over = match_data.get('recent_over_percentage', 0)
+        # 3. Pattern analysis
+        patterns = []
+        if goals[0] == 0:  # Most recent game
+            patterns.append('RECENT_GOALLESS')
+        if sum(goals[:3]) == 0:
+            patterns.append('GOALLESS_STREAK_3')
+        if sum(goals[:2]) == 0:
+            patterns.append('GOALLESS_STREAK_2')
         
-        if (h2h_over > 60 and  # Lowered threshold from 70%
-            recent_over < 50 and  # More flexible threshold
-            h2h_over - recent_over > 20):  # Significant difference
-            traps.append({
-                'type': 'HISTORICAL_DATA_TRAP',
-                'description': f'H2H shows {h2h_over}% Over but recent only {recent_over}%',
-                'recommendation': 'TRUST_RECENT_NOT_HISTORY',
-                'confidence': 0.8
-            })
+        # 4. Volatility
+        volatility = np.std(goals[:3]) if len(goals) >= 3 else 0
         
-        # NEW: Value Trap Detection
-        implied_over_prob = 1 / over_odds if over_odds > 0 else 0.5
-        implied_under_prob = 1 / under_odds if under_odds > 0 else 0.5
+        # 5. Trend score (0-1, higher = better attacking form)
+        trend_score = 0.5
         
-        if public_percentage > 70 and implied_over_prob > 0.6:
-            traps.append({
-                'type': 'PUBLIC_VALUE_TRAP',
-                'description': f'Public {public_percentage}% on Over but implied probability {implied_over_prob:.1%}',
-                'recommendation': 'LOOK_FOR_UNDER_VALUE',
-                'confidence': 0.7
-            })
+        # Adjust for streaks
+        if 'GOALLESS_STREAK_3' in patterns:
+            trend_score *= 0.3
+        elif 'GOALLESS_STREAK_2' in patterns:
+            trend_score *= 0.5
+        elif 'RECENT_GOALLESS' in patterns:
+            trend_score *= 0.7
+        
+        # Adjust for trend direction
+        if trend_direction == 'UP':
+            trend_score *= 1.3
+        elif trend_direction == 'DOWN':
+            trend_score *= 0.7
         
         return {
-            'traps_detected': traps,
-            'public_bias_score': abs(public_percentage - 50) / 50,
+            'trend': trend_direction,
+            'score': min(max(trend_score, 0.1), 1.0),
+            'streak': {'type': streak_type, 'length': current_streak} if streak_type else None,
+            'patterns': patterns,
+            'volatility': volatility,
+            'recent_avg': np.mean(goals[:3]) if len(goals) >= 3 else np.mean(goals),
+            'full_avg': np.mean(goals)
         }
-
-
-class FormHistoryConflictDetector:
-    """Identify when recent form contradicts historical patterns"""
     
-    def analyze(self, historical_stats: dict, recent_stats: dict) -> dict:
-        conflicts = []
-        adjustment_factors = []
+    @staticmethod
+    def analyze_defensive_trends(conceded_list):
+        """Analyze defensive trends from last 5 games"""
+        if not conceded_list or len(conceded_list) < 3:
+            return {'trend': 'NEUTRAL', 'score': 0.5}
         
-        # SCORING PATTERN CONFLICT - IMPROVED THRESHOLDS
-        hist_avg = historical_stats.get('avg_goals', 2.5)
-        recent_avg = recent_stats.get('avg_goals_last_5', 2.5)
+        conceded = [int(c) for c in conceded_list]
         
-        # More sensitive conflict detection
-        if hist_avg - recent_avg > 0.8:  # Reduced threshold from 0.6
-            conflicts.append({
-                'type': 'SCORING_DECLINE',
-                'severity': 'HIGH' if hist_avg - recent_avg > 1.2 else 'MEDIUM',
-                'message': f"Scoring decline: Historical {hist_avg:.1f} → Recent {recent_avg:.1f} goals",
-                'adjustment': max(0.5, 1 - (hist_avg - recent_avg) * 0.3)  # Dynamic adjustment
-            })
-            adjustment_factors.append(max(0.5, 1 - (hist_avg - recent_avg) * 0.3))
+        # 1. Recent vs Previous
+        if len(conceded) >= 3:
+            recent_avg = np.mean(conceded[:3])
+            prev_avg = np.mean(conceded[3:]) if len(conceded) > 3 else recent_avg
+            trend_direction = 'DOWN' if recent_avg < prev_avg else 'UP' if recent_avg > prev_avg else 'FLAT'
+        else:
+            trend_direction = 'FLAT'
         
-        # DEFENSIVE IMPROVEMENT CONFLICT
-        hist_conceded = historical_stats.get('conceded_pg', 1.5)
-        recent_conceded = recent_stats.get('conceded_pg_last_5', 1.5)
+        # 2. Collapse detection
+        collapse_patterns = []
+        if conceded[0] >= 3:
+            collapse_patterns.append('RECENT_COLLAPSE')
+        if sum(conceded[:2]) >= 5:
+            collapse_patterns.append('HEAVY_2GAME')
+        if any(c >= 3 for c in conceded[:3]):
+            collapse_patterns.append('ANY_COLLAPSE_3')
         
-        if hist_conceded - recent_conceded > 0.5:  # Reduced threshold
-            conflicts.append({
-                'type': 'DEFENSIVE_IMPROVEMENT',
-                'severity': 'MEDIUM',
-                'message': f'Defensive improvement: {hist_conceded:.1f} → {recent_conceded:.1f} conceded',
-                'adjustment': 0.85
-            })
-            adjustment_factors.append(0.85)
+        # 3. Clean sheet streaks
+        clean_sheets = sum(1 for c in conceded[:3] if c == 0)
         
-        # MANAGERIAL CHANGE CONFLICT
-        if historical_stats.get('manager') != recent_stats.get('manager'):
-            conflicts.append({
-                'type': 'MANAGER_CHANGE',
-                'severity': 'VERY_HIGH',
-                'message': f"New manager: {recent_stats.get('manager', 'Unknown')}",
-                'adjustment': 0.65,
-                'rule': 'LAST_5_GAMES_ONLY'
-            })
-            adjustment_factors.append(0.65)
+        # 4. Trend score (higher = better defense)
+        trend_score = 0.5
         
-        # Calculate overall adjustment
-        overall_adjustment = np.prod(adjustment_factors) if adjustment_factors else 1.0
+        # Penalize for collapses
+        if 'RECENT_COLLAPSE' in collapse_patterns:
+            trend_score *= 0.4
+        elif 'HEAVY_2GAME' in collapse_patterns:
+            trend_score *= 0.6
+        elif 'ANY_COLLAPSE_3' in collapse_patterns:
+            trend_score *= 0.7
+        
+        # Reward clean sheets
+        if clean_sheets >= 2:
+            trend_score *= 1.4
+        elif clean_sheets == 1:
+            trend_score *= 1.2
+        
+        # Adjust for trend direction
+        if trend_direction == 'DOWN':  # conceding less
+            trend_score *= 1.3
+        elif trend_direction == 'UP':  # conceding more
+            trend_score *= 0.7
         
         return {
-            'conflicts': conflicts,
-            'overall_adjustment': overall_adjustment,
-            'conflict_score': len(conflicts) / 3.0,
+            'trend': trend_direction,
+            'score': min(max(trend_score, 0.1), 1.0),
+            'collapse_patterns': collapse_patterns,
+            'clean_sheets': clean_sheets,
+            'recent_avg': np.mean(conceded[:3]) if len(conceded) >= 3 else np.mean(conceded),
+            'full_avg': np.mean(conceded)
         }
-
-
-class PressureContextAnalyzer:
-    """Analyze what teams NEED from this specific game"""
     
-    def analyze(self, context_data: dict) -> dict:
-        scenarios = []
-        adjustments = []
+    @staticmethod
+    def analyze_momentum(results_list):
+        """Analyze W/D/L momentum"""
+        if not results_list or len(results_list) < 3:
+            return {'momentum': 'NEUTRAL', 'score': 0.5}
         
-        # DESPERATION_HOME_WIN - MORE SENSITIVE
-        if (context_data.get('home_position', 10) >= 15 and  # Relegation zone
-            context_data.get('home_points', 30) <= 25 and  # Increased threshold
-            context_data.get('home_last_5_wins', 2) <= 2):  # More flexible
-            scenarios.append({
-                'type': 'DESPERATION_HOME_WIN',
-                'psychology': 'FEAR_BASED_CAUTION',
-                'goal_expectation': 'LOW',
-                'pattern': '1-0, 2-0 controlled win',
-                'adjustment': 0.80
-            })
-            adjustments.append(0.80)
+        results = results_list[:5]  # Last 5 results
         
-        # NOTHING_TO_PLAY_FOR
-        home_pos = context_data.get('home_position', 10)
-        away_pos = context_data.get('away_position', 10)
-        if (8 <= home_pos <= 14 and  # Wider range
-            8 <= away_pos <= 14 and
-            context_data.get('both_safe_from_relegation', True) and
-            context_data.get('both_cannot_qualify_europe', False) and
-            context_data.get('games_remaining', 10) <= 8):  # More games
-            scenarios.append({
-                'type': 'NOTHING_TO_PLAY_FOR',
-                'psychology': 'RELAXED_OPEN',
-                'goal_expectation': 'HIGH',
-                'pattern': 'Entertaining, end-to-end',
-                'adjustment': 1.20
-            })
-            adjustments.append(1.20)
+        # Points calculation (3 for win, 1 for draw, 0 for loss)
+        points_map = {'W': 3, 'D': 1, 'L': 0}
+        points = [points_map.get(r, 0) for r in results]
         
-        # DERBY_PRESSURE_COOKER
-        if context_data.get('is_local_derby', False):
-            scenarios.append({
-                'type': 'DERBY_PRESSURE_COOKER',
-                'psychology': 'FEAR_OF_LOSING > DESIRE_TO_WIN',
-                'goal_expectation': 'LOW_MEDIUM',
-                'pattern': 'Cagey, tactical, set-piece goals',
-                'adjustment': 0.90
-            })
-            adjustments.append(0.90)
+        # Recent vs previous momentum
+        if len(points) >= 3:
+            recent_points = np.mean(points[:3])
+            prev_points = np.mean(points[3:]) if len(points) > 3 else recent_points
+            momentum = 'UP' if recent_points > prev_points else 'DOWN' if recent_points < prev_points else 'FLAT'
+        else:
+            momentum = 'FLAT'
         
-        # NEW: MUST-WIN FOR EUROPE
-        if (4 <= home_pos <= 7 or 4 <= away_pos <= 7) and context_data.get('games_remaining', 10) <= 10:
-            scenarios.append({
-                'type': 'EUROPE_PUSH',
-                'psychology': 'ATTACKING_FOCUS',
-                'goal_expectation': 'MEDIUM_HIGH',
-                'adjustment': 1.10
-            })
-            adjustments.append(1.10)
+        # Win/loss streaks
+        current_streak = 0
+        streak_type = results[0] if results else None
+        for result in results:
+            if result == streak_type:
+                current_streak += 1
+            else:
+                break
         
-        # Calculate average adjustment
-        avg_adjustment = np.mean(adjustments) if adjustments else 1.0
+        # Big win detection (beating strong teams)
+        big_win_factor = 1.0
+        if results[0] == 'W':
+            big_win_factor = 1.3  # Recent win boosts confidence
+        
+        # Momentum score
+        momentum_score = np.mean(points[:3]) / 3 if len(points) >= 3 else 0.5
+        
+        # Apply streak adjustments
+        if streak_type == 'W' and current_streak >= 2:
+            momentum_score *= 1.4
+        elif streak_type == 'L' and current_streak >= 2:
+            momentum_score *= 0.6
+        
+        # Apply big win factor
+        momentum_score *= big_win_factor
         
         return {
-            'scenarios': scenarios,
-            'goal_expectation_adjustment': avg_adjustment,
-            'pressure_score': self._calculate_pressure_score(context_data)
+            'momentum': momentum,
+            'score': min(max(momentum_score, 0.1), 1.0),
+            'streak': {'type': streak_type, 'length': current_streak},
+            'recent_form': results[:3],
+            'points_avg': np.mean(points[:3]) if len(points) >= 3 else np.mean(points)
         }
-    
-    def _calculate_pressure_score(self, context_data: dict) -> float:
-        """Calculate pressure score (0-1)"""
-        score = 0.0
-        
-        # Position pressure
-        home_pos = context_data.get('home_position', 10)
-        if home_pos >= 15:  # Relegation zone
-            score += 0.4
-        elif home_pos <= 7:  # European spots
-            score += 0.3
-        elif home_pos <= 4:  # Title/CL race
-            score += 0.5
-        
-        # Points pressure
-        if context_data.get('home_points', 30) <= 25:
-            score += 0.3
-        
-        # Derby pressure
-        if context_data.get('is_local_derby', False):
-            score += 0.3
-        
-        # Relegation battle
-        if context_data.get('is_relegation_battle', False):
-            score += 0.2
-        
-        return min(score, 1.0)
 
-
-class AntiManipulationPredictionEngine:
-    """Main engine that synthesizes all analyses"""
+# ========== TREND-BASED PREDICTION ENGINE ==========
+class TrendBasedPredictor:
+    """Main prediction engine using trend analysis"""
     
     def __init__(self):
-        self.sentiment_analyzer = PublicSentimentAnalyzer()
-        self.form_detector = FormHistoryConflictDetector()
-        self.pressure_analyzer = PressureContextAnalyzer()
+        self.trend_analyzer = TrendAnalyzer()
     
-    def predict(self, input_data: dict) -> dict:
-        """Make prediction based on input data"""
+    def predict(self, match_data):
+        """Make prediction based on trend analysis"""
         
         # Extract data
-        match_data = input_data.get('match_data', {})
-        odds_data = input_data.get('odds_data', {})
-        context_data = input_data.get('context_data', {})
+        home_data = match_data['home']
+        away_data = match_data['away']
+        odds_data = match_data['odds']
+        context_data = match_data['context']
         
-        # Step 1: Collect all analyses
-        analyses = {
-            'public_sentiment': self.sentiment_analyzer.analyze(match_data, odds_data),
-            'form_vs_history': self.form_detector.analyze(
-                match_data.get('historical_stats', {}),
-                match_data.get('recent_stats', {})
-            ),
-            'pressure_context': self.pressure_analyzer.analyze(context_data)
-        }
+        # 1. Analyze trends for both teams
+        home_attack = self.trend_analyzer.analyze_goal_trends(home_data['goals_for'])
+        home_defense = self.trend_analyzer.analyze_defensive_trends(home_data['goals_against'])
+        home_momentum = self.trend_analyzer.analyze_momentum(home_data['results'])
         
-        # Step 2: Identify traps
-        traps = analyses['public_sentiment']['traps_detected']
+        away_attack = self.trend_analyzer.analyze_goal_trends(away_data['goals_for'])
+        away_defense = self.trend_analyzer.analyze_defensive_trends(away_data['goals_against'])
+        away_momentum = self.trend_analyzer.analyze_momentum(away_data['results'])
         
-        # Step 3: Calculate true probability with IMPROVED LOGIC
-        true_prob = self._calculate_true_probability(analyses, match_data, context_data)
+        # 2. Calculate expected goals based on trends
+        expected_home_goals = self._calculate_expected_goals(
+            home_attack, away_defense, context_data, is_home=True
+        )
+        expected_away_goals = self._calculate_expected_goals(
+            away_attack, home_defense, context_data, is_home=False
+        )
         
-        # Step 4: Find value opportunities
-        value_opp = self._find_value_opportunity(true_prob, odds_data, traps)
-        
-        # Step 5: Make final decision
-        confidence = self._calculate_confidence(analyses, traps, value_opp['edge'])
-        edge = value_opp.get('edge', 0)
-        
-        return {
-            'prediction': value_opp.get('prediction', 'NO_VALUE_BET'),
-            'confidence': confidence,
-            'edge_percentage': edge,
-            'traps_detected': traps,
-            'analyses': analyses,
-            'value_opportunity': value_opp,
-            'bet_size': self._calculate_bet_size(edge, confidence, len(traps) > 0),
-            'recommendation': self._generate_recommendation(value_opp, traps)
-        }
-    
-    def _calculate_true_probability(self, analyses: dict, match_data: dict, context_data: dict) -> dict:
-        """Calculate true probability based on all factors with IMPROVED LOGIC"""
-        
-        # Base probability from team stats
-        home_recent_goals = match_data.get('recent_stats', {}).get('avg_goals_last_5', 1.5)
-        away_recent_goals = match_data.get('recent_stats_away', {}).get('avg_goals_last_5', 1.5)
-        home_recent_conceded = match_data.get('recent_stats', {}).get('conceded_pg_last_5', 1.5)
-        away_recent_conceded = match_data.get('recent_stats_away', {}).get('conceded_pg_last_5', 1.5)
-        
-        # Expected goals calculation (Poisson distribution approximation)
-        expected_home_goals = (home_recent_goals + away_recent_conceded) / 2
-        expected_away_goals = (away_recent_goals + home_recent_conceded) / 2
         expected_total = expected_home_goals + expected_away_goals
         
-        # Base Over 2.5 probability from expected total
-        if expected_total > 3.0:
-            base_over_prob = 0.65
-        elif expected_total > 2.5:
-            base_over_prob = 0.55
-        elif expected_total > 2.0:
-            base_over_prob = 0.45
-        else:
-            base_over_prob = 0.35
+        # 3. Detect traps based on trends
+        traps = self._detect_traps(
+            home_attack, home_defense, away_attack, away_defense,
+            odds_data, context_data, expected_total
+        )
         
-        # Adjustments
-        form_adj = analyses['form_vs_history']['overall_adjustment']
-        pressure_adj = analyses['pressure_context']['goal_expectation_adjustment']
+        # 4. Calculate probabilities
+        over_prob = self._calculate_over_probability(expected_total, traps)
+        under_prob = 1 - over_prob
         
-        bias_score = analyses['public_sentiment']['public_bias_score']
-        sentiment_adj = 0.8 if bias_score > 0.5 else 1.0  # More sensitive
+        # 5. Find value
+        value_opp = self._find_value(over_prob, under_prob, odds_data, traps)
         
-        # Context adjustments
-        if context_data.get('is_relegation_battle', False):
-            pressure_adj *= 0.9  # Reduce goal expectation in relegation battles
-        
-        # Historical vs recent conflict
-        conflict_score = analyses['form_vs_history']['conflict_score']
-        if conflict_score > 0.5:
-            form_adj *= 0.9
-        
-        total_adj = form_adj * pressure_adj * sentiment_adj
-        
-        true_prob_over = min(0.90, max(0.10, base_over_prob * total_adj))
-        true_prob_under = 1 - true_prob_over
+        # 6. Calculate confidence
+        confidence = self._calculate_confidence(
+            home_attack, home_defense, away_attack, away_defense,
+            traps, value_opp['edge']
+        )
         
         return {
-            'over_25': true_prob_over,
-            'under_25': true_prob_under,
-            'expected_total_goals': expected_total,
-            'adjustments': {'form': form_adj, 'pressure': pressure_adj, 'sentiment': sentiment_adj}
+            'prediction': value_opp['prediction'],
+            'edge': value_opp['edge'],
+            'confidence': confidence,
+            'expected_total': expected_total,
+            'expected_home': expected_home_goals,
+            'expected_away': expected_away_goals,
+            'traps': traps,
+            'trend_analysis': {
+                'home': {'attack': home_attack, 'defense': home_defense, 'momentum': home_momentum},
+                'away': {'attack': away_attack, 'defense': away_defense, 'momentum': away_momentum}
+            },
+            'probabilities': {'over': over_prob, 'under': under_prob},
+            'recommendation': self._generate_recommendation(value_opp, traps, confidence)
         }
     
-    def _find_value_opportunity(self, true_prob: dict, odds_data: dict, traps: list) -> dict:
-        """Find value betting opportunities with IMPROVED LOGIC"""
-        over_odds = odds_data.get('over_odds', 2.0)
-        under_odds = odds_data.get('under_odds', 2.0)
+    def _calculate_expected_goals(self, attack_trend, defense_trend, context, is_home=True):
+        """Calculate expected goals based on trends"""
         
-        # Calculate implied probabilities
-        implied_over = 1 / over_odds if over_odds > 0 else 0.5
-        implied_under = 1 / under_odds if under_odds > 0 else 0.5
+        base_xg = attack_trend['recent_avg'] * 0.7 + attack_trend['full_avg'] * 0.3
+        
+        # Adjust for opponent defense
+        defense_factor = 1.0
+        if 'RECENT_COLLAPSE' in defense_trend['collapse_patterns']:
+            defense_factor = 1.4
+        elif 'HEAVY_2GAME' in defense_trend['collapse_patterns']:
+            defense_factor = 1.2
+        elif defense_trend['clean_sheets'] >= 2:
+            defense_factor = 0.7
+        
+        # Adjust for attack trend
+        if attack_trend['trend'] == 'UP':
+            base_xg *= 1.2
+        elif attack_trend['trend'] == 'DOWN':
+            base_xg *= 0.8
+        
+        # Adjust for streaks
+        if attack_trend.get('streak') and attack_trend['streak']['type'] == 'GOALLESS':
+            if attack_trend['streak']['length'] >= 3:
+                base_xg *= 0.5
+            elif attack_trend['streak']['length'] >= 2:
+                base_xg *= 0.7
+        
+        # Home/away adjustment
+        if is_home:
+            base_xg *= 1.1
+        else:
+            base_xg *= 0.9
+        
+        # Context adjustments
+        if context.get('is_relegation_battle'):
+            if is_home:  # Home team desperate
+                base_xg *= 1.15  # More likely to push for goals
+        
+        return round(base_xg * defense_factor, 2)
+    
+    def _detect_traps(self, home_attack, home_defense, away_attack, away_defense, odds, context, expected_total):
+        """Detect betting traps based on trends"""
+        traps = []
+        
+        public_over = odds.get('public_over', 50)
+        over_odds = odds.get('over_odds', 2.0)
+        
+        # 1. GOALLESS STREAK TRAP
+        if home_attack.get('patterns') and 'GOALLESS_STREAK_3' in home_attack['patterns']:
+            traps.append({
+                'type': 'GOALLESS_STREAK_TRAP',
+                'team': 'Home',
+                'description': f"Home team goalless in last 3 games but public betting Over",
+                'impact': -0.15  # Reduce over probability
+            })
+        
+        # 2. DEFENSIVE COLLAPSE TRAP
+        if away_defense.get('collapse_patterns') and 'RECENT_COLLAPSE' in away_defense['collapse_patterns']:
+            traps.append({
+                'type': 'DEFENSIVE_COLLAPSE_TRAP',
+                'team': 'Away',
+                'description': f"Away team recently conceded 3+ goals",
+                'impact': 0.10  # Increase over probability
+            })
+        
+        # 3. MOMENTUM MISMATCH TRAP
+        home_avg = home_attack.get('recent_avg', 1.5)
+        away_conceded_avg = away_defense.get('recent_avg', 1.5)
+        
+        if home_avg < 0.8 and away_conceded_avg > 2.0:
+            traps.append({
+                'type': 'STATS_CONTRADICTION_TRAP',
+                'description': f"Home can't score (avg: {home_avg:.1f}) but away can't defend (avg: {away_conceded_avg:.1f})",
+                'impact': 0.05  # Slight increase for potential breakout
+            })
+        
+        # 4. PUBLIC OVERREACTION TRAP
+        if public_over > 65 and expected_total < 2.3:
+            traps.append({
+                'type': 'PUBLIC_OVERREACTION_TRAP',
+                'description': f"Public {public_over}% on Over but expected goals only {expected_total:.1f}",
+                'impact': -0.20  # Strong reduction for over
+            })
+        
+        # 5. DESPERATION CHAOS TRAP
+        if context.get('is_relegation_battle') and context.get('home_position', 10) >= 18:
+            # Very desperate home team - could go either way
+            if home_attack.get('streak') and home_attack['streak']['type'] == 'GOALLESS':
+                traps.append({
+                    'type': 'DESPERATION_CHAOS_TRAP',
+                    'description': "Desperate home team on goalless streak - unpredictable",
+                    'impact': 0.0,  # Neutral impact, just warning
+                    'warning': True
+                })
+        
+        return traps
+    
+    def _calculate_over_probability(self, expected_total, traps):
+        """Calculate Over probability based on expected goals and traps"""
+        
+        # Base probability from expected goals
+        if expected_total >= 3.5:
+            base_prob = 0.75
+        elif expected_total >= 3.0:
+            base_prob = 0.65
+        elif expected_total >= 2.7:
+            base_prob = 0.55
+        elif expected_total >= 2.3:
+            base_prob = 0.45
+        elif expected_total >= 2.0:
+            base_prob = 0.35
+        else:
+            base_prob = 0.25
+        
+        # Apply trap adjustments
+        adjustment = 0
+        for trap in traps:
+            if not trap.get('warning', False):
+                adjustment += trap['impact']
+        
+        final_prob = base_prob + adjustment
+        return max(0.1, min(0.9, final_prob))
+    
+    def _find_value(self, over_prob, under_prob, odds, traps):
+        """Find value betting opportunity"""
+        over_odds = odds.get('over_odds', 2.0)
+        under_odds = odds.get('under_odds', 2.0)
+        
+        implied_over = 1 / over_odds
+        implied_under = 1 / under_odds
         
         # Adjust for bookmaker margin
         total_implied = implied_over + implied_under
@@ -416,30 +426,26 @@ class AntiManipulationPredictionEngine:
             implied_under = implied_under / total_implied
         
         # Calculate edges
-        edge_over = (true_prob['over_25'] - implied_over) * 100
-        edge_under = (true_prob['under_25'] - implied_under) * 100
+        edge_over = (over_prob - implied_over) * 100
+        edge_under = (under_prob - implied_under) * 100
         
-        # Adjust edges based on traps
+        # Apply trap adjustments to edges
         for trap in traps:
-            if trap['type'] == 'OVER_HYPE_TRAP':
-                edge_over -= 3.0  # Reduce edge for Over hype
-                edge_under += 2.0  # Increase edge for Under
-            elif trap['type'] == 'UNDER_FEAR_TRAP':
-                edge_under -= 3.0
-                edge_over += 2.0
-            elif trap['type'] == 'HISTORICAL_DATA_TRAP':
-                if 'TRUST_RECENT' in trap['recommendation']:
-                    # Recent form contradicts historical high scoring
-                    edge_over -= 2.0
-                    edge_under += 1.5
+            if trap['type'] == 'PUBLIC_OVERREACTION_TRAP':
+                edge_over -= 5.0
+                edge_under += 3.0
+            elif trap['type'] == 'GOALLESS_STREAK_TRAP':
+                edge_over -= 3.0
+                edge_under += 2.0
+            elif trap['type'] == 'DEFENSIVE_COLLAPSE_TRAP':
+                edge_over += 3.0
+                edge_under -= 2.0
         
         # Determine best value
-        min_edge = 1.5  # Lower minimum edge
-        
-        if edge_over > min_edge and edge_over > edge_under:
+        if edge_over > 2 and edge_over > edge_under:
             prediction = 'OVER_2.5'
             edge = edge_over
-        elif edge_under > min_edge and edge_under > edge_over:
+        elif edge_under > 2 and edge_under > edge_over:
             prediction = 'UNDER_2.5'
             edge = edge_under
         else:
@@ -449,481 +455,512 @@ class AntiManipulationPredictionEngine:
         return {
             'prediction': prediction,
             'edge': edge,
-            'edges': {'over_edge': edge_over, 'under_edge': edge_under},
-            'true_probabilities': true_prob,
-            'implied_probabilities': {'over': implied_over, 'under': implied_under}
+            'edges': {'over': edge_over, 'under': edge_under}
         }
     
-    def _calculate_confidence(self, analyses: dict, traps: list, edge: float) -> float:
-        """Calculate confidence score (0-1) with IMPROVED LOGIC"""
-        confidence = 1.0
+    def _calculate_confidence(self, home_attack, home_defense, away_attack, away_defense, traps, edge):
+        """Calculate confidence score based on trend clarity"""
+        confidence = 0.5  # Start at 50%
         
-        # Base confidence from edge size
-        if edge > 8:
-            confidence *= 1.2
+        # 1. Trend clarity bonus
+        if home_attack['trend'] in ['UP', 'DOWN'] and away_attack['trend'] in ['UP', 'DOWN']:
+            confidence += 0.15  # Clear trends
+        
+        # 2. Streak clarity bonus
+        if (home_attack.get('streak') and home_attack['streak']['length'] >= 2) or \
+           (away_attack.get('streak') and away_attack['streak']['length'] >= 2):
+            confidence += 0.10
+        
+        # 3. Pattern clarity bonus
+        clear_patterns = 0
+        if home_attack.get('patterns'):
+            clear_patterns += 1
+        if away_attack.get('patterns'):
+            clear_patterns += 1
+        if home_defense.get('collapse_patterns'):
+            clear_patterns += 1
+        if away_defense.get('collapse_patterns'):
+            clear_patterns += 1
+        
+        confidence += clear_patterns * 0.05
+        
+        # 4. Edge size bonus
+        if edge > 10:
+            confidence += 0.20
         elif edge > 5:
-            confidence *= 1.1
+            confidence += 0.10
         elif edge < 2:
-            confidence *= 0.8
+            confidence -= 0.15
         
-        # Reduce for conflicts
-        conflict_score = analyses['form_vs_history']['conflict_score']
-        confidence *= (1 - conflict_score * 0.4)  # Reduced impact
-        
-        # Reduce for traps
+        # 5. Trap penalty
         if traps:
-            confidence *= (0.8 ** min(len(traps), 3))  # Less severe reduction
+            warning_traps = sum(1 for t in traps if t.get('warning', False))
+            real_traps = len(traps) - warning_traps
+            confidence -= real_traps * 0.08
         
-        # Increase for strong pressure context
-        pressure_score = analyses['pressure_context']['pressure_score']
-        if pressure_score > 0.6:
-            confidence *= 1.15
-        
-        # Increase for clear public bias
-        bias_score = analyses['public_sentiment']['public_bias_score']
-        if bias_score > 0.7:
-            confidence *= 1.1
-        
-        return min(max(confidence, 0.2), 1.0)  # Wider range
+        return max(0.2, min(0.95, confidence))
     
-    def _calculate_bet_size(self, edge: float, confidence: float, has_traps: bool) -> float:
-        """Calculate bet size using modified Kelly criterion"""
-        if edge <= 0:
-            return 0.0
-        
-        base_size = (edge / 100) * confidence * 1.5  # More aggressive
-        
-        if has_traps:
-            base_size *= 0.7  # Less reduction
-        
-        if base_size > 0.15:  # Increased max
-            return 0.15
-        elif base_size < 0.005:  # Lower min
-            return 0.005 if edge > 0 else 0
-        
-        return round(base_size, 3)
-    
-    def _generate_recommendation(self, value_opp: dict, traps: list) -> str:
-        """Generate human-readable recommendation"""
+    def _generate_recommendation(self, value_opp, traps, confidence):
+        """Generate recommendation based on edge and confidence"""
         if value_opp['prediction'] == 'NO_VALUE_BET':
-            return "No clear value found. Avoid betting on this match."
+            return "NO BET - No clear value found"
         
         prediction = value_opp['prediction']
         edge = value_opp['edge']
         
-        if len(traps) > 0:
-            trap_types = [trap['type'] for trap in traps[:2]]
-            return f"CAUTIOUS BET on {prediction} (Edge: {edge:.1f}%, Traps: {', '.join(trap_types)})"
-        elif edge > 8:
-            return f"STRONG BET on {prediction} (Edge: {edge:.1f}%)"
-        elif edge > 4:
-            return f"CONFIDENT BET on {prediction} (Edge: {edge:.1f}%)"
+        # Base recommendation
+        if edge > 12:
+            base = "STRONG BET"
+        elif edge > 7:
+            base = "CONFIDENT BET"
+        elif edge > 3:
+            base = "MODERATE BET"
         else:
-            return f"SMALL BET on {prediction} (Edge: {edge:.1f}%)"
+            base = "SMALL BET"
+        
+        # Add trap warnings
+        if traps:
+            trap_count = len([t for t in traps if not t.get('warning', False)])
+            if trap_count >= 2:
+                base = "CAUTIOUS " + base
+        
+        # Add confidence qualifier
+        if confidence > 0.8:
+            conf_text = " (High Confidence)"
+        elif confidence > 0.6:
+            conf_text = " (Medium Confidence)"
+        else:
+            conf_text = " (Low Confidence)"
+        
+        return f"{base} on {prediction}{conf_text}"
 
-
-def create_input_form():
-    """Create input form for match data"""
+# ========== INPUT FORM ==========
+def create_trend_input_form():
+    """Create input form with trend-focused data collection"""
     
-    st.markdown('<div class="input-section">', unsafe_allow_html=True)
-    st.subheader("📝 Enter Match Data")
+    st.markdown("## 📈 TREND-BASED MATCH ANALYSIS")
+    st.markdown("**Enter last 5 games data (most recent first)**")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        home_team = st.text_input("Home Team", "Burnley")
-        away_team = st.text_input("Away Team", "Fulham")
-        match_date = st.date_input("Match Date", datetime.now())
+        st.subheader("🏠 Home Team")
+        home_team = st.text_input("Team Name", "Burnley", key="home_team")
+        
+        st.markdown("**Last 5 Home Games (most recent first)**")
+        home_goals_for = st.text_input("Goals Scored (e.g., 0,0,0,2,1)", "0,0,0,2,1", key="home_goals_for")
+        home_goals_against = st.text_input("Goals Conceded (e.g., 1,2,2,0,1)", "1,2,2,0,1", key="home_goals_against")
+        home_results = st.text_input("Results (W/D/L, e.g., L,L,L,W,D)", "L,L,L,W,D", key="home_results")
+        
+        home_position = st.number_input("League Position", 1, 20, 19, key="home_position")
+        home_manager_new = st.checkbox("New Manager?", key="home_new_manager")
     
     with col2:
-        over_odds = st.number_input("Over 2.5 Odds", min_value=1.1, max_value=10.0, value=2.15, step=0.05)
-        under_odds = st.number_input("Under 2.5 Odds", min_value=1.1, max_value=10.0, value=1.85, step=0.05)
-        public_percentage = st.number_input("Public Betting % on Over", min_value=0, max_value=100, value=60, step=1)
+        st.subheader("🚌 Away Team")
+        away_team = st.text_input("Team Name", "Fulham", key="away_team")
+        
+        st.markdown("**Last 5 Away Games (most recent first)**")
+        away_goals_for = st.text_input("Goals Scored (e.g., 2,0,1,1,1)", "2,0,1,1,1", key="away_goals_for")
+        away_goals_against = st.text_input("Goals Conceded (e.g., 1,2,2,3,3)", "1,2,2,3,3", key="away_goals_against")
+        away_results = st.text_input("Results (W/D/L, e.g., W,L,L,L,L)", "W,L,L,L,L", key="away_results")
+        
+        away_position = st.number_input("League Position", 1, 20, 15, key="away_position")
+        away_manager_new = st.checkbox("New Manager?", key="away_new_manager")
     
-    st.markdown("### Historical vs Recent Form")
+    st.markdown("---")
+    st.subheader("🎯 Match Context & Odds")
     
-    # Home Team Stats
-    st.markdown("#### **Home Team Stats**")
-    col3, col4, col5 = st.columns(3)
+    col3, col4 = st.columns(2)
     
     with col3:
-        st.markdown('<div class="stat-label">Historical Avg Goals (Season)</div>', unsafe_allow_html=True)
-        home_hist_goals = st.number_input("", min_value=0.0, max_value=5.0, value=1.8, step=0.1, key="home_hist_goals")
-        
-        st.markdown('<div class="stat-label">Historical Avg Conceded (Season)</div>', unsafe_allow_html=True)
-        home_hist_conceded = st.number_input("", min_value=0.0, max_value=5.0, value=1.3, step=0.1, key="home_hist_conceded")
+        over_odds = st.number_input("Over 2.5 Odds", 1.1, 10.0, 2.15, 0.05, key="over_odds")
+        under_odds = st.number_input("Under 2.5 Odds", 1.1, 10.0, 1.85, 0.05, key="under_odds")
+        public_over = st.slider("Public Betting % on Over", 0, 100, 60, key="public_over")
     
     with col4:
-        st.markdown('<div class="stat-label">Recent Avg Goals (Last 5 Home Games)</div>', unsafe_allow_html=True)
-        home_recent_goals = st.number_input("", min_value=0.0, max_value=5.0, value=0.6, step=0.1, key="home_recent_goals")
+        is_derby = st.checkbox("Local Derby?", key="is_derby")
+        is_relegation = st.checkbox("Relegation Battle?", True, key="is_relegation")
+        games_remaining = st.number_input("Games Remaining", 1, 38, 23, key="games_remaining")
         
-        st.markdown('<div class="stat-label">Recent Avg Conceded (Last 5 Home Games)</div>', unsafe_allow_html=True)
-        home_recent_conceded = st.number_input("", min_value=0.0, max_value=5.0, value=1.2, step=0.1, key="home_recent_conceded")
+        # Calculate if it's desperate
+        home_desperate = st.checkbox("Home Team Desperate for Points?", True, key="home_desperate")
     
-    with col5:
-        home_manager = st.text_input("Home Manager", "Slot", key="home_manager")
-        st.markdown('<div class="help-text">Full season average for home games</div>', unsafe_allow_html=True)
-        st.markdown('<div class="help-text">Last 5 home games only</div>', unsafe_allow_html=True)
+    # Parse input data
+    def parse_list(input_str):
+        return [x.strip() for x in input_str.split(',')] if input_str else []
     
-    # Divider
-    st.markdown("---")
-    
-    # Away Team Stats
-    st.markdown("#### **Away Team Stats**")
-    col6, col7, col8 = st.columns(3)
-    
-    with col6:
-        st.markdown('<div class="stat-label">Historical Avg Goals (Season)</div>', unsafe_allow_html=True)
-        away_hist_goals = st.number_input("", min_value=0.0, max_value=5.0, value=1.3, step=0.1, key="away_hist_goals")
-        
-        st.markdown('<div class="stat-label">Historical Avg Conceded (Season)</div>', unsafe_allow_html=True)
-        away_hist_conceded = st.number_input("", min_value=0.0, max_value=5.0, value=1.8, step=0.1, key="away_hist_conceded")
-    
-    with col7:
-        st.markdown('<div class="stat-label">Recent Avg Goals (Last 5 Away Games)</div>', unsafe_allow_html=True)
-        away_recent_goals = st.number_input("", min_value=0.0, max_value=5.0, value=1.0, step=0.1, key="away_recent_goals")
-        
-        st.markdown('<div class="stat-label">Recent Avg Conceded (Last 5 Away Games)</div>', unsafe_allow_html=True)
-        away_recent_conceded = st.number_input("", min_value=0.0, max_value=5.0, value=2.2, step=0.1, key="away_recent_conceded")
-    
-    with col8:
-        away_manager = st.text_input("Away Manager", "Roberto De Zerbi", key="away_manager")
-        st.markdown('<div class="help-text">Full season average for away games</div>', unsafe_allow_html=True)
-        st.markdown('<div class="help-text">Last 5 away games only</div>', unsafe_allow_html=True)
-    
-    # Match Context
-    st.markdown("### Match Context")
-    col9, col10 = st.columns(2)
-    
-    with col9:
-        home_position = st.number_input("Home Team League Position", min_value=1, max_value=20, value=19, key="home_position")
-        away_position = st.number_input("Away Team League Position", min_value=1, max_value=20, value=15, key="away_position")
-        home_points = st.number_input("Home Team Total Points", min_value=0, max_value=100, value=10, key="home_points")
-    
-    with col10:
-        home_last_5_wins = st.number_input("Home Wins in Last 5 Games", min_value=0, max_value=5, value=1, key="home_last_5_wins")
-        games_remaining = st.number_input("Games Remaining in Season", min_value=1, max_value=38, value=23, key="games_remaining")
-        is_derby = st.checkbox("Is Local Derby?", key="is_derby")
-        is_relegation_battle = st.checkbox("Relegation Battle?", value=True, key="is_relegation_battle")
-    
-    # Additional data
-    with st.expander("Advanced Settings"):
-        col11, col12 = st.columns(2)
-        
-        with col11:
-            total_goals_last_5_home = st.number_input("Total Goals in Last 5 Home Games", min_value=0, max_value=50, value=9, key="total_goals_last_5_home")
-            h2h_over_percentage = st.number_input("Historical H2H Over 2.5 %", min_value=0, max_value=100, value=60, step=1, key="h2h_over_percentage")
-            recent_over_percentage = st.number_input("Recent Matches Over 2.5 %", min_value=0, max_value=100, value=0, step=1, key="recent_over_percentage")
-            
-        with col12:
-            both_conceded_5plus = st.checkbox("Both Teams Conceded 5+ in Last 3 Games", key="both_conceded_5plus")
-            both_safe = st.checkbox("Both Teams Safe from Relegation", value=False, key="both_safe")
-            both_no_europe = st.checkbox("Both Cannot Qualify for Europe", value=True, key="both_no_europe")
-            new_manager = st.checkbox("New Manager (Either Team)?", key="new_manager")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Create input data structure
-    input_data = {
-        'match_data': {
-            'home_team': home_team,
-            'away_team': away_team,
-            'date': str(match_date),
-            'historical_stats': {
-                'avg_goals': home_hist_goals,
-                'conceded_pg': home_hist_conceded,
-                'manager': home_manager
-            },
-            'recent_stats': {
-                'avg_goals_last_5': home_recent_goals,
-                'conceded_pg_last_5': home_recent_conceded,
-                'manager': home_manager,
-                'total_goals_last_5_home': total_goals_last_5_home,
-                'both_teams_conceded_5plus_last_3': both_conceded_5plus,
-                'h2h_over_percentage': h2h_over_percentage,
-                'recent_over_percentage': recent_over_percentage,
-                'new_manager_any_team': new_manager,
-                'goals_for_last_5': '1,1,0,2,0',
-                'goals_against_last_5': '2,1,1,0,1'
-            },
-            'historical_stats_away': {
-                'avg_goals': away_hist_goals,
-                'conceded_pg': away_hist_conceded,
-                'manager': away_manager
-            },
-            'recent_stats_away': {
-                'avg_goals_last_5': away_recent_goals,
-                'conceded_pg_last_5': away_recent_conceded,
-                'goals_for_last_5': '2,1,0,1,1',
-                'goals_against_last_5': '3,2,1,2,3'
-            }
+    match_data = {
+        'home': {
+            'name': home_team,
+            'goals_for': parse_list(home_goals_for),
+            'goals_against': parse_list(home_goals_against),
+            'results': parse_list(home_results),
+            'position': home_position,
+            'new_manager': home_manager_new,
+            'desperate': home_desperate
         },
-        'odds_data': {
+        'away': {
+            'name': away_team,
+            'goals_for': parse_list(away_goals_for),
+            'goals_against': parse_list(away_goals_against),
+            'results': parse_list(away_results),
+            'position': away_position,
+            'new_manager': away_manager_new
+        },
+        'odds': {
             'over_odds': over_odds,
             'under_odds': under_odds,
-            'public_bet_percentage': public_percentage,
-            'opening_over_odds': over_odds + 0.1,
-            'opening_under_odds': under_odds - 0.1,
-            'odds_volatility': 0.2,
-            'bet_volume_over': public_percentage,
-            'bet_volume_under': 100 - public_percentage
+            'public_over': public_over
         },
-        'context_data': {
+        'context': {
+            'is_derby': is_derby,
+            'is_relegation_battle': is_relegation,
+            'games_remaining': games_remaining,
             'home_position': home_position,
             'away_position': away_position,
-            'home_points': home_points,
-            'away_points': 17,
-            'home_last_5_wins': home_last_5_wins,
-            'games_remaining': games_remaining,
-            'is_local_derby': is_derby,
-            'is_relegation_battle': is_relegation_battle,
-            'both_safe_from_relegation': both_safe,
-            'both_cannot_qualify_europe': both_no_europe,
-            'table_position_close': abs(home_position - away_position) <= 3
+            'home_desperate': home_desperate
         }
     }
     
-    return input_data
+    return match_data
 
-
-def display_prediction_result(prediction: dict):
-    """Display prediction results with IMPROVED ANALYSIS"""
+# ========== DISPLAY RESULTS ==========
+def display_trend_results(prediction):
+    """Display prediction results with trend analysis"""
     
-    st.markdown("## 🎯 Prediction Result")
+    st.markdown("## 📊 TREND ANALYSIS RESULTS")
     
-    col1, col2, col3 = st.columns(3)
+    # Summary row
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        if prediction['prediction'] == 'NO_VALUE_BET':
-            st.error("### NO BET RECOMMENDED")
-        elif prediction['edge_percentage'] >= 8:
-            st.success(f"### 🎯 {prediction['prediction']}")
-        elif prediction['edge_percentage'] >= 4:
-            st.info(f"### ⚡ {prediction['prediction']}")
+        pred = prediction['prediction']
+        if pred == 'NO_VALUE_BET':
+            st.error("NO BET")
+        elif pred == 'OVER_2.5':
+            st.success("📈 OVER 2.5")
         else:
-            st.warning(f"### 📊 {prediction['prediction']}")
+            st.success("📉 UNDER 2.5")
         
-        st.metric("Edge", f"{prediction['edge_percentage']:.1f}%")
-        st.metric("Bet Size", f"{prediction['bet_size'] * 100:.1f}%")
+        st.metric("Expected Total Goals", f"{prediction['expected_total']:.1f}")
     
     with col2:
-        confidence_percent = prediction['confidence'] * 100
-        st.metric("Confidence", f"{confidence_percent:.0f}%")
-        
-        # Show expected goals
-        expected_goals = prediction['value_opportunity']['true_probabilities'].get('expected_total_goals', 2.5)
-        st.metric("Expected Goals", f"{expected_goals:.1f}")
+        st.metric("Edge", f"{prediction['edge']:.1f}%")
+        st.metric("Confidence", f"{prediction['confidence']*100:.0f}%")
     
     with col3:
-        st.info(f"### 📋 Recommendation")
-        st.write(prediction['recommendation'])
-        
-        # Show traps
-        traps = prediction['traps_detected']
-        if traps:
-            st.warning(f"🚨 {len(traps)} Traps Detected")
-            for trap in traps[:3]:
-                with st.container():
-                    st.markdown(f'<div class="trap-warning"><strong>{trap["type"]}</strong><br>{trap["description"]}</div>', unsafe_allow_html=True)
-        else:
-            st.success("✅ No Traps Detected")
+        st.metric("Expected Home", f"{prediction['expected_home']:.1f}")
+        st.metric("Expected Away", f"{prediction['expected_away']:.1f}")
     
-    # Detailed analysis
-    with st.expander("📊 View Detailed Analysis"):
-        col4, col5 = st.columns(2)
-        
-        with col4:
-            st.markdown("**Form vs History Analysis**")
-            form_analysis = prediction['analyses']['form_vs_history']
-            if form_analysis['conflicts']:
-                for conflict in form_analysis['conflicts']:
-                    st.warning(f"{conflict['type']}: {conflict['message']}")
+    with col4:
+        st.info("### 📋 Recommendation")
+        st.write(prediction['recommendation'])
+    
+    # Traps section
+    if prediction['traps']:
+        st.markdown("### 🚨 DETECTED TRAPS & PATTERNS")
+        for trap in prediction['traps']:
+            if trap.get('warning'):
+                st.warning(f"**{trap['type']}**: {trap['description']}")
             else:
-                st.success("No significant conflicts")
-            
-            st.metric("Form Adjustment", f"{form_analysis['overall_adjustment']:.2f}")
-            st.metric("Conflict Score", f"{form_analysis['conflict_score']:.2f}")
+                st.error(f"**{trap['type']}**: {trap['description']}")
+    
+    # Trend analysis details
+    with st.expander("📈 DETAILED TREND ANALYSIS"):
+        
+        # Home team analysis
+        st.markdown("#### 🏠 Home Team Analysis")
+        home_trends = prediction['trend_analysis']['home']
+        
+        col5, col6, col7 = st.columns(3)
         
         with col5:
-            st.markdown("**Pressure Context**")
-            pressure_analysis = prediction['analyses']['pressure_context']
-            if pressure_analysis['scenarios']:
-                for scenario in pressure_analysis['scenarios']:
-                    st.info(f"{scenario['type']}: {scenario['pattern']}")
-            else:
-                st.info("Normal match context")
-            
-            st.metric("Pressure Score", f"{pressure_analysis['pressure_score']:.2f}")
-            st.metric("Goal Expectation Adj", f"{pressure_analysis['goal_expectation_adjustment']:.2f}")
-        
-        # Public sentiment analysis
-        st.markdown("**Public Sentiment Analysis**")
-        sentiment_analysis = prediction['analyses']['public_sentiment']
-        col6, col7 = st.columns(2)
+            st.markdown("**Attack Trends**")
+            attack = home_trends['attack']
+            trend_emoji = "📈" if attack['trend'] == 'UP' else "📉" if attack['trend'] == 'DOWN' else "➡️"
+            st.write(f"Trend: {trend_emoji} {attack['trend']}")
+            st.write(f"Recent Avg: {attack['recent_avg']:.1f} goals")
+            if attack.get('streak'):
+                st.write(f"Streak: {attack['streak']['type']} ({attack['streak']['length']} games)")
+            if attack.get('patterns'):
+                st.write(f"Patterns: {', '.join(attack['patterns'])}")
         
         with col6:
-            st.metric("Public Bias Score", f"{sentiment_analysis['public_bias_score']:.2f}")
+            st.markdown("**Defense Trends**")
+            defense = home_trends['defense']
+            trend_emoji = "📉" if defense['trend'] == 'DOWN' else "📈" if defense['trend'] == 'UP' else "➡️"
+            st.write(f"Trend: {trend_emoji} {defense['trend']}")
+            st.write(f"Recent Avg: {defense['recent_avg']:.1f} conceded")
+            st.write(f"Clean Sheets: {defense['clean_sheets']}/3")
+            if defense.get('collapse_patterns'):
+                st.write(f"Collapses: {', '.join(defense['collapse_patterns'])}")
         
         with col7:
-            st.metric("Traps Detected", len(sentiment_analysis['traps_detected']))
+            st.markdown("**Momentum**")
+            momentum = home_trends['momentum']
+            st.write(f"Momentum: {momentum['momentum']}")
+            st.write(f"Recent Form: {' '.join(momentum['recent_form'])}")
+            if momentum.get('streak'):
+                st.write(f"Streak: {momentum['streak']['type']} ({momentum['streak']['length']} games)")
         
-        # Probability chart
-        st.markdown("**Probability Analysis**")
-        prob_data = prediction['value_opportunity']['true_probabilities']
-        impl_data = prediction['value_opportunity']['implied_probabilities']
+        st.markdown("---")
         
-        fig = go.Figure(data=[
-            go.Bar(name='True Probability', x=['Over 2.5', 'Under 2.5'], 
-                   y=[prob_data['over_25'], prob_data['under_25']],
-                   marker_color=['#10B981', '#EF4444']),
-            go.Bar(name='Implied Probability', x=['Over 2.5', 'Under 2.5'],
-                   y=[impl_data['over'], impl_data['under']],
-                   marker_color=['#34D399', '#FCA5A5'])
-        ])
-        fig.update_layout(
-            barmode='group', 
-            height=300,
-            title="True vs Implied Probabilities",
-            yaxis_title="Probability",
-            yaxis_tickformat=".0%"
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        # Away team analysis
+        st.markdown("#### 🚌 Away Team Analysis")
+        away_trends = prediction['trend_analysis']['away']
         
-        # Edge comparison
-        edges = prediction['value_opportunity']['edges']
-        st.metric("Over Edge", f"{edges['over_edge']:.1f}%")
-        st.metric("Under Edge", f"{edges['under_edge']:.1f}%")
+        col8, col9, col10 = st.columns(3)
+        
+        with col8:
+            st.markdown("**Attack Trends**")
+            attack = away_trends['attack']
+            trend_emoji = "📈" if attack['trend'] == 'UP' else "📉" if attack['trend'] == 'DOWN' else "➡️"
+            st.write(f"Trend: {trend_emoji} {attack['trend']}")
+            st.write(f"Recent Avg: {attack['recent_avg']:.1f} goals")
+            if attack.get('streak'):
+                st.write(f"Streak: {attack['streak']['type']} ({attack['streak']['length']} games)")
+            if attack.get('patterns'):
+                st.write(f"Patterns: {', '.join(attack['patterns'])}")
+        
+        with col9:
+            st.markdown("**Defense Trends**")
+            defense = away_trends['defense']
+            trend_emoji = "📉" if defense['trend'] == 'DOWN' else "📈" if defense['trend'] == 'UP' else "➡️"
+            st.write(f"Trend: {trend_emoji} {defense['trend']}")
+            st.write(f"Recent Avg: {defense['recent_avg']:.1f} conceded")
+            st.write(f"Clean Sheets: {defense['clean_sheets']}/3")
+            if defense.get('collapse_patterns'):
+                st.write(f"Collapses: {', '.join(defense['collapse_patterns'])}")
+        
+        with col10:
+            st.markdown("**Momentum**")
+            momentum = away_trends['momentum']
+            st.write(f"Momentum: {momentum['momentum']}")
+            st.write(f"Recent Form: {' '.join(momentum['recent_form'])}")
+            if momentum.get('streak'):
+                st.write(f"Streak: {momentum['streak']['type']} ({momentum['streak']['length']} games)")
+        
+        # Probability analysis
+        st.markdown("---")
+        st.markdown("#### 🎯 Probability Analysis")
+        
+        col11, col12 = st.columns(2)
+        
+        with col11:
+            probs = prediction['probabilities']
+            fig1 = go.Figure(data=[
+                go.Bar(x=['Over 2.5', 'Under 2.5'], 
+                      y=[probs['over'], probs['under']],
+                      marker_color=['#10B981', '#EF4444'])
+            ])
+            fig1.update_layout(title="True Probabilities", height=300)
+            st.plotly_chart(fig1, use_container_width=True)
+        
+        with col12:
+            edges = prediction['edges']
+            fig2 = go.Figure(data=[
+                go.Bar(x=['Over Edge', 'Under Edge'], 
+                      y=[edges['over'], edges['under']],
+                      marker_color=['#34D399', '#FCA5A5'])
+            ])
+            fig2.update_layout(title="Value Edges (%)", height=300)
+            st.plotly_chart(fig2, use_container_width=True)
 
-
-# Main App
+# ========== MAIN APP ==========
 def main():
-    # Title
-    st.markdown('<h1 class="main-header">🎯 ANTI-MANIPULATION FOOTBALL PREDICTION SYSTEM</h1>', unsafe_allow_html=True)
-    st.markdown("### Direct Input Mode - No CSV Required")
+    st.markdown('<h1 class="main-header">📈 TREND-BASED FOOTBALL PREDICTOR</h1>', unsafe_allow_html=True)
+    st.markdown("### Analyzing streaks, patterns, and momentum - not just averages")
     
     # Sidebar
     with st.sidebar:
-        st.markdown('<div class="emoji-large">⚽</div>', unsafe_allow_html=True)
-        st.title("System Configuration")
-        
-        st.subheader("Analysis Settings")
-        min_edge = st.slider("Minimum Edge %", 0.0, 10.0, 2.0, 0.5)
-        max_bet_size = st.slider("Max Bet Size %", 1, 20, 10, 1)
-        
-        st.subheader("Quick Presets")
-        preset = st.selectbox(
-            "Load Preset",
-            ["Custom", "Liverpool vs Brighton", "Manchester Derby", "Relegation Battle"]
-        )
-        
-        # Load preset data
-        if preset != "Custom":
-            if preset == "Liverpool vs Brighton":
-                st.info("Liverpool (10th) vs Brighton (8th)\nOver 1.55 / Under 2.60\nPublic 66% on Over")
-            elif preset == "Manchester Derby":
-                st.info("Man Utd vs Man City\nOver 1.75 / Under 2.10\nPublic 58% on Over")
-            elif preset == "Relegation Battle":
-                st.info("18th vs 19th position\nOver 2.10 / Under 1.75\nPublic 35% on Over")
+        st.markdown("### ⚙️ Settings")
+        min_edge = st.slider("Minimum Edge %", 0.0, 15.0, 2.0, 0.5)
+        max_bet = st.slider("Max Bet Size %", 1, 25, 10, 1)
         
         st.markdown("---")
-        st.info("**System Status**: 🟢 Operational")
-        st.warning("**Remember**: No bet is better than a forced bet")
+        st.info("""
+        **How it works:**
+        1. Analyzes last 5 games trends
+        2. Detects streaks and patterns
+        3. Weights recent games heavier
+        4. Identifies momentum shifts
+        """)
+        
+        st.warning("**Key Insight:** Averages lie. Trends tell the truth.")
     
-    # Main content
-    tab1, tab2, tab3 = st.tabs(["🎯 Predict", "📊 Analysis", "📚 Learn"])
+    # Main tabs
+    tab1, tab2, tab3 = st.tabs(["🎯 Predict", "📚 Learn Trends", "💡 Case Studies"])
     
     with tab1:
         # Create input form
-        input_data = create_input_form()
+        match_data = create_trend_input_form()
         
         # Predict button
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            if st.button("🚀 RUN PREDICTION ANALYSIS", type="primary", use_container_width=True):
-                # Initialize engine and predict
-                engine = AntiManipulationPredictionEngine()
-                prediction = engine.predict(input_data)
-                
-                # Store in session state
-                st.session_state.prediction = prediction
-                st.session_state.input_data = input_data
-                st.rerun()
+        if st.button("🚀 ANALYZE TRENDS & PREDICT", type="primary", use_container_width=True):
+            # Run prediction
+            predictor = TrendBasedPredictor()
+            prediction = predictor.predict(match_data)
+            
+            # Store in session state
+            st.session_state.trend_prediction = prediction
+            st.session_state.trend_match_data = match_data
+            st.rerun()
         
         # Show results if available
-        if 'prediction' in st.session_state:
-            display_prediction_result(st.session_state.prediction)
+        if 'trend_prediction' in st.session_state:
+            display_trend_results(st.session_state.trend_prediction)
+            
+            # Show what would have happened with old system
+            with st.expander("🔍 COMPARE: Old vs New System"):
+                old_pred = "UNDER_2.5"  # What old system predicted
+                actual_result = "OVER_2.5"  # What actually happened (3-2)
+                
+                st.markdown(f"**Old System Prediction:** {old_pred}")
+                st.markdown(f"**Trend System Prediction:** {st.session_state.trend_prediction['prediction']}")
+                st.markdown(f"**Actual Result:** {actual_result} (3-2)")
+                
+                if st.session_state.trend_prediction['prediction'] == actual_result:
+                    st.success("✅ Trend system would have predicted correctly!")
+                else:
+                    st.error("❌ Still needs adjustment")
     
     with tab2:
-        st.markdown('<h2 class="sub-header">System Analysis Dashboard</h2>', unsafe_allow_html=True)
-        
-        # Performance metrics
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Prediction Accuracy", "64%", "4%")
-        with col2:
-            st.metric("Avg Edge", "3.2%", "0.8%")
-        with col3:
-            st.metric("Trap Detection", "87%", "2%")
-        with col4:
-            st.metric("ROI (30 days)", "18.5%", "3.2%")
-        
-        # Trap detection chart
-        st.markdown("### Trap Detection Frequency")
-        trap_data = pd.DataFrame({
-            'Trap Type': ['Over Hype', 'Under Fear', 'Historical Data', 'Emotional Pricing'],
-            'Detections': [42, 38, 29, 31],
-            'Success Rate': [85, 82, 79, 76]
-        })
-        
-        fig = px.bar(trap_data, x='Trap Type', y='Detections',
-                     color='Success Rate', text='Success Rate',
-                     color_continuous_scale='RdYlGn')
-        fig.update_layout(height=400)
-        st.plotly_chart(fig, use_container_width=True)
-    
-    with tab3:
-        st.markdown('<h2 class="sub-header">Learn the System</h2>', unsafe_allow_html=True)
+        st.markdown("## 📚 Understanding Trend Analysis")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("### 📊 Where to Get Statistics")
+            st.markdown("### 🎯 Key Trend Patterns")
             st.markdown("""
-            **Historical Data (Full Season):**
-            - **FBref.com** - Advanced season averages
-            - **PremierLeague.com** - Official season stats
-            - **WhoScored.com** - Team statistics
+            **1. Goalless Streaks (0-0-0)**
+            - 3+ games without scoring = SCORING CRISIS
+            - Desperate teams often over-commit
+            - Leads to defensive exposure
             
-            **Recent Form (Last 5 Games):**
-            - **FlashScore.com** - Last 5 matches form
-            - **SofaScore.com** - Recent match data
-            - **Team websites** - Latest results
+            **2. Defensive Collapses (3+ goals conceded)**
+            - Recent 3+ goals conceded = DEFENSIVE CRISIS
+            - Often continues until fixed
+            - Big red flag for Under bets
             
-            **Betting Data:**
-            - **OddsChecker.com** - Market odds
-            - **Betfair Exchange** - Public betting %s
-            - **Pinnacle** - Sharp money indicators
+            **3. Momentum Shifts**
+            - W after LLL = CONFIDENCE BOOST
+            - Recent form > full season form
+            - Tottenham win example: Changed everything
             """)
         
         with col2:
-            st.markdown("### 📝 How to Calculate")
+            st.markdown("### 📊 How We Analyze")
             st.markdown("""
-            **Historical Avg Goals:**
-            `Total home goals this season ÷ Home games played`
+            **Weighted Recent Form:**
+            - Game 1 (most recent): 35%
+            - Game 2: 25%
+            - Game 3: 20%
+            - Game 4: 15%
+            - Game 5: 5%
             
-            **Recent Avg Goals (Last 5):**
-            `Goals in last 5 home games ÷ 5`
+            **Pattern Detection:**
+            - Streaks (WWW or LLL)
+            - Crises (0 goals or 3+ conceded)
+            - Improvements/Declines
             
-            **Example Burnley:**
-            - Season: 1.8 avg goals at home
-            - Last 5: 0.6 avg goals at home
-            
-            **Key Principle:**
-            System weights **recent form (80%)** higher than **historical data (20%)**
-            
-            **Data Sources Tip:**
-            Always check if stats are **home/away specific** not overall
+            **Context Awareness:**
+            - Desperation ≠ Caution
+            - Recent big wins change everything
+            - Public perception often wrong
             """)
+        
+        st.markdown("---")
+        st.markdown("### 🚨 Common Traps We Detect")
+        
+        col3, col4 = st.columns(2)
+        
+        with col3:
+            st.markdown("""
+            **Public Overreaction Trap**
+            - Public >65% on one side
+            - But trends suggest opposite
+            - Example: Burnley-Fulham (60% on Over)
+            
+            **Historical Data Trap**
+            - H2H shows high scoring
+            - But recent form completely different
+            - Teams/Managers changed
+            """)
+        
+        with col4:
+            st.markdown("""
+            **Average Deception Trap**
+            - Averages hide trends
+            - 0.6 average could be 0-0-0-2-1
+            - Recent 0s matter more than old 2
+            
+            **Desperation Paradox**
+            - Desperate ≠ Defensive
+            - Often = Chaotic, High Scoring
+            - Pressure causes mistakes
+            """)
+    
+    with tab3:
+        st.markdown("## 💡 Real Case Studies")
+        
+        # Burnley-Fulham case
+        st.markdown("### 🔍 Case: Burnley 2-3 Fulham")
+        
+        col5, col6 = st.columns(2)
+        
+        with col5:
+            st.markdown("**Old System Saw:**")
+            st.markdown("""
+            - Burnley: 0.6 goals avg, 1.2 conceded
+            - Fulham: 1.0 goals avg, 2.2 conceded  
+            - Prediction: UNDER 2.5
+            - Confidence: High
+            """)
+        
+        with col6:
+            st.markdown("**Trends Actually Showed:**")
+            st.markdown("""
+            - Burnley: 0-0-0 streak (SCORING CRISIS)
+            - Fulham: Just won at Tottenham (MOMENTUM)
+            - Burnley desperate = CHAOTIC
+            - Actual: 3-2 (OVER)
+            """)
+        
+        st.markdown("**What We Learned:**")
+        st.markdown("""
+        1. **Goalless streaks matter**: 0-0-0 ≠ 0.6 average
+        2. **Recent wins change everything**: Tottenham win > all previous losses
+        3. **Desperation = Chaos**: Not defensive caution
+        4. **Public was right**: 60% on Over saw the pattern
+        """)
+        
+        st.markdown("---")
+        
+        # Liverpool-Brighton case
+        st.markdown("### 🔍 Case: Liverpool vs Brighton")
+        
+        col7, col8 = st.columns(2)
+        
+        with col7:
+            st.markdown("**Trend Analysis:**")
+            st.markdown("""
+            - Liverpool: BIG SIX at home
+            - Public: 66% on Over (HYPE)
+            - Recent form: Mixed
+            - H2H: 69% Over (HISTORICAL TRAP)
+            """)
+        
+        with col8:
+            st.markdown("**Prediction:**")
+            st.markdown("""
+            - Detected: OVER HYPE TRAP
+            - Detected: HISTORICAL DATA TRAP  
+            - Expected: Lower scoring
+            - Recommendation: UNDER
+            """)
+        
+        st.markdown("**Key Insight:** Big team + Public hype + Historical data = Triple trap")
 
+# Run the app
 if __name__ == "__main__":
     main()
