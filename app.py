@@ -59,6 +59,11 @@ st.markdown("""
         text-align: center;
         margin: 0.5rem;
     }
+    .emoji-large {
+        font-size: 4rem;
+        text-align: center;
+        margin: 1rem 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -604,7 +609,7 @@ def main():
     
     # Sidebar
     with st.sidebar:
-        st.image("⚽", width=100)
+        st.markdown('<div class="emoji-large">⚽</div>', unsafe_allow_html=True)
         st.title("System Configuration")
         
         st.subheader("Analysis Settings")
