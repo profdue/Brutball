@@ -1,19 +1,20 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import numpy as np
 
 # Page configuration
 st.set_page_config(
-    page_title="Football Betting Strategy Analyzer",
+    page_title="Football Betting Strategy Analyzer v3.0",
     page_icon="⚽",
     layout="wide"
 )
 
 # App title and description
-st.title("⚽ Football Betting Strategy Analyzer v2.0")
+st.title("⚽ Football Betting Strategy Analyzer v3.0")
 st.markdown("""
-**Updated with Attack Validation Logic** - Now includes the critical check to avoid false "Open Contest" classifications
-when both teams have weak attacking form (avg goals < 1.3).
+**Updated with Refined Logic** - Now includes gradient scoring for "Tight" matches and BTTS-aware classification
+to avoid false BTTS: No recommendations for balanced 1-1 type matches.
 """)
 
 # Sidebar for instructions
@@ -27,24 +28,26 @@ with st.sidebar:
     5. Click **Analyze Match** when ready
     """)
     
-    st.header("🎯 Strategy Rules v2.0")
+    st.header("🎯 Strategy Rules v3.0")
     st.markdown("""
-    **Tight, Cautious Affair** → Under 2.5 & BTTS: No  
+    **Tight, Cautious Affair** → Under 2.5 Goals  
+    - **Defensive Tight**: BTTS: No (if BTTS% < 45)
+    - **Balanced Tight**: BTTS: Maybe (if BTTS% 45-55)
+    - **Attack-Minded Tight**: BTTS: Yes (if BTTS% > 55)
+    
     **One-Sided Dominance** → Favorite Win & BTTS: No  
-    **Open Contest** → **NEW:** Check Attack Validation First!
-    - If BOTH teams avg goals < 1.3 → Re-classify as Tight
-    - Otherwise → BTTS: Yes (caution on Over 2.5)
+    **Open Contest** → BTTS: Yes (with Attack Validation)
     """)
     
-    st.header("⚠️ Critical Refinement")
+    st.header("⚠️ Critical Refinements")
     st.markdown("""
-    **Attack Validation Rule:**
-    > "A strong Over/Under trend must be validated by current attacking form. 
-    > If a team's recent goal-scoring average (home/away) is below 1.3, 
-    > treat any 'Over' trend with extreme caution."
+    1. **Gradient Scoring**: Tight matches now use 2.8 threshold (not 2.5)
+    2. **BTTS-Aware**: Classification considers BTTS percentages
+    3. **No Rigid Pairing**: Under 2.5 doesn't auto-pair with BTTS: No
+    4. **Expected Outcomes**: Shows most likely scorelines
     """)
 
-# Initialize session state for storing results
+# Initialize session state
 if 'analysis_complete' not in st.session_state:
     st.session_state.analysis_complete = False
 
@@ -54,8 +57,7 @@ col1, col2 = st.columns(2)
 with col1:
     st.subheader("🏠 Home Team")
     
-    # Basic team info
-    home_team = st.text_input("Team Name", key="home_name", value="PEC Zwolle")
+    home_team = st.text_input("Team Name", key="home_name", value="Charleroi")
     
     # Filter 1: Form & Averages
     st.markdown("### 📊 Form & Averages")
@@ -64,33 +66,33 @@ with col1:
         "Last 5 Results (W/D/L)", 
         placeholder="W,W,D,L,W",
         key="home_form5",
-        value="L,W,W,D,W"
+        value="L,W,D,L,D"
     )
     
     home_avg_scored = st.number_input(
         "Avg Goals Scored (Home)", 
-        min_value=0.0, max_value=5.0, value=1.0, step=0.1,
+        min_value=0.0, max_value=5.0, value=1.20, step=0.1,
         key="home_avg_scored",
-        help="Critical for Attack Validation: < 1.3 is weak attack"
+        help="Critical for Attack Validation"
     )
     
     home_avg_conceded = st.number_input(
         "Avg Goals Conceded (Home)", 
-        min_value=0.0, max_value=5.0, value=1.3, step=0.1,
+        min_value=0.0, max_value=5.0, value=0.90, step=0.1,
         key="home_avg_conceded"
     )
     
     home_over25_pct = st.number_input(
         "Over 2.5 Goals % (Last 10)", 
-        min_value=0, max_value=100, value=90, step=1,
-        key="home_over25",
-        help="PEC Zwolle had 90% - but this can be misleading!"
+        min_value=0, max_value=100, value=30, step=1,
+        key="home_over25"
     )
     
     home_btts_pct = st.number_input(
         "BTTS Yes % (Last 10)", 
         min_value=0, max_value=100, value=60, step=1,
-        key="home_btts"
+        key="home_btts",
+        help="Now actively influences classification"
     )
     
     # Filter 2: Style & Key Stats
@@ -98,13 +100,13 @@ with col1:
     
     home_possession = st.number_input(
         "Avg Possession %", 
-        min_value=0, max_value=100, value=45, step=1,
+        min_value=0, max_value=100, value=48, step=1,
         key="home_possession"
     )
     
     home_shots_on_target = st.number_input(
         "Shots on Target (Avg)", 
-        min_value=0.0, max_value=10.0, value=3.3, step=0.1,
+        min_value=0.0, max_value=10.0, value=4.1, step=0.1,
         key="home_sot"
     )
     
@@ -131,8 +133,7 @@ with col1:
 with col2:
     st.subheader("✈️ Away Team")
     
-    # Basic team info
-    away_team = st.text_input("Team Name", key="away_name", value="Fortuna Sittard")
+    away_team = st.text_input("Team Name", key="away_name", value="Union SG")
     
     # Filter 1: Form & Averages
     st.markdown("### 📊 Form & Averages")
@@ -141,32 +142,33 @@ with col2:
         "Last 5 Results (W/D/L)", 
         placeholder="L,W,D,W,D",
         key="away_form5",
-        value="L,D,D,L,W"
+        value="W,D,W,L,W"
     )
     
     away_avg_scored = st.number_input(
         "Avg Goals Scored (Away)", 
-        min_value=0.0, max_value=5.0, value=1.2, step=0.1,
+        min_value=0.0, max_value=5.0, value=1.60, step=0.1,
         key="away_avg_scored",
-        help="Critical for Attack Validation: < 1.3 is weak attack"
+        help="Critical for Attack Validation"
     )
     
     away_avg_conceded = st.number_input(
         "Avg Goals Conceded (Away)", 
-        min_value=0.0, max_value=5.0, value=2.1, step=0.1,
+        min_value=0.0, max_value=5.0, value=0.80, step=0.1,
         key="away_avg_conceded"
     )
     
     away_over25_pct = st.number_input(
         "Over 2.5 Goals % (Last 10)", 
-        min_value=0, max_value=100, value=50, step=1,
+        min_value=0, max_value=100, value=40, step=1,
         key="away_over25"
     )
     
     away_btts_pct = st.number_input(
         "BTTS Yes % (Last 10)", 
-        min_value=0, max_value=100, value=80, step=1,
-        key="away_btts"
+        min_value=0, max_value=100, value=50, step=1,
+        key="away_btts",
+        help="Now actively influences classification"
     )
     
     # Filter 2: Style & Key Stats
@@ -174,13 +176,13 @@ with col2:
     
     away_possession = st.number_input(
         "Avg Possession %", 
-        min_value=0, max_value=100, value=45, step=1,
+        min_value=0, max_value=100, value=52, step=1,
         key="away_possession"
     )
     
     away_shots_on_target = st.number_input(
         "Shots on Target (Avg)", 
-        min_value=0.0, max_value=10.0, value=4.5, step=0.1,
+        min_value=0.0, max_value=10.0, value=4.8, step=0.1,
         key="away_sot"
     )
     
@@ -220,39 +222,39 @@ odds_col1, odds_col2, odds_col3 = st.columns(3)
 with odds_col1:
     over25_odds = st.number_input(
         "Over 2.5 Goals Odds", 
-        min_value=1.01, max_value=10.0, value=1.64, step=0.01,
+        min_value=1.01, max_value=10.0, value=2.10, step=0.01,
         key="over25_odds"
     )
     
     under25_odds = st.number_input(
         "Under 2.5 Goals Odds", 
-        min_value=1.01, max_value=10.0, value=2.20, step=0.01,
+        min_value=1.01, max_value=10.0, value=1.67, step=0.01,
         key="under25_odds"
     )
 
 with odds_col2:
     btts_yes_odds = st.number_input(
         "BTTS Yes Odds", 
-        min_value=1.01, max_value=10.0, value=1.52, step=0.01,
+        min_value=1.01, max_value=10.0, value=1.85, step=0.01,
         key="btts_yes_odds"
     )
     
     btts_no_odds = st.number_input(
         "BTTS No Odds", 
-        min_value=1.01, max_value=10.0, value=2.43, step=0.01,
+        min_value=1.01, max_value=10.0, value=1.95, step=0.01,
         key="btts_no_odds"
     )
 
 with odds_col3:
     home_win_odds = st.number_input(
         f"{home_team or 'Home'} Win Odds", 
-        min_value=1.01, max_value=10.0, value=2.48, step=0.01,
+        min_value=1.01, max_value=10.0, value=2.90, step=0.01,
         key="home_win_odds"
     )
     
     away_win_odds = st.number_input(
         f"{away_team or 'Away'} Win Odds", 
-        min_value=1.01, max_value=10.0, value=2.65, step=0.01,
+        min_value=1.01, max_value=10.0, value=2.40, step=0.01,
         key="away_win_odds"
     )
 
@@ -260,122 +262,191 @@ with odds_col3:
 st.markdown("---")
 analyze_button = st.button("🔍 Analyze Match", type="primary", use_container_width=True)
 
-# UPDATED: Function to calculate match profile with Attack Validation
-def calculate_match_profile_with_validation(data):
-    """Calculate match profile with the new Attack Validation check"""
+# ==================== NEW: EXPECTED SCORELINE CALCULATION ====================
+def calculate_expected_scorelines(home_avg, away_avg):
+    """Calculate most likely scorelines based on Poisson approximation"""
     
-    # Initialize scores for each profile
+    # Simple probability calculation
+    likely_scores = []
+    
+    # Common low-scoring outcomes
+    scorelines = [
+        (0, 0), (1, 0), (0, 1), (1, 1), 
+        (2, 0), (0, 2), (2, 1), (1, 2)
+    ]
+    
+    # Simplified Poisson probability
+    for h, a in scorelines:
+        # Very basic approximation
+        home_prob = np.exp(-home_avg) * (home_avg**h) / np.math.factorial(h)
+        away_prob = np.exp(-away_avg) * (away_avg**a) / np.math.factorial(a)
+        prob = home_prob * away_prob * 100  # as percentage
+        
+        if prob > 2.0:  # Only show probabilities > 2%
+            likely_scores.append({
+                'score': f"{h}-{a}",
+                'probability': round(prob, 1),
+                'type': 'BTTS' if h > 0 and a > 0 else 'Clean Sheet'
+            })
+    
+    # Sort by probability
+    likely_scores.sort(key=lambda x: x['probability'], reverse=True)
+    return likely_scores[:5]  # Top 5 most likely
+
+# ==================== UPDATED: Profile Calculation with Gradient Scoring ====================
+def calculate_match_profile_with_gradient(data):
+    """Calculate match profile with gradient scoring and BTTS awareness"""
+    
     profile_scores = {
         'tight_cautious': 0,
         'one_sided_dominance': 0,
         'open_contest': 0
     }
     
-    # NEW: Attack Validation Flag
-    weak_attack_flag = False
-    if data['home_avg_scored'] < 1.3 and data['away_avg_scored'] < 1.3:
-        weak_attack_flag = True
-    
-    # Filter 1: Form & Averages Analysis
+    # Calculate averages
     total_goals_avg = data['home_avg_scored'] + data['away_avg_scored']
-    total_conceded_avg = data['home_avg_conceded'] + data['away_avg_conceded']
+    btts_avg = (data['home_btts_pct'] + data['away_btts_pct']) / 2
+    home_strength = data['home_avg_scored'] - data['home_avg_conceded']
+    away_strength = data['away_avg_scored'] - data['away_avg_conceded']
     
-    # Tight/Cautious indicators
-    if total_goals_avg < 2.5:
-        profile_scores['tight_cautious'] += 2
-    if (data['home_over25_pct'] < 40 and data['away_over25_pct'] < 40):
+    # ========== FIX 1: GRADIENT SCORING FOR TIGHT MATCHES ==========
+    # Old: if total_goals_avg < 2.5: +2
+    # New: Gradient approach
+    if total_goals_avg < 2.8:  # Increased threshold
         profile_scores['tight_cautious'] += 1
+    if total_goals_avg < 2.3:  # Very tight gets bonus
+        profile_scores['tight_cautious'] += 1
+    
+    # Over 2.5% indicator (both must be low)
+    if data['home_over25_pct'] < 40 and data['away_over25_pct'] < 40:
+        profile_scores['tight_cautious'] += 1
+    
+    # Context bonus
     if data['match_context'] in ['Local Derby', 'Cup Final']:
         profile_scores['tight_cautious'] += 2
     
-    # Open Contest indicators (but check weak attack first)
-    if not weak_attack_flag:
-        if total_goals_avg > 3.0:
-            profile_scores['open_contest'] += 1
-        if (data['home_btts_pct'] > 60 and data['away_btts_pct'] > 60):
-            profile_scores['open_contest'] += 2
-        if data['home_shots_on_target'] > 5.0 and data['away_shots_on_target'] > 5.0:
-            profile_scores['open_contest'] += 1
-    else:
-        # If weak attack flag is raised, penalize Open Contest score
-        profile_scores['open_contest'] -= 2
-        profile_scores['tight_cautious'] += 2  # Boost Tight score
+    # ========== FIX 2: BTTS-AWARE CLASSIFICATION ==========
+    if btts_avg < 45:  # Low BTTS strongly supports "tight"
+        profile_scores['tight_cautious'] += 2
+    elif btts_avg > 55:  # High BTTS contradicts "tight"
+        profile_scores['tight_cautious'] -= 1
+        profile_scores['open_contest'] += 1
     
-    # One-Sided Dominance indicators
-    home_net_strength = data['home_avg_scored'] - data['home_avg_conceded']
-    away_net_strength = data['away_avg_scored'] - data['away_avg_conceded']
-    form_diff = abs(home_net_strength - away_net_strength)
-    
-    if form_diff > 1.0:  # Significant form difference
+    # ========== ONE-SIDED DOMINANCE ==========
+    form_diff = abs(home_strength - away_strength)
+    if form_diff > 1.0:
         profile_scores['one_sided_dominance'] += 2
+    if form_diff > 1.5:  # Very one-sided
+        profile_scores['one_sided_dominance'] += 1
     
-    # Check for key absences that create imbalance
+    # Key absences
     if data['home_key_attacker_out'] and not data['away_key_attacker_out']:
         profile_scores['one_sided_dominance'] += 1
     if data['away_key_defender_out'] and not data['home_key_defender_out']:
         profile_scores['one_sided_dominance'] += 1
     
+    # ========== OPEN CONTEST ==========
+    # Attack Validation (unchanged)
+    weak_attack_flag = False
+    if data['home_avg_scored'] < 1.3 and data['away_avg_scored'] < 1.3:
+        weak_attack_flag = True
+        profile_scores['open_contest'] -= 2
+    
+    if not weak_attack_flag:
+        if total_goals_avg > 3.0:
+            profile_scores['open_contest'] += 1
+        if btts_avg > 60:  # Using our calculated btts_avg
+            profile_scores['open_contest'] += 2
+        if data['home_shots_on_target'] > 5.0 and data['away_shots_on_target'] > 5.0:
+            profile_scores['open_contest'] += 1
+    
     # Determine dominant profile
     max_score = max(profile_scores.values())
     dominant_profiles = [k for k, v in profile_scores.items() if v == max_score]
     
-    # NEW: Override logic for weak attacks
-    if weak_attack_flag and max_score < 3:
-        return 'tight_cautious', profile_scores, weak_attack_flag
-    elif len(dominant_profiles) > 1:
-        return 'tight_cautious', profile_scores, weak_attack_flag
+    if len(dominant_profiles) > 1:
+        # Tie-breaker: prefer tight_cautious
+        return 'tight_cautious', profile_scores, btts_avg, total_goals_avg
     else:
-        return dominant_profiles[0], profile_scores, weak_attack_flag
+        return dominant_profiles[0], profile_scores, btts_avg, total_goals_avg
 
-# UPDATED: Function to get betting recommendations with Attack Validation
-def get_betting_recommendations_v2(profile, data, weak_attack_flag):
-    """Get betting recommendations with the new Attack Validation logic"""
+# ==================== UPDATED: Recommendations with BTTS Sub-Profiles ====================
+def get_betting_recommendations_v3(profile, data, btts_avg, total_goals_avg):
+    """Get betting recommendations with BTTS-aware sub-profiles"""
     
     recommendations = {
         'primary_markets': [],
         'secondary_markets': [],
         'avoid_markets': [],
         'confidence': 'Medium',
-        'special_note': None
+        'sub_profile': None,
+        'expected_scorelines': []
     }
     
-    # NEW: Special case for weak attacks
-    if weak_attack_flag:
-        recommendations['special_note'] = (
-            "🔴 **CRITICAL ADJUSTMENT APPLIED:** Both teams have weak attacks "
-            f"(Home: {data['home_avg_scored']}, Away: {data['away_avg_scored']}). "
-            "Historical 'Over' trends are disregarded."
-        )
+    # Calculate expected scorelines
+    recommendations['expected_scorelines'] = calculate_expected_scorelines(
+        data['home_avg_scored'], 
+        data['away_avg_scored']
+    )
     
     if profile == 'tight_cautious':
-        recommendations['primary_markets'] = [
-            f"Under {2.5} Goals @ {data['under25_odds']}",
-            f"BTTS: No @ {data['btts_no_odds']}"
-        ]
-        recommendations['secondary_markets'] = [
-            "Draw",
-            "0-0 or 1-0 Correct Score"
-        ]
-        recommendations['avoid_markets'] = [
-            "Over 2.5 Goals",
-            "BTTS: Yes"
-        ]
-        recommendations['confidence'] = 'High' if data['match_context'] == 'Local Derby' else 'Medium'
-        
-    elif profile == 'open_contest':
-        # NEW: Different logic if weak attack flag was raised but Open still won
-        if weak_attack_flag:
+        # ========== FIX 3: BTTS SUB-PROFILES ==========
+        if btts_avg < 45:  # Defensive Tight
+            recommendations['sub_profile'] = 'Defensive Tight'
             recommendations['primary_markets'] = [
-                f"BTTS: Yes @ {data['btts_yes_odds']}",
-                "⚠️ **Avoid Over 2.5 Goals** (Weak attacks)"
+                f"Under {2.5} Goals @ {data['under25_odds']}",
+                f"BTTS: No @ {data['btts_no_odds']}"
             ]
-            recommendations['special_note'] = "Open Contest profile but with weak attacks - caution advised"
-        else:
+            recommendations['secondary_markets'] = [
+                "0-0 or 1-0 Correct Score",
+                "Clean Sheet (Home or Away)"
+            ]
+            recommendations['confidence'] = 'High' if data['match_context'] == 'Local Derby' else 'Medium'
+            
+        elif btts_avg > 55:  # Attack-Minded Tight
+            recommendations['sub_profile'] = 'Attack-Minded Tight'
             recommendations['primary_markets'] = [
+                f"Under {2.5} Goals @ {data['under25_odds']}",
                 f"BTTS: Yes @ {data['btts_yes_odds']}"
             ]
             recommendations['secondary_markets'] = [
+                "1-1 Correct Score",
+                "Draw"
+            ]
+            recommendations['confidence'] = 'Medium'
+            
+        else:  # Balanced Tight (45-55%)
+            recommendations['sub_profile'] = 'Balanced Tight'
+            recommendations['primary_markets'] = [
+                f"Under {2.5} Goals @ {data['under25_odds']}"
+            ]
+            recommendations['secondary_markets'] = [
+                "1-1 Correct Score",
+                "Draw",
+                f"⚠️ BTTS: Too close - check odds value",
+                f"(BTTS Avg: {btts_avg:.0f}%)"
+            ]
+            recommendations['confidence'] = 'Low-Medium'
+        
+        recommendations['avoid_markets'] = [
+            "Over 3.5 Goals",
+            "High-scoring correct scores (>2 goals)"
+        ]
+        
+    elif profile == 'open_contest':
+        recommendations['primary_markets'] = [
+            f"BTTS: Yes @ {data['btts_yes_odds']}"
+        ]
+        
+        # Only recommend Over 2.5 if strong case
+        if total_goals_avg > 3.0 and btts_avg > 60:
+            recommendations['secondary_markets'] = [
                 f"Over 2.5 Goals @ {data['over25_odds']}",
+                "Draw with BTTS"
+            ]
+        else:
+            recommendations['secondary_markets'] = [
+                "⚠️ Over 2.5 Goals - weaker case",
                 "Draw with BTTS"
             ]
         
@@ -386,16 +457,14 @@ def get_betting_recommendations_v2(profile, data, weak_attack_flag):
         recommendations['confidence'] = 'Medium'
         
     elif profile == 'one_sided_dominance':
-        # Determine which team is dominant
+        # Determine favorite
         home_strength = data['home_avg_scored'] - data['home_avg_conceded']
         away_strength = data['away_avg_scored'] - data['away_avg_conceded']
         
         if home_strength > away_strength:
-            favorite = 'home'
             favorite_odds = data['home_win_odds']
             favorite_name = data['home_team']
         else:
-            favorite = 'away'
             favorite_odds = data['away_win_odds']
             favorite_name = data['away_team']
         
@@ -404,31 +473,29 @@ def get_betting_recommendations_v2(profile, data, weak_attack_flag):
             f"BTTS: No @ {data['btts_no_odds']}"
         ]
         
-        # Check for handicap opportunity
-        handicap_confident = False
         if abs(home_strength - away_strength) > 1.5:
-            handicap_confident = True
             recommendations['secondary_markets'] = [
                 f"{favorite_name} -1 Asian Handicap",
                 f"{favorite_name} to Win to Nil"
             ]
+            recommendations['confidence'] = 'High'
         else:
             recommendations['secondary_markets'] = [
                 f"{favorite_name} Draw No Bet",
                 "Under 3.5 Goals"
             ]
+            recommendations['confidence'] = 'Medium'
         
         recommendations['avoid_markets'] = [
-            "BTTS: Yes" if favorite == 'home' else f"{data['home_team']} to Win",
+            "BTTS: Yes",
             "Over 3.5 Goals"
         ]
-        recommendations['confidence'] = 'High' if handicap_confident else 'Medium'
     
     return recommendations
 
-# Function to create visualization
-def create_profile_visualization(profile_scores, profile, weak_attack_flag):
-    """Create visualization of profile analysis"""
+# Visualization function
+def create_profile_visualization_v3(profile_scores, profile, sub_profile=None):
+    """Create visualization with sub-profile indication"""
     
     fig = go.Figure()
     
@@ -441,7 +508,6 @@ def create_profile_visualization(profile_scores, profile, weak_attack_flag):
     
     colors = ['rgb(31, 119, 180)', 'rgb(255, 127, 14)', 'rgb(44, 160, 44)']
     
-    # Highlight the selected profile
     profile_index = ['tight_cautious', 'one_sided_dominance', 'open_contest'].index(profile)
     
     for i, (prof, score, color) in enumerate(zip(profiles, scores, colors)):
@@ -452,14 +518,16 @@ def create_profile_visualization(profile_scores, profile, weak_attack_flag):
             marker_color=color,
             text=[f"Score: {score}"],
             textposition='auto',
-            marker_line=dict(
-                color='red' if weak_attack_flag and prof == 'Open Contest' else None,
-                width=3 if i == profile_index else 0
-            )
+            marker_line=dict(width=3 if i == profile_index else 0),
+            opacity=0.9
         ))
     
+    title = "Match Profile Analysis"
+    if sub_profile:
+        title += f" - {sub_profile}"
+    
     fig.update_layout(
-        title="Match Profile Analysis Scores" + (" ⚠️ Weak Attack Alert" if weak_attack_flag else ""),
+        title=title,
         yaxis_title="Profile Score",
         showlegend=False,
         height=400
@@ -469,11 +537,10 @@ def create_profile_visualization(profile_scores, profile, weak_attack_flag):
 
 # Main analysis logic
 if analyze_button:
-    # Validate inputs
     if not home_team or not away_team:
         st.error("Please enter team names for both home and away teams.")
     else:
-        # Prepare data dictionary
+        # Prepare data
         analysis_data = {
             'home_team': home_team,
             'away_team': away_team,
@@ -500,34 +567,21 @@ if analyze_button:
             'away_win_odds': away_win_odds
         }
         
-        # UPDATED: Calculate profile with Attack Validation
-        match_profile, profile_scores, weak_attack_flag = calculate_match_profile_with_validation(analysis_data)
+        # Calculate profile with new logic
+        match_profile, profile_scores, btts_avg, total_goals_avg = calculate_match_profile_with_gradient(analysis_data)
         
-        # UPDATED: Get recommendations with Attack Validation
-        recommendations = get_betting_recommendations_v2(match_profile, analysis_data, weak_attack_flag)
+        # Get recommendations
+        recommendations = get_betting_recommendations_v3(match_profile, analysis_data, btts_avg, total_goals_avg)
         
         # Display results
-        st.session_state.analysis_complete = True
-        
         st.markdown("---")
-        st.header("📈 Analysis Results v2.0")
+        st.header("📈 Analysis Results v3.0")
         
-        # Display Attack Validation Warning if needed
-        if weak_attack_flag:
-            st.warning(f"""
-            ⚠️ **ATTACK VALIDATION TRIGGERED**
-            
-            **Home Attack:** {home_avg_scored} goals/avg (< 1.3 threshold)  
-            **Away Attack:** {away_avg_scored} goals/avg (< 1.3 threshold)
-            
-            *Historical 'Over' trends are likely to break with two weak attacks.*
-            """)
-        
-        # Create columns for results
+        # Create columns
         result_col1, result_col2 = st.columns(2)
         
         with result_col1:
-            # Display match profile
+            # Profile display
             profile_names = {
                 'tight_cautious': '🔒 Tight, Cautious Affair',
                 'one_sided_dominance': '⚡ One-Sided Dominance',
@@ -535,8 +589,8 @@ if analyze_button:
             }
             
             profile_display = profile_names[match_profile]
-            if weak_attack_flag and match_profile == 'open_contest':
-                profile_display += " ⚠️ (Weak Attack Alert)"
+            if recommendations['sub_profile']:
+                profile_display += f" ({recommendations['sub_profile']})"
             
             st.metric(
                 "Identified Match Profile",
@@ -544,13 +598,14 @@ if analyze_button:
                 delta=f"Confidence: {recommendations['confidence']}"
             )
             
-            # Display special note if any
-            if recommendations.get('special_note'):
-                st.info(recommendations['special_note'])
+            # Visualization
+            st.plotly_chart(create_profile_visualization_v3(
+                profile_scores, match_profile, recommendations['sub_profile']
+            ), use_container_width=True)
             
-            # Display profile visualization
-            st.plotly_chart(create_profile_visualization(profile_scores, match_profile, weak_attack_flag), 
-                          use_container_width=True)
+            # Key metrics
+            st.metric("Total Goals Avg", f"{total_goals_avg:.1f}")
+            st.metric("BTTS Avg %", f"{btts_avg:.0f}%")
         
         with result_col2:
             st.subheader("🎯 Betting Recommendations")
@@ -565,98 +620,105 @@ if analyze_button:
             if recommendations['secondary_markets']:
                 st.markdown("#### Secondary Markets")
                 for market in recommendations['secondary_markets']:
-                    st.info(f"💡 {market}")
+                    if "⚠️" in market:
+                        st.warning(f"{market}")
+                    else:
+                        st.info(f"💡 {market}")
             
             if recommendations['avoid_markets']:
                 st.markdown("#### Markets to Avoid")
                 for market in recommendations['avoid_markets']:
                     st.error(f"❌ {market}")
         
-        # Display strategy insights
+        # ========== FIX 4: EXPECTED SCORELINES ==========
         st.markdown("---")
-        st.subheader("🧠 Strategy Insights v2.0")
+        st.subheader("🎯 Expected Scorelines")
         
-        insight_col1, insight_col2, insight_col3, insight_col4 = st.columns(4)
+        if recommendations['expected_scorelines']:
+            scoreline_cols = st.columns(len(recommendations['expected_scorelines']))
+            for idx, scoreline in enumerate(recommendations['expected_scorelines']):
+                with scoreline_cols[idx]:
+                    st.metric(
+                        f"{scoreline['score']}",
+                        f"{scoreline['probability']}%",
+                        scoreline['type']
+                    )
+        else:
+            st.info("Scoreline probability calculation requires more data")
         
-        with insight_col1:
-            total_goals_avg = home_avg_scored + away_avg_scored
-            st.metric(
-                "Goal Expectation",
-                f"{total_goals_avg:.1f}",
-                "Total Avg Goals"
-            )
+        # Detailed analysis
+        st.markdown("---")
+        st.subheader("🧠 Detailed Analysis v3.0")
         
-        with insight_col2:
-            attack_status = "🚨 WEAK" if (home_avg_scored < 1.3 and away_avg_scored < 1.3) else \
-                           "⚠️ MIXED" if (home_avg_scored < 1.3 or away_avg_scored < 1.3) else "✅ STRONG"
-            st.metric("Attack Status", attack_status)
+        analysis_col1, analysis_col2, analysis_col3 = st.columns(3)
         
-        with insight_col3:
-            btts_trend = "High" if (home_btts_pct > 60 and away_btts_pct > 60) else \
-                        "Low" if (home_btts_pct < 40 and away_btts_pct < 40) else "Medium"
-            st.metric("BTTS Trend", btts_trend)
+        with analysis_col1:
+            # Attack Analysis
+            st.markdown("#### ⚽ Attack Analysis")
+            attack_df = pd.DataFrame({
+                'Team': [home_team, away_team],
+                'Avg Scored': [home_avg_scored, away_avg_scored],
+                'Attack Status': [
+                    'Weak' if home_avg_scored < 1.3 else 'Moderate' if home_avg_scored < 1.8 else 'Strong',
+                    'Weak' if away_avg_scored < 1.3 else 'Moderate' if away_avg_scored < 1.8 else 'Strong'
+                ]
+            })
+            st.dataframe(attack_df, use_container_width=True, hide_index=True)
         
-        with insight_col4:
-            home_net = home_avg_scored - home_avg_conceded
-            away_net = away_avg_scored - away_avg_conceded
-            form_imbalance = "Significant" if abs(home_net - away_net) > 1.0 else "Minor"
-            st.metric("Form Imbalance", form_imbalance)
+        with analysis_col2:
+            # BTTS Analysis
+            st.markdown("#### 🎯 BTTS Analysis")
+            btts_df = pd.DataFrame({
+                'Team': [home_team, away_team, 'Average'],
+                'BTTS %': [home_btts_pct, away_btts_pct, btts_avg],
+                'Trend': [
+                    'High' if home_btts_pct > 60 else 'Low' if home_btts_pct < 40 else 'Medium',
+                    'High' if away_btts_pct > 60 else 'Low' if away_btts_pct < 40 else 'Medium',
+                    'High' if btts_avg > 55 else 'Low' if btts_avg < 45 else 'Balanced'
+                ]
+            })
+            st.dataframe(btts_df, use_container_width=True, hide_index=True)
         
-        # NEW: Attack Validation Section
-        st.markdown("#### 🔍 Attack Validation Analysis")
-        
-        validation_data = pd.DataFrame({
-            'Metric': ['Home Avg Goals', 'Away Avg Goals', 'Combined Avg', 'Validation Threshold', 'Status'],
-            'Value': [
-                f"{home_avg_scored}",
-                f"{away_avg_scored}", 
-                f"{total_goals_avg:.1f}",
-                "1.3 (per team)",
-                "⚠️ FAILED" if (home_avg_scored < 1.3 and away_avg_scored < 1.3) else "✅ PASSED"
-            ]
-        })
-        
-        st.dataframe(validation_data, use_container_width=True, hide_index=True)
-        
-        # Historical success rate based on profile
-        st.markdown("#### 📊 Historical Success Rates by Profile")
-        
-        success_data = pd.DataFrame({
-            'Profile': ['Tight/Cautious', 'One-Sided Dominance', 'Open Contest'],
-            'Primary Market Win Rate': ['70-75%', '65-70%', '60-65%'],
-            'Key Market': ['Under 2.5 Goals', 'Favorite Win + BTTS: No', 'BTTS: Yes'],
-            'Attack Validation': ['Always applied', 'N/A', 'CRITICAL - New Rule']
-        })
-        
-        st.dataframe(success_data, use_container_width=True, hide_index=True)
+        with analysis_col3:
+            # Profile Scoring
+            st.markdown("#### 📊 Profile Scoring")
+            score_df = pd.DataFrame({
+                'Profile': ['Tight/Cautious', 'One-Sided', 'Open Contest'],
+                'Score': [
+                    profile_scores['tight_cautious'],
+                    profile_scores['one_sided_dominance'],
+                    profile_scores['open_contest']
+                ],
+                'Key Factors': [
+                    f"Goals: {total_goals_avg:.1f}, BTTS: {btts_avg:.0f}%",
+                    f"Strength Diff: {abs((home_avg_scored-home_avg_conceded)-(away_avg_scored-away_avg_conceded)):.1f}",
+                    f"Shots: {home_shots_on_target:.1f}/{away_shots_on_target:.1f}"
+                ]
+            })
+            st.dataframe(score_df, use_container_width=True, hide_index=True)
 
-# Display sample data option
+# Test case explanation
 st.markdown("---")
-with st.expander("📋 Load PEC Zwolle vs Fortuna Sittard Test Case"):
+with st.expander("📋 Charleroi vs Union SG Test Case - What Changed"):
     st.markdown("""
-    This was our learning case that revealed the Attack Validation flaw:
+    **v2.0 Flaw:** Recommended BTTS: No for a 1-1 match
+    **v3.0 Fix:** Now correctly identifies as "Balanced Tight"
     
-    **Original Misclassification:** Open Contest → Over 2.5 Goals ❌
-    **Correct Classification:** Tight/Cautious → Under 2.5 Goals ✅
+    **Key Changes:**
+    1. **Gradient Scoring**: Tight threshold raised to 2.8 (was 2.5)
+    2. **BTTS-Aware**: Classification now considers BTTS% (55% avg → "Balanced")
+    3. **Sub-Profiles**: "Tight" now has 3 types based on BTTS%
+    4. **Expected Scores**: Shows 1-1 as most likely outcome
     
-    **The Flaw:** PEC had 90% Over 2.5 trend, but:
-    - Home attack: 1.0 goals/avg
-    - Away attack: 1.2 goals/avg
-    - **Both below 1.3 threshold**
-    
-    **Result:** PEC Zwolle 1-0 Fortuna Sittard
+    **Result:** Under 2.5 ✓ with BTTS warning ⚠️ (not a false BTTS: No)
     """)
-    
-    if st.button("Load This Test Case"):
-        # This would need JavaScript to actually populate the fields
-        st.info("To load this case manually, set Home Attack = 1.0, Away Attack = 1.2")
 
 # Footer
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center'>
-    <p>Built with the <strong>3-Filter Betting Strategy v2.0</strong> • Now includes <strong>Attack Validation</strong></p>
-    <p><small>Key Refinement: "If both teams' avg goals < 1.3, historical 'Over' trends are likely to break."</small></p>
+    <p>Built with the <strong>3-Filter Betting Strategy v3.0</strong></p>
+    <p><small>Key Fixes: Gradient scoring, BTTS-aware classification, no rigid BTTS pairing</small></p>
     <p><small>Remember: No betting strategy guarantees wins. Always gamble responsibly.</small></p>
 </div>
 """, unsafe_allow_html=True)
