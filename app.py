@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
+import math  # Add this import
 
 # Page configuration
 st.set_page_config(
@@ -262,7 +263,7 @@ with odds_col3:
 st.markdown("---")
 analyze_button = st.button("🔍 Analyze Match", type="primary", use_container_width=True)
 
-# ==================== NEW: EXPECTED SCORELINE CALCULATION ====================
+# ==================== FIXED: EXPECTED SCORELINE CALCULATION ====================
 def calculate_expected_scorelines(home_avg, away_avg):
     """Calculate most likely scorelines based on Poisson approximation"""
     
@@ -275,11 +276,11 @@ def calculate_expected_scorelines(home_avg, away_avg):
         (2, 0), (0, 2), (2, 1), (1, 2)
     ]
     
-    # Simplified Poisson probability
+    # Simplified Poisson probability - FIXED: use math.factorial instead of np.math.factorial
     for h, a in scorelines:
         # Very basic approximation
-        home_prob = np.exp(-home_avg) * (home_avg**h) / np.math.factorial(h)
-        away_prob = np.exp(-away_avg) * (away_avg**a) / np.math.factorial(a)
+        home_prob = np.exp(-home_avg) * (home_avg**h) / math.factorial(h)  # FIXED
+        away_prob = np.exp(-away_avg) * (away_avg**a) / math.factorial(a)  # FIXED
         prob = home_prob * away_prob * 100  # as percentage
         
         if prob > 2.0:  # Only show probabilities > 2%
@@ -383,7 +384,7 @@ def get_betting_recommendations_v3(profile, data, btts_avg, total_goals_avg):
         'expected_scorelines': []
     }
     
-    # Calculate expected scorelines
+    # Calculate expected scorelines - NOW WITH FIXED math.factorial
     recommendations['expected_scorelines'] = calculate_expected_scorelines(
         data['home_avg_scored'], 
         data['away_avg_scored']
@@ -394,8 +395,8 @@ def get_betting_recommendations_v3(profile, data, btts_avg, total_goals_avg):
         if btts_avg < 45:  # Defensive Tight
             recommendations['sub_profile'] = 'Defensive Tight'
             recommendations['primary_markets'] = [
-                f"Under {2.5} Goals @ {data['under25_odds']}",
-                f"BTTS: No @ {data['btts_no_odds']}"
+                f"Under {2.5} Goals @ {data['under25_odds']:.2f}",
+                f"BTTS: No @ {data['btts_no_odds']:.2f}"
             ]
             recommendations['secondary_markets'] = [
                 "0-0 or 1-0 Correct Score",
@@ -406,8 +407,8 @@ def get_betting_recommendations_v3(profile, data, btts_avg, total_goals_avg):
         elif btts_avg > 55:  # Attack-Minded Tight
             recommendations['sub_profile'] = 'Attack-Minded Tight'
             recommendations['primary_markets'] = [
-                f"Under {2.5} Goals @ {data['under25_odds']}",
-                f"BTTS: Yes @ {data['btts_yes_odds']}"
+                f"Under {2.5} Goals @ {data['under25_odds']:.2f}",
+                f"BTTS: Yes @ {data['btts_yes_odds']:.2f}"
             ]
             recommendations['secondary_markets'] = [
                 "1-1 Correct Score",
@@ -418,7 +419,7 @@ def get_betting_recommendations_v3(profile, data, btts_avg, total_goals_avg):
         else:  # Balanced Tight (45-55%)
             recommendations['sub_profile'] = 'Balanced Tight'
             recommendations['primary_markets'] = [
-                f"Under {2.5} Goals @ {data['under25_odds']}"
+                f"Under {2.5} Goals @ {data['under25_odds']:.2f}"
             ]
             recommendations['secondary_markets'] = [
                 "1-1 Correct Score",
@@ -435,13 +436,13 @@ def get_betting_recommendations_v3(profile, data, btts_avg, total_goals_avg):
         
     elif profile == 'open_contest':
         recommendations['primary_markets'] = [
-            f"BTTS: Yes @ {data['btts_yes_odds']}"
+            f"BTTS: Yes @ {data['btts_yes_odds']:.2f}"
         ]
         
         # Only recommend Over 2.5 if strong case
         if total_goals_avg > 3.0 and btts_avg > 60:
             recommendations['secondary_markets'] = [
-                f"Over 2.5 Goals @ {data['over25_odds']}",
+                f"Over 2.5 Goals @ {data['over25_odds']:.2f}",
                 "Draw with BTTS"
             ]
         else:
@@ -469,8 +470,8 @@ def get_betting_recommendations_v3(profile, data, btts_avg, total_goals_avg):
             favorite_name = data['away_team']
         
         recommendations['primary_markets'] = [
-            f"{favorite_name} to Win @ {favorite_odds}",
-            f"BTTS: No @ {data['btts_no_odds']}"
+            f"{favorite_name} to Win @ {favorite_odds:.2f}",
+            f"BTTS: No @ {data['btts_no_odds']:.2f}"
         ]
         
         if abs(home_strength - away_strength) > 1.5:
