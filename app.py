@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 # Page configuration
 st.set_page_config(
@@ -81,25 +80,25 @@ with col1:
         key="home_avg_conceded"
     )
     
-    home_over25_pct = st.slider(
+    home_over25_pct = st.number_input(
         "Over 2.5 Goals % (Last 10)", 
-        min_value=0, max_value=100, value=90,
+        min_value=0, max_value=100, value=90, step=1,
         key="home_over25",
         help="PEC Zwolle had 90% - but this can be misleading!"
     )
     
-    home_btts_pct = st.slider(
+    home_btts_pct = st.number_input(
         "BTTS Yes % (Last 10)", 
-        min_value=0, max_value=100, value=60,
+        min_value=0, max_value=100, value=60, step=1,
         key="home_btts"
     )
     
     # Filter 2: Style & Key Stats
     st.markdown("### ⚽ Playing Style")
     
-    home_possession = st.slider(
+    home_possession = st.number_input(
         "Avg Possession %", 
-        min_value=0, max_value=100, value=45,
+        min_value=0, max_value=100, value=45, step=1,
         key="home_possession"
     )
     
@@ -158,24 +157,24 @@ with col2:
         key="away_avg_conceded"
     )
     
-    away_over25_pct = st.slider(
+    away_over25_pct = st.number_input(
         "Over 2.5 Goals % (Last 10)", 
-        min_value=0, max_value=100, value=50,
+        min_value=0, max_value=100, value=50, step=1,
         key="away_over25"
     )
     
-    away_btts_pct = st.slider(
+    away_btts_pct = st.number_input(
         "BTTS Yes % (Last 10)", 
-        min_value=0, max_value=100, value=80,
+        min_value=0, max_value=100, value=80, step=1,
         key="away_btts"
     )
     
     # Filter 2: Style & Key Stats
     st.markdown("### ⚽ Playing Style")
     
-    away_possession = st.slider(
+    away_possession = st.number_input(
         "Avg Possession %", 
-        min_value=0, max_value=100, value=45,
+        min_value=0, max_value=100, value=45, step=1,
         key="away_possession"
     )
     
@@ -276,11 +275,6 @@ def calculate_match_profile_with_validation(data):
     weak_attack_flag = False
     if data['home_avg_scored'] < 1.3 and data['away_avg_scored'] < 1.3:
         weak_attack_flag = True
-        st.session_state.attack_validation_note = (
-            f"⚠️ **ATTACK VALIDATION FAILED:** Both teams have weak attacks "
-            f"(Home: {data['home_avg_scored']}, Away: {data['away_avg_scored']}). "
-            f"Historical 'Over' trends are likely to break."
-        )
     
     # Filter 1: Form & Averages Analysis
     total_goals_avg = data['home_avg_scored'] + data['away_avg_scored']
