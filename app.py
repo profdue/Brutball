@@ -376,18 +376,28 @@ with st.sidebar:
     Youth leagues, Friendlies, Reserve matches
     """)
 
-# ==================== MAIN INPUT (ENHANCED) ====================
+# ==================== MAIN INPUT (CORRECTED LAYOUT) ====================
 
 st.markdown("---")
 st.subheader("📊 Match Analysis Input")
 
+# LEAGUE INPUT - SEPARATE SECTION FOR MATCH-LEVEL ATTRIBUTE
+st.markdown("#### 🏆 Match Information")
+col_league = st.columns([1, 2])
+with col_league[0]:
+    league = st.text_input("League", value="Premier League", key="league")
+with col_league[1]:
+    match_date = st.date_input("Match Date", value=datetime.now())
+
+st.markdown("---")
+
+# TEAM DATA IN SEPARATE COLUMNS
 col1, col2 = st.columns(2)
 
 with col1:
     st.markdown("#### 🏠 Home Team Data")
     
-    home_name = st.text_input("Home Team", value="Liverpool", key="home_name")
-    league = st.text_input("League", value="Premier League", key="league")
+    home_name = st.text_input("Home Team", value="Crystal Palace", key="home_name")
     
     st.markdown("##### Last N Home Games")
     home_matches = st.number_input(
@@ -422,10 +432,9 @@ with col2:
     
     away_conceded = st.number_input(
         "Total Goals Conceded", 
-        min_value=0, max_value=200, value=12, step=1,
+        min_value=0, max_value=200, value=10, step=1,
         key="away_conceded"
     )
-
 # ==================== ODDS INPUT ====================
 
 st.markdown("---")
