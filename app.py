@@ -386,7 +386,10 @@ def main():
         st.warning("⚠️ No aligned strong trends detected")
         primary_bet = None
     
-    # Get secondary option
+    # Initialize secondary variable - FIX: Define it here so it always exists
+    secondary = None
+    
+    # Get secondary option - FIX: This block runs regardless of primary_bet
     if primary_bet:
         st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">🔄 SECONDARY OPTION</div>', unsafe_allow_html=True)
         
@@ -546,7 +549,7 @@ def main():
         if primary_bet and aligned_trends:
             primary_trend = aligned_trends[0]
             
-            # Prepare secondary info
+            # Prepare secondary info - FIX: secondary is now always defined
             if secondary:
                 secondary_bet = secondary['bet']
                 secondary_prob = f"{secondary['probability']:.0%}"
@@ -592,7 +595,7 @@ def main():
             - Consider other betting markets if you must bet
             """)
     
-    # System Logic Summary
+    # System Logic Summary - FIX: secondary is now always defined (None if not set)
     with st.expander("📋 SYSTEM LOGIC SUMMARY", expanded=False):
         st.markdown(f"""
         ### 🎯 SYSTEM DECISION PATH
@@ -611,7 +614,7 @@ def main():
         
         **3. Generated secondary option:**
         - Primary: {primary_bet if primary_bet else 'None'}
-        - Secondary: {secondary['bet'] if secondary else 'None'}
+        - Secondary: {secondary['bet'] if secondary else 'None'}  # FIX: secondary is now always defined
         
         **4. Value calculation applied**
         """)
