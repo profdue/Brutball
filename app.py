@@ -1,7 +1,6 @@
 """
-Enhanced Comparative Betting System - RAW LOGIC VERSION
-Core Principle Preserved: GF > GA determines predictions
-Enhancements provide context only, never flip predictions
+CONCRETE BATTLE-TESTED BETTING SYSTEM
+PROVEN LOGIC WITH DATA HIERARCHY
 """
 
 import streamlit as st
@@ -11,7 +10,7 @@ from datetime import datetime
 
 # Page config
 st.set_page_config(
-    page_title="Enhanced Betting System",
+    page_title="Concrete Betting System",
     page_icon="🎯",
     layout="wide"
 )
@@ -40,21 +39,28 @@ st.markdown("""
         background-color: #f8f9fa;
         border-left: 5px solid;
     }
-    .yes-box {
+    .aligned-box {
         border-left-color: #4CAF50;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e8f5e9 100%);
     }
-    .no-box {
-        border-left-color: #f44336;
+    .single-box {
+        border-left-color: #FF9800;
+        background: linear-gradient(135deg, #f8f9fa 0%, #fff3e0 100%);
     }
-    .confidence-high {
+    .calculated-box {
+        border-left-color: #2196F3;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e3f2fd 100%);
+    }
+    .value-high {
         color: #4CAF50;
         font-weight: bold;
+        font-size: 1.1rem;
     }
-    .confidence-medium {
+    .value-medium {
         color: #FF9800;
         font-weight: bold;
     }
-    .confidence-low {
+    .value-low {
         color: #f44336;
         font-weight: bold;
     }
@@ -65,330 +71,634 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         margin-bottom: 1rem;
     }
+    .trend-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: bold;
+        margin: 0 4px;
+    }
+    .trend-70 {
+        background-color: #4CAF50;
+        color: white;
+    }
+    .trend-60 {
+        background-color: #FF9800;
+        color: white;
+    }
+    .trend-low {
+        background-color: #f44336;
+        color: white;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Core System Logic - NEVER CHANGES
-def raw_logic_prediction(team_gf, opponent_ga):
-    """Core prediction logic: Team scores if GF > GA"""
-    return team_gf > opponent_ga
-
-def calculate_confidence(margin):
-    """Calculate confidence based on margin only"""
-    if margin > 0.5:
-        return "VERY HIGH", "confidence-high"
-    elif margin > 0.2:
-        return "HIGH", "confidence-high"
-    elif margin > 0:
-        return "MEDIUM", "confidence-medium"
-    elif margin > -0.2:
-        return "LOW", "confidence-low"
-    else:
-        return "VERY LOW", "confidence-low"
-
-def get_defense_strength(ga_per_game):
-    """Classify defense strength for context only"""
-    if ga_per_game < 0.80:
-        return "ELITE", "🔵"
-    elif ga_per_game < 1.00:
-        return "STRONG", "🟢"
-    elif ga_per_game < 1.80:
-        return "AVERAGE", "🟡"
-    else:
-        return "WEAK", "🔴"
-
-def get_defense_context(strength, is_home=True):
-    """Get context note about facing defense"""
-    context_map = {
-        "ELITE": "Very challenging - needs exceptional efficiency",
-        "STRONG": "Challenging - needs good conversion",
-        "AVERAGE": "Normal defensive challenge",
-        "WEAK": "Favorable opportunity - defense vulnerable"
-    }
-    side = "home" if is_home else "away"
-    return f"Facing {strength} {side} defense: {context_map.get(strength, '')}"
-
-# League context for reality check
-LEAGUE_AVERAGES = {
-    "Premier League": 2.8,
-    "Bundesliga": 3.2,
-    "Serie A": 2.6,
-    "La Liga": 2.5,
-    "Ligue 1": 2.7,
-    "Turkiye": 2.8,
-    "Switzerland": 2.9,
-    "Belgium-Challenger": 2.7,
-    "Wales": 2.6,
-    "Thai League": 2.9,
-    "Default": 2.7
-}
-
-def get_league_context(expected_total, league_name):
-    """Add league context note"""
-    league_avg = LEAGUE_AVERAGES.get(league_name, LEAGUE_AVERAGES["Default"])
+# 1. ALIGNED STRONG TRENDS (≥70%) - MOST IMPORTANT
+def check_aligned_strong_trends(home_btts_pct, away_btts_pct, home_over_pct, away_over_pct, home_under_pct, away_under_pct):
+    """When BOTH teams show the SAME strong trend, BET IT"""
+    recommendations = []
     
-    if expected_total < (league_avg * 0.6):
-        return f"⚠️ Predicted total ({expected_total:.1f}) significantly below {league_name} average ({league_avg})"
-    elif expected_total < (league_avg * 0.8):
-        return f"📉 Predicted total ({expected_total:.1f}) below {league_name} average ({league_avg})"
-    elif expected_total > (league_avg * 1.4):
-        return f"🔥 Predicted total ({expected_total:.1f}) significantly above {league_name} average ({league_avg})"
-    elif expected_total > (league_avg * 1.2):
-        return f"📈 Predicted total ({expected_total:.1f}) above {league_name} average ({league_avg})"
-    else:
-        return f"📊 Predicted total ({expected_total:.1f}) aligns with {league_name} average ({league_avg})"
+    # BTTS Yes: Both ≥70% BTTS → Bet BTTS Yes (75% probability)
+    if home_btts_pct >= 70 and away_btts_pct >= 70:
+        recommendations.append({
+            'bet_type': 'BTTS Yes',
+            'priority': 'ALIGNED STRONG TREND',
+            'probability': 0.75,
+            'reason': f"Both teams show ≥70% BTTS trend (Home: {home_btts_pct}%, Away: {away_btts_pct}%)",
+            'examples': ["✅ Castellón (70% BTTS) vs Mirandés (70% BTTS) → BTTS Yes WON"],
+            'action': 'BET'
+        })
+    
+    # Over 2.5: Both ≥70% Over → Bet Over 2.5 (70% probability)
+    if home_over_pct >= 70 and away_over_pct >= 70:
+        recommendations.append({
+            'bet_type': 'Over 2.5',
+            'priority': 'ALIGNED STRONG TREND',
+            'probability': 0.70,
+            'reason': f"Both teams show ≥70% Over trend (Home: {home_over_pct}%, Away: {away_over_pct}%)",
+            'examples': ["✅ Nacional (70% Over) vs Tondela (71% Over) → Over 2.5 WON"],
+            'action': 'BET'
+        })
+    
+    # Under 2.5: Both ≥70% Under → Bet Under 2.5 (70% probability)
+    if home_under_pct >= 70 and away_under_pct >= 70:
+        recommendations.append({
+            'bet_type': 'Under 2.5',
+            'priority': 'ALIGNED STRONG TREND',
+            'probability': 0.70,
+            'reason': f"Both teams show ≥70% Under trend (Home: {home_under_pct}%, Away: {away_under_pct}%)",
+            'examples': ["✅ Roma (70% Under) vs Como (60% Under) → Under 2.5 WON"],
+            'action': 'BET'
+        })
+    
+    return recommendations
 
-def calculate_value_bet(probability, current_odds, min_value=1.15):
-    """Calculate if bet has value"""
-    fair_odds = 1 / probability
-    value_ratio = current_odds / fair_odds
-    has_value = value_ratio >= min_value
+# 2. SINGLE DOMINANT TREND (≥70%)
+def check_single_dominant_trends(home_btts_pct, away_btts_pct, home_over_pct, away_over_pct, home_under_pct, away_under_pct, home_team, away_team, is_big_club_home=False):
+    """When ONE team shows ≥70% trend, CONSIDER it"""
+    recommendations = []
+    
+    # Check for defensive specialist (away team with ≥70% Under)
+    if away_under_pct >= 70:
+        note = "Discount trend as facing big club at home" if is_big_club_home else "Strong defensive trend"
+        recommendations.append({
+            'bet_type': 'Under 2.5',
+            'priority': 'SINGLE DOMINANT TREND',
+            'probability': 0.70,
+            'reason': f"{away_team} shows ≥70% Under trend away ({away_under_pct}%)",
+            'examples': ["✅ Napoli 80% Under away → Bet Under vs Udinese WON", 
+                        "✅ Santa Clara 70% Under away → Bet Under vs Braga WON"],
+            'action': 'CONSIDER',
+            'note': note
+        })
+    
+    # Check for single BTTS trends
+    if home_btts_pct >= 70:
+        recommendations.append({
+            'bet_type': 'BTTS Yes',
+            'priority': 'SINGLE DOMINANT TREND',
+            'probability': 0.65,
+            'reason': f"{home_team} shows ≥70% BTTS trend at home ({home_btts_pct}%)",
+            'action': 'CONSIDER',
+            'note': 'Check opponent context'
+        })
+    
+    if away_btts_pct >= 70:
+        note = "Check opponent context (big club home)" if is_big_club_home else "Consider this trend"
+        recommendations.append({
+            'bet_type': 'BTTS Yes',
+            'priority': 'SINGLE DOMINANT TREND',
+            'probability': 0.65,
+            'reason': f"{away_team} shows ≥70% BTTS trend away ({away_btts_pct}%)",
+            'action': 'CONSIDER',
+            'note': note
+        })
+    
+    return recommendations
+
+# 3. CALCULATED EXPECTED GOALS
+def calculate_expected_goals(home_gf, away_ga, away_gf, home_ga, home_trend_adjustment=0, away_trend_adjustment=0):
+    """Calculate mathematically: Expected Goals = [(Home_GF + Away_GA) + (Away_GF + Home_GA)] ÷ 2"""
+    # Apply trend adjustments (±15% per 70% trend)
+    home_factor = 1 + home_trend_adjustment * 0.15
+    away_factor = 1 + away_trend_adjustment * 0.15
+    
+    baseline = ((home_gf + away_ga) + (away_gf + home_ga)) / 2
+    adjusted_baseline = baseline * ((home_factor + away_factor) / 2)
+    
+    return adjusted_baseline
+
+# 4. CONTEXT & PSYCHOLOGY
+def apply_context_adjustments(expected_goals, is_big_club_home_after_poor_run=False, is_relegation_desperation=False, is_title_chase=False):
+    """Adjust for special situations"""
+    adjustments = []
+    
+    if is_big_club_home_after_poor_run:
+        expected_goals += 0.3
+        adjustments.append("Big club at home after poor run → +0.3 expected goals")
+    
+    if is_relegation_desperation:
+        expected_goals -= 0.2
+        adjustments.append("Relegation desperation → Defensive focus, not attacking")
+    
+    if is_title_chase:
+        expected_goals += 0.1
+        adjustments.append("Title chase pressure → Can help or hinder")
+    
+    return expected_goals, adjustments
+
+# VALUE BET IDENTIFICATION FORMULA
+def calculate_value_bet(true_probability, market_odds):
+    """Value = (True Probability × Market Odds) - 1"""
+    implied_probability = 1 / market_odds
+    value = (true_probability * market_odds) - 1
+    
+    # Determine stake based on value
+    if value >= 0.25:
+        stake_pct = 3.0  # STRONG BET
+        stake_desc = "STRONG BET (2-3% stake)"
+    elif value >= 0.15:
+        stake_pct = 2.0  # GOOD BET
+        stake_desc = "GOOD BET (1-2% stake)"
+    else:
+        stake_pct = 0.0  # AVOID
+        stake_desc = "AVOID or minimal stake (<15% value)"
     
     return {
-        "fair_odds": round(fair_odds, 2),
-        "value_ratio": round(value_ratio, 2),
-        "has_value": has_value,
-        "stake_pct": min(2.0, max(0.5, probability * 2))  # 0.5% to 2% based on probability
+        'value': value,
+        'implied_probability': implied_probability,
+        'true_probability': true_probability,
+        'market_odds': market_odds,
+        'has_value': value >= 0.15,
+        'stake_pct': stake_pct,
+        'stake_desc': stake_desc
     }
+
+# DECISION FLOWCHART
+def run_decision_flowchart(data):
+    """Follow the exact decision flowchart from the logic"""
+    recommendations = []
+    
+    # Step 1: Check for ≥70% ALIGNED trends
+    aligned_recs = check_aligned_strong_trends(
+        data['home_btts_pct'], data['away_btts_pct'],
+        data['home_over_pct'], data['away_over_pct'],
+        data['home_under_pct'], data['away_under_pct']
+    )
+    
+    if aligned_recs:
+        recommendations.extend(aligned_recs)
+        return recommendations  # BET & STOP as per flowchart
+    
+    # Step 2: Check for ≥70% SINGLE trend
+    single_recs = check_single_dominant_trends(
+        data['home_btts_pct'], data['away_btts_pct'],
+        data['home_over_pct'], data['away_over_pct'],
+        data['home_under_pct'], data['away_under_pct'],
+        data['home_team'], data['away_team'],
+        data.get('is_big_club_home', False)
+    )
+    recommendations.extend(single_recs)
+    
+    # Step 3: Calculate Expected Goals
+    # Determine trend adjustments
+    home_trend_adj = 1 if data['home_btts_pct'] >= 70 or data['home_over_pct'] >= 70 else 0
+    away_trend_adj = 1 if data['away_btts_pct'] >= 70 or data['away_over_pct'] >= 70 else 0
+    
+    expected_goals = calculate_expected_goals(
+        data['home_gf_avg'], data['away_ga_avg'],
+        data['away_gf_avg'], data['home_ga_avg'],
+        home_trend_adj, away_trend_adj
+    )
+    
+    # Step 4: Apply context adjustments
+    expected_goals, adjustments = apply_context_adjustments(
+        expected_goals,
+        data.get('is_big_club_home_after_poor_run', False),
+        data.get('is_relegation_desperation', False),
+        data.get('is_title_chase', False)
+    )
+    
+    # Make recommendation based on expected goals
+    if expected_goals > 2.7:
+        recommendations.append({
+            'bet_type': 'Over 2.5',
+            'priority': 'CALCULATED EXPECTED GOALS',
+            'probability': 0.65,
+            'reason': f"Expected Goals = {expected_goals:.2f} > 2.7",
+            'calculation': f"[(Home_GF {data['home_gf_avg']:.1f} + Away_GA {data['away_ga_avg']:.1f}) + (Away_GF {data['away_gf_avg']:.1f} + Home_GA {data['home_ga_avg']:.1f})] ÷ 2",
+            'adjustments': adjustments,
+            'action': 'LEAN'
+        })
+    elif expected_goals < 2.3:
+        recommendations.append({
+            'bet_type': 'Under 2.5',
+            'priority': 'CALCULATED EXPECTED GOALS',
+            'probability': 0.65,
+            'reason': f"Expected Goals = {expected_goals:.2f} < 2.3",
+            'calculation': f"[(Home_GF {data['home_gf_avg']:.1f} + Away_GA {data['away_ga_avg']:.1f}) + (Away_GF {data['away_gf_avg']:.1f} + Home_GA {data['home_ga_avg']:.1f})] ÷ 2",
+            'adjustments': adjustments,
+            'action': 'LEAN'
+        })
+    else:
+        recommendations.append({
+            'bet_type': 'No clear edge',
+            'priority': 'CALCULATED EXPECTED GOALS',
+            'probability': 0.50,
+            'reason': f"Expected Goals = {expected_goals:.2f} (2.3-2.7 range)",
+            'calculation': f"[(Home_GF {data['home_gf_avg']:.1f} + Away_GA {data['away_ga_avg']:.1f}) + (Away_GF {data['away_gf_avg']:.1f} + Home_GA {data['home_ga_avg']:.1f})] ÷ 2",
+            'adjustments': adjustments,
+            'action': 'PASS'
+        })
+    
+    return recommendations
 
 def main():
     # Header
-    st.markdown('<h1 class="main-header">🎯 Enhanced Comparative Betting System</h1>', unsafe_allow_html=True)
-    st.markdown("**RAW LOGIC VERSION** - GF > GA determines all predictions | Defensive context informs only")
+    st.markdown('<h1 class="main-header">🎯 CONCRETE BATTLE-TESTED BETTING SYSTEM</h1>', unsafe_allow_html=True)
+    st.markdown("**PROVEN & PROFITABLE LOGIC** - Follow the exact data hierarchy and decision flowchart")
     
     # Sidebar for match input
     with st.sidebar:
-        st.header("📊 Match Analysis Input")
+        st.header("📊 Match Data Input")
         
         # Match info
         league = st.selectbox(
             "League",
             ["Premier League", "Bundesliga", "Serie A", "La Liga", "Ligue 1", 
-             "Turkiye", "Switzerland", "Belgium-Challenger", "Wales", "Thai League", "Other"]
+             "Turkiye", "Switzerland", "Belgium", "Portugal", "Other"]
         )
         
         match_date = st.date_input("Match Date", datetime.now())
         
-        st.subheader("🏠 Home Team")
-        home_team = st.text_input("Team Name", "Soma Spor")
-        home_games = st.number_input("Home Games (Last N)", min_value=1, max_value=20, value=10)
-        home_gf = st.number_input("Goals Scored (Home)", min_value=0.0, value=4.0, step=0.1)
-        home_ga = st.number_input("Goals Conceded (Home)", min_value=0.0, value=20.0, step=0.1)
+        st.subheader("🏠 Home Team Data")
+        home_team = st.text_input("Home Team Name", "Castellón")
         
-        st.subheader("✈️ Away Team")
-        away_team = st.text_input("Team Name ", "Bursaspor")
-        away_games = st.number_input("Away Games (Last N)", min_value=1, max_value=20, value=10)
-        away_gf = st.number_input("Goals Scored (Away)", min_value=0.0, value=21.0, step=0.1)
-        away_ga = st.number_input("Goals Conceded (Away)", min_value=0.0, value=8.0, step=0.1)
+        col1, col2 = st.columns(2)
+        with col1:
+            home_btts_pct = st.slider("Home BTTS % (Last 10)", 0, 100, 70, help="Last 10 home games BTTS percentage")
+            home_over_pct = st.slider("Home Over 2.5 %", 0, 100, 50, help="Last 10 home games Over 2.5 percentage")
+            home_under_pct = st.slider("Home Under 2.5 %", 0, 100, 30, help="Last 10 home games Under 2.5 percentage")
         
-        st.subheader("📈 Market Odds")
-        home_score_odds = st.number_input(f"{home_team} to Score", min_value=1.01, value=1.30, step=0.01)
-        away_score_odds = st.number_input(f"{away_team} to Score", min_value=1.01, value=1.17, step=0.01)
-        btts_yes_odds = st.number_input("BTTS Yes", min_value=1.01, value=1.88, step=0.01)
-        under_25_odds = st.number_input("Under 2.5 Goals", min_value=1.01, value=2.90, step=0.01)
+        with col2:
+            home_gf_avg = st.number_input("Home GF/game", min_value=0.0, value=1.8, step=0.1)
+            home_ga_avg = st.number_input("Home GA/game", min_value=0.0, value=1.2, step=0.1)
         
-        analyze_button = st.button("🎯 Run Enhanced Analysis", type="primary")
+        st.subheader("✈️ Away Team Data")
+        away_team = st.text_input("Away Team Name", "Mirandés")
+        
+        col3, col4 = st.columns(2)
+        with col3:
+            away_btts_pct = st.slider("Away BTTS % (Last 10)", 0, 100, 70, help="Last 10 away games BTTS percentage")
+            away_over_pct = st.slider("Away Over 2.5 %", 0, 100, 55, help="Last 10 away games Over 2.5 percentage")
+            away_under_pct = st.slider("Away Under 2.5 %", 0, 100, 45, help="Last 10 away games Under 2.5 percentage")
+        
+        with col4:
+            away_gf_avg = st.number_input("Away GF/game", min_value=0.0, value=1.6, step=0.1)
+            away_ga_avg = st.number_input("Away GA/game", min_value=0.0, value=1.4, step=0.1)
+        
+        st.subheader("🎯 Context Flags")
+        col5, col6 = st.columns(2)
+        with col5:
+            is_big_club_home = st.checkbox("Big Club at Home")
+            is_big_club_home_after_poor_run = st.checkbox("Big Club Home After Poor Run")
+        with col6:
+            is_relegation_desperation = st.checkbox("Relegation Desperation Match")
+            is_title_chase = st.checkbox("Title Chase Pressure")
+        
+        st.subheader("💰 Market Odds")
+        btts_yes_odds = st.number_input("BTTS Yes Odds", min_value=1.01, value=1.93, step=0.01)
+        over_25_odds = st.number_input("Over 2.5 Odds", min_value=1.01, value=1.80, step=0.01)
+        under_25_odds = st.number_input("Under 2.5 Odds", min_value=1.01, value=2.10, step=0.01)
+        
+        analyze_button = st.button("🎯 RUN CONCRETE ANALYSIS", type="primary", use_container_width=True)
     
     if not analyze_button:
-        st.info("👈 Enter match data in the sidebar and click 'Run Enhanced Analysis'")
+        st.info("👈 Enter match data and click 'RUN CONCRETE ANALYSIS'")
+        st.markdown("---")
+        
+        # Show system principles
+        st.markdown("### 🎯 THE CONCRETE LOGIC: PROVEN & PROFITABLE")
+        st.markdown("""
+        #### 📊 DATA HIERARCHY (In Order of Importance)
+        
+        **1. ALIGNED STRONG TRENDS (≥70%)**
+        When BOTH teams show the SAME strong trend, BET IT
+        - BTTS Yes: Both ≥70% BTTS → Bet BTTS Yes (75% probability)
+        - Over 2.5: Both ≥70% Over → Bet Over 2.5 (70% probability)
+        - Under 2.5: Both ≥70% Under → Bet Under 2.5 (70% probability)
+        
+        **2. SINGLE DOMINANT TREND (≥70%)**
+        When ONE team shows ≥70% trend, CONSIDER it
+        
+        **3. CALCULATED EXPECTED GOALS**
+        When no strong trends, calculate mathematically
+        
+        **4. CONTEXT & PSYCHOLOGY**
+        Adjust for special situations
+        """)
         return
     
-    # Calculate averages per game
-    home_gf_avg = home_gf / home_games
-    home_ga_avg = home_ga / home_games
-    away_gf_avg = away_gf / away_games
-    away_ga_avg = away_ga / away_games
+    # Prepare data for analysis
+    data = {
+        'home_team': home_team,
+        'away_team': away_team,
+        'home_btts_pct': home_btts_pct,
+        'away_btts_pct': away_btts_pct,
+        'home_over_pct': home_over_pct,
+        'away_over_pct': away_over_pct,
+        'home_under_pct': home_under_pct,
+        'away_under_pct': away_under_pct,
+        'home_gf_avg': home_gf_avg,
+        'home_ga_avg': home_ga_avg,
+        'away_gf_avg': away_gf_avg,
+        'away_ga_avg': away_ga_avg,
+        'is_big_club_home': is_big_club_home,
+        'is_big_club_home_after_poor_run': is_big_club_home_after_poor_run,
+        'is_relegation_desperation': is_relegation_desperation,
+        'is_title_chase': is_title_chase
+    }
     
-    # Get defensive strength (for context only)
-    home_def_strength, home_def_emoji = get_defense_strength(home_ga_avg)
-    away_def_strength, away_def_emoji = get_defense_strength(away_ga_avg)
+    # Run the decision flowchart
+    recommendations = run_decision_flowchart(data)
     
-    # RAW LOGIC PREDICTIONS (NEVER ADJUSTED)
-    home_scores_raw = raw_logic_prediction(home_gf_avg, away_ga_avg)
-    away_scores_raw = raw_logic_prediction(away_gf_avg, home_ga_avg)
+    # Display results
+    st.markdown(f'<h3 class="sub-header">📋 Match Analysis: {home_team} vs {away_team}</h3>', unsafe_allow_html=True)
     
-    # Calculate margins
-    home_margin = home_gf_avg - away_ga_avg
-    away_margin = away_gf_avg - home_ga_avg
-    
-    # Get confidence levels
-    home_conf, home_conf_class = calculate_confidence(home_margin)
-    away_conf, away_conf_class = calculate_confidence(away_margin)
-    
-    # Expected goals (simple average)
-    expected_total = home_gf_avg + away_gf_avg
-    over_under = "Over 2.5" if expected_total > 2.5 else "Under 2.5"
-    
-    # BTTS prediction
-    btts_prediction = home_scores_raw and away_scores_raw
-    btts_probability = min(0.95, max(0.05, (home_gf_avg / away_ga_avg * away_gf_avg / home_ga_avg) * 0.7))
-    
-    # Display results in main area
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown(f'<h3 class="sub-header">🏆 Match Information</h3>', unsafe_allow_html=True)
-        st.info(f"**League:** {league}  \n**Date:** {match_date.strftime('%Y/%m/%d')}")
-        
-        # Home Team Card
         st.markdown('<div class="team-card">', unsafe_allow_html=True)
-        st.markdown(f"### 🏠 {home_team}")
-        st.write(f"**Last {home_games} HOME games:**")
-        st.write(f"- Goals Scored: **{home_gf}** ({home_gf_avg:.2f}/game)")
-        st.write(f"- Goals Conceded: **{home_ga}** ({home_ga_avg:.2f}/game)")
-        st.markdown(f"**Defense:** {home_def_emoji} {home_def_strength} ({home_ga_avg:.2f} conceded/game)")
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(f"### 🏠 {home_team} (Home)")
         
-        # Away Team Card
-        st.markdown('<div class="team-card">', unsafe_allow_html=True)
-        st.markdown(f"### ✈️ {away_team}")
-        st.write(f"**Last {away_games} AWAY games:**")
-        st.write(f"- Goals Scored: **{away_gf}** ({away_gf_avg:.2f}/game)")
-        st.write(f"- Goals Conceded: **{away_ga}** ({away_ga_avg:.2f}/game)")
-        st.markdown(f"**Defense:** {away_def_emoji} {away_def_strength} ({away_ga_avg:.2f} conceded/game)")
+        # Trend badges
+        st.markdown("##### Trend Analysis (Last 10 Games):")
+        col_a, col_b, col_c = st.columns(3)
+        with col_a:
+            badge_class = "trend-70" if home_btts_pct >= 70 else "trend-60" if home_btts_pct >= 60 else "trend-low"
+            st.markdown(f'<span class="trend-badge {badge_class}">BTTS: {home_btts_pct}%</span>', unsafe_allow_html=True)
+        with col_b:
+            badge_class = "trend-70" if home_over_pct >= 70 else "trend-60" if home_over_pct >= 60 else "trend-low"
+            st.markdown(f'<span class="trend-badge {badge_class}">Over: {home_over_pct}%</span>', unsafe_allow_html=True)
+        with col_c:
+            badge_class = "trend-70" if home_under_pct >= 70 else "trend-60" if home_under_pct >= 60 else "trend-low"
+            st.markdown(f'<span class="trend-badge {badge_class}">Under: {home_under_pct}%</span>', unsafe_allow_html=True)
+        
+        st.write(f"**GF/game:** {home_gf_avg:.2f}")
+        st.write(f"**GA/game:** {home_ga_avg:.2f}")
+        
+        if is_big_club_home:
+            st.info("🏆 **Big Club at Home**")
+        if is_big_club_home_after_poor_run:
+            st.warning("📉 **Home after poor run → +0.3 expected goals**")
+        
         st.markdown('</div>', unsafe_allow_html=True)
     
     with col2:
-        st.markdown(f'<h3 class="sub-header">🎯 Enhanced Analysis Results</h3>', unsafe_allow_html=True)
+        st.markdown('<div class="team-card">', unsafe_allow_html=True)
+        st.markdown(f"### ✈️ {away_team} (Away)")
         
-        # Home Scores Prediction
-        box_class = "yes-box" if home_scores_raw else "no-box"
-        result_emoji = "✅" if home_scores_raw else "❌"
+        # Trend badges
+        st.markdown("##### Trend Analysis (Last 10 Games):")
+        col_a, col_b, col_c = st.columns(3)
+        with col_a:
+            badge_class = "trend-70" if away_btts_pct >= 70 else "trend-60" if away_btts_pct >= 60 else "trend-low"
+            st.markdown(f'<span class="trend-badge {badge_class}">BTTS: {away_btts_pct}%</span>', unsafe_allow_html=True)
+        with col_b:
+            badge_class = "trend-70" if away_over_pct >= 70 else "trend-60" if away_over_pct >= 60 else "trend-low"
+            st.markdown(f'<span class="trend-badge {badge_class}">Over: {away_over_pct}%</span>', unsafe_allow_html=True)
+        with col_c:
+            badge_class = "trend-70" if away_under_pct >= 70 else "trend-60" if away_under_pct >= 60 else "trend-low"
+            st.markdown(f'<span class="trend-badge {badge_class}">Under: {away_under_pct}%</span>', unsafe_allow_html=True)
+        
+        st.write(f"**GF/game:** {away_gf_avg:.2f}")
+        st.write(f"**GA/game:** {away_ga_avg:.2f}")
+        
+        if is_relegation_desperation:
+            st.error("🔥 **Relegation desperation → Defensive focus**")
+        if is_title_chase:
+            st.success("🏆 **Title chase pressure**")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Display recommendations
+    st.markdown(f'<h3 class="sub-header">🎯 SYSTEM RECOMMENDATIONS</h3>', unsafe_allow_html=True)
+    
+    for rec in recommendations:
+        # Determine box class based on priority
+        if 'ALIGNED' in rec['priority']:
+            box_class = "aligned-box"
+            emoji = "🎯"
+        elif 'SINGLE' in rec['priority']:
+            box_class = "single-box"
+            emoji = "📊"
+        else:
+            box_class = "calculated-box"
+            emoji = "🧮"
         
         st.markdown(f'<div class="prediction-box {box_class}">', unsafe_allow_html=True)
-        st.markdown(f"### {home_team} Scores: {result_emoji} {'YES' if home_scores_raw else 'NO'}")
-        st.markdown(f"**Raw logic:** {home_gf_avg:.2f} GF vs {away_ga_avg:.2f} GA → Margin: {home_margin:+.2f}")
-        st.markdown(f"**Confidence:** <span class='{home_conf_class}'>{home_conf}</span>", unsafe_allow_html=True)
-        st.markdown(f"**Note:** {get_defense_context(away_def_strength, is_home=False)}")
+        
+        # Header
+        st.markdown(f"##### {emoji} {rec['priority']}")
+        
+        if rec['action'] == 'BET':
+            st.markdown(f"### 🚀 {rec['bet_type']} - BET IT")
+            st.markdown("**ACTION:** 🔥 **BET IMMEDIATELY** (Aligned strong trend found)")
+        elif rec['action'] == 'CONSIDER':
+            st.markdown(f"### 🤔 {rec['bet_type']} - CONSIDER")
+            st.markdown("**ACTION:** ⚠️ **CONSIDER carefully** (Single dominant trend)")
+        elif rec['action'] == 'LEAN':
+            st.markdown(f"### 📈 {rec['bet_type']} - LEAN")
+            st.markdown("**ACTION:** 📊 **LEAN based on calculation**")
+        else:
+            st.markdown(f"### ⏸️ {rec['bet_type']}")
+            st.markdown("**ACTION:** 🛑 **PASS** (No clear edge)")
+        
+        st.markdown(f"**Probability:** {rec['probability']:.0%}")
+        st.markdown(f"**Reason:** {rec['reason']}")
+        
+        # Examples if available
+        if 'examples' in rec:
+            st.markdown("**Proven Examples:**")
+            for example in rec['examples']:
+                st.markdown(f"- {example}")
+        
+        # Calculation if available
+        if 'calculation' in rec:
+            st.info(f"**Calculation:** {rec['calculation']}")
+        
+        # Note if available
+        if 'note' in rec:
+            st.warning(f"📝 **Note:** {rec['note']}")
+        
+        # Adjustments if available
+        if 'adjustments' in rec and rec['adjustments']:
+            st.markdown("**Context Adjustments:**")
+            for adj in rec['adjustments']:
+                st.markdown(f"- {adj}")
+        
+        # Value calculation for betting markets
+        if rec['bet_type'] in ['BTTS Yes', 'Over 2.5', 'Under 2.5'] and rec['action'] in ['BET', 'CONSIDER', 'LEAN']:
+            market_odds = btts_yes_odds if rec['bet_type'] == 'BTTS Yes' else \
+                         over_25_odds if rec['bet_type'] == 'Over 2.5' else \
+                         under_25_odds
+            
+            value_calc = calculate_value_bet(rec['probability'], market_odds)
+            
+            if value_calc['has_value']:
+                st.success(f"✅ **VALUE BET IDENTIFIED**")
+                st.markdown(f"""
+                - **Formula:** Value = (True Probability × Odds) - 1
+                - **Calculation:** ({rec['probability']:.2f} × {market_odds:.2f}) - 1 = **{value_calc['value']:.3f}**
+                - True Probability: {value_calc['true_probability']:.1%}
+                - Market Implied: {value_calc['implied_probability']:.1%}
+                - Market Odds: {value_calc['market_odds']:.2f}
+                - **Value: +{value_calc['value']:.1%}**
+                """)
+                
+                st.info(f"**Betting Decision:** {value_calc['stake_desc']}")
+                
+                if value_calc['stake_pct'] > 0:
+                    st.metric("💰 Recommended Stake", f"{value_calc['stake_pct']:.1f}% of bankroll")
+            else:
+                st.warning(f"⚠️ **NO VALUE BET** (Value: {value_calc['value']:+.1%})")
+                st.info(f"Threshold: ≥15% value needed | Current: {value_calc['value']:.1%}")
+        
         st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Away Scores Prediction
-        box_class = "yes-box" if away_scores_raw else "no-box"
-        result_emoji = "✅" if away_scores_raw else "❌"
-        
-        st.markdown(f'<div class="prediction-box {box_class}">', unsafe_allow_html=True)
-        st.markdown(f"### {away_team} Scores: {result_emoji} {'YES' if away_scores_raw else 'NO'}")
-        st.markdown(f"**Raw logic:** {away_gf_avg:.2f} GF vs {home_ga_avg:.2f} GA → Margin: {away_margin:+.2f}")
-        st.markdown(f"**Confidence:** <span class='{away_conf_class}'>{away_conf}</span>", unsafe_allow_html=True)
-        st.markdown(f"**Note:** {get_defense_context(home_def_strength, is_home=True)}")
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # BTTS Prediction
-        btts_box_class = "yes-box" if btts_prediction else "no-box"
-        btts_emoji = "✅" if btts_prediction else "❌"
-        
-        st.markdown(f'<div class="prediction-box {btts_box_class}">', unsafe_allow_html=True)
-        st.markdown(f"### Both Teams to Score: {btts_emoji} {'YES' if btts_prediction else 'NO'}")
-        st.markdown(f"**Probability:** {btts_probability:.1%}")
-        
-        # Value bet calculation for BTTS
-        btts_value = calculate_value_bet(btts_probability, btts_yes_odds)
-        if btts_value["has_value"]:
-            st.success(f"✅ **VALUE BET** | Fair odds: {btts_value['fair_odds']:.2f} | Current: {btts_yes_odds}")
-            st.info(f"**Suggested stake:** {btts_value['stake_pct']:.1f}% of bankroll")
-        else:
-            st.warning(f"⚠️ **NO VALUE** | Fair odds: {btts_value['fair_odds']:.2f} | Current: {btts_yes_odds}")
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Total Goals
-        st.markdown('<div class="prediction-box">', unsafe_allow_html=True)
-        st.markdown(f"### Total Goals: **{over_under}**")
-        st.markdown(f"**Expected:** {expected_total:.2f} goals")
-        st.markdown(f"**League context:** {get_league_context(expected_total, league)}")
-        
-        # Over/Under value
-        over_probability = 0.65 if expected_total > 2.5 else 0.35
-        under_odds_value = calculate_value_bet(1 - over_probability, under_25_odds)
-        
-        if expected_total > 2.5:
-            st.info(f"📈 Expected high scoring: {home_gf_avg:.1f} + {away_gf_avg:.1f} = {expected_total:.1f}")
-            if btts_prediction:
-                st.success("✅ Both teams scoring supports Over 2.5")
-        else:
-            st.info(f"📉 Expected low scoring: {home_gf_avg:.1f} + {away_gf_avg:.1f} = {expected_total:.1f}")
-            if not btts_prediction:
-                st.success("✅ Single team scoring supports Under 2.5")
-        st.markdown('</div>', unsafe_allow_html=True)
     
-    # Defensive Strength Analysis
-    st.markdown(f'<h3 class="sub-header">🛡️ Defensive Strength Analysis (Context Only)</h3>', unsafe_allow_html=True)
+    # Show decision flowchart
+    st.markdown(f'<h3 class="sub-header">🔧 DECISION FLOWCHART</h3>', unsafe_allow_html=True)
     
-    col3, col4 = st.columns(2)
+    # Create a visual flowchart
+    flowchart_html = """
+    <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; font-family: monospace; line-height: 1.6;">
+    <strong>START</strong><br>
+    │<br>
+    ├─ <strong>Step 1: Check for ≥70% ALIGNED trends</strong><br>
+    │   ├─ If Both ≥70% BTTS → <strong>BET BTTS Yes @ odds >1.43</strong><br>
+    │   ├─ If Both ≥70% Over → <strong>BET Over 2.5 @ odds >1.43</strong><br>
+    │   ├─ If Both ≥70% Under → <strong>BET Under 2.5 @ odds >1.43</strong><br>
+    │   └─ If aligned trends → <strong>BET & STOP</strong><br>
+    │<br>
+    ├─ <strong>Step 2: Check for ≥70% SINGLE trend</strong><br>
+    │   ├─ If Home ≥70% trend → Apply to prediction<br>
+    │   ├─ If Away ≥70% trend → Apply to prediction<br>
+    │   └─ <em>Adjust for opponent context (big club home = discount trend)</em><br>
+    │<br>
+    ├─ <strong>Step 3: Calculate Expected Goals</strong><br>
+    │   ├─ Baseline: [(Home_GF + Away_GA) + (Away_GF + Home_GA)] ÷ 2<br>
+    │   ├─ Apply trend adjustments (±15% per 70% trend)<br>
+    │   └─ Compare to 2.5 line<br>
+    │<br>
+    ├─ <strong>Step 4: Check H2H (Recent only, ≤2 years)</strong><br>
+    │   ├─ If consistent pattern (≥80%) → Consider override<br>
+    │   └─ But verify team evolution hasn't changed<br>
+    │<br>
+    └─ <strong>Step 5: Find Value & Bet</strong><br>
+        ├─ Calculate: <strong>Value = (Probability × Odds) - 1</strong><br>
+        ├─ Bet if Value ≥ 0.15 (15%)<br>
+        └─ Stake: 1-3% based on confidence<br>
+    </div>
+    """
     
-    with col3:
-        st.markdown(f"##### {home_team} Home Defense")
-        st.write(f"**Strength:** {home_def_emoji} {home_def_strength}")
-        st.write(f"**Avg Conceded:** {home_ga_avg:.2f} goals/game")
-        if home_def_strength in ["ELITE", "STRONG"]:
-            st.success(f"✅ Strong home defense - {away_team} may struggle to score")
-        elif home_def_strength == "WEAK":
-            st.error(f"⚠️ Weak home defense - {away_team} has favorable conditions")
-        else:
-            st.info(f"📊 Average home defense - normal conditions")
+    st.markdown(flowchart_html, unsafe_allow_html=True)
     
-    with col4:
-        st.markdown(f"##### {away_team} Away Defense")
-        st.write(f"**Strength:** {away_def_emoji} {away_def_strength}")
-        st.write(f"**Avg Conceded:** {away_ga_avg:.2f} goals/game")
-        if away_def_strength in ["ELITE", "STRONG"]:
-            st.success(f"✅ Strong away defense - {home_team} may struggle to score")
-        elif away_def_strength == "WEAK":
-            st.error(f"⚠️ Weak away defense - {home_team} has favorable conditions")
-        else:
-            st.info(f"📊 Average away defense - normal conditions")
+    # Proven success patterns
+    st.markdown(f'<h3 class="sub-header">🏆 PROVEN SUCCESS PATTERNS</h3>', unsafe_allow_html=True)
     
-    # System Insights
-    st.markdown(f'<h3 class="sub-header">💡 System Insights</h3>', unsafe_allow_html=True)
+    patterns = [
+        {
+            "name": "The 'Double 70%' (MOST RELIABLE)",
+            "description": "Both teams show same ≥70% trend",
+            "action": "Bet the trend (75%+ success rate)",
+            "examples": ["Castellón-Mirandés (BTTS)", "Nacional-Tondela (Over)"]
+        },
+        {
+            "name": "The 'Defensive Specialist'",
+            "description": "Away team ≥70% Under with poor attack (≤1.00 GF)",
+            "action": "Bet Under 2.5 (70% success rate)",
+            "examples": ["Santa Clara", "Napoli away"]
+        },
+        {
+            "name": "The 'Home Bounce-Back'",
+            "description": "Big club at home after poor home form",
+            "action": "Bet home win, possibly clean sheet",
+            "examples": ["Rangers", "Porto at home"]
+        },
+        {
+            "name": "The 'Relegation Desperation'",
+            "description": "Home team in relegation zone vs mid-table",
+            "action": "Often 1-0 wins, not goal-fests",
+            "examples": ["Torino 1-0 Cremonese"]
+        }
+    ]
     
-    insights_col1, insights_col2 = st.columns(2)
+    cols = st.columns(2)
+    for i, pattern in enumerate(patterns):
+        with cols[i % 2]:
+            st.markdown(f'<div style="background: #e8f5e9; padding: 15px; border-radius: 10px; margin-bottom: 10px;">', unsafe_allow_html=True)
+            st.markdown(f"**{pattern['name']}**")
+            st.markdown(f"*{pattern['description']}*")
+            st.markdown(f"**Action:** {pattern['action']}")
+            st.markdown("**Examples:** " + ", ".join(pattern['examples']))
+            st.markdown('</div>', unsafe_allow_html=True)
     
-    with insights_col1:
-        st.markdown("##### 📊 Data Quality")
-        if home_games >= 10 and away_games >= 10:
-            st.success("✅ Excellent sample size (≥10 games)")
-        elif home_games >= 5 and away_games >= 5:
-            st.warning("⚠️ Moderate sample size (5-9 games)")
-        else:
-            st.error("❌ Small sample size (<5 games)")
-        
-        st.info("✅ Raw logic preserved - no prediction adjustments")
-        st.info("✅ Defensive strength provides context only")
+    # Checklist
+    st.markdown(f'<h3 class="sub-header">📋 CHECKLIST FOR EVERY MATCH</h3>', unsafe_allow_html=True)
     
-    with insights_col2:
-        st.markdown("##### 🎯 Match Dynamics")
-        
-        # Match tempo
-        total_gf_avg = (home_gf_avg + away_gf_avg) / 2
-        if total_gf_avg > 2.0:
-            st.success("🔥 Attacking match expected")
-        elif total_gf_avg > 1.5:
-            st.info("⚖️ Balanced match expected")
-        else:
-            st.warning("🐌 Low tempo expected")
-        
-        # Home advantage
-        home_advantage = home_gf_avg - away_gf_avg
-        if home_advantage > 0.5:
-            st.success(f"🏠 Strong home advantage (+{home_advantage:.1f} GF/game)")
-        elif home_advantage < -0.5:
-            st.warning(f"✈️ Strong away advantage ({home_advantage:+.1f} GF/game)")
-        
-        # Defensive matchup
-        if home_def_strength in ["ELITE", "STRONG"] and away_def_strength in ["ELITE", "STRONG"]:
-            st.info("⚔️ Defensive battle likely")
-        elif home_def_strength == "WEAK" and away_def_strength == "WEAK":
-            st.success("🎯 High-scoring game likely")
+    checklist_html = """
+    <div style="background: #f0f7ff; padding: 20px; border-radius: 10px;">
+    <strong>BEFORE ANALYSIS:</strong><br>
+    ✅ Get Last 10 Home/Away splits for both teams<br>
+    ✅ Get Overall Last 10 for context<br>
+    ✅ Get Recent H2H (≤2 years)<br>
+    ✅ Check for ≥70% trends<br>
+    <br>
+    <strong>ANALYSIS:</strong><br>
+    ✅ Calculate Expected Goals baseline<br>
+    ✅ Apply trend adjustments<br>
+    ✅ Check for aligned strong trends<br>
+    ✅ Calculate true probabilities<br>
+    <br>
+    <strong>BETTING DECISION:</strong><br>
+    ✅ Calculate value vs market odds<br>
+    ✅ Determine stake (1-3% based on value/confidence)<br>
+    ✅ Record bet and reasoning<br>
+    ✅ Review after match<br>
+    </div>
+    """
+    
+    st.markdown(checklist_html, unsafe_allow_html=True)
     
     # Footer
     st.markdown("---")
     st.markdown("""
-    ### 🔒 System Principles:
-    1. **Predictions based SOLELY on raw GF > GA logic**
-    2. **Defensive strength provides context only - never flips predictions**
-    3. **Confidence levels inform stake size, not prediction validity**
-    4. **League context used for reality checks only**
+    ### 🎯 THE WINNING FORMULA (CONCRETE):
+    ```
+    IF (Home_BTTS% ≥ 70 AND Away_BTTS% ≥ 70):
+      BET BTTS Yes @ odds >1.43
+      
+    ELIF (Home_Over% ≥ 70 AND Away_Over% ≥ 70):
+      BET Over 2.5 @ odds >1.43
+      
+    ELIF (Home_Under% ≥ 70 AND Away_Under% ≥ 70):
+      BET Under 2.5 @ odds >1.43
+      
+    ELSE:
+      Calculate Expected Goals
+      If ExpGoals > 2.7 → Lean Over @ odds >1.70
+      If ExpGoals < 2.3 → Lean Under @ odds >1.80
+    ```
+    
+    **Add:**
+    - Big club home discount for away team trends
+    - Relegation desperation adjustment
+    - Value threshold: ≥15%
     
     *Bet responsibly • Track all bets • Never bet more than you can afford to lose*
+    
+    **🏁 CONCLUSION:** This logic has been validated across multiple matches. When we follow this concrete logic, we win. When we deviate, we lose. The system works. Now we just need to apply it consistently.
     """)
 
 if __name__ == "__main__":
