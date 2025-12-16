@@ -1,11 +1,11 @@
 """
-COMPLETE BETTING SYSTEM - EXACT ORIGINAL LOGIC WITH MOBILE OPTIMIZATION
+COMPLETE CONCRETE BETTING SYSTEM - EXACT LOGIC IMPLEMENTATION
 """
 
 import streamlit as st
 import pandas as pd
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Page config
 st.set_page_config(
@@ -104,153 +104,210 @@ if 'match_data' not in st.session_state:
     st.session_state.match_data = {}
 
 # ============================================================================
-# EXACT ORIGINAL PREDICTION LOGIC - NO CHANGES
+# EXACT LOGIC IMPLEMENTATION - NO CHANGES, NO ADDITIONS
 # ============================================================================
 
-def check_aligned_strong_trends(home_btts, home_over, home_under, away_btts, away_over, away_under):
-    """TIER 1: ALIGNED STRONG TRENDS (≥70%) - EXACT ORIGINAL LOGIC"""
+def check_aligned_70_trends(home_btts, home_over, home_under, away_btts, away_over, away_under):
+    """STEP 1: CHECK FOR ≥70% ALIGNED TRENDS - EXACT LOGIC"""
     aligned_trends = []
     
     # Check for BTTS aligned trend
     if home_btts >= 70 and away_btts >= 70:
         aligned_trends.append({
             'type': 'BTTS Yes',
-            'probability': 0.75,
-            'reason': f"Both teams show ≥70% BTTS trend (Home: {home_btts}%, Away: {away_btts}%)"
+            'probability': 0.75,  # Fixed 75% for aligned trends
+            'min_odds': 1.43,     # Minimum odds >1.43
+            'reason': f"ALIGNED ≥70% TREND: Both teams show ≥70% BTTS (Home: {home_btts}%, Away: {away_btts}%)",
+            'category': 'PRIMARY'
         })
     
     # Check for Over aligned trend
     if home_over >= 70 and away_over >= 70:
         aligned_trends.append({
             'type': 'Over 2.5',
-            'probability': 0.70,
-            'reason': f"Both teams show ≥70% Over trend (Home: {home_over}%, Away: {away_over}%)"
+            'probability': 0.75,  # Fixed 75% for aligned trends
+            'min_odds': 1.43,     # Minimum odds >1.43
+            'reason': f"ALIGNED ≥70% TREND: Both teams show ≥70% Over 2.5 (Home: {home_over}%, Away: {away_over}%)",
+            'category': 'PRIMARY'
         })
     
     # Check for Under aligned trend
     if home_under >= 70 and away_under >= 70:
         aligned_trends.append({
             'type': 'Under 2.5',
-            'probability': 0.70,
-            'reason': f"Both teams show ≥70% Under trend (Home: {home_under}%, Away: {away_under}%)"
+            'probability': 0.75,  # Fixed 75% for aligned trends
+            'min_odds': 1.43,     # Minimum odds >1.43
+            'reason': f"ALIGNED ≥70% TREND: Both teams show ≥70% Under 2.5 (Home: {home_under}%, Away: {away_under}%)",
+            'category': 'PRIMARY'
         })
     
     return aligned_trends
 
-def calculate_expected_goals(home_gf, away_ga, away_gf, home_ga, aligned_trends=None):
-    """Calculate expected goals with trend adjustments - EXACT ORIGINAL LOGIC"""
+def check_single_70_trends(home_over, home_under, away_over, away_under, home_gf, away_gf):
+    """STEP 2: CHECK FOR SINGLE ≥70% TRENDS - EXACT LOGIC"""
+    adjustments = {
+        'home_goal_adjustment': 0.0,
+        'away_goal_adjustment': 0.0,
+        'total_adjustment': 0.0
+    }
+    
+    # Check for single ≥70% trends
+    if home_over >= 70:
+        adjustments['home_goal_adjustment'] += 0.15
+    elif home_under >= 70:
+        adjustments['home_goal_adjustment'] -= 0.15
+    
+    if away_over >= 70:
+        adjustments['away_goal_adjustment'] += 0.15
+    elif away_under >= 70:
+        adjustments['away_goal_adjustment'] -= 0.15
+    
+    return adjustments
+
+def apply_context_adjustments(context_flags):
+    """Apply context adjustments - EXACT LOGIC"""
+    adjustments = {
+        'opponent_goals': 0.0,
+        'total_goals': 0.0,
+        'home_goals': 0.0,
+        'away_goals': 0.0,
+        'notes': []
+    }
+    
+    # Big Club at Home
+    if context_flags.get('big_club_home'):
+        adjustments['opponent_goals'] -= 0.2
+        adjustments['notes'].append("Big Club at Home: Opponent goals -0.2")
+    
+    # Relegation Desperation
+    if context_flags.get('relegation_home'):
+        adjustments['total_goals'] -= 0.3
+        adjustments['notes'].append("Relegation Home: Total goals -0.3")
+    elif context_flags.get('relegation_away'):
+        adjustments['total_goals'] -= 0.3
+        adjustments['notes'].append("Relegation Away: Total goals -0.3")
+    
+    # Title Chase Pressure
+    if context_flags.get('title_chase_home'):
+        adjustments['home_goals'] += 0.3
+        adjustments['notes'].append("Title Chase Home: +0.3 variance")
+    elif context_flags.get('title_chase_away'):
+        adjustments['away_goals'] += 0.3
+        adjustments['notes'].append("Title Chase Away: +0.3 variance")
+    
+    # European Hangover
+    if context_flags.get('european_hangover'):
+        adjustments['total_goals'] -= 0.2
+        adjustments['notes'].append("European Hangover: Total goals -0.2")
+    
+    return adjustments
+
+def calculate_expected_goals_baseline(home_gf, away_ga, away_gf, home_ga):
+    """STEP 3: CALCULATE EXPECTED GOALS BASELINE - EXACT LOGIC"""
     baseline = ((home_gf + away_ga) + (away_gf + home_ga)) / 2
-    
-    # Apply adjustments for aligned trends
-    if aligned_trends:
-        for trend in aligned_trends:
-            if trend['type'] == 'Over 2.5':
-                baseline *= 1.30  # +30% for aligned Over trends
-            elif trend['type'] == 'Under 2.5':
-                baseline *= 0.70  # -30% for aligned Under trends
-    
     return baseline
 
-def get_best_secondary_option(primary_bet, expected_goals, home_gf, away_gf, home_ga, away_ga):
-    """Get ONE strong secondary option based on primary bet and stats - EXACT ORIGINAL LOGIC"""
+def calculate_over_under_probability(expected_goals):
+    """Calculate Over/Under 2.5 probability - EXACT FORMULA"""
+    if expected_goals > 2.5:
+        probability = 0.50 + ((expected_goals - 2.5) * 0.40)
+    else:
+        probability = 0.50 + ((2.5 - expected_goals) * 0.40)
     
-    # RULE 1: If primary is BTTS, secondary is based on expected goals
-    if primary_bet == 'BTTS Yes':
-        if expected_goals > 2.8:
-            return {
-                'bet': 'Over 2.5',
-                'probability': 0.65,
-                'reason': f"BTTS + High expected goals ({expected_goals:.1f}) suggests Over",
-                'logic': "High scoring teams that both score often tend to produce Over 2.5 results"
-            }
-        elif expected_goals < 2.2:
-            return {
-                'bet': 'Under 2.5',
-                'probability': 0.60,
-                'reason': f"BTTS likely but low total goals expected ({expected_goals:.1f})",
-                'logic': "While both may score, limited offensive power suggests low total goals"
-            }
-        else:
-            # Moderate expected goals
-            return {
-                'bet': 'Draw',
-                'probability': 0.52,
-                'reason': f"BTTS + balanced match ({expected_goals:.1f} expected goals)",
-                'logic': "Close matches where both teams score often end level"
-            }
-    
-    # RULE 2: If primary is Over 2.5
-    elif primary_bet == 'Over 2.5':
-        if home_gf > 1.8 or away_gf > 1.8:
-            return {
-                'bet': 'BTTS Yes',
-                'probability': 0.68,
-                'reason': f"High scoring teams (Home: {home_gf:.1f}, Away: {away_gf:.1f} GF/game)",
-                'logic': "High-scoring matches often feature goals from both sides"
-            }
-        else:
-            return {
-                'bet': 'Home Win',
-                'probability': 0.55,
-                'reason': f"Home advantage in attacking stats",
-                'logic': "When Over is expected, the stronger home team often wins"
-            }
-    
-    # RULE 3: If primary is Under 2.5
-    elif primary_bet == 'Under 2.5':
-        if home_ga < 1.0 and away_ga < 1.0:
-            return {
-                'bet': 'BTTS No',
-                'probability': 0.70,
-                'reason': f"Strong defenses (Home: {home_ga:.1f}, Away: {away_ga:.1f} GA/game)",
-                'logic': "Teams with strong defenses often prevent opposition from scoring"
-            }
-        else:
-            return {
-                'bet': '1-0 or 2-0',
-                'probability': 0.48,
-                'reason': f"Low scoring match ({expected_goals:.1f} expected goals)",
-                'logic': "Low scoring matches typically end with narrow scorelines"
-            }
-    
-    return None
+    # CAP: Minimum 25%, Maximum 85%
+    probability = max(0.25, min(0.85, probability))
+    return probability
 
-def calculate_value_and_action(probability, odds):
-    """Calculate value and determine action - EXACT ORIGINAL LOGIC"""
+def calculate_btts_probability(home_btts, away_btts, aligned_70=False):
+    """Calculate BTTS probability - EXACT FORMULA"""
+    if aligned_70:
+        return 0.75  # Fixed 75% for aligned trends
+    else:
+        return (home_btts + away_btts) / 2 / 100
+
+def calculate_value_and_stake(probability, odds):
+    """💰 VALUE & STAKE CALCULATION - EXACT LOGIC"""
     if probability == 0 or odds == 0:
-        return {'value': -1, 'action': 'NO BET', 'reason': 'Insufficient data'}
+        return {'value': -1, 'category': 'NO VALUE', 'stake': 0.0, 'action': 'AVOID'}
     
     value = (probability * odds) - 1
     
+    # Value Tiers - EXACT THRESHOLDS
     if value >= 0.25:
-        return {'value': value, 'action': 'STRONG BET', 'stake': 3.0, 
-                'reason': f"Excellent value (+{value:.1%} edge over market)"}
+        category = "EXCELLENT VALUE"
+        stake = 3.0
+        action = "STRONG BET"
     elif value >= 0.15:
-        return {'value': value, 'action': 'BET', 'stake': 2.0,
-                'reason': f"Good value (+{value:.1%} edge)"}
+        category = "GOOD VALUE"
+        stake = 2.0
+        action = "BET"
     elif value >= 0.05:
-        return {'value': value, 'action': 'CONSIDER', 'stake': 1.0,
-                'reason': f"Limited value (+{value:.1%} edge)"}
-    elif value >= 0:
-        return {'value': value, 'action': 'SMALL BET', 'stake': 0.5,
-                'reason': f"Marginal value (+{value:.1%} edge)"}
+        category = "LIMITED VALUE"
+        stake = 1.0
+        action = "CONSIDER"
     else:
-        return {'value': value, 'action': 'AVOID', 'stake': 0.0,
-                'reason': f"No value ({value:.1%} edge)"}
+        category = "NO VALUE"
+        stake = 0.0
+        action = "AVOID"
+    
+    # Stake Formula: Min(3, Max(1, Value × 10))
+    calculated_stake = min(3.0, max(1.0, value * 10))
+    stake = min(stake, calculated_stake)  # Use whichever is lower
+    
+    return {
+        'value': value,
+        'category': category,
+        'stake': stake,
+        'action': action,
+        'reason': f"{value:+.1%} value edge"
+    }
+
+def get_secondary_bet(expected_goals):
+    """🥈 Secondary Bet (Over/Under 2.5) - EXACT LOGIC"""
+    if expected_goals > 2.7:
+        return {
+            'bet': 'Over 2.5',
+            'min_odds': 1.70,
+            'reason': f"Expected Goals {expected_goals:.2f} > 2.7",
+            'category': 'SECONDARY'
+        }
+    elif expected_goals < 2.3:
+        return {
+            'bet': 'Under 2.5',
+            'min_odds': 1.80,
+            'reason': f"Expected Goals {expected_goals:.2f} < 2.3",
+            'category': 'SECONDARY'
+        }
+    else:
+        return None
+
+def get_tertiary_bets(expected_goals, btts_probability, home_team, away_team):
+    """🥉 Tertiary Bets (Correct Scores) - EXACT LOGIC"""
+    if expected_goals <= 2.0:
+        scores = [f"{home_team} 1-0 {away_team}", f"{home_team} 0-0 {away_team}", 
+                  f"{home_team} 1-1 {away_team}", f"{home_team} 0-1 {away_team}"]
+    elif expected_goals <= 2.5:
+        scores = [f"{home_team} 1-1 {away_team}", f"{home_team} 2-1 {away_team}",
+                  f"{home_team} 1-2 {away_team}", f"{home_team} 2-0 {away_team}"]
+    else:
+        scores = [f"{home_team} 2-1 {away_team}", f"{home_team} 2-2 {away_team}",
+                  f"{home_team} 3-1 {away_team}", f"{home_team} 3-2 {away_team}"]
+    
+    return scores
 
 # ============================================================================
-# MAIN APPLICATION WITH ALL ORIGINAL INPUTS
+# MAIN APPLICATION WITH EXACT LOGIC
 # ============================================================================
 
 def main():
     """Main application"""
     
-    st.markdown('<div class="header">🎯 COMPLETE BETTING SYSTEM</div>', unsafe_allow_html=True)
-    st.markdown("**Primary prediction + ONE secondary option with clear explanations**")
+    st.markdown('<div class="header">🏆 COMPLETE CONCRETE BETTING SYSTEM</div>', unsafe_allow_html=True)
+    st.markdown("**Exact logic implementation - Follow the system**")
     
-    # Sidebar for data input - ALL 10 ORIGINAL INPUTS
+    # Sidebar for data input - ALL REQUIRED INPUTS
     with st.sidebar:
-        st.header("📊 Match Data Input")
+        st.header("📊 DATA REQUIREMENTS (NON-NEGOTIABLE)")
         
         # Basic info
         league = st.selectbox("League", ["Premier League", "Serie A", "La Liga", "Bundesliga", "Ligue 1", "Other"])
@@ -259,52 +316,77 @@ def main():
         st.subheader("🏠 Home Team")
         home_team = st.text_input("Team Name", "Fenerbahce")
         
+        st.markdown("**LAST 10 HOME SPLITS:**")
         col1, col2 = st.columns(2)
         with col1:
-            home_btts = st.slider("BTTS % (Last 10)", 0, 100, 70)
+            home_btts = st.slider("BTTS %", 0, 100, 70)
             home_over = st.slider("Over 2.5 %", 0, 100, 50)
-            home_under = st.slider("Under 2.5 %", 0, 100, 50)  # ORIGINAL INPUT
+            home_under = st.slider("Under 2.5 %", 0, 100, 50)
         with col2:
-            home_gf = st.number_input("GF/game", 0.0, 5.0, 1.90, 0.01)  # ORIGINAL INPUT
-            home_ga = st.number_input("GA/game", 0.0, 5.0, 0.90, 0.01)  # ORIGINAL INPUT
+            home_gf = st.number_input("GF/game", 0.0, 5.0, 1.90, 0.01)
+            home_ga = st.number_input("GA/game", 0.0, 5.0, 0.90, 0.01)
         
         st.subheader("✈️ Away Team")
         away_team = st.text_input("Team Name ", "Konyaspor")
         
+        st.markdown("**LAST 10 AWAY SPLITS:**")
         col1, col2 = st.columns(2)
         with col1:
-            away_btts = st.slider("BTTS % (Last 10) ", 0, 100, 80)
+            away_btts = st.slider("BTTS % ", 0, 100, 80)
             away_over = st.slider("Over 2.5 % ", 0, 100, 60)
-            away_under = st.slider("Under 2.5 % ", 0, 100, 40)  # ORIGINAL INPUT
+            away_under = st.slider("Under 2.5 % ", 0, 100, 40)
         with col2:
-            away_gf = st.number_input("GF/game ", 0.0, 5.0, 1.40, 0.01)  # ORIGINAL INPUT
-            away_ga = st.number_input("GA/game ", 0.0, 5.0, 1.70, 0.01)  # ORIGINAL INPUT
+            away_gf = st.number_input("GF/game ", 0.0, 5.0, 1.40, 0.01)
+            away_ga = st.number_input("GA/game ", 0.0, 5.0, 1.70, 0.01)
         
-        st.subheader("💰 Market Odds")
+        st.subheader("🚨 CONTEXT FLAGS")
+        col1, col2 = st.columns(2)
+        with col1:
+            big_club_home = st.checkbox("Big Club at Home")
+            relegation_home = st.checkbox("Home: Relegation Threatened")
+            title_chase_home = st.checkbox("Home: Title Chasing")
+        with col2:
+            relegation_away = st.checkbox("Away: Relegation Threatened")
+            title_chase_away = st.checkbox("Away: Title Chasing")
+            european_hangover = st.checkbox("European Hangover")
+        
+        st.subheader("💰 MARKET ODDS")
         col1, col2, col3 = st.columns(3)
         with col1:
             odds_btts = st.number_input("BTTS Yes", 1.01, 10.0, 2.02, 0.01)
+            odds_btts_no = st.number_input("BTTS No", 1.01, 10.0, 1.72, 0.01)
         with col2:
             odds_over = st.number_input("Over 2.5", 1.01, 10.0, 1.46, 0.01)
         with col3:
             odds_under = st.number_input("Under 2.5", 1.01, 10.0, 2.48, 0.01)
         
-        if st.button("🎯 Analyze Match", type="primary", use_container_width=True):
+        if st.button("🎯 RUN COMPLETE ANALYSIS", type="primary", use_container_width=True):
+            context_flags = {
+                'big_club_home': big_club_home,
+                'relegation_home': relegation_home,
+                'relegation_away': relegation_away,
+                'title_chase_home': title_chase_home,
+                'title_chase_away': title_chase_away,
+                'european_hangover': european_hangover
+            }
+            
             st.session_state.match_data = {
                 'home_team': home_team,
                 'away_team': away_team,
                 'home_btts': home_btts,
                 'home_over': home_over,
-                'home_under': home_under,  # ORIGINAL INPUT
-                'home_gf': home_gf,  # ORIGINAL INPUT
-                'home_ga': home_ga,  # ORIGINAL INPUT
+                'home_under': home_under,
+                'home_gf': home_gf,
+                'home_ga': home_ga,
                 'away_btts': away_btts,
                 'away_over': away_over,
-                'away_under': away_under,  # ORIGINAL INPUT
-                'away_gf': away_gf,  # ORIGINAL INPUT
-                'away_ga': away_ga,  # ORIGINAL INPUT
+                'away_under': away_under,
+                'away_gf': away_gf,
+                'away_ga': away_ga,
+                'context_flags': context_flags,
                 'odds': {
-                    'btts': odds_btts,
+                    'btts_yes': odds_btts,
+                    'btts_no': odds_btts_no,
                     'over': odds_over,
                     'under': odds_under
                 }
@@ -313,318 +395,365 @@ def main():
     
     # Check if we have data to analyze
     if not st.session_state.match_data:
-        st.info("👈 Enter match data in the sidebar and click 'Analyze Match'")
+        st.info("👈 Enter ALL data requirements and click 'RUN COMPLETE ANALYSIS'")
         return
     
     data = st.session_state.match_data
     
-    # Match header with better contrast
+    # Match header
     st.markdown(f"""
     <div class="card">
         <div style="text-align: center;">
             <h2 style="margin: 0; color: #1F2937;">🏠 {data['home_team']} vs ✈️ {data['away_team']}</h2>
-            <div style="color: #6B7280; margin-top: 0.5rem;">{league} • {match_date.strftime('%d %B %Y')}</div>
+            <div style="color: #6B7280; margin-top: 0.5rem;">Complete Concrete System Analysis</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    # Check for aligned trends - USING ALL 10 ORIGINAL INPUTS
-    aligned_trends = check_aligned_strong_trends(
+    # ============================================================================
+    # STEP 1: CHECK FOR ≥70% ALIGNED TRENDS
+    # ============================================================================
+    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">📊 STEP 1: CHECK ≥70% ALIGNED TRENDS</div>', unsafe_allow_html=True)
+    
+    aligned_trends = check_aligned_70_trends(
         data['home_btts'], data['home_over'], data['home_under'],
         data['away_btts'], data['away_over'], data['away_under']
     )
     
-    # Calculate expected goals - USING ALL 4 ORIGINAL STAT INPUTS
-    expected_goals = calculate_expected_goals(
-        data['home_gf'], data['away_ga'], data['away_gf'], data['home_ga'],
-        aligned_trends
-    )
-    
-    # Display primary prediction
-    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">🎯 PRIMARY BET</div>', unsafe_allow_html=True)
-    
+    primary_bet = None
     if aligned_trends:
         primary_trend = aligned_trends[0]
+        primary_bet = primary_trend['type']
         
-        # Get odds for this bet
-        if primary_trend['type'] == 'Over 2.5':
+        # Get odds for primary bet
+        if primary_bet == 'BTTS Yes':
+            odds = data['odds']['btts_yes']
+        elif primary_bet == 'Over 2.5':
             odds = data['odds']['over']
-        elif primary_trend['type'] == 'Under 2.5':
+        else:  # Under 2.5
             odds = data['odds']['under']
-        else:  # BTTS Yes
-            odds = data['odds']['btts']
         
-        value_data = calculate_value_and_action(primary_trend['probability'], odds)
+        value_data = calculate_value_and_stake(primary_trend['probability'], odds)
         
-        # Show primary bet with explanation
+        # Display primary bet
         card_class = "prediction-high" if value_data['action'] in ['STRONG BET', 'BET'] else "prediction-medium"
         
         st.markdown(f"""
         <div class="prediction-card {card_class}">
             <div style="display: flex; justify-content: space-between; align-items: start;">
                 <div style="flex: 1;">
-                    <h3 style="margin: 0 0 0.5rem 0; color: #1F2937;">{primary_trend['type']}</h3>
+                    <h3 style="margin: 0 0 0.5rem 0; color: #1F2937;">🏆 PRIMARY BET: {primary_trend['type']}</h3>
                     <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">Why this bet:</strong> {primary_trend['reason']}
+                        <strong style="color: #374151;">System Logic:</strong> {primary_trend['reason']}
                     </div>
                     <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">Probability:</strong> {primary_trend['probability']:.0%}
+                        <strong style="color: #374151;">True Probability:</strong> {primary_trend['probability']:.0%} (Fixed for aligned ≥70% trends)
+                    </div>
+                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                        <strong style="color: #374151;">Minimum Odds Required:</strong> {primary_trend['min_odds']:.2f}
                     </div>
                     <div style="color: #4B5563; margin-bottom: 0.5rem;">
                         <strong style="color: #374151;">Market Odds:</strong> {odds:.2f}
                     </div>
+                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                        <strong style="color: #374151;">Value Edge:</strong> {value_data['value']:+.1%}
+                    </div>
                     <div style="color: #4B5563;">
-                        <strong style="color: #374151;">Decision:</strong> {value_data['action']} - {value_data['reason']}
+                        <strong style="color: #374151;">Decision:</strong> {value_data['action']} - {value_data['category']}
+                    </div>
+                    <div style="color: #4B5563; margin-top: 0.5rem;">
+                        <strong style="color: #374151;">Stake:</strong> {value_data['stake']:.1f}% of bankroll
                     </div>
                 </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
         
-        primary_bet = primary_trend['type']
+        # Check if odds meet minimum requirement
+        if odds < primary_trend['min_odds']:
+            st.warning(f"⚠️ Market odds ({odds:.2f}) below minimum required ({primary_trend['min_odds']:.2f}) - Consider avoiding")
     else:
-        st.warning("⚠️ No aligned strong trends detected")
-        primary_bet = None
+        st.info("No aligned ≥70% trends detected - Proceed to Step 2")
     
-    # Initialize secondary variable - FIX: Define it here so it always exists
-    secondary = None
+    # ============================================================================
+    # STEP 2 & 3: SINGLE TRENDS & EXPECTED GOALS
+    # ============================================================================
+    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">📊 STEP 2 & 3: EXPECTED GOALS CALCULATION</div>', unsafe_allow_html=True)
     
-    # Get secondary option - FIX: This block runs regardless of primary_bet
-    if primary_bet:
-        st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">🔄 SECONDARY OPTION</div>', unsafe_allow_html=True)
+    # Check single trends
+    single_adjustments = check_single_70_trends(
+        data['home_over'], data['home_under'],
+        data['away_over'], data['away_under'],
+        data['home_gf'], data['away_gf']
+    )
+    
+    # Apply context adjustments
+    context_adjustments = apply_context_adjustments(data['context_flags'])
+    
+    # Calculate baseline expected goals
+    baseline_goals = calculate_expected_goals_baseline(
+        data['home_gf'], data['away_ga'],
+        data['away_gf'], data['home_ga']
+    )
+    
+    # Apply all adjustments
+    adjusted_home_goals = data['home_gf'] + single_adjustments['home_goal_adjustment'] + context_adjustments['home_goals']
+    adjusted_away_goals = data['away_gf'] + single_adjustments['away_goal_adjustment'] + context_adjustments['away_goals']
+    
+    # Adjust for opponent strength and context
+    adjusted_home_goals += data['away_ga'] + context_adjustments['opponent_goals']
+    adjusted_away_goals += data['home_ga'] + context_adjustments['opponent_goals']
+    
+    # Calculate final expected goals
+    expected_goals = (adjusted_home_goals + adjusted_away_goals) / 2
+    expected_goals += context_adjustments['total_goals']
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown(f"""
+        <div class="card">
+            <h4 style="color: #1F2937;">📈 Expected Goals Analysis</h4>
+            <div style="color: #4B5563; margin: 0.5rem 0;">
+                <strong style="color: #374151;">Baseline Formula:</strong><br>
+                [({data['home_gf']:.2f} + {data['away_ga']:.2f}) + ({data['away_gf']:.2f} + {data['home_ga']:.2f})] ÷ 2
+            </div>
+            <div style="color: #4B5563; margin: 0.5rem 0;">
+                <strong style="color: #374151;">Baseline:</strong> {baseline_goals:.2f} goals
+            </div>
+            <div style="color: #4B5563; margin: 0.5rem 0;">
+                <strong style="color: #374151;">Single Trend Adjustments:</strong><br>
+                • Home: {single_adjustments['home_goal_adjustment']:+.2f}<br>
+                • Away: {single_adjustments['away_goal_adjustment']:+.2f}
+            </div>
+            <div style="color: #4B5563; margin: 0.5rem 0;">
+                <strong style="color: #374151;">Context Adjustments:</strong><br>
+                {''.join([f'• {note}<br>' for note in context_adjustments['notes']]) if context_adjustments['notes'] else '• None'}
+            </div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: #1F2937; margin: 1rem 0;">
+                Final: {expected_goals:.2f} expected goals
+            </div>
+            <div style="color: #4B5563;">
+                <strong style="color: #374151;">Interpretation:</strong> {'Over 2.5' if expected_goals > 2.5 else 'Under 2.5'} expected
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        # Calculate probabilities
+        over_under_prob = calculate_over_under_probability(expected_goals)
+        btts_prob = calculate_btts_probability(data['home_btts'], data['away_btts'], aligned_70=False)
         
-        secondary = get_best_secondary_option(
-            primary_bet, expected_goals,
-            data['home_gf'], data['away_gf'],
-            data['home_ga'], data['away_ga']
-        )
+        st.markdown(f"""
+        <div class="card">
+            <h4 style="color: #1F2937;">🎯 Probability Calculations</h4>
+            <div style="color: #4B5563; margin: 0.5rem 0;">
+                <strong style="color: #374151;">Over/Under 2.5 Formula:</strong><br>
+                Base 50% + (Distance from 2.5 × 40)
+            </div>
+            <div style="color: #4B5563; margin: 0.5rem 0;">
+                <strong style="color: #374151;">Over 2.5 Probability:</strong> {over_under_prob:.1%} if Over, {1-over_under_prob:.1%} if Under
+            </div>
+            <div style="color: #4B5563; margin: 0.5rem 0;">
+                <strong style="color: #374151;">BTTS Probability Formula:</strong><br>
+                (Home {data['home_btts']}% + Away {data['away_btts']}%) ÷ 2
+            </div>
+            <div style="color: #4B5563; margin: 0.5rem 0;">
+                <strong style="color: #374151;">BTTS Yes Probability:</strong> {btts_prob:.1%}
+            </div>
+            <div style="color: #4B5563; margin: 0.5rem 0;">
+                <strong style="color: #374151;">BTTS No Probability:</strong> {1-btts_prob:.1%}
+            </div>
+            <div style="color: #4B5563; margin-top: 1rem;">
+                <strong style="color: #374151;">Key:</strong> ≥70% = Strong, 50-69% = Moderate, <50% = Weak
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # ============================================================================
+    # STEP 5: VALUE CALCULATION & SECONDARY BETS
+    # ============================================================================
+    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">💰 STEP 5: VALUE CALCULATION & BETS</div>', unsafe_allow_html=True)
+    
+    if not primary_bet:
+        # Get secondary bet based on expected goals
+        secondary = get_secondary_bet(expected_goals)
         
         if secondary:
-            # Determine odds for secondary bet
-            if secondary['bet'] == 'BTTS Yes':
-                sec_odds = data['odds']['btts']
-            elif secondary['bet'] == 'Over 2.5':
+            # Get odds for secondary bet
+            if secondary['bet'] == 'Over 2.5':
                 sec_odds = data['odds']['over']
-            elif secondary['bet'] == 'Under 2.5':
+                sec_prob = over_under_prob
+            else:  # Under 2.5
                 sec_odds = data['odds']['under']
-            else:
-                sec_odds = 2.50  # Default for other markets
+                sec_prob = 1 - over_under_prob
             
-            sec_value = calculate_value_and_action(secondary['probability'], sec_odds)
+            sec_value = calculate_value_and_stake(sec_prob, sec_odds)
             
-            # Show secondary with explanation
-            sec_card_class = "secondary-card" if sec_value['action'] not in ['AVOID', 'NO BET'] else "no-value-card"
+            # Display secondary bet
+            sec_card_class = "secondary-card" if sec_value['action'] not in ['AVOID'] else "no-value-card"
             
             st.markdown(f"""
             <div class="prediction-card {sec_card_class}">
                 <div style="display: flex; justify-content: space-between; align-items: start;">
                     <div style="flex: 1;">
-                        <h3 style="margin: 0 0 0.5rem 0; color: #1F2937;">{secondary['bet']}</h3>
+                        <h3 style="margin: 0 0 0.5rem 0; color: #1F2937;">🥈 SECONDARY BET: {secondary['bet']}</h3>
                         <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                            <strong style="color: #374151;">Why this bet:</strong> {secondary['reason']}
+                            <strong style="color: #374151;">System Logic:</strong> {secondary['reason']}
                         </div>
                         <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                            <strong style="color: #374151;">Logic:</strong> {secondary['logic']}
+                            <strong style="color: #374151;">True Probability:</strong> {sec_prob:.1%}
                         </div>
                         <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                            <strong style="color: #374151;">Probability:</strong> {secondary['probability']:.0%}
+                            <strong style="color: #374151;">Minimum Odds Required:</strong> {secondary['min_odds']:.2f}
+                        </div>
+                        <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                            <strong style="color: #374151;">Market Odds:</strong> {sec_odds:.2f}
+                        </div>
+                        <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                            <strong style="color: #374151;">Value Edge:</strong> {sec_value['value']:+.1%}
+                        </div>
+                        <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                            <strong style="color: #374151;">Decision:</strong> {sec_value['action']} - {sec_value['category']}
                         </div>
                         <div style="color: #4B5563;">
-                            <strong style="color: #374151;">Decision:</strong> {sec_value['action']} - {sec_value['reason']}
+                            <strong style="color: #374151;">Stake:</strong> {sec_value['stake']:.1f}% of bankroll
                         </div>
                     </div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
+            
+            # Check if odds meet minimum requirement
+            if sec_odds < secondary['min_odds']:
+                st.warning(f"⚠️ Market odds ({sec_odds:.2f}) below minimum required ({secondary['min_odds']:.2f}) - Consider avoiding")
         else:
-            st.info("No suitable secondary option for this match configuration")
+            st.info("No secondary bet recommended (expected goals between 2.3-2.7)")
     
-    # Match Analysis
-    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">📊 MATCH ANALYSIS</div>', unsafe_allow_html=True)
+    # ============================================================================
+    # TERTIARY BETS
+    # ============================================================================
+    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">🥉 TERTIARY BETS (Correct Scores)</div>', unsafe_allow_html=True)
     
-    col1, col2 = st.columns(2)
+    tertiary_scores = get_tertiary_bets(
+        expected_goals,
+        calculate_btts_probability(data['home_btts'], data['away_btts'], aligned_70=False),
+        data['home_team'],
+        data['away_team']
+    )
     
-    with col1:
-        interpretation = "High-scoring match expected" if expected_goals > 2.7 else "Moderate scoring expected" if expected_goals > 2.3 else "Low-scoring match expected"
-        
-        st.markdown(f"""
-        <div class="card">
-            <h4 style="color: #1F2937;">⚽ Expected Goals Analysis</h4>
-            <div style="color: #4B5563; margin: 0.5rem 0;">
-                <strong style="color: #374151;">Calculation:</strong><br>
-                ({data['home_gf']:.2f} + {data['away_ga']:.2f}) + ({data['away_gf']:.2f} + {data['home_ga']:.2f}) ÷ 2
-            </div>
-            <div style="font-size: 1.5rem; font-weight: 700; color: #1F2937; margin: 1rem 0;">
-                {expected_goals:.2f} expected goals
-            </div>
-            <div style="color: #4B5563;">
-                <strong style="color: #374151;">Interpretation:</strong> {interpretation}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        # Calculate trend strength
-        trend_strength = 0
-        trend_explanation = []
-        
-        if data['home_btts'] >= 70 and data['away_btts'] >= 70:
-            trend_strength += 1
-            trend_explanation.append("BTTS aligned trend")
-        
-        if data['home_over'] >= 70 and data['away_over'] >= 70:
-            trend_strength += 1
-            trend_explanation.append("Over aligned trend")
-        
-        if data['home_under'] >= 70 and data['away_under'] >= 70:
-            trend_strength += 1
-            trend_explanation.append("Under aligned trend")
-        
-        strength_text = "Strong trends" if trend_strength >= 2 else "One trend" if trend_strength == 1 else "No strong trends"
-        trends_list = ', '.join(trend_explanation) if trend_explanation else 'No aligned trends'
-        
-        st.markdown(f"""
-        <div class="card">
-            <h4 style="color: #1F2937;">📈 Trend Analysis</h4>
-            <div style="color: #4B5563; margin: 0.5rem 0;">
-                <strong style="color: #374151;">Home Trends (Last 10):</strong><br>
-                • BTTS: {data['home_btts']}%<br>
-                • Over 2.5: {data['home_over']}%<br>
-                • Under 2.5: {data['home_under']}%
-            </div>
-            <div style="color: #4B5563; margin: 0.5rem 0;">
-                <strong style="color: #374151;">Away Trends (Last 10):</strong><br>
-                • BTTS: {data['away_btts']}%<br>
-                • Over 2.5: {data['away_over']}%<br>
-                • Under 2.5: {data['away_under']}%
-            </div>
-            <div style="color: #4B5563; margin-top: 1rem;">
-                <strong style="color: #374151;">Result:</strong> {strength_text}<br>
-                {trends_list}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Team Statistics
-    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">📊 TEAM STATISTICS</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown(f"""
-        <div class="card">
-            <h4 style="color: #1F2937;">🏠 {data['home_team']}</h4>
-            <div style="color: #4B5563; margin: 0.5rem 0;">
-                <strong style="color: #374151;">Scoring Form:</strong> {data['home_gf']:.2f} goals/game<br>
-                <strong style="color: #374151;">Defensive Record:</strong> {data['home_ga']:.2f} goals conceded/game<br>
-                <strong style="color: #374151;">Goal Difference:</strong> {data['home_gf'] - data['home_ga']:+.2f}
-            </div>
-            <div style="color: #4B5563; margin-top: 1rem;">
-                <strong style="color: #374151;">Trend Strength:</strong><br>
-                • BTTS: {'Strong' if data['home_btts'] >= 70 else 'Moderate' if data['home_btts'] >= 50 else 'Weak'}<br>
-                • Over 2.5: {'Strong' if data['home_over'] >= 70 else 'Moderate' if data['home_over'] >= 50 else 'Weak'}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown(f"""
-        <div class="card">
-            <h4 style="color: #1F2937;">✈️ {data['away_team']}</h4>
-            <div style="color: #4B5563; margin: 0.5rem 0;">
-                <strong style="color: #374151;">Scoring Form:</strong> {data['away_gf']:.2f} goals/game<br>
-                <strong style="color: #374151;">Defensive Record:</strong> {data['away_ga']:.2f} goals conceded/game<br>
-                <strong style="color: #374151;">Goal Difference:</strong> {data['away_gf'] - data['away_ga']:+.2f}
-            </div>
-            <div style="color: #4B5563; margin-top: 1rem;">
-                <strong style="color: #374151;">Trend Strength:</strong><br>
-                • BTTS: {'Strong' if data['away_btts'] >= 70 else 'Moderate' if data['away_btts'] >= 50 else 'Weak'}<br>
-                • Over 2.5: {'Strong' if data['away_over'] >= 70 else 'Moderate' if data['away_over'] >= 50 else 'Weak'}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Betting Strategy
-    with st.expander("🎯 BETTING STRATEGY EXPLAINED", expanded=True):
-        if primary_bet and aligned_trends:
-            primary_trend = aligned_trends[0]
-            
-            # Prepare secondary info - FIX: secondary is now always defined
-            if secondary:
-                secondary_bet = secondary['bet']
-                secondary_prob = f"{secondary['probability']:.0%}"
-                sec_stake = sec_value['stake'] if 'sec_value' in locals() else 0.0
-            else:
-                secondary_bet = 'None'
-                secondary_prob = 'N/A'
-                sec_stake = 0.0
-            
+    cols = st.columns(len(tertiary_scores))
+    for idx, score in enumerate(tertiary_scores):
+        with cols[idx]:
             st.markdown(f"""
-            ### Recommended Approach
-            
-            **Primary Bet: {primary_bet}**
-            - Based on aligned trends from both teams
-            - Historical data shows consistent pattern
-            - Probability: {primary_trend['probability']:.0%}
-            
-            **Secondary Option: {secondary_bet}**
-            - Complementary to primary bet
-            - Based on expected goals and team statistics
-            - Probability: {secondary_prob}
-            
-            **Bankroll Management:**
-            - Primary bet: {value_data['stake']:.1f}% of bankroll
-            - Secondary bet: {sec_stake:.1f}% of bankroll
-            - Total exposure: {(value_data['stake'] + sec_stake):.1f}%
-            
-            **Key Insight:**
-            {primary_trend['reason']}
-            """)
-        else:
-            st.markdown("""
-            ### No Strong Bet Identified
-            
-            **Why:**
-            - No aligned trends from both teams
-            - Inconsistent patterns in historical data
-            - Market odds don't offer value
-            
-            **Recommendation:**
-            - Avoid betting on this match
-            - Look for matches with clearer patterns
-            - Consider other betting markets if you must bet
-            """)
+            <div style="text-align: center; padding: 1rem; background: #F7FAFC; border-radius: 8px; margin: 0.5rem 0; border: 1px solid #E2E8F0;">
+                <div style="font-size: 1.1rem; font-weight: 700; color: #1F2937;">{score}</div>
+                <div style="font-size: 0.8rem; color: #6B7280; margin-top: 0.5rem;">For bet builders</div>
+            </div>
+            """, unsafe_allow_html=True)
     
-    # System Logic Summary - FIX: secondary is now always defined (None if not set)
-    with st.expander("📋 SYSTEM LOGIC SUMMARY", expanded=False):
+    # ============================================================================
+    # MARKET VALUE ANALYSIS
+    # ============================================================================
+    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">📈 MARKET VALUE ANALYSIS</div>', unsafe_allow_html=True)
+    
+    # Calculate probabilities for all markets
+    btts_yes_prob = calculate_btts_probability(data['home_btts'], data['away_btts'], 
+                                               aligned_70=(data['home_btts'] >= 70 and data['away_btts'] >= 70))
+    btts_no_prob = 1 - btts_yes_prob
+    
+    over_prob = over_under_prob if expected_goals > 2.5 else 1 - over_under_prob
+    under_prob = 1 - over_prob
+    
+    # Calculate value for all markets
+    markets = [
+        ("BTTS Yes", data['odds']['btts_yes'], btts_yes_prob),
+        ("BTTS No", data['odds']['btts_no'], btts_no_prob),
+        ("Over 2.5", data['odds']['over'], over_prob),
+        ("Under 2.5", data['odds']['under'], under_prob)
+    ]
+    
+    for market_name, odds, true_prob in markets:
+        implied_prob = 1 / odds
+        value = (true_prob * odds) - 1
+        value_data = calculate_value_and_stake(true_prob, odds)
+        
         st.markdown(f"""
-        ### 🎯 SYSTEM DECISION PATH
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <div style="font-weight: 600; font-size: 1.1rem; color: #1F2937;">{market_name}</div>
+                <div style="font-size: 1.2rem; font-weight: 700; color: #1F2937;">{odds:.2f}</div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                <div>
+                    <div style="font-size: 0.9rem; color: #6B7280;">Implied Probability</div>
+                    <div style="font-weight: 600; color: #4B5563;">{implied_prob:.1%}</div>
+                </div>
+                <div>
+                    <div style="font-size: 0.9rem; color: #6B7280;">True Probability</div>
+                    <div style="font-weight: 600; color: #4B5563;">{true_prob:.1%}</div>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #E2E8F0;">
+                <div>
+                    <div style="font-size: 0.9rem; color: #6B7280;">Value Edge</div>
+                    <div style="font-weight: 700; color: {'#10B981' if value >= 0.15 else '#F59E0B' if value >= 0.05 else '#EF4444'}">
+                        {value:+.1%}
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 0.9rem; color: #6B7280;">Action</div>
+                    <div style="font-weight: 700; color: #1F2937;">{value_data['action']}</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # ============================================================================
+    # SYSTEM SUMMARY
+    # ============================================================================
+    with st.expander("📋 COMPLETE SYSTEM LOGIC SUMMARY", expanded=True):
+        st.markdown(f"""
+        ### 🎯 THE WINNING FORMULA (EXACT IMPLEMENTATION)
         
-        **1. Checked for aligned ≥70% trends:**
-        - {data['home_team']}: {data['home_btts']}% BTTS {'✓ ≥70%' if data['home_btts'] >= 70 else '✗ <70%'}
-        - {data['away_team']}: {data['away_btts']}% BTTS {'✓ ≥70%' if data['away_btts'] >= 70 else '✗ <70%'}
-        - {data['home_team']}: {data['home_over']}% Over 2.5 {'✓ ≥70%' if data['home_over'] >= 70 else '✗ <70%'}
-        - {data['away_team']}: {data['away_over']}% Over 2.5 {'✓ ≥70%' if data['away_over'] >= 70 else '✗ <70%'}
-        - {data['home_team']}: {data['home_under']}% Under 2.5 {'✓ ≥70%' if data['home_under'] >= 70 else '✗ <70%'}
-        - {data['away_team']}: {data['away_under']}% Under 2.5 {'✓ ≥70%' if data['away_under'] >= 70 else '✗ <70%'}
+        **STEP 1: Check for aligned ≥70% trends:**
+        - Home BTTS: {data['home_btts']}% {'✓ ≥70%' if data['home_btts'] >= 70 else '✗ <70%'}
+        - Away BTTS: {data['away_btts']}% {'✓ ≥70%' if data['away_btts'] >= 70 else '✗ <70%'}
+        - Home Over: {data['home_over']}% {'✓ ≥70%' if data['home_over'] >= 70 else '✗ <70%'}
+        - Away Over: {data['away_over']}% {'✓ ≥70%' if data['away_over'] >= 70 else '✗ <70%'}
+        - Home Under: {data['home_under']}% {'✓ ≥70%' if data['home_under'] >= 70 else '✗ <70%'}
+        - Away Under: {data['away_under']}% {'✓ ≥70%' if data['away_under'] >= 70 else '✗ <70%'}
+        - **Result:** {'ALIGNED TREND FOUND' if aligned_trends else 'No aligned trends'}
         
-        **2. Calculated Expected Goals:**
-        - Formula: [({data['home_gf']:.2f} + {data['away_ga']:.2f}) + ({data['away_gf']:.2f} + {data['home_ga']:.2f})] ÷ 2
-        - Result: **{expected_goals:.2f}** expected goals
+        **STEP 2 & 3: Expected Goals Calculation:**
+        - Baseline: [({data['home_gf']:.2f} + {data['away_ga']:.2f}) + ({data['away_gf']:.2f} + {data['home_ga']:.2f})] ÷ 2 = {baseline_goals:.2f}
+        - Adjustments Applied: {len(context_adjustments['notes'])} context adjustments
+        - **Final Expected Goals:** {expected_goals:.2f}
         
-        **3. Generated secondary option:**
-        - Primary: {primary_bet if primary_bet else 'None'}
-        - Secondary: {secondary['bet'] if secondary else 'None'}  # FIX: secondary is now always defined
+        **STEP 4: Probability Calculations:**
+        - Over 2.5 Probability: {over_under_prob:.1%} (Formula: 50% + (({abs(expected_goals-2.5):.2f}) × 40%))
+        - BTTS Yes Probability: {btts_yes_prob:.1%} (Formula: ({data['home_btts']}% + {data['away_btts']}%) ÷ 2)
         
-        **4. Value calculation applied**
+        **STEP 5: Value & Betting Decisions:**
+        - Primary Bet: {primary_bet if primary_bet else 'None'}
+        - Secondary Bet: {secondary['bet'] if 'secondary' in locals() and secondary else 'None'}
+        - **CORE PRINCIPLE:** Bet only if value ≥15%
+        
+        **💎 PROVEN PATTERNS APPLIED:**
+        1. {'✓ Double 70% Pattern' if aligned_trends else '✗'}
+        2. {'✓ Defensive Specialist' if data['away_under'] >= 70 and data['away_gf'] <= 1.0 else '✗'}
+        3. {'✓ Home Bounce-Back' if data['context_flags']['big_club_home'] and data['home_gf'] < 1.5 else '✗'}
+        4. {'✓ Relegation Desperation' if data['context_flags']['relegation_home'] or data['context_flags']['relegation_away'] else '✗'}
         """)
     
     # Footer
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; color: #6B7280; font-size: 0.9rem;">
-        <div><strong>🎯 COMPLETE SYSTEM:</strong> All 10 original inputs preserved</div>
-        <div style="margin-top: 0.5rem;">Mobile-optimized display with clear contrast</div>
+        <div><strong>🏆 COMPLETE CONCRETE SYSTEM:</strong> Exact logic implementation</div>
+        <div style="margin-top: 0.5rem;">Follow the system • Record results • Profit consistently</div>
     </div>
     """, unsafe_allow_html=True)
 
