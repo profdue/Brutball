@@ -263,9 +263,9 @@ def main():
                 'away_gf': away_gf,
                 'away_ga': away_ga,
                 'odds': {
-                    'btts': odds_btts,
-                    'over': odds_over,
-                    'under': odds_under
+                    'btts_yes': odds_btts,
+                    'over_25': odds_over,
+                    'under_25': odds_under
                 }
             }
             st.rerun()
@@ -305,13 +305,13 @@ def main():
     if aligned_trends:
         primary_trend = aligned_trends[0]
         
-        # Get odds for this bet
+        # Get odds for this bet - FIXED KEY NAMES
         if primary_trend['type'] == 'Over 2.5':
-            odds = data['odds']['over']
+            odds = data['odds']['over_25']
         elif primary_trend['type'] == 'Under 2.5':
-            odds = data['odds']['under']
+            odds = data['odds']['under_25']
         else:
-            odds = data['odds']['btts']
+            odds = data['odds']['btts_yes']
         
         value_data = calculate_value_and_action(primary_trend['probability'], odds)
         
@@ -356,13 +356,13 @@ def main():
         )
         
         if secondary:
-            # Determine odds for secondary bet
+            # Determine odds for secondary bet - FIXED KEY NAMES
             if secondary['bet'] == 'BTTS Yes':
-                sec_odds = data['odds']['btts']
+                sec_odds = data['odds']['btts_yes']
             elif secondary['bet'] == 'Over 2.5':
-                sec_odds = data['odds']['over']
+                sec_odds = data['odds']['over_25']
             elif secondary['bet'] == 'Under 2.5':
-                sec_odds = data['odds']['under']
+                sec_odds = data['odds']['under_25']
             else:
                 sec_odds = 2.50  # Default for other markets
             
@@ -401,7 +401,9 @@ def main():
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("""
+        interpretation = "High-scoring match expected" if expected_goals > 2.7 else "Moderate scoring expected" if expected_goals > 2.3 else "Low-scoring match expected"
+        
+        st.markdown(f"""
         <div class="card">
             <h4>⚽ Expected Goals Analysis</h4>
             <div style="color: #718096; margin: 0.5rem 0;">
@@ -409,18 +411,13 @@ def main():
                 (Home GF + Away GA) + (Away GF + Home GA) ÷ 2
             </div>
             <div style="font-size: 1.5rem; font-weight: 700; color: #2D3748; margin: 1rem 0;">
-                {:.2f} expected goals
+                {expected_goals:.2f} expected goals
             </div>
             <div style="color: #718096;">
-                <strong>Interpretation:</strong> {}
+                <strong>Interpretation:</strong> {interpretation}
             </div>
         </div>
-        """.format(
-            expected_goals,
-            "High-scoring match expected" if expected_goals > 2.7 else 
-            "Moderate scoring expected" if expected_goals > 2.3 else 
-            "Low-scoring match expected"
-        ), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     
     with col2:
         # Calculate trend strength
@@ -461,9 +458,17 @@ def main():
         </div>
         """, unsafe_allow_html=True)
     
-    # Betting Strategy
+    # Betting Strategy - FIXED FORMATTING ISSUES
     with st.expander("🎯 BETTING STRATEGY EXPLAINED", expanded=True):
-        if primary_bet:
+        if primary_bet and 'primary_trend' in locals():
+            # Get secondary probability with proper formatting
+            if secondary:
+                sec_prob_text = f"{secondary['probability']:.0%}"
+                sec_bet_text = secondary['bet']
+            else:
+                sec_prob_text = "N/A"
+                sec_bet_text = "None"
+            
             st.markdown(f"""
             ### Recommended Approach
             
@@ -472,15 +477,15 @@ def main():
             - Historical data shows consistent pattern
             - Probability: {primary_trend['probability']:.0%}
             
-            **Secondary Option: {secondary['bet'] if secondary else 'None'}**
+            **Secondary Option: {sec_bet_text}**
             - Complementary to primary bet
             - Based on expected goals and team statistics
-            - Probability: {secondary['probability']:.0% if secondary else 'N/A'}
+            - Probability: {sec_prob_text}
             
             **Bankroll Management:**
             - Primary bet: {value_data['stake']:.1f}% of bankroll
             - Secondary bet: {sec_value['stake']:.1f if secondary else 0:.1f}% of bankroll
-            - Total exposure: {(value_data['stake'] + (sec_value['stake'] if secondary else 0)):.1f}%
+            - Total exposure: {value_data['stake'] + (sec_value['stake'] if secondary else 0):.1f}%
             
             **Key Insight:**
             {primary_trend['reason']}
