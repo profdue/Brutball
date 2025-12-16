@@ -262,24 +262,46 @@ def calculate_value_and_stake(probability, odds):
         'reason': f"{value:+.1%} value edge"
     }
 
-def get_secondary_bet(expected_goals):
-    """🥈 Secondary Bet (Over/Under 2.5) - EXACT LOGIC"""
-    if expected_goals > 2.7:
+def get_secondary_bet(primary_bet, expected_goals):
+    """🥈 Secondary Bet - EXACT LOGIC"""
+    # If primary is BTTS, secondary is Over/Under based on expected goals
+    if primary_bet == 'BTTS Yes':
+        if expected_goals > 2.7:
+            return {
+                'bet': 'Over 2.5',
+                'min_odds': 1.70,
+                'reason': f"BTTS Primary + Expected Goals {expected_goals:.2f} > 2.7",
+                'category': 'SECONDARY'
+            }
+        elif expected_goals < 2.3:
+            return {
+                'bet': 'Under 2.5',
+                'min_odds': 1.80,
+                'reason': f"BTTS Primary + Expected Goals {expected_goals:.2f} < 2.3",
+                'category': 'SECONDARY'
+            }
+        else:
+            return None
+    
+    # If primary is Over 2.5, secondary is BTTS Yes (high-scoring matches often feature both teams scoring)
+    elif primary_bet == 'Over 2.5':
         return {
-            'bet': 'Over 2.5',
+            'bet': 'BTTS Yes',
             'min_odds': 1.70,
-            'reason': f"Expected Goals {expected_goals:.2f} > 2.7",
+            'reason': f"Over 2.5 Primary + High expected goals ({expected_goals:.2f})",
             'category': 'SECONDARY'
         }
-    elif expected_goals < 2.3:
+    
+    # If primary is Under 2.5, secondary is BTTS No (low-scoring matches often mean clean sheets)
+    elif primary_bet == 'Under 2.5':
         return {
-            'bet': 'Under 2.5',
-            'min_odds': 1.80,
-            'reason': f"Expected Goals {expected_goals:.2f} < 2.3",
+            'bet': 'BTTS No',
+            'min_odds': 1.70,
+            'reason': f"Under 2.5 Primary + Low expected goals ({expected_goals:.2f})",
             'category': 'SECONDARY'
         }
-    else:
-        return None
+    
+    return None
 
 def get_tertiary_bets(expected_goals, btts_probability, home_team, away_team):
     """🥉 Tertiary Bets (Correct Scores) - EXACT LOGIC"""
@@ -421,6 +443,8 @@ def main():
     )
     
     primary_bet = None
+    primary_trend = None
+    
     if aligned_trends:
         primary_trend = aligned_trends[0]
         primary_bet = primary_trend['type']
@@ -542,7 +566,8 @@ def main():
     with col2:
         # Calculate probabilities
         over_under_prob = calculate_over_under_probability(expected_goals)
-        btts_prob = calculate_btts_probability(data['home_btts'], data['away_btts'], aligned_70=False)
+        btts_prob = calculate_btts_probability(data['home_btts'], data['away_btts'], 
+                                              aligned_70=(data['home_btts'] >= 70 and data['away_btts'] >= 70))
         
         st.markdown(f"""
         <div class="card">
@@ -556,7 +581,7 @@ def main():
             </div>
             <div style="color: #4B5563; margin: 0.5rem 0;">
                 <strong style="color: #374151;">BTTS Probability Formula:</strong><br>
-                (Home {data['home_btts']}% + Away {data['away_btts']}%) ÷ 2
+                {'75% fixed for aligned ≥70% trends' if (data['home_btts'] >= 70 and data['away_btts'] >= 70) else f'(Home {data["home_btts"]}% + Away {data["away_btts"]}%) ÷ 2'}
             </div>
             <div style="color: #4B5563; margin: 0.5rem 0;">
                 <strong style="color: #374151;">BTTS Yes Probability:</strong> {btts_prob:.1%}
@@ -575,13 +600,20 @@ def main():
     # ============================================================================
     st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">💰 STEP 5: VALUE CALCULATION & BETS</div>', unsafe_allow_html=True)
     
-    if not primary_bet:
-        # Get secondary bet based on expected goals
-        secondary = get_secondary_bet(expected_goals)
+    secondary = None
+    if primary_bet:
+        # Get secondary bet based on primary and expected goals
+        secondary = get_secondary_bet(primary_bet, expected_goals)
         
         if secondary:
-            # Get odds for secondary bet
-            if secondary['bet'] == 'Over 2.5':
+            # Get odds and probability for secondary bet
+            if secondary['bet'] == 'BTTS Yes':
+                sec_odds = data['odds']['btts_yes']
+                sec_prob = btts_prob
+            elif secondary['bet'] == 'BTTS No':
+                sec_odds = data['odds']['btts_no']
+                sec_prob = 1 - btts_prob
+            elif secondary['bet'] == 'Over 2.5':
                 sec_odds = data['odds']['over']
                 sec_prob = over_under_prob
             else:  # Under 2.5
@@ -628,7 +660,67 @@ def main():
             if sec_odds < secondary['min_odds']:
                 st.warning(f"⚠️ Market odds ({sec_odds:.2f}) below minimum required ({secondary['min_odds']:.2f}) - Consider avoiding")
         else:
-            st.info("No secondary bet recommended (expected goals between 2.3-2.7)")
+            st.info("No secondary bet recommended for this configuration")
+    else:
+        # No primary bet - get secondary based on expected goals alone
+        if expected_goals > 2.7:
+            secondary = {
+                'bet': 'Over 2.5',
+                'min_odds': 1.70,
+                'reason': f"Expected Goals {expected_goals:.2f} > 2.7",
+                'category': 'SECONDARY'
+            }
+        elif expected_goals < 2.3:
+            secondary = {
+                'bet': 'Under 2.5',
+                'min_odds': 1.80,
+                'reason': f"Expected Goals {expected_goals:.2f} < 2.3",
+                'category': 'SECONDARY'
+            }
+        
+        if secondary:
+            # Display as main bet when no primary exists
+            if secondary['bet'] == 'Over 2.5':
+                sec_odds = data['odds']['over']
+                sec_prob = over_under_prob
+            else:  # Under 2.5
+                sec_odds = data['odds']['under']
+                sec_prob = 1 - over_under_prob
+            
+            sec_value = calculate_value_and_stake(sec_prob, sec_odds)
+            
+            st.markdown(f"""
+            <div class="prediction-card secondary-card">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div style="flex: 1;">
+                        <h3 style="margin: 0 0 0.5rem 0; color: #1F2937;">🎯 MAIN BET: {secondary['bet']}</h3>
+                        <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                            <strong style="color: #374151;">System Logic:</strong> {secondary['reason']}
+                        </div>
+                        <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                            <strong style="color: #374151;">True Probability:</strong> {sec_prob:.1%}
+                        </div>
+                        <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                            <strong style="color: #374151;">Minimum Odds Required:</strong> {secondary['min_odds']:.2f}
+                        </div>
+                        <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                            <strong style="color: #374151;">Market Odds:</strong> {sec_odds:.2f}
+                        </div>
+                        <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                            <strong style="color: #374151;">Value Edge:</strong> {sec_value['value']:+.1%}
+                        </div>
+                        <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                            <strong style="color: #374151;">Decision:</strong> {sec_value['action']} - {sec_value['category']}
+                        </div>
+                        <div style="color: #4B5563;">
+                            <strong style="color: #374151;">Stake:</strong> {sec_value['stake']:.1f}% of bankroll
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.info("No betting recommendation (expected goals between 2.3-2.7)")
     
     # ============================================================================
     # TERTIARY BETS
@@ -637,7 +729,7 @@ def main():
     
     tertiary_scores = get_tertiary_bets(
         expected_goals,
-        calculate_btts_probability(data['home_btts'], data['away_btts'], aligned_70=False),
+        btts_prob,
         data['home_team'],
         data['away_team']
     )
@@ -653,9 +745,9 @@ def main():
             """, unsafe_allow_html=True)
     
     # ============================================================================
-    # ALTERNATIVE BET ANALYSIS (CLEAN VERSION - NO CSS GRIDS)
+    # ALTERNATIVE VALUE ANALYSIS (EXCLUDING PRIMARY BETS)
     # ============================================================================
-    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">🔄 ALTERNATIVE BET ANALYSIS</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">📊 ALTERNATIVE VALUE ANALYSIS</div>', unsafe_allow_html=True)
     
     # Calculate probabilities for all markets
     btts_yes_prob = calculate_btts_probability(data['home_btts'], data['away_btts'], 
@@ -665,64 +757,71 @@ def main():
     over_prob = over_under_prob if expected_goals > 2.5 else 1 - over_under_prob
     under_prob = 1 - over_prob
     
-    # Calculate value for all markets
-    markets = [
+    # Create list of all markets EXCLUDING the primary bet
+    all_markets = [
         ("BTTS Yes", data['odds']['btts_yes'], btts_yes_prob),
         ("BTTS No", data['odds']['btts_no'], btts_no_prob),
         ("Over 2.5", data['odds']['over'], over_prob),
         ("Under 2.5", data['odds']['under'], under_prob)
     ]
     
-    for market_name, odds, true_prob in markets:
-        value = (true_prob * odds) - 1
-        value_data = calculate_value_and_stake(true_prob, odds)
-        
-        # Determine which bet is being analyzed
-        analysis_text = ""
-        if market_name == 'BTTS Yes' and data['home_btts'] >= 70 and data['away_btts'] >= 70:
-            analysis_text = "✓ ALIGNED ≥70% TREND - Primary bet according to system"
-        elif market_name == 'Over 2.5' and data['home_over'] >= 70 and data['away_over'] >= 70:
-            analysis_text = "✓ ALIGNED ≥70% TREND - Primary bet according to system"
-        elif market_name == 'Under 2.5' and data['home_under'] >= 70 and data['away_under'] >= 70:
-            analysis_text = "✓ ALIGNED ≥70% TREND - Primary bet according to system"
-        elif market_name in ['Over 2.5', 'Under 2.5'] and expected_goals > 2.7 and market_name == 'Over 2.5':
-            analysis_text = f"✓ Based on Expected Goals ({expected_goals:.2f} > 2.7)"
-        elif market_name in ['Over 2.5', 'Under 2.5'] and expected_goals < 2.3 and market_name == 'Under 2.5':
-            analysis_text = f"✓ Based on Expected Goals ({expected_goals:.2f} < 2.3)"
-        else:
-            analysis_text = "✗ Not recommended by system logic"
-        
-        # Color based on value
-        value_color = "#10B981" if value >= 0.15 else "#F59E0B" if value >= 0.05 else "#EF4444"
-        
-        st.markdown(f"""
-        <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
-                <div>
-                    <h4 style="margin: 0 0 0.5rem 0; color: #1F2937;">{market_name}</h4>
-                    <div style="color: #6B7280; font-size: 0.9rem;">
-                        {analysis_text}
+    # Filter out the primary bet
+    alternative_markets = [market for market in all_markets if market[0] != primary_bet]
+    
+    # Also filter out the secondary bet if it exists (to avoid duplication)
+    if secondary:
+        alternative_markets = [market for market in alternative_markets if market[0] != secondary['bet']]
+    
+    if alternative_markets:
+        for market_name, odds, true_prob in alternative_markets:
+            value = (true_prob * odds) - 1
+            value_data = calculate_value_and_stake(true_prob, odds)
+            
+            # Determine analysis text
+            if market_name == 'BTTS Yes' and data['home_btts'] >= 70 and data['away_btts'] >= 70:
+                analysis_text = "✓ ALIGNED ≥70% TREND (Already primary bet)"
+            elif market_name == 'Over 2.5' and data['home_over'] >= 70 and data['away_over'] >= 70:
+                analysis_text = "✓ ALIGNED ≥70% TREND (Already primary bet)"
+            elif market_name == 'Under 2.5' and data['home_under'] >= 70 and data['away_under'] >= 70:
+                analysis_text = "✓ ALIGNED ≥70% TREND (Already primary bet)"
+            elif market_name == secondary['bet'] if secondary else False:
+                analysis_text = "✓ Secondary bet recommendation"
+            else:
+                analysis_text = "Alternative market analysis"
+            
+            # Color based on value
+            value_color = "#10B981" if value >= 0.15 else "#F59E0B" if value >= 0.05 else "#EF4444"
+            
+            st.markdown(f"""
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                    <div>
+                        <h4 style="margin: 0 0 0.5rem 0; color: #1F2937;">{market_name}</h4>
+                        <div style="color: #6B7280; font-size: 0.9rem;">
+                            {analysis_text}
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 1.2rem; font-weight: 700; color: #1F2937;">{odds:.2f}</div>
+                        <div style="font-size: 0.9rem; color: #6B7280;">Market Odds</div>
                     </div>
                 </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 1.2rem; font-weight: 700; color: #1F2937;">{odds:.2f}</div>
-                    <div style="font-size: 0.9rem; color: #6B7280;">Market Odds</div>
+                
+                <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                    <strong style="color: #374151;">System Probability:</strong> {true_prob:.1%}
                 </div>
+                <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                    <strong style="color: #374151;">Value Edge:</strong> 
+                    <span style="color: {value_color}; font-weight: 700;">{value:+.1%}</span>
+                </div>
+                <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                    <strong style="color: #374151;">Action:</strong> {value_data['action']}
+                </div>
+                {f'<div style="color: #4B5563;"><strong style="color: #374151;">Stake:</strong> {value_data["stake"]:.1f}% of bankroll</div>' if value_data['stake'] > 0 else ''}
             </div>
-            
-            <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                <strong style="color: #374151;">System Probability:</strong> {true_prob:.1%}
-            </div>
-            <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                <strong style="color: #374151;">Value Edge:</strong> 
-                <span style="color: {value_color}; font-weight: 700;">{value:+.1%}</span>
-            </div>
-            <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                <strong style="color: #374151;">Action:</strong> {value_data['action']}
-            </div>
-            {f'<div style="color: #4B5563;"><strong style="color: #374151;">Stake:</strong> {value_data["stake"]:.1f}% of bankroll</div>' if value_data['stake'] > 0 else ''}
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
+    else:
+        st.info("No alternative markets to analyze (primary bet covers all recommended options)")
     
     # ============================================================================
     # SYSTEM SUMMARY
@@ -747,11 +846,11 @@ def main():
         
         **STEP 4: Probability Calculations:**
         - Over 2.5 Probability: {over_under_prob:.1%} (Formula: 50% + (({abs(expected_goals-2.5):.2f}) × 40%))
-        - BTTS Yes Probability: {btts_yes_prob:.1%} (Formula: ({data['home_btts']}% + {data['away_btts']}%) ÷ 2)
+        - BTTS Yes Probability: {btts_yes_prob:.1%} {f'(75% fixed for aligned ≥70% trends)' if (data['home_btts'] >= 70 and data['away_btts'] >= 70) else f'(Formula: ({data["home_btts"]}% + {data["away_btts"]}%) ÷ 2)'}
         
         **STEP 5: Value & Betting Decisions:**
         - Primary Bet: {primary_bet if primary_bet else 'None'}
-        - Secondary Bet: {secondary['bet'] if 'secondary' in locals() and secondary else 'None'}
+        - Secondary Bet: {secondary['bet'] if secondary else 'None'}
         - **CORE PRINCIPLE:** Bet only if value ≥15%
         
         **💎 PROVEN PATTERNS APPLIED:**
