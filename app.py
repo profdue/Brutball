@@ -1,16 +1,14 @@
 """
-ULTIMATE BETTING ANALYTICS DASHBOARD
-Professional Data-Driven Interface
+BETTING ANALYTICS PRO - FIXED VERSION
+Professional Football Match Analysis Dashboard
 """
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import plotly.express as px
-from datetime import datetime, timedelta
-from typing import Dict, List, Tuple
-import json
+from datetime import datetime
+import math
 
 # Page config
 st.set_page_config(
@@ -20,27 +18,26 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# CSS for ultimate professional styling
+# Custom CSS - Clean and professional
 st.markdown("""
 <style>
-    /* CSS Reset and Base */
+    /* Reset and base styles */
     .main {
-        padding: 0 2rem;
+        padding: 2rem;
     }
     
-    /* Professional Headers */
-    .dashboard-header {
+    /* Professional headers */
+    .dashboard-title {
         font-size: 2.8rem;
         font-weight: 800;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        margin: 0;
-        line-height: 1.2;
+        margin-bottom: 0.5rem;
     }
     
-    .section-header {
-        font-size: 1.4rem;
+    .section-title {
+        font-size: 1.5rem;
         font-weight: 700;
         color: #2D3748;
         margin: 2rem 0 1rem 0;
@@ -48,108 +45,44 @@ st.markdown("""
         border-bottom: 2px solid #E2E8F0;
     }
     
-    .subsection-header {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: #4A5568;
-        margin: 1.5rem 0 0.8rem 0;
-    }
-    
-    /* Cards - Modern Design */
+    /* Cards */
     .data-card {
         background: white;
-        border-radius: 16px;
+        border-radius: 12px;
         padding: 1.5rem;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-        border: 1px solid #EDF2F7;
-        margin-bottom: 1.5rem;
-        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border: 1px solid #E2E8F0;
+        margin-bottom: 1rem;
     }
     
-    .data-card:hover {
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-        transform: translateY(-2px);
+    .team-card {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid #E2E8F0;
+        margin-bottom: 1rem;
     }
     
     .prediction-card {
-        background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
-        border-radius: 16px;
+        background: white;
+        border-radius: 12px;
         padding: 1.5rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         border-left: 4px solid;
         margin-bottom: 1rem;
     }
     
     .prediction-high {
         border-left-color: #10B981;
-        background: linear-gradient(135deg, #10B98110 0%, #05966910 100%);
+        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
     }
     
     .prediction-medium {
         border-left-color: #F59E0B;
-        background: linear-gradient(135deg, #F59E0B10 0%, #D9770610 100%);
+        background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
     }
     
-    .prediction-low {
-        border-left-color: #6B7280;
-        background: linear-gradient(135deg, #6B728010 0%, #4B556310 100%);
-    }
-    
-    /* Metrics Display */
-    .metric-container {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-    }
-    
-    .metric-value {
-        font-size: 2.5rem;
-        font-weight: 800;
-        color: #2D3748;
-        line-height: 1;
-    }
-    
-    .metric-label {
-        font-size: 0.9rem;
-        color: #718096;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    
-    /* Badges */
-    .badge {
-        display: inline-flex;
-        align-items: center;
-        padding: 0.35rem 0.9rem;
-        border-radius: 20px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        margin-right: 0.5rem;
-        margin-bottom: 0.5rem;
-    }
-    
-    .badge-trend-high {
-        background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-        color: white;
-    }
-    
-    .badge-trend-medium {
-        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
-        color: white;
-    }
-    
-    .badge-trend-low {
-        background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%);
-        color: white;
-    }
-    
-    .badge-value {
-        background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%);
-        color: white;
-        font-size: 0.9rem;
-        padding: 0.5rem 1rem;
-    }
-    
-    /* Progress Bars */
+    /* Progress bars */
     .progress-container {
         background: #E2E8F0;
         border-radius: 10px;
@@ -161,701 +94,539 @@ st.markdown("""
     .progress-bar {
         height: 100%;
         border-radius: 10px;
-        transition: width 0.3s ease;
     }
     
     .progress-high { background: linear-gradient(90deg, #10B981, #059669); }
     .progress-medium { background: linear-gradient(90deg, #F59E0B, #D97706); }
-    .progress-low { background: linear-gradient(90deg, #6B7280, #4B5563); }
+    .progress-low { background: linear-gradient(90deg, #EF4444, #DC2626); }
     
-    /* Buttons */
-    .stButton > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    /* Badges */
+    .badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
         color: white;
-        border: none;
-        padding: 0.75rem 2rem;
-        border-radius: 10px;
-        font-weight: 600;
-        font-size: 0.95rem;
-        transition: all 0.3s ease;
-        width: 100%;
     }
     
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
-    }
-    
-    /* Tables */
-    .data-table {
-        width: 100%;
-        border-collapse: separate;
-        border-spacing: 0;
-        margin: 1rem 0;
-    }
-    
-    .data-table th {
-        background: #F7FAFC;
-        padding: 0.75rem 1rem;
-        text-align: left;
-        font-weight: 600;
-        color: #2D3748;
-        border-bottom: 2px solid #E2E8F0;
-    }
-    
-    .data-table td {
-        padding: 0.75rem 1rem;
-        border-bottom: 1px solid #E2E8F0;
-    }
-    
-    .data-table tr:hover {
-        background: #F7FAFC;
-    }
-    
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-    }
-    
-    ::-webkit-scrollbar-track {
-        background: #F1F5F9;
-        border-radius: 3px;
-    }
-    
-    ::-webkit-scrollbar-thumb {
-        background: #CBD5E0;
-        border-radius: 3px;
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-        background: #A0AEC0;
-    }
+    .badge-high { background: linear-gradient(135deg, #10B981 0%, #059669 100%); }
+    .badge-medium { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); }
+    .badge-low { background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%); }
     
     /* Hide Streamlit elements */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    .stDeployButton {display:none;}
-    
-    /* Grid Layout */
-    .grid-container {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 1.5rem;
-        margin: 1rem 0;
-    }
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state
-if 'analysis_data' not in st.session_state:
-    st.session_state.analysis_data = {
-        'match_info': {
-            'home_team': 'Roma',
-            'away_team': 'Como',
-            'league': 'Serie A',
-            'date': datetime.now()
-        },
-        'home_stats': {
-            'btts_pct': 30, 'over_pct': 20, 'under_pct': 70,
-            'gf_avg': 1.0, 'ga_avg': 0.8,
-            'is_big_club': True
-        },
-        'away_stats': {
-            'btts_pct': 40, 'over_pct': 35, 'under_pct': 60,
-            'gf_avg': 1.3, 'ga_avg': 0.9
-        },
-        'market_odds': {
-            'btts_yes': 1.80, 'over_25': 2.20, 'under_25': 1.58
-        },
-        'context': {
-            'big_club_home': True,
-            'relegation': False,
-            'title_chase': False
-        }
+# Initialize session state for form
+if 'match_data' not in st.session_state:
+    st.session_state.match_data = {
+        'home_team': 'Roma',
+        'away_team': 'Como',
+        'home_btts': 30,
+        'home_over': 20,
+        'home_under': 70,
+        'home_gf': 1.0,
+        'home_ga': 0.8,
+        'away_btts': 40,
+        'away_over': 35,
+        'away_under': 60,
+        'away_gf': 1.3,
+        'away_ga': 0.9,
+        'big_club_home': True,
+        'odds_btts': 1.80,
+        'odds_over': 2.20,
+        'odds_under': 1.58
     }
 
-class BettingAnalyzer:
-    """Professional betting analysis engine"""
+def calculate_expected_goals():
+    """Calculate expected goals with adjustments"""
+    data = st.session_state.match_data
     
-    def __init__(self):
-        self.data = st.session_state.analysis_data
-        
-    def calculate_expected_goals(self) -> Tuple[float, float, str]:
-        """Calculate expected goals with adjustments"""
-        home = self.data['home_stats']
-        away = self.data['away_stats']
-        context = self.data['context']
-        
-        # Baseline calculation
-        baseline = ((home['gf_avg'] + away['ga_avg']) + (away['gf_avg'] + home['ga_avg'])) / 2
-        
-        # Trend adjustments
-        adjustments = []
-        adjusted = baseline
-        
-        # Home trend adjustments
-        if home['under_pct'] >= 70:
+    # Baseline calculation
+    baseline = ((data['home_gf'] + data['away_ga']) + (data['away_gf'] + data['home_ga'])) / 2
+    
+    # Adjust for single trends
+    adjusted = baseline
+    
+    adjustments = []
+    
+    # Home team adjustments
+    if data['home_under'] >= 70:
+        adjusted *= 0.85  # -15% for strong under trend
+        adjustments.append(f"Roma has {data['home_under']}% Under trend at home (-15%)")
+    
+    # Away team adjustments (with context)
+    if data['away_under'] >= 70:
+        if data['big_club_home']:
+            adjustments.append(f"Como's trend discounted (facing big club)")
+        else:
             adjusted *= 0.85
-            adjustments.append(f"Home Under trend: -15%")
-        elif home['over_pct'] >= 70:
-            adjusted *= 1.15
-            adjustments.append(f"Home Over trend: +15%")
-        
-        # Away trend adjustments (with context)
-        if away['under_pct'] >= 70:
-            if context['big_club_home']:
-                adjustments.append(f"Away Under trend discounted (big club home)")
-            else:
-                adjusted *= 0.85
-                adjustments.append(f"Away Under trend: -15%")
-        
-        # Context adjustments
-        if context['big_club_home']:
-            adjusted -= 0.1
-            adjustments.append("Big club at home: -0.1 goals")
-        
-        return baseline, adjusted, " | ".join(adjustments) if adjustments else "No adjustments"
+            adjustments.append(f"Como has {data['away_under']}% Under trend away (-15%)")
     
-    def calculate_probabilities(self, expected_goals: float) -> Dict[str, float]:
-        """Calculate probabilities for different markets"""
-        probs = {}
-        
-        # Over/Under probabilities
-        if expected_goals < 2.0:
-            probs['under_25'] = 0.80
-            probs['over_25'] = 0.20
-        elif expected_goals < 2.3:
-            probs['under_25'] = 0.70
-            probs['over_25'] = 0.30
-        elif expected_goals < 2.7:
-            probs['under_25'] = 0.55
-            probs['over_25'] = 0.45
-        else:
-            probs['under_25'] = 0.30
-            probs['over_25'] = 0.70
-        
-        # BTTS probability
-        home_attack = self.data['home_stats']['gf_avg'] / self.data['away_stats']['ga_avg']
-        away_attack = self.data['away_stats']['gf_avg'] / self.data['home_stats']['ga_avg']
-        btts_raw = (home_attack * away_attack) * 0.7
-        probs['btts_yes'] = max(0.05, min(0.95, btts_raw))
-        
-        return probs
+    if data['big_club_home']:
+        adjusted -= 0.1
+        adjustments.append("Big club at home (-0.1 goals)")
     
-    def calculate_value(self, probability: float, odds: float) -> Dict:
-        """Calculate value metrics"""
-        implied_prob = 1 / odds
-        value = (probability * odds) - 1
-        expected_value = probability * (odds - 1) - (1 - probability)
-        
-        # Determine value category
-        if value >= 0.25:
-            category = "High Value"
-            color = "#10B981"
-            action = "STRONG BET"
-            stake_pct = 2.5
-        elif value >= 0.15:
-            category = "Good Value"
-            color = "#3B82F6"
-            action = "BET"
-            stake_pct = 1.5
-        elif value >= 0.05:
-            category = "Low Value"
-            color = "#F59E0B"
-            action = "CONSIDER"
-            stake_pct = 0.5
-        else:
-            category = "No Value"
-            color = "#6B7280"
-            action = "AVOID"
-            stake_pct = 0.0
-        
-        return {
-            'value': value,
-            'implied_prob': implied_prob,
-            'expected_value': expected_value,
-            'category': category,
-            'color': color,
-            'action': action,
-            'stake_pct': stake_pct
-        }
-    
-    def get_confidence_level(self, probability: float, expected_goals: float) -> str:
-        """Determine confidence level"""
-        if probability >= 0.75 and abs(expected_goals - 2.5) > 0.5:
-            return "High"
-        elif probability >= 0.65:
-            return "Medium"
-        else:
-            return "Low"
-    
-    def generate_recommendations(self) -> List[Dict]:
-        """Generate betting recommendations"""
-        baseline, expected_goals, adjustments = self.calculate_expected_goals()
-        probabilities = self.calculate_probabilities(expected_goals)
-        market = self.data['market_odds']
-        
-        recommendations = []
-        
-        # Under 2.5 recommendation
-        if expected_goals < 2.5:
-            rec = {
-                'market': 'Under 2.5 Goals',
-                'probability': probabilities['under_25'],
-                'expected_goals': expected_goals,
-                'odds': market['under_25'],
-                'type': 'Main'
-            }
-            value_data = self.calculate_value(rec['probability'], rec['odds'])
-            rec.update(value_data)
-            recommendations.append(rec)
-        
-        # BTTS recommendation
-        if probabilities['btts_yes'] > 0.5:
-            rec = {
-                'market': 'Both Teams to Score',
-                'probability': probabilities['btts_yes'],
-                'expected_goals': expected_goals,
-                'odds': market['btts_yes'],
-                'type': 'Alternative'
-            }
-            value_data = self.calculate_value(rec['probability'], rec['odds'])
-            rec.update(value_data)
-            recommendations.append(rec)
-        
-        # Sort by value
-        recommendations.sort(key=lambda x: x['value'], reverse=True)
-        
-        return recommendations
+    return baseline, adjusted, adjustments
 
-def create_data_input_modal():
-    """Create professional data input modal"""
-    st.markdown("""
-    <div style='position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;'>
-        <div style='background: white; border-radius: 16px; padding: 2rem; width: 90%; max-width: 800px; max-height: 90vh; overflow-y: auto;'>
-            <h2 style='margin-top: 0;'>Enter Match Data</h2>
-            <!-- Form content here -->
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+def calculate_probabilities(expected_goals):
+    """Calculate probabilities for betting markets"""
+    data = st.session_state.match_data
+    
+    # Over/Under probabilities
+    if expected_goals < 1.8:
+        under_prob = 0.80
+        over_prob = 0.20
+    elif expected_goals < 2.2:
+        under_prob = 0.70
+        over_prob = 0.30
+    elif expected_goals < 2.8:
+        under_prob = 0.55
+        over_prob = 0.45
+    else:
+        under_prob = 0.30
+        over_prob = 0.70
+    
+    # BTTS probability
+    btts_prob = min(0.95, max(0.05, (data['home_gf']/data['away_ga'] * data['away_gf']/data['home_ga']) * 0.7))
+    
+    return {
+        'under': under_prob,
+        'over': over_prob,
+        'btts': btts_prob
+    }
 
-def create_team_stat_card(team_name: str, is_home: bool, stats: Dict):
-    """Create professional team statistics card"""
+def calculate_value(probability, odds):
+    """Calculate value metrics"""
+    value = (probability * odds) - 1
+    
+    if value >= 0.25:
+        category = "High Value"
+        action = "STRONG BET"
+        stake = 2.5
+        color = "#10B981"
+    elif value >= 0.15:
+        category = "Good Value"
+        action = "BET"
+        stake = 1.5
+        color = "#3B82F6"
+    elif value >= 0.05:
+        category = "Low Value"
+        action = "CONSIDER"
+        stake = 0.5
+        color = "#F59E0B"
+    else:
+        category = "No Value"
+        action = "AVOID"
+        stake = 0.0
+        color = "#6B7280"
+    
+    return {
+        'value': value,
+        'category': category,
+        'action': action,
+        'stake': stake,
+        'color': color,
+        'implied': 1/odds
+    }
+
+def create_team_card(team_name, is_home, stats):
+    """Create a team statistics card"""
+    with st.container():
+        # Team header
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.markdown(f"### {'🏠' if is_home else '✈️'} {team_name}")
+            st.caption("Last 10 matches analysis")
+        with col2:
+            if is_home and st.session_state.match_data['big_club_home']:
+                st.markdown('<span class="badge badge-high">Big Club</span>', unsafe_allow_html=True)
+        
+        # Two columns for stats
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**Trend Analysis**")
+            
+            # BTTS progress bar
+            st.markdown(f"BTTS: **{stats['btts']}%**")
+            st.markdown(f"""
+            <div class="progress-container">
+                <div class="progress-bar progress-{'high' if stats['btts'] >= 70 else 'medium' if stats['btts'] >= 60 else 'low'}" 
+                     style="width: {stats['btts']}%"></div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Over progress bar
+            st.markdown(f"Over 2.5: **{stats['over']}%**")
+            st.markdown(f"""
+            <div class="progress-container">
+                <div class="progress-bar progress-{'high' if stats['over'] >= 70 else 'medium' if stats['over'] >= 60 else 'low'}" 
+                     style="width: {stats['over']}%"></div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Under progress bar
+            st.markdown(f"Under 2.5: **{stats['under']}%**")
+            st.markdown(f"""
+            <div class="progress-container">
+                <div class="progress-bar progress-{'high' if stats['under'] >= 70 else 'medium' if stats['under'] >= 60 else 'low'}" 
+                     style="width: {stats['under']}%"></div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("**Performance Metrics**")
+            
+            # Create metrics grid
+            cols = st.columns(2)
+            with cols[0]:
+                st.metric("Goals For", f"{stats['gf']:.1f}")
+                st.metric("Net Rating", f"{stats['gf'] - stats['ga']:+.1f}")
+            with cols[1]:
+                st.metric("Goals Against", f"{stats['ga']:.1f}")
+                st.metric("Avg Goals", f"{(stats['gf'] + stats['ga'])/2:.1f}")
+
+def create_prediction_card(market, probability, odds, value_data, market_type="Main"):
+    """Create a prediction card"""
+    card_class = "prediction-high" if value_data['value'] >= 0.15 else "prediction-medium"
+    
     with st.container():
         st.markdown(f"""
-        <div class='data-card'>
-            <div style='display: flex; justify-content: space-between; align-items: start; margin-bottom: 1.5rem;'>
+        <div class="prediction-card {card_class}">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
                 <div>
-                    <h3 style='margin: 0 0 0.5rem 0;'>{'🏠' if is_home else '✈️'} {team_name}</h3>
-                    <div style='color: #718096; font-size: 0.9rem;'>Last 10 matches analysis</div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <h4 style="margin: 0;">{market}</h4>
+                        <span class="badge" style="background: {value_data['color']};">{value_data['category']}</span>
+                    </div>
+                    <div style="color: #718096; font-size: 0.9rem;">{market_type} Recommendation</div>
                 </div>
-                {f"<span class='badge badge-trend-high' style='margin: 0;'>Big Club</span>" if is_home and stats.get('is_big_club') else ""}
-            </div>
-            
-            <div class='grid-container'>
-                <div>
-                    <div class='subsection-header'>Trend Analysis</div>
-                    <div style='margin: 0.5rem 0;'>
-                        <div style='display: flex; justify-content: space-between; margin-bottom: 0.25rem;'>
-                            <span>BTTS</span>
-                            <span style='font-weight: 600;'>{stats['btts_pct']}%</span>
-                        </div>
-                        <div class='progress-container'>
-                            <div class='progress-bar progress-{'high' if stats['btts_pct'] >= 70 else 'medium' if stats['btts_pct'] >= 60 else 'low'}' 
-                                 style='width: {stats["btts_pct"]}%'></div>
-                        </div>
-                    </div>
-                    <div style='margin: 0.5rem 0;'>
-                        <div style='display: flex; justify-content: space-between; margin-bottom: 0.25rem;'>
-                            <span>Over 2.5</span>
-                            <span style='font-weight: 600;'>{stats['over_pct']}%</span>
-                        </div>
-                        <div class='progress-container'>
-                            <div class='progress-bar progress-{'high' if stats['over_pct'] >= 70 else 'medium' if stats['over_pct'] >= 60 else 'low'}' 
-                                 style='width: {stats["over_pct"]}%'></div>
-                        </div>
-                    </div>
-                    <div style='margin: 0.5rem 0;'>
-                        <div style='display: flex; justify-content: space-between; margin-bottom: 0.25rem;'>
-                            <span>Under 2.5</span>
-                            <span style='font-weight: 600;'>{stats['under_pct']}%</span>
-                        </div>
-                        <div class='progress-container'>
-                            <div class='progress-bar progress-{'high' if stats['under_pct'] >= 70 else 'medium' if stats['under_pct'] >= 60 else 'low'}' 
-                                 style='width: {stats["under_pct"]}%'></div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div>
-                    <div class='subsection-header'>Performance Metrics</div>
-                    <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.5rem;'>
-                        <div style='text-align: center;'>
-                            <div class='metric-value'>{stats['gf_avg']:.1f}</div>
-                            <div class='metric-label'>Goals For</div>
-                        </div>
-                        <div style='text-align: center;'>
-                            <div class='metric-value'>{stats['ga_avg']:.1f}</div>
-                            <div class='metric-label'>Goals Against</div>
-                        </div>
-                        <div style='text-align: center;'>
-                            <div class='metric-value'>{stats['gf_avg'] - stats['ga_avg']:+.1f}</div>
-                            <div class='metric-label'>Net Rating</div>
-                        </div>
-                        <div style='text-align: center;'>
-                            <div class='metric-value'>{(stats['gf_avg'] + stats['ga_avg'])/2:.1f}</div>
-                            <div class='metric-label'>Avg Goals</div>
-                        </div>
-                    </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #2D3748;">{probability:.0%}</div>
+                    <div style="font-size: 0.9rem; color: #718096;">Probability</div>
                 </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
-
-def create_prediction_card(recommendation: Dict):
-    """Create professional prediction card"""
-    card_class = "prediction-high" if recommendation['value'] >= 0.15 else "prediction-medium" if recommendation['value'] >= 0.05 else "prediction-low"
-    
-    st.markdown(f"""
-    <div class='prediction-card {card_class}'>
-        <div style='display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;'>
-            <div>
-                <div style='display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;'>
-                    <h4 style='margin: 0;'>{recommendation['market']}</h4>
-                    <span class='badge' style='background: {recommendation['color']};'>{recommendation['category']}</span>
-                </div>
-                <div style='color: #718096; font-size: 0.9rem;'>{recommendation['type']} Recommendation</div>
-            </div>
-            <div style='text-align: right;'>
-                <div style='font-size: 1.5rem; font-weight: 700; color: #2D3748;'>{recommendation['probability']:.0%}</div>
-                <div style='font-size: 0.9rem; color: #718096;'>Probability</div>
-            </div>
-        </div>
         
-        <div style='background: rgba(255,255,255,0.5); padding: 1rem; border-radius: 12px; margin: 1rem 0;'>
-            <div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;'>
-                <div style='text-align: center;'>
-                    <div style='font-size: 1.2rem; font-weight: 700; color: #2D3748;'>{recommendation['odds']:.2f}</div>
-                    <div style='font-size: 0.8rem; color: #718096;'>Market Odds</div>
-                </div>
-                <div style='text-align: center;'>
-                    <div style='font-size: 1.2rem; font-weight: 700; color: #2D3748;'>{recommendation['value']:+.1%}</div>
-                    <div style='font-size: 0.8rem; color: #718096;'>Value Edge</div>
-                </div>
-                <div style='text-align: center;'>
-                    <div style='font-size: 1.2rem; font-weight: 700; color: #2D3748;'>{recommendation['stake_pct']:.1f}%</div>
-                    <div style='font-size: 0.8rem; color: #718096;'>Stake Size</div>
-                </div>
-            </div>
-        </div>
+        # Metrics inside the card using Streamlit
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Market Odds", f"{odds:.2f}")
+        with col2:
+            st.metric("Value Edge", f"{value_data['value']:+.1%}")
+        with col3:
+            st.metric("Stake Size", f"{value_data['stake']:.1f}%")
         
-        <div style='display: flex; justify-content: space-between; align-items: center; padding-top: 1rem; border-top: 1px solid rgba(0,0,0,0.1);'>
-            <div style='font-weight: 600; color: #2D3748;'>{recommendation['action']}</div>
-            <div style='display: flex; gap: 0.5rem;'>
-                <span style='font-size: 0.8rem; color: #718096;'>Expected EV:</span>
-                <span style='font-weight: 600; color: {recommendation['color']};'>{recommendation['expected_value']:+.3f}</span>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-def create_expected_goals_chart(baseline: float, adjusted: float):
-    """Create expected goals visualization"""
-    fig = go.Figure()
-    
-    # Create bar chart
-    fig.add_trace(go.Bar(
-        x=['Baseline', 'Adjusted'],
-        y=[baseline, adjusted],
-        text=[f'{baseline:.2f}', f'{adjusted:.2f}'],
-        textposition='auto',
-        marker_color=['#CBD5E0', '#3B82F6']
-    ))
-    
-    # Add threshold line
-    fig.add_hline(y=2.5, line_dash="dash", line_color="#EF4444", 
-                  annotation_text="2.5 Goal Line", 
-                  annotation_position="top right")
-    
-    # Update layout
-    fig.update_layout(
-        title="Expected Goals Analysis",
-        yaxis_title="Expected Goals",
-        height=300,
-        margin=dict(t=40, b=40, l=40, r=40),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(color="#4A5568")
-    )
-    
-    return fig
-
-def create_probability_chart(probabilities: Dict):
-    """Create probability visualization"""
-    fig = go.Figure()
-    
-    markets = ['Under 2.5', 'Over 2.5', 'BTTS Yes']
-    probs = [probabilities['under_25'], probabilities['over_25'], probabilities['btts_yes']]
-    colors = ['#10B981', '#EF4444', '#3B82F6']
-    
-    fig.add_trace(go.Bar(
-        x=markets,
-        y=probs,
-        text=[f'{p:.0%}' for p in probs],
-        textposition='auto',
-        marker_color=colors
-    ))
-    
-    fig.update_layout(
-        title="Market Probabilities",
-        yaxis_title="Probability",
-        yaxis_tickformat='.0%',
-        height=300,
-        margin=dict(t=40, b=40, l=40, r=40),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(color="#4A5568")
-    )
-    
-    return fig
+        # Decision and EV
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            st.markdown(f"**Decision:** {value_data['action']}")
+        with col2:
+            st.markdown(f"**Expected EV:** `{value_data['value']:.3f}`")
 
 def main():
-    """Main dashboard application"""
+    """Main application"""
     
-    # Dashboard Header
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.markdown('<h1 class="dashboard-header">BETTING ANALYTICS PRO</h1>', unsafe_allow_html=True)
-        st.markdown('<div style="color: #718096; margin-bottom: 2rem;">Professional Football Match Analysis Dashboard</div>', unsafe_allow_html=True)
-    with col2:
-        if st.button("📊 New Analysis", use_container_width=True):
-            # In a real app, this would trigger the data input modal
-            st.info("Data input modal would open here")
+    # Header
+    st.markdown('<h1 class="dashboard-title">BETTING ANALYTICS PRO</h1>', unsafe_allow_html=True)
+    st.markdown('Professional Football Match Analysis Dashboard')
     
-    # Initialize analyzer
-    analyzer = BettingAnalyzer()
+    # Quick input form in sidebar
+    with st.sidebar:
+        st.markdown("### 📊 Quick Input")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            home_team = st.text_input("Home Team", "Roma")
+            home_btts = st.slider("Home BTTS %", 0, 100, 30)
+            home_over = st.slider("Home Over %", 0, 100, 20)
+            home_under = st.slider("Home Under %", 0, 100, 70)
+            home_gf = st.number_input("Home GF/game", 0.0, 5.0, 1.0, 0.1)
+            home_ga = st.number_input("Home GA/game", 0.0, 5.0, 0.8, 0.1)
+            
+        with col2:
+            away_team = st.text_input("Away Team", "Como")
+            away_btts = st.slider("Away BTTS %", 0, 100, 40)
+            away_over = st.slider("Away Over %", 0, 100, 35)
+            away_under = st.slider("Away Under %", 0, 100, 60)
+            away_gf = st.number_input("Away GF/game", 0.0, 5.0, 1.3, 0.1)
+            away_ga = st.number_input("Away GA/game", 0.0, 5.0, 0.9, 0.1)
+        
+        st.markdown("---")
+        big_club = st.checkbox("Big Club at Home", True)
+        
+        st.markdown("### 💰 Market Odds")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            odds_btts = st.number_input("BTTS", 1.01, 10.0, 1.80, 0.01)
+        with col2:
+            odds_over = st.number_input("Over 2.5", 1.01, 10.0, 2.20, 0.01)
+        with col3:
+            odds_under = st.number_input("Under 2.5", 1.01, 10.0, 1.58, 0.01)
+        
+        if st.button("🔄 Update Analysis", type="primary", use_container_width=True):
+            st.session_state.match_data.update({
+                'home_team': home_team,
+                'away_team': away_team,
+                'home_btts': home_btts,
+                'home_over': home_over,
+                'home_under': home_under,
+                'home_gf': home_gf,
+                'home_ga': home_ga,
+                'away_btts': away_btts,
+                'away_over': away_over,
+                'away_under': away_under,
+                'away_gf': away_gf,
+                'away_ga': away_ga,
+                'big_club_home': big_club,
+                'odds_btts': odds_btts,
+                'odds_over': odds_over,
+                'odds_under': odds_under
+            })
+            st.rerun()
     
     # Match Header
-    st.markdown("""
-    <div class='data-card'>
-        <div style='display: flex; justify-content: space-between; align-items: center;'>
-            <div>
-                <h2 style='margin: 0;'>{home} vs {away}</h2>
-                <div style='color: #718096;'>Serie A • Today • 20:45 CET</div>
-            </div>
-            <div style='text-align: right;'>
-                <div style='font-size: 0.9rem; color: #718096;'>Match ID</div>
-                <div style='font-weight: 600;'>#MAT20231216-001</div>
-            </div>
-        </div>
-    </div>
-    """.format(
-        home=analyzer.data['match_info']['home_team'],
-        away=analyzer.data['match_info']['away_team']
-    ), unsafe_allow_html=True)
+    data = st.session_state.match_data
+    
+    st.markdown('<div class="data-card">', unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([3, 1, 3])
+    with col1:
+        st.markdown(f"### 🏠 {data['home_team']}")
+    with col2:
+        st.markdown("### vs")
+    with col3:
+        st.markdown(f"### ✈️ {data['away_team']}")
+    
+    st.markdown(f"**Serie A** • Today • 20:45 CET • Match ID: `#MAT20231216-001`")
+    st.markdown('</div>', unsafe_allow_html=True)
     
     # Team Analysis Section
-    st.markdown('<div class="section-header">Team Analysis</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Team Analysis</div>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
     with col1:
-        create_team_stat_card(
-            analyzer.data['match_info']['home_team'],
-            True,
-            analyzer.data['home_stats']
-        )
+        create_team_card(data['home_team'], True, {
+            'btts': data['home_btts'],
+            'over': data['home_over'],
+            'under': data['home_under'],
+            'gf': data['home_gf'],
+            'ga': data['home_ga']
+        })
     
     with col2:
-        create_team_stat_card(
-            analyzer.data['match_info']['away_team'],
-            False,
-            analyzer.data['away_stats']
-        )
+        create_team_card(data['away_team'], False, {
+            'btts': data['away_btts'],
+            'over': data['away_over'],
+            'under': data['away_under'],
+            'gf': data['away_gf'],
+            'ga': data['away_ga']
+        })
     
     # Analytical Insights
-    st.markdown('<div class="section-header">Analytical Insights</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Analytical Insights</div>', unsafe_allow_html=True)
     
-    # Calculate metrics
-    baseline, expected_goals, adjustments = analyzer.calculate_expected_goals()
-    probabilities = analyzer.calculate_probabilities(expected_goals)
+    baseline, expected_goals, adjustments = calculate_expected_goals()
+    probabilities = calculate_probabilities(expected_goals)
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("""
-        <div class='data-card'>
-            <div class='subsection-header'>Expected Goals Model</div>
-            <div style='margin: 1rem 0;'>
-                <div style='display: flex; justify-content: space-between; margin-bottom: 0.5rem;'>
-                    <span>Baseline Calculation</span>
-                    <span style='font-weight: 600;'>{baseline:.2f}</span>
-                </div>
-                <div style='display: flex; justify-content: space-between; margin-bottom: 0.5rem;'>
-                    <span>Trend Adjustments</span>
-                    <span style='font-weight: 600; color: #3B82F6;'>{adjustment_text}</span>
-                </div>
-                <div style='display: flex; justify-content: space-between; margin-bottom: 0.5rem;'>
-                    <span>Final Expected Goals</span>
-                    <span style='font-size: 1.2rem; font-weight: 700; color: #2D3748;'>{expected_goals:.2f}</span>
-                </div>
-            </div>
-            <div style='background: #F7FAFC; padding: 1rem; border-radius: 8px; margin-top: 1rem;'>
-                <div style='font-size: 0.9rem; color: #4A5568;'>
-                    <strong>Interpretation:</strong> {interpretation}
-                </div>
-            </div>
-        </div>
-        """.format(
-            baseline=baseline,
-            expected_goals=expected_goals,
-            adjustment_text="Applied" if adjustments != "No adjustments" else "None",
-            interpretation="Low-scoring match expected" if expected_goals < 2.3 else 
-                          "Moderate scoring expected" if expected_goals < 2.7 else 
-                          "High-scoring match expected"
-        ), unsafe_allow_html=True)
+        st.markdown('<div class="data-card">', unsafe_allow_html=True)
+        st.markdown("### 📈 Expected Goals Model")
         
-        # Visualization
-        fig1 = create_expected_goals_chart(baseline, expected_goals)
-        st.plotly_chart(fig1, use_container_width=True)
+        # Metrics
+        st.metric("Baseline Calculation", f"{baseline:.2f}")
+        st.metric("Trend Adjustments", "Applied" if adjustments else "None")
+        st.metric("Final Expected Goals", f"{expected_goals:.2f}")
+        
+        # Interpretation
+        if expected_goals < 2.3:
+            interpretation = "Low-scoring match expected"
+            color = "#10B981"
+        elif expected_goals < 2.7:
+            interpretation = "Moderate scoring expected"
+            color = "#F59E0B"
+        else:
+            interpretation = "High-scoring match expected"
+            color = "#EF4444"
+        
+        st.info(f"**Interpretation:** {interpretation}")
+        
+        # Adjustments list
+        if adjustments:
+            st.markdown("**Adjustments applied:**")
+            for adj in adjustments:
+                st.markdown(f"- {adj}")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Expected goals chart
+        fig = go.Figure()
+        fig.add_trace(go.Indicator(
+            mode="gauge+number+delta",
+            value=expected_goals,
+            domain={'x': [0, 1], 'y': [0, 1]},
+            title={'text': "Expected Goals"},
+            delta={'reference': 2.5},
+            gauge={
+                'axis': {'range': [None, 4]},
+                'bar': {'color': color},
+                'steps': [
+                    {'range': [0, 2.3], 'color': "lightgreen"},
+                    {'range': [2.3, 2.7], 'color': "lightyellow"},
+                    {'range': [2.7, 4], 'color': "lightcoral"}
+                ],
+                'threshold': {
+                    'line': {'color': "red", 'width': 4},
+                    'thickness': 0.75,
+                    'value': 2.5
+                }
+            }
+        ))
+        fig.update_layout(height=300)
+        st.plotly_chart(fig, use_container_width=True)
     
     with col2:
-        st.markdown("""
-        <div class='data-card'>
-            <div class='subsection-header'>Probability Distribution</div>
-            <div style='margin: 1rem 0;'>
-                <div style='display: flex; justify-content: space-between; margin-bottom: 0.5rem;'>
-                    <span>Under 2.5 Goals</span>
-                    <span style='font-weight: 600; color: #10B981;'>{under_prob:.0%}</span>
-                </div>
-                <div style='display: flex; justify-content: space-between; margin-bottom: 0.5rem;'>
-                    <span>Over 2.5 Goals</span>
-                    <span style='font-weight: 600; color: #EF4444;'>{over_prob:.0%}</span>
-                </div>
-                <div style='display: flex; justify-content: space-between; margin-bottom: 0.5rem;'>
-                    <span>Both Teams to Score</span>
-                    <span style='font-weight: 600; color: #3B82F6;'>{btts_prob:.0%}</span>
-                </div>
-            </div>
-            <div style='background: #F7FAFC; padding: 1rem; border-radius: 8px; margin-top: 1rem;'>
-                <div style='font-size: 0.9rem; color: #4A5568;'>
-                    <strong>Key Insight:</strong> {insight}
-                </div>
-            </div>
-        </div>
-        """.format(
-            under_prob=probabilities['under_25'],
-            over_prob=probabilities['over_25'],
-            btts_prob=probabilities['btts_yes'],
-            insight="Defensive focus expected" if probabilities['under_25'] > 0.7 else
-                    "Balanced match expected" if probabilities['under_25'] > 0.45 else
-                    "Attacking match expected"
-        ), unsafe_allow_html=True)
+        st.markdown('<div class="data-card">', unsafe_allow_html=True)
+        st.markdown("### 📊 Probability Distribution")
         
-        # Visualization
-        fig2 = create_probability_chart(probabilities)
-        st.plotly_chart(fig2, use_container_width=True)
+        # Probabilities
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Under 2.5", f"{probabilities['under']:.0%}")
+        with col2:
+            st.metric("Over 2.5", f"{probabilities['over']:.0%}")
+        with col3:
+            st.metric("BTTS Yes", f"{probabilities['btts']:.0%}")
+        
+        # Key insight
+        if probabilities['under'] > 0.7:
+            insight = "Defensive focus expected"
+        elif probabilities['under'] > 0.45:
+            insight = "Balanced match expected"
+        else:
+            insight = "Attacking match expected"
+        
+        st.success(f"**Key Insight:** {insight}")
+        
+        # Probability chart
+        fig = go.Figure(data=[
+            go.Bar(
+                x=['Under 2.5', 'Over 2.5', 'BTTS Yes'],
+                y=[probabilities['under'], probabilities['over'], probabilities['btts']],
+                marker_color=['#10B981', '#EF4444', '#3B82F6']
+            )
+        ])
+        fig.update_layout(
+            yaxis_title="Probability",
+            yaxis_tickformat='.0%',
+            height=250,
+            margin=dict(t=0, b=0)
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
     
     # Betting Recommendations
-    st.markdown('<div class="section-header">Betting Recommendations</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Betting Recommendations</div>', unsafe_allow_html=True)
     
-    recommendations = analyzer.generate_recommendations()
+    # Generate recommendations
+    recommendations = []
     
+    # Under 2.5 recommendation
+    if expected_goals < 2.5:
+        value_data = calculate_value(probabilities['under'], data['odds_under'])
+        recommendations.append({
+            'market': 'Under 2.5 Goals',
+            'probability': probabilities['under'],
+            'odds': data['odds_under'],
+            'value': value_data,
+            'type': 'Main'
+        })
+    
+    # BTTS recommendation
+    if probabilities['btts'] > 0.5:
+        value_data = calculate_value(probabilities['btts'], data['odds_btts'])
+        recommendations.append({
+            'market': 'Both Teams to Score',
+            'probability': probabilities['btts'],
+            'odds': data['odds_btts'],
+            'value': value_data,
+            'type': 'Alternative'
+        })
+    
+    # Display recommendations
     for rec in recommendations:
-        create_prediction_card(rec)
+        create_prediction_card(
+            rec['market'],
+            rec['probability'],
+            rec['odds'],
+            rec['value'],
+            rec['type']
+        )
     
-    # Market Odds Comparison
-    st.markdown('<div class="section-header">Market Odds Analysis</div>', unsafe_allow_html=True)
-    
-    market_data = analyzer.data['market_odds']
+    # Market Odds Analysis
+    st.markdown('<div class="section-title">Market Odds Analysis</div>', unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.markdown(f"""
-        <div class='data-card' style='text-align: center;'>
-            <div style='font-size: 0.9rem; color: #718096; margin-bottom: 0.5rem;'>BTTS Yes</div>
-            <div style='font-size: 2rem; font-weight: 700; color: #3B82F6;'>{market_data['btts_yes']:.2f}</div>
-            <div style='font-size: 0.8rem; color: #718096; margin-top: 0.5rem;'>
-                Implied: {(1/market_data['btts_yes']*100):.1f}%
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.metric("BTTS Yes", f"{data['odds_btts']:.2f}", 
+                 f"Implied: {(1/data['odds_btts']*100):.1f}%")
     
     with col2:
-        st.markdown(f"""
-        <div class='data-card' style='text-align: center;'>
-            <div style='font-size: 0.9rem; color: #718096; margin-bottom: 0.5rem;'>Over 2.5</div>
-            <div style='font-size: 2rem; font-weight: 700; color: #EF4444;'>{market_data['over_25']:.2f}</div>
-            <div style='font-size: 0.8rem; color: #718096; margin-top: 0.5rem;'>
-                Implied: {(1/market_data['over_25']*100):.1f}%
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.metric("Over 2.5", f"{data['odds_over']:.2f}", 
+                 f"Implied: {(1/data['odds_over']*100):.1f}%")
     
     with col3:
-        st.markdown(f"""
-        <div class='data-card' style='text-align: center;'>
-            <div style='font-size: 0.9rem; color: #718096; margin-bottom: 0.5rem;'>Under 2.5</div>
-            <div style='font-size: 2rem; font-weight: 700; color: #10B981;'>{market_data['under_25']:.2f}</div>
-            <div style='font-size: 0.8rem; color: #718096; margin-top: 0.5rem;'>
-                Implied: {(1/market_data['under_25']*100):.1f}%
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.metric("Under 2.5", f"{data['odds_under']:.2f}", 
+                 f"Implied: {(1/data['odds_under']*100):.1f}%")
     
     # Risk Assessment
-    st.markdown('<div class="section-header">Risk Assessment</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Risk Assessment</div>', unsafe_allow_html=True)
     
     if recommendations:
         best_rec = recommendations[0]
         
-        st.markdown(f"""
-        <div class='data-card'>
-            <div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;'>
-                <div>
-                    <div class='subsection-header'>Risk Level</div>
-                    <div style='margin: 1rem 0;'>
-                        <div class='progress-container'>
-                            <div class='progress-bar progress-{'low' if best_rec['probability'] >= 0.7 else 'medium' if best_rec['probability'] >= 0.6 else 'high'}' 
-                                 style='width: {best_rec['probability']*100}%'></div>
-                        </div>
-                        <div style='text-align: center; margin-top: 0.5rem; font-size: 0.9rem; color: #718096;'>
-                            {best_rec['probability']:.0%} Probability
-                        </div>
-                    </div>
-                </div>
-                
-                <div>
-                    <div class='subsection-header'>Expected Value</div>
-                    <div style='text-align: center; margin: 1rem 0;'>
-                        <div style='font-size: 2rem; font-weight: 700; color: {best_rec['color']};'>
-                            {best_rec['expected_value']:+.3f}
-                        </div>
-                        <div style='font-size: 0.9rem; color: #718096;'>per unit bet</div>
-                    </div>
-                </div>
-                
-                <div>
-                    <div class='subsection-header'>Recommended Stake</div>
-                    <div style='text-align: center; margin: 1rem 0;'>
-                        <div style='font-size: 2rem; font-weight: 700; color: #2D3748;'>
-                            {best_rec['stake_pct']:.1f}%
-                        </div>
-                        <div style='font-size: 0.9rem; color: #718096;'>of bankroll</div>
-                    </div>
-                </div>
+        st.markdown('<div class="data-card">', unsafe_allow_html=True)
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown("**Risk Level**")
+            # Progress bar for probability
+            prob_percent = best_rec['probability'] * 100
+            st.markdown(f"""
+            <div class="progress-container">
+                <div class="progress-bar progress-{'high' if best_rec['probability'] >= 0.7 else 'medium' if best_rec['probability'] >= 0.6 else 'low'}" 
+                     style="width: {prob_percent}%"></div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
+            st.markdown(f"{best_rec['probability']:.0%} Probability")
+        
+        with col2:
+            st.metric("Expected Value", f"{best_rec['value']['value']:+.3f}", 
+                     "per unit bet")
+        
+        with col3:
+            st.metric("Recommended Stake", f"{best_rec['value']['stake']:.1f}%", 
+                     "of bankroll")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
     
     # Footer
+    st.markdown("---")
     st.markdown("""
-    <div style='margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid #E2E8F0; text-align: center; color: #718096; font-size: 0.9rem;'>
+    <div style="text-align: center; color: #718096; font-size: 0.9rem;">
         <div>Betting Analytics Pro • Version 2.0 • Professional Use Only</div>
-        <div style='margin-top: 0.5rem;'>Always bet responsibly • Past performance does not guarantee future results</div>
+        <div style="margin-top: 0.5rem;">Always bet responsibly • Past performance does not guarantee future results</div>
     </div>
     """, unsafe_allow_html=True)
 
