@@ -32,11 +32,12 @@ def detect_defensive_strength(conceding_avg, matches_played, league_avg=1.3):
         return 'UNKNOWN'  # Insufficient data
     
     # Universal statistical thresholds (work for any league)
-    if conceding_avg < 0.8:
+    # UPDATED: Clear boundaries with <= for STRONG classification
+    if conceding_avg < 0.80:
         return 'ELITE'     # Top 10% defenses
-    elif conceding_avg < 1.0:
+    elif conceding_avg <= 1.00:  # FIXED: Changed from < 1.0 to <= 1.0
         return 'STRONG'    # Top 25% defenses  
-    elif conceding_avg > 1.8:
+    elif conceding_avg > 1.80:
         return 'WEAK'      # Bottom 25% defenses
     elif conceding_avg > league_avg * 1.2:
         return 'WEAK'      # Worse than league average
@@ -48,7 +49,7 @@ def get_adjustment_factor(defensive_strength, is_home_advantage=True):
     Get scoring adjustment based on opponent's defensive strength.
     Works universally for ALL teams.
     """
-    # Base adjustments (same for all teams)
+    # Base adjustments (PURE according to stated rules - no extra home/away adjustments)
     adjustments = {
         'ELITE': 0.75,     # 25% reduction vs elite defenses
         'STRONG': 0.85,    # 15% reduction vs strong defenses
@@ -57,15 +58,9 @@ def get_adjustment_factor(defensive_strength, is_home_advantage=True):
         'UNKNOWN': 1.0     # No adjustment for insufficient data
     }
     
-    base_factor = adjustments.get(defensive_strength, 1.0)
-    
-    # Slight home advantage adjustment
-    if is_home_advantage and defensive_strength in ['ELITE', 'STRONG']:
-        return base_factor * 1.05  # Home teams slightly better vs good defenses
-    elif not is_home_advantage and defensive_strength in ['ELITE', 'STRONG']:
-        return base_factor * 0.95  # Away teams slightly worse vs good defenses
-    
-    return base_factor
+    # FIXED: Return pure adjustment factor without extra home/away multipliers
+    # This matches the stated rules exactly
+    return adjustments.get(defensive_strength, 1.0)
 
 def predict_scoring_enhanced(home_scoring, home_conceding, away_scoring, away_conceding,
                             home_matches, away_matches, league_avg=1.3):
@@ -78,11 +73,11 @@ def predict_scoring_enhanced(home_scoring, home_conceding, away_scoring, away_co
     home_defense = detect_defensive_strength(home_conceding, home_matches, league_avg)
     away_defense = detect_defensive_strength(away_conceding, away_matches, league_avg)
     
-    # Get adjustment factors
+    # Get adjustment factors (pure factors only - no extra home/away multipliers)
     home_scoring_adj = get_adjustment_factor(away_defense, is_home_advantage=True)
     away_scoring_adj = get_adjustment_factor(home_defense, is_home_advantage=False)
     
-    # Apply adjustments
+    # Apply adjustments (pure multiplication)
     home_scoring_adj_value = home_scoring * home_scoring_adj
     away_scoring_adj_value = away_scoring * away_scoring_adj
     
@@ -249,9 +244,10 @@ with st.sidebar:
     - **WEAK**: > 1.80 goals conceded/game
     
     **Automatic Adjustments:**
-    - Vs ELITE defense: -25% scoring expectation
-    - Vs STRONG defense: -15% scoring expectation
-    - Vs WEAK defense: +15% scoring expectation
+    - Vs ELITE defense: -25% scoring expectation (×0.75)
+    - Vs STRONG defense: -15% scoring expectation (×0.85)
+    - Vs WEAK defense: +15% scoring expectation (×1.15)
+    - Vs AVERAGE defense: No adjustment (×1.00)
     """)
     
     st.header("⚙️ League Settings")
@@ -521,7 +517,8 @@ if analyze_button and home_matches > 0 and away_matches > 0:
         st.markdown(f"#### {home_name} Scoring")
         st.markdown(f"**Raw average:** {home_scoring:.2f} goals/game")
         st.markdown(f"**Vs {away_name} defense ({predictions['away_defense_strength']}):**")
-        st.markdown(f"Adjustment factor: ×{get_adjustment_factor(predictions['away_defense_strength'], True):.2f}")
+        adj_factor_home = get_adjustment_factor(predictions['away_defense_strength'], True)
+        st.markdown(f"**Adjustment factor:** ×{adj_factor_home:.2f}")  # FIXED: Added .2f
         st.markdown(f"**Adjusted expectation:** {predictions['home_adjusted_scoring']:.2f} goals")
         
         # Visual indicator
@@ -545,7 +542,8 @@ if analyze_button and home_matches > 0 and away_matches > 0:
         st.markdown(f"#### {away_name} Scoring")
         st.markdown(f"**Raw average:** {away_scoring:.2f} goals/game")
         st.markdown(f"**Vs {home_name} defense ({predictions['home_defense_strength']}):**")
-        st.markdown(f"Adjustment factor: ×{get_adjustment_factor(predictions['home_defense_strength'], False):.2f}")
+        adj_factor_away = get_adjustment_factor(predictions['home_defense_strength'], False)
+        st.markdown(f"**Adjustment factor:** ×{adj_factor_away:.2f}")  # FIXED: Added .2f
         st.markdown(f"**Adjusted expectation:** {predictions['away_adjusted_scoring']:.2f} goals")
         
         # Visual indicator
@@ -564,6 +562,32 @@ if analyze_button and home_matches > 0 and away_matches > 0:
         ))
         fig2.update_layout(height=200)
         st.plotly_chart(fig2, use_container_width=True)
+    
+    # ==================== VERIFICATION CALCULATIONS ====================
+    
+    # Show the actual calculation verification
+    with st.expander("🔍 Verification Calculations"):
+        st.markdown("**Crystal Palace (Home):**")
+        st.markdown(f"- Raw scoring: {home_scoring:.2f}")
+        st.markdown(f"- Man City away defense: {predictions['away_defense_strength']}")
+        st.markdown(f"- Adjustment factor: ×{adj_factor_home:.2f}")
+        st.markdown(f"- Adjusted scoring: {home_scoring:.2f} × {adj_factor_home:.2f} = **{predictions['home_adjusted_scoring']:.2f}**")
+        st.markdown(f"- Man City conceding away: {away_conceding:.2f}")
+        st.markdown(f"- **Margin:** {predictions['home_adjusted_scoring']:.2f} - {away_conceding:.2f} = **{predictions['home_margin']:.2f}**")
+        
+        st.markdown("---")
+        
+        st.markdown("**Manchester City (Away):**")
+        st.markdown(f"- Raw scoring: {away_scoring:.2f}")
+        st.markdown(f"- Palace home defense: {predictions['home_defense_strength']}")
+        st.markdown(f"- Adjustment factor: ×{adj_factor_away:.2f}")
+        st.markdown(f"- Adjusted scoring: {away_scoring:.2f} × {adj_factor_away:.2f} = **{predictions['away_adjusted_scoring']:.2f}**")
+        st.markdown(f"- Palace conceding home: {home_conceding:.2f}")
+        st.markdown(f"- **Margin:** {predictions['away_adjusted_scoring']:.2f} - {home_conceding:.2f} = **{predictions['away_margin']:.2f}**")
+        
+        st.markdown("---")
+        
+        st.markdown(f"**Expected total goals:** {predictions['home_adjusted_scoring']:.2f} + {predictions['away_adjusted_scoring']:.2f} = **{predictions['expected_total']:.2f}**")
     
     # ==================== BET RECOMMENDATION ====================
     
