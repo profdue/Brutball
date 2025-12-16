@@ -91,6 +91,20 @@ st.markdown("""
         background-color: #f44336;
         color: white;
     }
+    .secondary-box {
+        background: linear-gradient(135deg, #f8f9fa 0%, #f1f8e9 100%);
+        border: 1px solid #C8E6C9;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 10px 0;
+    }
+    .tertiary-box {
+        background: linear-gradient(135deg, #f8f9fa 0%, #fff3e0 100%);
+        border: 1px solid #FFE0B2;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 10px 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -187,24 +201,33 @@ def calculate_expected_goals(home_gf, away_ga, away_gf, home_ga, home_trend_adju
     baseline = ((home_gf + away_ga) + (away_gf + home_ga)) / 2
     adjusted_baseline = baseline * ((home_factor + away_factor) / 2)
     
-    return adjusted_baseline
+    # Format calculation string
+    calculation_str = f"[({home_gf:.2f} + {away_ga:.2f}) + ({away_gf:.2f} + {home_ga:.2f})] ÷ 2 = {baseline:.2f}"
+    
+    if home_trend_adjustment != 0 or away_trend_adjustment != 0:
+        calculation_str += f" × adjustment = {adjusted_baseline:.2f}"
+    
+    return adjusted_baseline, calculation_str
 
 # 4. CONTEXT & PSYCHOLOGY
 def apply_context_adjustments(expected_goals, is_big_club_home_after_poor_run=False, is_relegation_desperation=False, is_title_chase=False):
     """Adjust for special situations"""
     adjustments = []
+    original_goals = expected_goals
     
     if is_big_club_home_after_poor_run:
         expected_goals += 0.3
-        adjustments.append("Big club at home after poor run → +0.3 expected goals")
+        adjustments.append(f"Big club at home after poor run → +0.3 expected goals ({original_goals:.1f} → {expected_goals:.1f})")
+        original_goals = expected_goals
     
     if is_relegation_desperation:
         expected_goals -= 0.2
-        adjustments.append("Relegation desperation → Defensive focus, not attacking")
+        adjustments.append(f"Relegation desperation → Defensive focus, -0.2 expected goals ({original_goals:.1f} → {expected_goals:.1f})")
+        original_goals = expected_goals
     
     if is_title_chase:
         expected_goals += 0.1
-        adjustments.append("Title chase pressure → Can help or hinder")
+        adjustments.append(f"Title chase pressure → Minor adjustment ({original_goals:.1f} → {expected_goals:.1f})")
     
     return expected_goals, adjustments
 
@@ -234,6 +257,59 @@ def calculate_value_bet(true_probability, market_odds):
         'stake_pct': stake_pct,
         'stake_desc': stake_desc
     }
+
+# GENERATE ALTERNATIVE BETS
+def generate_alternative_bets(expected_goals, btts_probability, home_gf_avg, away_gf_avg, home_team, away_team):
+    """Generate alternative bets for bet builders"""
+    alternatives = []
+    
+    # Secondary: Over/Under based on expected goals
+    if expected_goals > 2.5:
+        alternatives.append({
+            'type': 'Secondary',
+            'bet': 'Over 2.5',
+            'reason': f'Expected Goals: {expected_goals:.1f} > 2.5',
+            'probability': min(0.75, 0.5 + (expected_goals - 2.5) * 0.2)
+        })
+    else:
+        alternatives.append({
+            'type': 'Secondary',
+            'bet': 'Under 2.5',
+            'reason': f'Expected Goals: {expected_goals:.1f} < 2.5',
+            'probability': min(0.75, 0.5 + (2.5 - expected_goals) * 0.2)
+        })
+    
+    # Tertiary: Correct Score suggestions
+    score_suggestions = []
+    
+    if expected_goals > 2.5 and btts_probability > 0.5:
+        # High-scoring BTTS likely
+        if home_gf_avg > away_gf_avg:
+            score_suggestions.append(f"{home_team} 2-1 {away_team}")
+            score_suggestions.append(f"{home_team} 3-1 {away_team}")
+            score_suggestions.append(f"{home_team} 2-2 {away_team}")
+        else:
+            score_suggestions.append(f"{home_team} 1-2 {away_team}")
+            score_suggestions.append(f"{home_team} 2-2 {away_team}")
+    elif expected_goals < 2.0:
+        # Low-scoring match
+        score_suggestions.append(f"{home_team} 1-0 {away_team}")
+        score_suggestions.append(f"{home_team} 0-1 {away_team}")
+        score_suggestions.append(f"{home_team} 1-1 {away_team}")
+    else:
+        # Moderate scoring
+        score_suggestions.append(f"{home_team} 2-0 {away_team}")
+        score_suggestions.append(f"{home_team} 1-1 {away_team}")
+        score_suggestions.append(f"{home_team} 2-1 {away_team}")
+    
+    alternatives.append({
+        'type': 'Tertiary',
+        'bet': 'Correct Score',
+        'suggestions': score_suggestions[:3],  # Top 3 suggestions
+        'reason': f'Based on Expected Goals: {expected_goals:.1f} and BTTS probability: {btts_probability:.0%}'
+    })
+    
+    return alternatives
 
 # DECISION FLOWCHART
 def run_decision_flowchart(data):
@@ -266,7 +342,7 @@ def run_decision_flowchart(data):
     home_trend_adj = 1 if data['home_btts_pct'] >= 70 or data['home_over_pct'] >= 70 else 0
     away_trend_adj = 1 if data['away_btts_pct'] >= 70 or data['away_over_pct'] >= 70 else 0
     
-    expected_goals = calculate_expected_goals(
+    expected_goals, calculation_str = calculate_expected_goals(
         data['home_gf_avg'], data['away_ga_avg'],
         data['away_gf_avg'], data['home_ga_avg'],
         home_trend_adj, away_trend_adj
@@ -287,7 +363,8 @@ def run_decision_flowchart(data):
             'priority': 'CALCULATED EXPECTED GOALS',
             'probability': 0.65,
             'reason': f"Expected Goals = {expected_goals:.2f} > 2.7",
-            'calculation': f"[(Home_GF {data['home_gf_avg']:.1f} + Away_GA {data['away_ga_avg']:.1f}) + (Away_GF {data['away_gf_avg']:.1f} + Home_GA {data['home_ga_avg']:.1f})] ÷ 2",
+            'calculation': calculation_str,
+            'expected_goals': expected_goals,
             'adjustments': adjustments,
             'action': 'LEAN'
         })
@@ -297,7 +374,8 @@ def run_decision_flowchart(data):
             'priority': 'CALCULATED EXPECTED GOALS',
             'probability': 0.65,
             'reason': f"Expected Goals = {expected_goals:.2f} < 2.3",
-            'calculation': f"[(Home_GF {data['home_gf_avg']:.1f} + Away_GA {data['away_ga_avg']:.1f}) + (Away_GF {data['away_gf_avg']:.1f} + Home_GA {data['home_ga_avg']:.1f})] ÷ 2",
+            'calculation': calculation_str,
+            'expected_goals': expected_goals,
             'adjustments': adjustments,
             'action': 'LEAN'
         })
@@ -307,12 +385,13 @@ def run_decision_flowchart(data):
             'priority': 'CALCULATED EXPECTED GOALS',
             'probability': 0.50,
             'reason': f"Expected Goals = {expected_goals:.2f} (2.3-2.7 range)",
-            'calculation': f"[(Home_GF {data['home_gf_avg']:.1f} + Away_GA {data['away_ga_avg']:.1f}) + (Away_GF {data['away_gf_avg']:.1f} + Home_GA {data['home_ga_avg']:.1f})] ÷ 2",
+            'calculation': calculation_str,
+            'expected_goals': expected_goals,
             'adjustments': adjustments,
             'action': 'PASS'
         })
     
-    return recommendations
+    return recommendations, expected_goals
 
 def main():
     # Header
@@ -421,7 +500,15 @@ def main():
     }
     
     # Run the decision flowchart
-    recommendations = run_decision_flowchart(data)
+    recommendations, expected_goals = run_decision_flowchart(data)
+    
+    # Calculate BTTS probability for alternative bets
+    btts_probability = min(0.95, max(0.05, (home_gf_avg / away_ga_avg * away_gf_avg / home_ga_avg) * 0.7))
+    
+    # Generate alternative bets
+    alternative_bets = generate_alternative_bets(
+        expected_goals, btts_probability, home_gf_avg, away_gf_avg, home_team, away_team
+    )
     
     # Display results
     st.markdown(f'<h3 class="sub-header">📋 Match Analysis: {home_team} vs {away_team}</h3>', unsafe_allow_html=True)
@@ -485,6 +572,21 @@ def main():
     # Display recommendations
     st.markdown(f'<h3 class="sub-header">🎯 SYSTEM RECOMMENDATIONS</h3>', unsafe_allow_html=True)
     
+    # Show Expected Goals Calculation FIRST (for completeness)
+    st.markdown("#### 📊 Expected Goals Calculation (for completeness):")
+    
+    # Calculate and display the exact formula
+    expected_goals_calc = ((home_gf_avg + away_ga_avg) + (away_gf_avg + home_ga_avg)) / 2
+    calc_text = f"**Expected Goals = [({home_gf_avg:.2f} + {away_ga_avg:.2f}) + ({away_gf_avg:.2f} + {home_ga_avg:.2f})] ÷ 2 = {expected_goals_calc:.1f}**"
+    
+    st.info(calc_text)
+    
+    if expected_goals_calc > 2.5:
+        st.success(f"✅ **Supports Over 2.5 bet as secondary option** (Expected Goals: {expected_goals_calc:.1f} > 2.5)")
+    elif expected_goals_calc < 2.5:
+        st.success(f"✅ **Supports Under 2.5 bet as secondary option** (Expected Goals: {expected_goals_calc:.1f} < 2.5)")
+    
+    # Main recommendations
     for rec in recommendations:
         # Determine box class based on priority
         if 'ALIGNED' in rec['priority']:
@@ -567,6 +669,47 @@ def main():
         
         st.markdown('</div>', unsafe_allow_html=True)
     
+    # ALTERNATIVE BETS SECTION
+    st.markdown(f'<h3 class="sub-header">🎰 ALTERNATIVE BETS (for bet builders)</h3>', unsafe_allow_html=True)
+    
+    for alt_bet in alternative_bets:
+        if alt_bet['type'] == 'Secondary':
+            st.markdown('<div class="secondary-box">', unsafe_allow_html=True)
+            st.markdown(f"##### 🥈 **Secondary Bet:** {alt_bet['bet']}")
+            
+            # Get appropriate odds
+            if alt_bet['bet'] == 'Over 2.5':
+                odds = over_25_odds
+                value_calc = calculate_value_bet(alt_bet['probability'], odds)
+            else:
+                odds = under_25_odds
+                value_calc = calculate_value_bet(alt_bet['probability'], odds)
+            
+            st.markdown(f"**Reason:** {alt_bet['reason']}")
+            st.markdown(f"**Probability:** {alt_bet['probability']:.0%}")
+            st.markdown(f"**Market Odds:** {odds:.2f}")
+            
+            if value_calc['has_value']:
+                st.success(f"✅ **Good value:** +{value_calc['value']:.1%} (Value = {value_calc['value']:.3f})")
+                st.info(f"**Suggestion:** {alt_bet['bet']} @ {odds:.2f} (good value)")
+            else:
+                st.warning(f"⚠️ **Limited value:** {value_calc['value']:+.1%}")
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        elif alt_bet['type'] == 'Tertiary':
+            st.markdown('<div class="tertiary-box">', unsafe_allow_html=True)
+            st.markdown(f"##### 🥉 **Tertiary Bets:** Correct Score")
+            
+            st.markdown(f"**Reason:** {alt_bet['reason']}")
+            st.markdown("**Suggested Scores:**")
+            
+            for score in alt_bet['suggestions']:
+                st.markdown(f"- **{score}** (higher probability)")
+            
+            st.markdown("**For bet builders:** Consider combining with main bet")
+            st.markdown('</div>', unsafe_allow_html=True)
+    
     # Show decision flowchart
     st.markdown(f'<h3 class="sub-header">🔧 DECISION FLOWCHART</h3>', unsafe_allow_html=True)
     
@@ -643,33 +786,6 @@ def main():
             st.markdown(f"**Action:** {pattern['action']}")
             st.markdown("**Examples:** " + ", ".join(pattern['examples']))
             st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Checklist
-    st.markdown(f'<h3 class="sub-header">📋 CHECKLIST FOR EVERY MATCH</h3>', unsafe_allow_html=True)
-    
-    checklist_html = """
-    <div style="background: #f0f7ff; padding: 20px; border-radius: 10px;">
-    <strong>BEFORE ANALYSIS:</strong><br>
-    ✅ Get Last 10 Home/Away splits for both teams<br>
-    ✅ Get Overall Last 10 for context<br>
-    ✅ Get Recent H2H (≤2 years)<br>
-    ✅ Check for ≥70% trends<br>
-    <br>
-    <strong>ANALYSIS:</strong><br>
-    ✅ Calculate Expected Goals baseline<br>
-    ✅ Apply trend adjustments<br>
-    ✅ Check for aligned strong trends<br>
-    ✅ Calculate true probabilities<br>
-    <br>
-    <strong>BETTING DECISION:</strong><br>
-    ✅ Calculate value vs market odds<br>
-    ✅ Determine stake (1-3% based on value/confidence)<br>
-    ✅ Record bet and reasoning<br>
-    ✅ Review after match<br>
-    </div>
-    """
-    
-    st.markdown(checklist_html, unsafe_allow_html=True)
     
     # Footer
     st.markdown("---")
