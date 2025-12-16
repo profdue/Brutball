@@ -324,8 +324,32 @@ def run_decision_flowchart(data):
     )
     
     if aligned_recs:
-        recommendations.extend(aligned_recs)
-        return recommendations  # BET & STOP as per flowchart
+        # Calculate expected goals anyway for display
+        home_trend_adj = 1 if data['home_btts_pct'] >= 70 or data['home_over_pct'] >= 70 else 0
+        away_trend_adj = 1 if data['away_btts_pct'] >= 70 or data['away_over_pct'] >= 70 else 0
+        
+        expected_goals, calculation_str = calculate_expected_goals(
+            data['home_gf_avg'], data['away_ga_avg'],
+            data['away_gf_avg'], data['home_ga_avg'],
+            home_trend_adj, away_trend_adj
+        )
+        
+        # Apply context adjustments
+        expected_goals, adjustments = apply_context_adjustments(
+            expected_goals,
+            data.get('is_big_club_home_after_poor_run', False),
+            data.get('is_relegation_desperation', False),
+            data.get('is_title_chase', False)
+        )
+        
+        # Add expected goals to aligned recommendations
+        for rec in aligned_recs:
+            rec['expected_goals'] = expected_goals
+            rec['calculation'] = calculation_str
+            if adjustments:
+                rec['adjustments'] = adjustments
+        
+        return aligned_recs, expected_goals
     
     # Step 2: Check for ≥70% SINGLE trend
     single_recs = check_single_dominant_trends(
