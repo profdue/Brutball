@@ -14,14 +14,14 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS for professional styling
+# CSS for professional styling - FIXED FOR MOBILE VISIBILITY
 st.markdown("""
 <style>
     .main {
-        padding: 2rem;
+        padding: 1rem;
     }
     .header {
-        font-size: 2.5rem;
+        font-size: 2rem;
         font-weight: 800;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         -webkit-background-clip: text;
@@ -30,36 +30,71 @@ st.markdown("""
         margin-bottom: 1rem;
     }
     .card {
-        background: white;
+        background: #ffffff;
         border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        padding: 1.2rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
         border: 1px solid #E2E8F0;
         margin-bottom: 1rem;
     }
     .prediction-card {
-        background: white;
+        background: #ffffff;
         border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        border-left: 4px solid;
+        padding: 1.2rem;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+        border-left: 5px solid;
         margin-bottom: 1rem;
     }
     .prediction-high {
         border-left-color: #10B981;
-        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        background: linear-gradient(135deg, #f0fdf4 0%, #d1fae5 100%);
+        border: 1px solid #10B98120;
     }
     .prediction-medium {
         border-left-color: #F59E0B;
         background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+        border: 1px solid #F59E0B20;
     }
     .secondary-card {
         border-left-color: #3B82F6;
         background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+        border: 1px solid #3B82F620;
     }
     .no-value-card {
-        border-left-color: #9CA3AF;
+        border-left-color: #6B7280;
         background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+        border: 1px solid #6B728020;
+    }
+    
+    /* Mobile optimizations */
+    @media (max-width: 768px) {
+        .card, .prediction-card {
+            padding: 1rem;
+            margin-bottom: 0.8rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h2 {
+            font-size: 1.4rem !important;
+        }
+        h3 {
+            font-size: 1.2rem !important;
+        }
+        .header {
+            font-size: 1.6rem !important;
+        }
+    }
+    
+    /* Ensure text is always visible */
+    .prediction-card h3 {
+        color: #1F2937 !important;
+        margin: 0 0 0.5rem 0 !important;
+    }
+    .prediction-card div {
+        color: #4B5563 !important;
+    }
+    .card h4 {
+        color: #1F2937 !important;
+        margin: 0 0 0.5rem 0 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -277,12 +312,12 @@ def main():
     
     data = st.session_state.match_data
     
-    # Match header
+    # Match header with better contrast
     st.markdown(f"""
     <div class="card">
         <div style="text-align: center;">
-            <h2 style="margin: 0;">🏠 {data['home_team']} vs ✈️ {data['away_team']}</h2>
-            <div style="color: #718096; margin-top: 0.5rem;">Clean Betting Analysis</div>
+            <h2 style="margin: 0; color: #1F2937;">🏠 {data['home_team']} vs ✈️ {data['away_team']}</h2>
+            <div style="color: #6B7280; margin-top: 0.5rem;">Clean Betting Analysis</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -300,12 +335,12 @@ def main():
     )
     
     # Display primary prediction
-    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0;">🎯 PRIMARY BET</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">🎯 PRIMARY BET</div>', unsafe_allow_html=True)
     
     if aligned_trends:
         primary_trend = aligned_trends[0]
         
-        # Get odds for this bet - FIXED: Use 'btts' key not 'btts_yes'
+        # Get odds for this bet
         if primary_trend['type'] == 'Over 2.5':
             odds = data['odds']['over']
         elif primary_trend['type'] == 'Under 2.5':
@@ -322,18 +357,18 @@ def main():
         <div class="prediction-card {card_class}">
             <div style="display: flex; justify-content: space-between; align-items: start;">
                 <div style="flex: 1;">
-                    <h3 style="margin: 0 0 0.5rem 0;">{primary_trend['type']}</h3>
-                    <div style="color: #718096; margin-bottom: 0.5rem;">
-                        <strong>Why this bet:</strong> {primary_trend['reason']}
+                    <h3 style="margin: 0 0 0.5rem 0; color: #1F2937;">{primary_trend['type']}</h3>
+                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                        <strong style="color: #374151;">Why this bet:</strong> {primary_trend['reason']}
                     </div>
-                    <div style="color: #718096; margin-bottom: 0.5rem;">
-                        <strong>Probability:</strong> {primary_trend['probability']:.0%}
+                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                        <strong style="color: #374151;">Probability:</strong> {primary_trend['probability']:.0%}
                     </div>
-                    <div style="color: #718096; margin-bottom: 0.5rem;">
-                        <strong>Market Odds:</strong> {odds:.2f}
+                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                        <strong style="color: #374151;">Market Odds:</strong> {odds:.2f}
                     </div>
-                    <div style="color: #718096;">
-                        <strong>Decision:</strong> {value_data['action']} - {value_data['reason']}
+                    <div style="color: #4B5563;">
+                        <strong style="color: #374151;">Decision:</strong> {value_data['action']} - {value_data['reason']}
                     </div>
                 </div>
             </div>
@@ -347,7 +382,7 @@ def main():
     
     # Get secondary option
     if primary_bet:
-        st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0;">🔄 SECONDARY OPTION</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">🔄 SECONDARY OPTION</div>', unsafe_allow_html=True)
         
         secondary = get_best_secondary_option(
             primary_bet, expected_goals,
@@ -375,18 +410,18 @@ def main():
             <div class="prediction-card {sec_card_class}">
                 <div style="display: flex; justify-content: space-between; align-items: start;">
                     <div style="flex: 1;">
-                        <h3 style="margin: 0 0 0.5rem 0;">{secondary['bet']}</h3>
-                        <div style="color: #718096; margin-bottom: 0.5rem;">
-                            <strong>Why this bet:</strong> {secondary['reason']}
+                        <h3 style="margin: 0 0 0.5rem 0; color: #1F2937;">{secondary['bet']}</h3>
+                        <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                            <strong style="color: #374151;">Why this bet:</strong> {secondary['reason']}
                         </div>
-                        <div style="color: #718096; margin-bottom: 0.5rem;">
-                            <strong>Logic:</strong> {secondary['logic']}
+                        <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                            <strong style="color: #374151;">Logic:</strong> {secondary['logic']}
                         </div>
-                        <div style="color: #718096; margin-bottom: 0.5rem;">
-                            <strong>Probability:</strong> {secondary['probability']:.0%}
+                        <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                            <strong style="color: #374151;">Probability:</strong> {secondary['probability']:.0%}
                         </div>
-                        <div style="color: #718096;">
-                            <strong>Decision:</strong> {sec_value['action']} - {sec_value['reason']}
+                        <div style="color: #4B5563;">
+                            <strong style="color: #374151;">Decision:</strong> {sec_value['action']} - {sec_value['reason']}
                         </div>
                     </div>
                 </div>
@@ -396,7 +431,7 @@ def main():
             st.info("No suitable secondary option for this match configuration")
     
     # Match Analysis
-    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0;">📊 MATCH ANALYSIS</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">📊 MATCH ANALYSIS</div>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
@@ -405,16 +440,16 @@ def main():
         
         st.markdown(f"""
         <div class="card">
-            <h4>⚽ Expected Goals Analysis</h4>
-            <div style="color: #718096; margin: 0.5rem 0;">
-                <strong>Calculation:</strong><br>
+            <h4 style="color: #1F2937;">⚽ Expected Goals Analysis</h4>
+            <div style="color: #4B5563; margin: 0.5rem 0;">
+                <strong style="color: #374151;">Calculation:</strong><br>
                 (Home GF + Away GA) + (Away GF + Home GA) ÷ 2
             </div>
-            <div style="font-size: 1.5rem; font-weight: 700; color: #2D3748; margin: 1rem 0;">
+            <div style="font-size: 1.5rem; font-weight: 700; color: #1F2937; margin: 1rem 0;">
                 {expected_goals:.2f} expected goals
             </div>
-            <div style="color: #718096;">
-                <strong>Interpretation:</strong> {interpretation}
+            <div style="color: #4B5563;">
+                <strong style="color: #374151;">Interpretation:</strong> {interpretation}
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -441,25 +476,25 @@ def main():
         
         st.markdown(f"""
         <div class="card">
-            <h4>📈 Trend Analysis</h4>
-            <div style="color: #718096; margin: 0.5rem 0;">
-                <strong>Home Trends:</strong><br>
+            <h4 style="color: #1F2937;">📈 Trend Analysis</h4>
+            <div style="color: #4B5563; margin: 0.5rem 0;">
+                <strong style="color: #374151;">Home Trends:</strong><br>
                 • BTTS: {data['home_btts']}%<br>
                 • Over 2.5: {data['home_over']}%
             </div>
-            <div style="color: #718096; margin: 0.5rem 0;">
-                <strong>Away Trends:</strong><br>
+            <div style="color: #4B5563; margin: 0.5rem 0;">
+                <strong style="color: #374151;">Away Trends:</strong><br>
                 • BTTS: {data['away_btts']}%<br>
                 • Over 2.5: {data['away_over']}%
             </div>
-            <div style="color: #718096; margin-top: 1rem;">
-                <strong>Result:</strong> {strength_text}<br>
+            <div style="color: #4B5563; margin-top: 1rem;">
+                <strong style="color: #374151;">Result:</strong> {strength_text}<br>
                 {trends_list}
             </div>
         </div>
         """, unsafe_allow_html=True)
     
-    # Betting Strategy - FIXED: Proper string formatting
+    # Betting Strategy
     with st.expander("🎯 BETTING STRATEGY EXPLAINED", expanded=True):
         if primary_bet and aligned_trends:
             primary_trend = aligned_trends[0]
@@ -513,9 +548,9 @@ def main():
     # Footer
     st.markdown("---")
     st.markdown("""
-    <div style="text-align: center; color: #718096; font-size: 0.9rem;">
-        <div><strong>🎯 CLEAN SYSTEM:</strong> No empty metrics, just clear explanations</div>
-        <div style="margin-top: 0.5rem;">Every recommendation comes with reasoning</div>
+    <div style="text-align: center; color: #6B7280; font-size: 0.9rem;">
+        <div><strong>🎯 CLEAN SYSTEM:</strong> Optimized for mobile visibility</div>
+        <div style="margin-top: 0.5rem;">Clear contrast on all devices</div>
     </div>
     """, unsafe_allow_html=True)
 
