@@ -32,7 +32,6 @@ def detect_defensive_strength(conceding_avg, matches_played, league_avg=1.3):
         return 'UNKNOWN'  # Insufficient data
     
     # Universal statistical thresholds (work for any league)
-    # UPDATED: Clear boundaries with <= for STRONG classification
     if conceding_avg < 0.80:
         return 'ELITE'     # Top 10% defenses
     elif conceding_avg <= 1.00:  # FIXED: Changed from < 1.0 to <= 1.0
@@ -85,20 +84,18 @@ def predict_scoring_enhanced(home_scoring, home_conceding, away_scoring, away_co
     home_margin = home_scoring_adj_value - away_conceding
     away_margin = away_scoring_adj_value - home_conceding
     
-    # Determine predictions with adjusted thresholds
-    # Against strong defenses, require clearer margin
-    home_required_margin = 0.15 if away_defense in ['ELITE', 'STRONG'] else 0.0
-    away_required_margin = 0.15 if home_defense in ['ELITE', 'STRONG'] else 0.0
-    
-    home_will_score = home_margin > home_required_margin
-    away_will_score = away_margin > away_required_margin
+    # FIXED BUG: Use pure core principle without extra thresholds
+    # Home scores if: Home GF (adjusted) > Away GA
+    # Away scores if: Away GF (adjusted) > Home GA
+    home_will_score = home_margin > 0
+    away_will_score = away_margin > 0
     
     # Calculate confidence based on adjusted margins
     def get_confidence(margin, defense_strength):
         abs_margin = abs(margin)
         
         if defense_strength in ['ELITE', 'STRONG']:
-            # Higher threshold for strong defenses
+            # Higher threshold for strong defenses for confidence levels only
             if abs_margin > 0.4:
                 return 'VERY_HIGH'
             elif abs_margin > 0.2:
@@ -284,7 +281,7 @@ with col1:
     st.markdown("#### 🏠 Home Team")
     st.caption("*Last N HOME games*")
     
-    home_name = st.text_input("Team Name", value="Crystal Palace", key="home_name")
+    home_name = st.text_input("Team Name", value="Rayong FC", key="home_name")
     
     home_matches = st.number_input(
         "Home Games", 
@@ -308,7 +305,7 @@ with col1:
         "Goals Conceded (Home)", 
         min_value=0,
         max_value=100,
-        value=9,
+        value=6,
         step=1,
         key="home_goals_conceded"
     )
@@ -323,7 +320,7 @@ with col2:
     st.markdown("#### ✈️ Away Team")
     st.caption("*Last N AWAY games*")
     
-    away_name = st.text_input("Team Name", value="Manchester City", key="away_name")
+    away_name = st.text_input("Team Name", value="Ratchaburi", key="away_name")
     
     away_matches = st.number_input(
         "Away Games", 
@@ -338,7 +335,7 @@ with col2:
         "Goals Scored (Away)", 
         min_value=0,
         max_value=100,
-        value=19,
+        value=12,
         step=1,
         key="away_goals_scored"
     )
@@ -347,7 +344,7 @@ with col2:
         "Goals Conceded (Away)", 
         min_value=0,
         max_value=100,
-        value=10,
+        value=7,
         step=1,
         key="away_goals_conceded"
     )
@@ -370,7 +367,7 @@ with odds_cols[0]:
         f"{home_name} to Score", 
         min_value=1.01,
         max_value=10.0,
-        value=1.25,
+        value=1.01,
         step=0.01,
         key="odds_home_score"
     )
@@ -380,7 +377,7 @@ with odds_cols[1]:
         f"{away_name} to Score", 
         min_value=1.01,
         max_value=10.0,
-        value=1.10,
+        value=1.01,
         step=0.01,
         key="odds_away_score"
     )
@@ -390,7 +387,7 @@ with odds_cols[2]:
         "BTTS Yes", 
         min_value=1.01,
         max_value=10.0,
-        value=1.62,
+        value=1.70,
         step=0.01,
         key="odds_btts_yes"
     )
@@ -518,7 +515,7 @@ if analyze_button and home_matches > 0 and away_matches > 0:
         st.markdown(f"**Raw average:** {home_scoring:.2f} goals/game")
         st.markdown(f"**Vs {away_name} defense ({predictions['away_defense_strength']}):**")
         adj_factor_home = get_adjustment_factor(predictions['away_defense_strength'], True)
-        st.markdown(f"**Adjustment factor:** ×{adj_factor_home:.2f}")  # FIXED: Added .2f
+        st.markdown(f"**Adjustment factor:** ×{adj_factor_home:.2f}")
         st.markdown(f"**Adjusted expectation:** {predictions['home_adjusted_scoring']:.2f} goals")
         
         # Visual indicator
@@ -543,7 +540,7 @@ if analyze_button and home_matches > 0 and away_matches > 0:
         st.markdown(f"**Raw average:** {away_scoring:.2f} goals/game")
         st.markdown(f"**Vs {home_name} defense ({predictions['home_defense_strength']}):**")
         adj_factor_away = get_adjustment_factor(predictions['home_defense_strength'], False)
-        st.markdown(f"**Adjustment factor:** ×{adj_factor_away:.2f}")  # FIXED: Added .2f
+        st.markdown(f"**Adjustment factor:** ×{adj_factor_away:.2f}")
         st.markdown(f"**Adjusted expectation:** {predictions['away_adjusted_scoring']:.2f} goals")
         
         # Visual indicator
@@ -567,23 +564,33 @@ if analyze_button and home_matches > 0 and away_matches > 0:
     
     # Show the actual calculation verification
     with st.expander("🔍 Verification Calculations"):
-        st.markdown("**Crystal Palace (Home):**")
+        st.markdown("**Core Principle Verification:**")
+        st.markdown(f"**{home_name} (Home) scores if:** Home GF (adjusted) > Away GA")
+        st.markdown(f"  {predictions['home_adjusted_scoring']:.2f} > {away_conceding:.2f} = **{predictions['home_adjusted_scoring'] > away_conceding}**")
+        st.markdown(f"  Margin: {predictions['home_adjusted_scoring']:.2f} - {away_conceding:.2f} = **{predictions['home_margin']:.2f}**")
+        
+        st.markdown(f"**{away_name} (Away) scores if:** Away GF (adjusted) > Home GA")
+        st.markdown(f"  {predictions['away_adjusted_scoring']:.2f} > {home_conceding:.2f} = **{predictions['away_adjusted_scoring'] > home_conceding}**")
+        st.markdown(f"  Margin: {predictions['away_adjusted_scoring']:.2f} - {home_conceding:.2f} = **{predictions['away_margin']:.2f}**")
+        
+        st.markdown("---")
+        st.markdown("**Detailed Calculations:**")
+        
+        st.markdown(f"**{home_name} (Home):**")
         st.markdown(f"- Raw scoring: {home_scoring:.2f}")
-        st.markdown(f"- Man City away defense: {predictions['away_defense_strength']}")
+        st.markdown(f"- {away_name} away defense: {predictions['away_defense_strength']}")
         st.markdown(f"- Adjustment factor: ×{adj_factor_home:.2f}")
         st.markdown(f"- Adjusted scoring: {home_scoring:.2f} × {adj_factor_home:.2f} = **{predictions['home_adjusted_scoring']:.2f}**")
-        st.markdown(f"- Man City conceding away: {away_conceding:.2f}")
-        st.markdown(f"- **Margin:** {predictions['home_adjusted_scoring']:.2f} - {away_conceding:.2f} = **{predictions['home_margin']:.2f}**")
+        st.markdown(f"- {away_name} conceding away: {away_conceding:.2f}")
         
         st.markdown("---")
         
-        st.markdown("**Manchester City (Away):**")
+        st.markdown(f"**{away_name} (Away):**")
         st.markdown(f"- Raw scoring: {away_scoring:.2f}")
-        st.markdown(f"- Palace home defense: {predictions['home_defense_strength']}")
+        st.markdown(f"- {home_name} home defense: {predictions['home_defense_strength']}")
         st.markdown(f"- Adjustment factor: ×{adj_factor_away:.2f}")
         st.markdown(f"- Adjusted scoring: {away_scoring:.2f} × {adj_factor_away:.2f} = **{predictions['away_adjusted_scoring']:.2f}**")
-        st.markdown(f"- Palace conceding home: {home_conceding:.2f}")
-        st.markdown(f"- **Margin:** {predictions['away_adjusted_scoring']:.2f} - {home_conceding:.2f} = **{predictions['away_margin']:.2f}**")
+        st.markdown(f"- {home_name} conceding home: {home_conceding:.2f}")
         
         st.markdown("---")
         
