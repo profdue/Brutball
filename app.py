@@ -4,60 +4,134 @@ import plotly.graph_objects as go
 import plotly.express as px
 import math
 from datetime import datetime, timedelta
+import numpy as np
 
 # Page configuration
 st.set_page_config(
-    page_title="Comparative Betting System - Original Logic",
+    page_title="Enhanced Comparative Betting System",
     page_icon="⚽",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-st.title("⚽ Comparative Betting System")
+st.title("⚽ Enhanced Comparative Betting System")
 st.markdown("""
-**Original Proven Logic** - 100% accuracy across 11 matches using venue-specific comparative analysis.
+**Original Logic + Automatic Defensive Strength Detection** - Works for ALL teams without special cases.
 """)
 
-# ==================== ORIGINAL COMPARATIVE LOGIC ====================
+# ==================== ENHANCED COMPARATIVE LOGIC ====================
 
-def predict_scoring_comparative(home_scoring, home_conceding, away_scoring, away_conceding):
+def detect_defensive_strength(conceding_avg, matches_played, league_avg=1.3):
     """
-    ORIGINAL LOGIC that proved 100% accurate:
-    - Home scores if: Home GF (at home) > Away GA (away)
-    - Away scores if: Away GF (away) > Home GA (at home)
+    Auto-detect defensive strength from data alone.
+    No team database needed - works for ALL teams.
     
-    Returns predictions and confidence based on margin.
+    Returns: 'ELITE', 'STRONG', 'AVERAGE', or 'WEAK'
     """
+    if matches_played < 5:
+        return 'UNKNOWN'  # Insufficient data
     
-    # Core comparative predictions
-    home_will_score = home_scoring > away_conceding
-    away_will_score = away_scoring > home_conceding
-    
-    # Calculate margins for confidence
-    home_margin = home_scoring - away_conceding
-    away_margin = away_scoring - home_conceding
-    
-    # Determine confidence levels
-    def get_confidence(margin):
-        if abs(margin) > 0.5:
-            return 'VERY_HIGH'
-        elif abs(margin) > 0.2:
-            return 'HIGH'
-        elif abs(margin) > 0.05:
-            return 'MEDIUM'
-        else:
-            return 'LOW'
-    
-    home_confidence = get_confidence(home_margin)
-    away_confidence = get_confidence(away_margin)
-    
-    # Overall match confidence
-    if home_confidence == 'VERY_HIGH' and away_confidence == 'VERY_HIGH':
-        overall_confidence = 'VERY_HIGH'
-    elif home_confidence in ['VERY_HIGH', 'HIGH'] and away_confidence in ['VERY_HIGH', 'HIGH']:
-        overall_confidence = 'HIGH'
+    # Universal statistical thresholds (work for any league)
+    if conceding_avg < 0.8:
+        return 'ELITE'     # Top 10% defenses
+    elif conceding_avg < 1.0:
+        return 'STRONG'    # Top 25% defenses  
+    elif conceding_avg > 1.8:
+        return 'WEAK'      # Bottom 25% defenses
+    elif conceding_avg > league_avg * 1.2:
+        return 'WEAK'      # Worse than league average
     else:
-        overall_confidence = max(home_confidence, away_confidence, key=lambda x: ['LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH'].index(x))
+        return 'AVERAGE'
+
+def get_adjustment_factor(defensive_strength, is_home_advantage=True):
+    """
+    Get scoring adjustment based on opponent's defensive strength.
+    Works universally for ALL teams.
+    """
+    # Base adjustments (same for all teams)
+    adjustments = {
+        'ELITE': 0.75,     # 25% reduction vs elite defenses
+        'STRONG': 0.85,    # 15% reduction vs strong defenses
+        'AVERAGE': 1.0,    # No adjustment
+        'WEAK': 1.15,      # 15% boost vs weak defenses
+        'UNKNOWN': 1.0     # No adjustment for insufficient data
+    }
+    
+    base_factor = adjustments.get(defensive_strength, 1.0)
+    
+    # Slight home advantage adjustment
+    if is_home_advantage and defensive_strength in ['ELITE', 'STRONG']:
+        return base_factor * 1.05  # Home teams slightly better vs good defenses
+    elif not is_home_advantage and defensive_strength in ['ELITE', 'STRONG']:
+        return base_factor * 0.95  # Away teams slightly worse vs good defenses
+    
+    return base_factor
+
+def predict_scoring_enhanced(home_scoring, home_conceding, away_scoring, away_conceding,
+                            home_matches, away_matches, league_avg=1.3):
+    """
+    ENHANCED comparative logic with automatic defensive strength detection.
+    Works for ALL teams without special cases.
+    """
+    
+    # Auto-detect defensive strengths
+    home_defense = detect_defensive_strength(home_conceding, home_matches, league_avg)
+    away_defense = detect_defensive_strength(away_conceding, away_matches, league_avg)
+    
+    # Get adjustment factors
+    home_scoring_adj = get_adjustment_factor(away_defense, is_home_advantage=True)
+    away_scoring_adj = get_adjustment_factor(home_defense, is_home_advantage=False)
+    
+    # Apply adjustments
+    home_scoring_adj_value = home_scoring * home_scoring_adj
+    away_scoring_adj_value = away_scoring * away_scoring_adj
+    
+    # Calculate margins with adjustments
+    home_margin = home_scoring_adj_value - away_conceding
+    away_margin = away_scoring_adj_value - home_conceding
+    
+    # Determine predictions with adjusted thresholds
+    # Against strong defenses, require clearer margin
+    home_required_margin = 0.15 if away_defense in ['ELITE', 'STRONG'] else 0.0
+    away_required_margin = 0.15 if home_defense in ['ELITE', 'STRONG'] else 0.0
+    
+    home_will_score = home_margin > home_required_margin
+    away_will_score = away_margin > away_required_margin
+    
+    # Calculate confidence based on adjusted margins
+    def get_confidence(margin, defense_strength):
+        abs_margin = abs(margin)
+        
+        if defense_strength in ['ELITE', 'STRONG']:
+            # Higher threshold for strong defenses
+            if abs_margin > 0.4:
+                return 'VERY_HIGH'
+            elif abs_margin > 0.2:
+                return 'HIGH'
+            elif abs_margin > 0.1:
+                return 'MEDIUM'
+            else:
+                return 'LOW'
+        else:
+            # Standard thresholds for average/weak defenses
+            if abs_margin > 0.5:
+                return 'VERY_HIGH'
+            elif abs_margin > 0.2:
+                return 'HIGH'
+            elif abs_margin > 0.05:
+                return 'MEDIUM'
+            else:
+                return 'LOW'
+    
+    home_confidence = get_confidence(home_margin, away_defense)
+    away_confidence = get_confidence(away_margin, home_defense)
+    
+    # Overall confidence
+    confidence_levels = {'LOW': 0, 'MEDIUM': 1, 'HIGH': 2, 'VERY_HIGH': 3}
+    overall_confidence_level = max(confidence_levels[home_confidence], 
+                                  confidence_levels[away_confidence])
+    overall_confidence = [k for k, v in confidence_levels.items() 
+                         if v == overall_confidence_level][0]
     
     return {
         'home_scores': home_will_score,
@@ -68,180 +142,129 @@ def predict_scoring_comparative(home_scoring, home_conceding, away_scoring, away
         'home_confidence': home_confidence,
         'away_confidence': away_confidence,
         'overall_confidence': overall_confidence,
-        'expected_total': home_scoring + away_scoring  # For over/under analysis
+        'home_defense_strength': home_defense,
+        'away_defense_strength': away_defense,
+        'home_adjusted_scoring': home_scoring_adj_value,
+        'away_adjusted_scoring': away_scoring_adj_value,
+        'expected_total': home_scoring_adj_value + away_scoring_adj_value
     }
 
 def determine_bet_recommendation(predictions):
     """
-    Determine betting recommendation based on comparative predictions.
+    Determine betting recommendation based on enhanced predictions.
     """
     
     home_scores = predictions['home_scores']
     away_scores = predictions['away_scores']
     confidence = predictions['overall_confidence']
     expected_total = predictions['expected_total']
+    home_defense = predictions['home_defense_strength']
+    away_defense = predictions['away_defense_strength']
     
-    # Primary betting recommendations
+    # Generate reason with defensive strength context
+    reason_parts = []
+    
     if not home_scores and not away_scores:
-        return {
-            'primary_bet': 'UNDER_2.5',
-            'secondary_bets': ['BTTS_NO'],
-            'confidence': confidence,
-            'reason': f'Neither team likely to score (Home margin: {predictions["home_margin"]:.2f}, Away margin: {predictions["away_margin"]:.2f})'
-        }
-    
-    elif home_scores and not away_scores:
-        return {
-            'primary_bet': 'HOME_TO_SCORE',
-            'secondary_bets': ['BTTS_NO', f'UNDER_{expected_total:.1f}'],
-            'confidence': confidence,
-            'reason': f'Only home team likely to score (Home advantage: {predictions["home_margin"]:.2f})'
-        }
-    
-    elif not home_scores and away_scores:
-        return {
-            'primary_bet': 'AWAY_TO_SCORE',
-            'secondary_bets': ['BTTS_NO', f'UNDER_{expected_total:.1f}'],
-            'confidence': confidence,
-            'reason': f'Only away team likely to score (Away advantage: {predictions["away_margin"]:.2f})'
-        }
-    
-    else:  # home_scores and away_scores
-        if expected_total > 2.75:
-            secondary = ['OVER_2.5', 'OVER_3.5'] if expected_total > 3.25 else ['OVER_2.5']
-        elif expected_total < 2.25:
-            secondary = ['UNDER_2.5', 'UNDER_1.5'] if expected_total < 1.75 else ['UNDER_2.5']
-        else:
-            secondary = []
+        primary_bet = 'UNDER_2.5'
+        reason = f"Neither team likely to score "
+        if home_defense in ['ELITE', 'STRONG']:
+            reason += f"(Home defense: {home_defense}) "
+        if away_defense in ['ELITE', 'STRONG']:
+            reason += f"(Away defense: {away_defense})"
+        reason_parts.append(reason.strip())
         
-        return {
-            'primary_bet': 'BTTS_YES',
-            'secondary_bets': secondary,
-            'confidence': confidence,
-            'reason': f'Both teams likely to score (Expected total: {expected_total:.2f} goals)'
-        }
-
-def calculate_expected_goals(home_scoring, home_conceding, away_scoring, away_conceding):
-    """
-    Calculate expected goals based on comparative analysis.
-    """
-    # Home xG = Average of their scoring and opponent's conceding weakness
-    home_xG = (home_scoring + (1 / max(away_conceding, 0.1))) / 2
+    elif home_scores and not away_scores:
+        primary_bet = 'HOME_TO_SCORE'
+        reason = f"Only home team likely to score "
+        if away_defense in ['ELITE', 'STRONG']:
+            reason += f"(vs {away_defense} away defense)"
+        reason_parts.append(reason.strip())
+        
+    elif not home_scores and away_scores:
+        primary_bet = 'AWAY_TO_SCORE'
+        reason = f"Only away team likely to score "
+        if home_defense in ['ELITE', 'STRONG']:
+            reason += f"(vs {home_defense} home defense)"
+        reason_parts.append(reason.strip())
+        
+    else:  # home_scores and away_scores
+        primary_bet = 'BTTS_YES'
+        reason = f"Both teams likely to score "
+        if home_defense in ['ELITE', 'STRONG'] or away_defense in ['ELITE', 'STRONG']:
+            reason += f"(despite defensive strengths)"
+        reason_parts.append(reason.strip())
     
-    # Away xG = Average of their scoring and opponent's conceding weakness
-    away_xG = (away_scoring + (1 / max(home_conceding, 0.1))) / 2
+    # Add expected total info
+    reason_parts.append(f"Expected total: {expected_total:.2f} goals")
     
-    # Apply realism caps
-    home_xG = min(max(home_xG, 0.1), 4.0)
-    away_xG = min(max(away_xG, 0.1), 3.5)
+    # Determine secondary bets
+    secondary_bets = []
+    
+    if expected_total > 2.75:
+        secondary_bets.append('OVER_2.5')
+        if expected_total > 3.25:
+            secondary_bets.append('OVER_3.5')
+    elif expected_total < 2.25:
+        secondary_bets.append('UNDER_2.5')
+        if expected_total < 1.75:
+            secondary_bets.append('UNDER_1.5')
+    
+    # Add defensive matchup insights
+    if home_defense in ['ELITE', 'STRONG'] and away_defense in ['ELITE', 'STRONG']:
+        secondary_bets.append('UNDER_2.5')  # Defensive battle
     
     return {
-        'home_xG': round(home_xG, 2),
-        'away_xG': round(away_xG, 2),
-        'total_xG': round(home_xG + away_xG, 2)
+        'primary_bet': primary_bet,
+        'secondary_bets': secondary_bets[:3],  # Limit to top 3
+        'confidence': confidence,
+        'reason': ' • '.join(reason_parts),
+        'home_defense': home_defense,
+        'away_defense': away_defense
     }
-
-# ==================== BANKROLL MANAGEMENT ====================
-
-class ComparativeBankrollManager:
-    def __init__(self, initial_bankroll=100):
-        self.initial = initial_bankroll
-        self.current = initial_bankroll
-        self.bets = []
-        self.loss_streak = 0
-        self.max_drawdown = 0
-        
-    def calculate_stake(self, confidence, expected_value):
-        """Dynamic staking based on confidence and EV."""
-        base_percentage = 0.01  # 1% base
-        
-        # Confidence multiplier
-        conf_multiplier = {
-            'VERY_HIGH': 1.5,
-            'HIGH': 1.2,
-            'MEDIUM': 1.0,
-            'LOW': 0.5
-        }.get(confidence, 1.0)
-        
-        # EV multiplier (capped)
-        ev_multiplier = min(max(1.0 + expected_value, 0.5), 2.0)
-        
-        # Loss streak protection
-        streak_multiplier = 1.0
-        if self.loss_streak >= 3:
-            streak_multiplier = 0.75
-        if self.loss_streak >= 5:
-            streak_multiplier = 0.5
-        
-        stake = self.current * base_percentage * conf_multiplier * ev_multiplier * streak_multiplier
-        
-        # Drawdown protection
-        if self.max_drawdown >= 20:
-            return 0.0
-            
-        return round(stake, 2)
-    
-    def update(self, profit):
-        """Update bankroll after bet."""
-        self.current += profit
-        self.bets.append(profit)
-        
-        if profit < 0:
-            self.loss_streak += 1
-            drawdown = ((self.initial - self.current) / self.initial) * 100
-            self.max_drawdown = max(self.max_drawdown, drawdown)
-        else:
-            self.loss_streak = 0
 
 # ==================== SIDEBAR ====================
 
 with st.sidebar:
-    st.header("🎯 Original Logic Rules")
+    st.header("🎯 Enhanced Logic Rules")
     st.markdown("""
     **CORE PRINCIPLE:**
-    
     ```
     Home scores if: Home GF (at home) > Away GA (away)
     Away scores if: Away GF (away) > Home GA (at home)
     ```
     
-    **Proven Accuracy:** 100% across 11 matches (22/22 predictions correct)
+    **AUTO-ENHANCEMENT:**
+    - Detects defensive strength from data
+    - Adjusts margins for strong defenses
+    - No team database needed
+    - Works for ALL leagues/teams
     """)
     
-    st.header("💰 Bankroll Management")
+    st.header("🛡️ Defensive Strength Detection")
     st.markdown("""
-    **Dynamic Staking:**
-    - Base: 1% of bankroll
-    - Confidence multiplier: 0.5x to 1.5x
-    - EV multiplier: Based on value
-    - Loss protection: Reduced stakes after losses
+    **Auto-classification:**
+    - **ELITE**: < 0.80 goals conceded/game
+    - **STRONG**: 0.80-1.00 goals conceded/game  
+    - **AVERAGE**: 1.00-1.80 goals conceded/game
+    - **WEAK**: > 1.80 goals conceded/game
     
-    **Protections:**
-    - Auto-pause at 20% drawdown
-    - Max stake: 3% of bankroll
+    **Automatic Adjustments:**
+    - Vs ELITE defense: -25% scoring expectation
+    - Vs STRONG defense: -15% scoring expectation
+    - Vs WEAK defense: +15% scoring expectation
     """)
     
-    st.header("📊 Historical Proof")
+    st.header("⚙️ League Settings")
+    league_avg = st.number_input(
+        "League Average Goals/Game",
+        min_value=1.0,
+        max_value=4.0,
+        value=1.3,
+        step=0.1,
+        help="Used for defensive strength classification"
+    )
     
-    # Original 11-match analysis
-    original_matches = [
-        {'match': 'Milan 2–2 Sassuolo', 'home_gf': 1.50, 'away_ga': 1.00, 'prediction': 'BTTS YES', 'correct': True},
-        {'match': 'Udinese 1–0 Napoli', 'home_gf': 1.00, 'away_ga': 0.60, 'prediction': 'HOME SCORES', 'correct': True},
-        {'match': 'West Ham 2–3 Aston Villa', 'home_gf': 1.10, 'away_ga': 1.30, 'prediction': 'HOME SCORES', 'correct': True},
-        {'match': 'Freiburg 1–1 Dortmund', 'home_gf': 2.00, 'away_ga': 1.30, 'prediction': 'HOME SCORES', 'correct': True},
-        {'match': 'Auxerre 3–4 Lille', 'home_gf': 0.90, 'away_ga': 1.40, 'prediction': 'HOME SCORES', 'correct': True},
-        {'match': 'Brentford 1–1 Leeds', 'home_gf': 2.20, 'away_ga': 1.90, 'prediction': 'HOME SCORES', 'correct': True},
-        {'match': 'Bayern 2–2 Mainz', 'home_gf': 3.90, 'away_ga': 2.20, 'prediction': 'HOME SCORES', 'correct': True},
-        {'match': 'Sunderland 1–0 Newcastle', 'home_gf': 1.50, 'away_ga': 1.50, 'prediction': 'HOME SCORES', 'correct': True},
-        {'match': 'Liverpool 2–0 Brighton', 'home_gf': 1.30, 'away_ga': 1.50, 'prediction': 'HOME SCORES', 'correct': True},
-        {'match': 'Chelsea 2–0 Everton', 'home_gf': 1.90, 'away_ga': 1.00, 'prediction': 'HOME SCORES', 'correct': True},
-        {'match': 'Torino 1–0 Cremonese', 'home_gf': 0.90, 'away_ga': 1.40, 'prediction': 'HOME SCORES', 'correct': True}
-    ]
-    
-    with st.expander("View 11-Match Analysis"):
-        df_proof = pd.DataFrame(original_matches)
-        st.dataframe(df_proof, use_container_width=True)
-        st.success("**100% Accuracy** (22/22 scoring predictions correct)")
+    st.caption(f"Premier League ≈ 1.3 • Bundesliga ≈ 1.5 • Serie A ≈ 1.2")
 
 # ==================== MAIN INPUT ====================
 
@@ -255,12 +278,10 @@ with col_info[0]:
     league = st.text_input("League", value="Premier League", key="league")
 with col_info[1]:
     match_date = st.date_input("Match Date", value=datetime.now())
-with col_info[2]:
-    st.caption("**Venue-specific comparative analysis**")
 
 st.markdown("---")
 
-# Team Statistics (SYMMETRICAL INPUTS)
+# Team Statistics
 col1, col2 = st.columns(2)
 
 with col1:
@@ -271,30 +292,36 @@ with col1:
     
     home_matches = st.number_input(
         "Home Games", 
-        min_value=1, max_value=20, value=10, step=1,
-        key="home_matches",
-        help="Number of recent HOME games"
+        min_value=1,
+        max_value=20,
+        value=10,
+        step=1,
+        key="home_matches"
     )
     
     home_goals_scored = st.number_input(
         "Goals Scored (Home)", 
-        min_value=0, max_value=100, value=11, step=1,
-        key="home_goals_scored",
-        help="Total goals scored in these home games"
+        min_value=0,
+        max_value=100,
+        value=11,
+        step=1,
+        key="home_goals_scored"
     )
     
     home_goals_conceded = st.number_input(
         "Goals Conceded (Home)", 
-        min_value=0, max_value=100, value=9, step=1,
-        key="home_goals_conceded",
-        help="Total goals conceded in these home games"
+        min_value=0,
+        max_value=100,
+        value=9,
+        step=1,
+        key="home_goals_conceded"
     )
     
-    # Calculate and display averages
+    # Auto-display defensive strength
     if home_matches > 0:
-        home_scoring_avg = home_goals_scored / home_matches
         home_conceding_avg = home_goals_conceded / home_matches
-        st.caption(f"Avg: **{home_scoring_avg:.2f}** scored, **{home_conceding_avg:.2f}** conceded per home game")
+        home_def_strength = detect_defensive_strength(home_conceding_avg, home_matches, league_avg)
+        st.caption(f"📊 **Defense:** {home_def_strength} ({home_conceding_avg:.2f} conceded/game)")
 
 with col2:
     st.markdown("#### ✈️ Away Team")
@@ -304,30 +331,36 @@ with col2:
     
     away_matches = st.number_input(
         "Away Games", 
-        min_value=1, max_value=20, value=10, step=1,
-        key="away_matches",
-        help="Number of recent AWAY games"
+        min_value=1,
+        max_value=20,
+        value=10,
+        step=1,
+        key="away_matches"
     )
     
     away_goals_scored = st.number_input(
         "Goals Scored (Away)", 
-        min_value=0, max_value=100, value=19, step=1,
-        key="away_goals_scored",
-        help="Total goals scored in these away games"
+        min_value=0,
+        max_value=100,
+        value=19,
+        step=1,
+        key="away_goals_scored"
     )
     
     away_goals_conceded = st.number_input(
         "Goals Conceded (Away)", 
-        min_value=0, max_value=100, value=10, step=1,
-        key="away_goals_conceded",
-        help="Total goals conceded in these away games"
+        min_value=0,
+        max_value=100,
+        value=10,
+        step=1,
+        key="away_goals_conceded"
     )
     
-    # Calculate and display averages
+    # Auto-display defensive strength
     if away_matches > 0:
-        away_scoring_avg = away_goals_scored / away_matches
         away_conceding_avg = away_goals_conceded / away_matches
-        st.caption(f"Avg: **{away_scoring_avg:.2f}** scored, **{away_conceding_avg:.2f}** conceded per away game")
+        away_def_strength = detect_defensive_strength(away_conceding_avg, away_matches, league_avg)
+        st.caption(f"📊 **Defense:** {away_def_strength} ({away_conceding_avg:.2f} conceded/game)")
 
 # ==================== ODDS INPUT ====================
 
@@ -339,35 +372,47 @@ odds_cols = st.columns(4)
 with odds_cols[0]:
     odds_home_score = st.number_input(
         f"{home_name} to Score", 
-        min_value=1.01, max_value=10.0, value=1.25, step=0.01,
+        min_value=1.01,
+        max_value=10.0,
+        value=1.25,
+        step=0.01,
         key="odds_home_score"
     )
 
 with odds_cols[1]:
     odds_away_score = st.number_input(
         f"{away_name} to Score", 
-        min_value=1.01, max_value=10.0, value=1.10, step=0.01,
+        min_value=1.01,
+        max_value=10.0,
+        value=1.10,
+        step=0.01,
         key="odds_away_score"
     )
 
 with odds_cols[2]:
     odds_btts_yes = st.number_input(
         "BTTS Yes", 
-        min_value=1.01, max_value=10.0, value=1.62, step=0.01,
+        min_value=1.01,
+        max_value=10.0,
+        value=1.62,
+        step=0.01,
         key="odds_btts_yes"
     )
 
 with odds_cols[3]:
     odds_under_25 = st.number_input(
         "Under 2.5 Goals", 
-        min_value=1.01, max_value=10.0, value=2.10, step=0.01,
+        min_value=1.01,
+        max_value=10.0,
+        value=2.10,
+        step=0.01,
         key="odds_under_25"
     )
 
 # ==================== ANALYSIS ====================
 
 st.markdown("---")
-analyze_button = st.button("🔍 Run Comparative Analysis", type="primary", use_container_width=True)
+analyze_button = st.button("🔍 Run Enhanced Analysis", type="primary", use_container_width=True)
 
 if analyze_button and home_matches > 0 and away_matches > 0:
     # Calculate averages
@@ -376,35 +421,41 @@ if analyze_button and home_matches > 0 and away_matches > 0:
     away_scoring = away_goals_scored / away_matches
     away_conceding = away_goals_conceded / away_matches
     
-    # Run comparative analysis
-    predictions = predict_scoring_comparative(home_scoring, home_conceding, away_scoring, away_conceding)
+    # Run enhanced analysis
+    predictions = predict_scoring_enhanced(
+        home_scoring, home_conceding, away_scoring, away_conceding,
+        home_matches, away_matches, league_avg
+    )
     bet_recommendation = determine_bet_recommendation(predictions)
-    expected_goals = calculate_expected_goals(home_scoring, home_conceding, away_scoring, away_conceding)
     
     # ==================== RESULTS ====================
     
-    st.header("🎯 Comparative Analysis Results")
+    st.header("🎯 Enhanced Analysis Results")
     
     # Prediction Summary
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         home_icon = "✅" if predictions['home_scores'] else "❌"
+        delta_color = "normal" if predictions['home_margin'] > 0 else "off"
         st.metric(
             f"{home_name} Scores",
             f"{home_icon} {'Yes' if predictions['home_scores'] else 'No'}",
-            delta=f"Margin: {predictions['home_margin']:.2f}",
-            delta_color="normal" if predictions['home_margin'] > 0 else "off"
+            delta=f"Adj margin: {predictions['home_margin']:.2f}",
+            delta_color=delta_color
         )
+        st.caption(f"Defense: {predictions['away_defense_strength']}")
     
     with col2:
         away_icon = "✅" if predictions['away_scores'] else "❌"
+        delta_color = "normal" if predictions['away_margin'] > 0 else "off"
         st.metric(
             f"{away_name} Scores",
             f"{away_icon} {'Yes' if predictions['away_scores'] else 'No'}",
-            delta=f"Margin: {predictions['away_margin']:.2f}",
-            delta_color="normal" if predictions['away_margin'] > 0 else "off"
+            delta=f"Adj margin: {predictions['away_margin']:.2f}",
+            delta_color=delta_color
         )
+        st.caption(f"Defense: {predictions['home_defense_strength']}")
     
     with col3:
         btts_text = "YES" if predictions['btts'] else "NO"
@@ -412,17 +463,107 @@ if analyze_button and home_matches > 0 and away_matches > 0:
         st.metric(
             "Both Teams to Score",
             f"{btts_icon} {btts_text}",
-            delta=f"{predictions['overall_confidence'].replace('_', ' ')} confidence"
+            delta=f"{predictions['overall_confidence'].replace('_', ' ')}"
         )
     
     with col4:
-        total_goals = expected_goals['total_xG']
+        total_goals = predictions['expected_total']
         over_under = "Over 2.5" if total_goals > 2.5 else "Under 2.5"
         st.metric(
             "Total Goals",
             over_under,
             delta=f"{total_goals:.2f} expected"
         )
+    
+    # ==================== DEFENSIVE ANALYSIS ====================
+    
+    st.markdown("---")
+    st.subheader("🛡️ Defensive Strength Analysis")
+    
+    def_col1, def_col2 = st.columns(2)
+    
+    with def_col1:
+        st.markdown(f"#### {home_name} Home Defense")
+        strength = predictions['home_defense_strength']
+        color = "green" if strength in ['ELITE', 'STRONG'] else "orange" if strength == 'AVERAGE' else "red"
+        st.markdown(f"**Strength:** :{color}[{strength}]")
+        st.markdown(f"**Avg Conceded:** {home_conceding:.2f} goals/game")
+        st.markdown(f"**League Comparison:** {'Better' if home_conceding < league_avg else 'Worse'} than average")
+        
+        # Recommendation
+        if strength in ['ELITE', 'STRONG']:
+            st.success(f"✅ Strong home defense - {away_name} may struggle to score")
+        elif strength == 'WEAK':
+            st.warning(f"⚠️ Weak home defense - {away_name} likely to score")
+    
+    with def_col2:
+        st.markdown(f"#### {away_name} Away Defense")
+        strength = predictions['away_defense_strength']
+        color = "green" if strength in ['ELITE', 'STRONG'] else "orange" if strength == 'AVERAGE' else "red"
+        st.markdown(f"**Strength:** :{color}[{strength}]")
+        st.markdown(f"**Avg Conceded:** {away_conceding:.2f} goals/game")
+        st.markdown(f"**League Comparison:** {'Better' if away_conceding < league_avg else 'Worse'} than average")
+        
+        # Recommendation
+        if strength in ['ELITE', 'STRONG']:
+            st.success(f"✅ Strong away defense - {home_name} may struggle to score")
+        elif strength == 'WEAK':
+            st.warning(f"⚠️ Weak away defense - {home_name} likely to score")
+    
+    # ==================== SCORING ADJUSTMENTS ====================
+    
+    st.markdown("---")
+    st.subheader("📈 Scoring Adjustments Applied")
+    
+    adj_col1, adj_col2 = st.columns(2)
+    
+    with adj_col1:
+        st.markdown(f"#### {home_name} Scoring")
+        st.markdown(f"**Raw average:** {home_scoring:.2f} goals/game")
+        st.markdown(f"**Vs {away_name} defense ({predictions['away_defense_strength']}):**")
+        st.markdown(f"Adjustment factor: ×{get_adjustment_factor(predictions['away_defense_strength'], True):.2f}")
+        st.markdown(f"**Adjusted expectation:** {predictions['home_adjusted_scoring']:.2f} goals")
+        
+        # Visual indicator
+        fig1 = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=predictions['home_adjusted_scoring'],
+            title={'text': f"Adjusted Scoring"},
+            gauge={'axis': {'range': [0, 3]},
+                   'steps': [
+                       {'range': [0, 1], 'color': "lightgray"},
+                       {'range': [1, 2], 'color': "lightyellow"},
+                       {'range': [2, 3], 'color': "lightgreen"}],
+                   'threshold': {'line': {'color': "red", 'width': 4},
+                                 'thickness': 0.75,
+                                 'value': home_scoring}}  # Raw average line
+        ))
+        fig1.update_layout(height=200)
+        st.plotly_chart(fig1, use_container_width=True)
+    
+    with adj_col2:
+        st.markdown(f"#### {away_name} Scoring")
+        st.markdown(f"**Raw average:** {away_scoring:.2f} goals/game")
+        st.markdown(f"**Vs {home_name} defense ({predictions['home_defense_strength']}):**")
+        st.markdown(f"Adjustment factor: ×{get_adjustment_factor(predictions['home_defense_strength'], False):.2f}")
+        st.markdown(f"**Adjusted expectation:** {predictions['away_adjusted_scoring']:.2f} goals")
+        
+        # Visual indicator
+        fig2 = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=predictions['away_adjusted_scoring'],
+            title={'text': f"Adjusted Scoring"},
+            gauge={'axis': {'range': [0, 3]},
+                   'steps': [
+                       {'range': [0, 1], 'color': "lightgray"},
+                       {'range': [1, 2], 'color': "lightyellow"},
+                       {'range': [2, 3], 'color': "lightgreen"}],
+                   'threshold': {'line': {'color': "red", 'width': 4},
+                                 'thickness': 0.75,
+                                 'value': away_scoring}}  # Raw average line
+        ))
+        fig2.update_layout(height=200)
+        st.plotly_chart(fig2, use_container_width=True)
     
     # ==================== BET RECOMMENDATION ====================
     
@@ -435,7 +576,8 @@ if analyze_button and home_matches > 0 and away_matches > 0:
         'AWAY_TO_SCORE': f"{away_name} to Score",
         'BTTS_YES': 'Both Teams to Score: YES',
         'BTTS_NO': 'Both Teams to Score: NO',
-        'UNDER_2.5': 'Under 2.5 Goals'
+        'UNDER_2.5': 'Under 2.5 Goals',
+        'OVER_2.5': 'Over 2.5 Goals'
     }
     
     primary_bet = bet_recommendation['primary_bet']
@@ -456,58 +598,29 @@ if analyze_button and home_matches > 0 and away_matches > 0:
     
     # Secondary bets
     if bet_recommendation['secondary_bets']:
-        st.markdown("**Secondary Options:**")
+        st.markdown("**🎯 Secondary Options:**")
         for sec_bet in bet_recommendation['secondary_bets']:
             st.markdown(f"- {sec_bet.replace('_', ' ')}")
     
-    # ==================== COMPARATIVE ANALYSIS ====================
+    # ==================== COMPARATIVE VISUALIZATION ====================
     
     st.markdown("---")
-    st.subheader("📊 Comparative Analysis")
+    st.subheader("📊 Comparative Visualization")
     
-    # Create comparison visualization
-    fig = go.Figure()
+    # Create enhanced comparison chart
+    categories = ['Scoring', 'Adjusted Scoring', 'Opponent Conceding']
     
-    # Home vs Away Conceding comparison
-    fig.add_trace(go.Bar(
-        name=f'{home_name} Scoring',
-        x=['Scoring Comparison'],
-        y=[home_scoring],
-        marker_color='blue',
-        text=[f'{home_scoring:.2f}'],
-        textposition='auto'
-    ))
-    
-    fig.add_trace(go.Bar(
-        name=f'{away_name} Conceding',
-        x=['Scoring Comparison'],
-        y=[away_conceding],
-        marker_color='lightblue',
-        text=[f'{away_conceding:.2f}'],
-        textposition='auto'
-    ))
-    
-    # Away vs Home Conceding comparison
-    fig.add_trace(go.Bar(
-        name=f'{away_name} Scoring',
-        x=['Scoring Comparison'],
-        y=[away_scoring],
-        marker_color='red',
-        text=[f'{away_scoring:.2f}'],
-        textposition='auto'
-    ))
-    
-    fig.add_trace(go.Bar(
-        name=f'{home_name} Conceding',
-        x=['Scoring Comparison'],
-        y=[home_conceding],
-        marker_color='lightcoral',
-        text=[f'{home_conceding:.2f}'],
-        textposition='auto'
-    ))
+    fig = go.Figure(data=[
+        go.Bar(name=f'{home_name}', x=categories,
+               y=[home_scoring, predictions['home_adjusted_scoring'], away_conceding],
+               marker_color='blue'),
+        go.Bar(name=f'{away_name}', x=categories,
+               y=[away_scoring, predictions['away_adjusted_scoring'], home_conceding],
+               marker_color='red')
+    ])
     
     fig.update_layout(
-        title=f"Comparative Analysis: {home_name} vs {away_name}",
+        title=f"Enhanced Comparison: Raw vs Adjusted Expectations",
         yaxis_title="Goals per Game",
         barmode='group',
         height=400,
@@ -516,122 +629,48 @@ if analyze_button and home_matches > 0 and away_matches > 0:
     
     st.plotly_chart(fig, use_container_width=True)
     
-    # Comparison details
-    st.markdown("#### 🔍 Detailed Comparison")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown(f"**{home_name} Scoring vs {away_name} Defending:**")
-        st.markdown(f"- Home scoring: **{home_scoring:.2f}** goals/game")
-        st.markdown(f"- Away conceding: **{away_conceding:.2f}** goals/game")
-        st.markdown(f"- **Difference: {predictions['home_margin']:.2f}**")
-        if predictions['home_margin'] > 0:
-            st.success(f"✅ Home team SHOULD score (advantage: {predictions['home_margin']:.2f})")
-        else:
-            st.error(f"❌ Home team UNLIKELY to score (disadvantage: {abs(predictions['home_margin']):.2f})")
-    
-    with col2:
-        st.markdown(f"**{away_name} Scoring vs {home_name} Defending:**")
-        st.markdown(f"- Away scoring: **{away_scoring:.2f}** goals/game")
-        st.markdown(f"- Home conceding: **{home_conceding:.2f}** goals/game")
-        st.markdown(f"- **Difference: {predictions['away_margin']:.2f}**")
-        if predictions['away_margin'] > 0:
-            st.success(f"✅ Away team SHOULD score (advantage: {predictions['away_margin']:.2f})")
-        else:
-            st.error(f"❌ Away team UNLIKELY to score (disadvantage: {abs(predictions['away_margin']):.2f})")
-    
-    # ==================== EXPECTED GOALS ====================
+    # ==================== VALUE CALCULATION ====================
     
     st.markdown("---")
-    st.subheader("🎯 Expected Goals Distribution")
-    
-    # Expected goals visualization
-    fig_xg = go.Figure(data=[
-        go.Bar(name='Expected Goals', x=[home_name, away_name], 
-               y=[expected_goals['home_xG'], expected_goals['away_xG']])
-    ])
-    
-    fig_xg.update_layout(
-        title="Expected Goals by Team",
-        yaxis_title="Expected Goals",
-        height=300
-    )
-    
-    st.plotly_chart(fig_xg, use_container_width=True)
-    
-    # Expected scorelines
-    st.markdown("#### 📊 Most Likely Scorelines")
-    
-    # Simple scoreline estimation
-    scorelines = []
-    home_int = round(expected_goals['home_xG'])
-    away_int = round(expected_goals['away_xG'])
-    
-    # Generate likely scores around expected values
-    for h in range(max(0, home_int - 1), home_int + 2):
-        for a in range(max(0, away_int - 1), away_int + 2):
-            prob = math.exp(-abs(h - expected_goals['home_xG']) - abs(a - expected_goals['away_xG'])) * 100
-            if prob > 10:
-                scorelines.append({
-                    'score': f"{h}-{a}",
-                    'probability': round(prob, 1),
-                    'type': 'BTTS' if h > 0 and a > 0 else 'Clean Sheet'
-                })
-    
-    if scorelines:
-        scorelines.sort(key=lambda x: x['probability'], reverse=True)
-        
-        cols = st.columns(min(4, len(scorelines)))
-        for idx, scoreline in enumerate(scorelines[:4]):
-            with cols[idx]:
-                st.metric(
-                    scoreline['score'],
-                    f"{scoreline['probability']}%",
-                    scoreline['type']
-                )
-    
-    # ==================== BETTING CALCULATIONS ====================
-    
-    st.markdown("---")
-    st.subheader("💰 Betting Calculations")
-    
-    # Initialize bankroll manager
-    bankroll = ComparativeBankrollManager()
+    st.subheader("💰 Value Calculation")
     
     # Get odds for primary bet
     odds_map = {
         'HOME_TO_SCORE': odds_home_score,
         'AWAY_TO_SCORE': odds_away_score,
         'BTTS_YES': odds_btts_yes,
-        'BTTS_NO': odds_btts_no if 'odds_btts_no' in st.session_state else 2.10,
-        'UNDER_2.5': odds_under_25
+        'BTTS_NO': 2.20,  # Default if not provided
+        'UNDER_2.5': odds_under_25,
+        'OVER_2.5': 1.90   # Default if not provided
     }
     
     primary_odds = odds_map.get(primary_bet, 0)
     
-    # Calculate expected value
+    # Confidence to probability mapping
     confidence_to_prob = {
-        'VERY_HIGH': 0.85,
-        'HIGH': 0.75,
-        'MEDIUM': 0.65,
+        'VERY_HIGH': 0.80,
+        'HIGH': 0.70,
+        'MEDIUM': 0.60,
         'LOW': 0.55
     }
     
-    estimated_prob = confidence_to_prob.get(confidence, 0.6)
+    estimated_prob = confidence_to_prob.get(confidence, 0.5)
     
-    # Calculate stake
-    expected_value = (estimated_prob * (primary_odds - 1) - (1 - estimated_prob))
-    stake = bankroll.calculate_stake(confidence, expected_value)
+    # Calculate expected value
+    win_return = (primary_odds - 1)
+    expected_value = (estimated_prob * win_return) - (1 - estimated_prob)
     
     # Display calculations
     calc_cols = st.columns(4)
     
     with calc_cols[0]:
-        st.metric("Recommended Stake", f"{stake:.2f} units")
+        stake_pct = 0.01 * (1.5 if confidence == 'VERY_HIGH' else 
+                           1.2 if confidence == 'HIGH' else 
+                           1.0 if confidence == 'MEDIUM' else 0.5)
+        st.metric("Suggested Stake", f"{stake_pct*100:.1f}% of bankroll")
     
     with calc_cols[1]:
-        st.metric("Estimated Probability", f"{estimated_prob*100:.1f}%")
+        st.metric("Win Probability", f"{estimated_prob*100:.1f}%")
     
     with calc_cols[2]:
         st.metric("Current Odds", f"{primary_odds:.2f}")
@@ -640,94 +679,138 @@ if analyze_button and home_matches > 0 and away_matches > 0:
         ev_color = "normal" if expected_value > 0 else "inverse"
         st.metric("Expected Value", f"{expected_value:.3f}", delta_color=ev_color)
     
-    # Odds value assessment
+    # Value assessment
     fair_odds = 1 / estimated_prob
     if primary_odds > fair_odds:
-        st.success(f"✅ **Value Bet Detected**: Odds {primary_odds:.2f} > Fair {fair_odds:.2f}")
+        st.success(f"✅ **Value Bet**: Odds {primary_odds:.2f} > Fair {fair_odds:.2f}")
     else:
         st.warning(f"⚠️ **No Value**: Odds {primary_odds:.2f} ≤ Fair {fair_odds:.2f}")
     
-    # ==================== DATA QUALITY ====================
+    # ==================== SYSTEM INSIGHTS ====================
     
     st.markdown("---")
-    st.subheader("🔍 Data Quality Assessment")
+    st.subheader("💡 System Insights")
     
-    quality_cols = st.columns(3)
+    insight_cols = st.columns(2)
     
-    with quality_cols[0]:
-        # Sample size check
+    with insight_cols[0]:
+        st.markdown("#### 📊 Data Quality")
+        
+        insights = []
+        
+        # Sample size
         if home_matches >= 10 and away_matches >= 10:
-            st.success("✅ **Sample Size**: Excellent (≥10 games)")
+            insights.append("✅ Excellent sample size (≥10 games)")
         elif home_matches >= 5 and away_matches >= 5:
-            st.info("✅ **Sample Size**: Adequate (≥5 games)")
+            insights.append("✅ Adequate sample size (≥5 games)")
         else:
-            st.warning("⚠️ **Sample Size**: Small (<5 games)")
-    
-    with quality_cols[1]:
-        # Data recency (implied by input)
-        st.info("📅 **Data Recency**: Last N games")
-    
-    with quality_cols[2]:
-        # Pattern strength
-        margin_strength = abs(predictions['home_margin']) + abs(predictions['away_margin'])
-        if margin_strength > 1.0:
-            st.success(f"✅ **Pattern Strength**: Strong ({margin_strength:.2f})")
-        elif margin_strength > 0.5:
-            st.info(f"📊 **Pattern Strength**: Moderate ({margin_strength:.2f})")
+            insights.append("⚠️ Small sample size (<5 games)")
+        
+        # Defensive data quality
+        if predictions['home_defense_strength'] != 'UNKNOWN' and predictions['away_defense_strength'] != 'UNKNOWN':
+            insights.append("✅ Reliable defensive strength detection")
+        
+        # Pattern clarity
+        total_margin = abs(predictions['home_margin']) + abs(predictions['away_margin'])
+        if total_margin > 1.0:
+            insights.append("✅ Strong predictive patterns")
+        elif total_margin > 0.5:
+            insights.append("📊 Moderate predictive patterns")
         else:
-            st.warning(f"⚠️ **Pattern Strength**: Weak ({margin_strength:.2f})")
+            insights.append("⚠️ Weak predictive patterns")
+        
+        for insight in insights:
+            st.markdown(f"- {insight}")
+    
+    with insight_cols[1]:
+        st.markdown("#### 🎯 Match Dynamics")
+        
+        dynamics = []
+        
+        # Defensive matchup
+        if (predictions['home_defense_strength'] in ['ELITE', 'STRONG'] and 
+            predictions['away_defense_strength'] in ['ELITE', 'STRONG']):
+            dynamics.append("⚔️ **Defensive battle** - Low scoring likely")
+        elif (predictions['home_defense_strength'] in ['WEAK'] and 
+              predictions['away_defense_strength'] in ['WEAK']):
+            dynamics.append("🔥 **Attacking fest** - High scoring likely")
+        
+        # Home advantage
+        home_advantage = home_scoring - away_scoring
+        if home_advantage > 0.5:
+            dynamics.append(f"🏠 **Strong home advantage** (+{home_advantage:.2f})")
+        elif home_advantage < -0.5:
+            dynamics.append(f"✈️ **Strong away advantage** ({home_advantage:.2f})")
+        
+        # Expected tempo
+        expected_total = predictions['expected_total']
+        if expected_total > 3.0:
+            dynamics.append("⚡ **Fast tempo** - Many chances expected")
+        elif expected_total < 2.0:
+            dynamics.append("🐌 **Slow tempo** - Few chances expected")
+        
+        if dynamics:
+            for dynamic in dynamics:
+                st.markdown(f"- {dynamic}")
+        else:
+            st.markdown("- ⚖️ **Balanced match** - Could go either way")
 
 # ==================== FOOTER ====================
 
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center'>
-    <p><strong>Comparative Betting System</strong> - Original Venue-Specific Logic</p>
-    <p><small>Home scores if Home GF > Away GA • Away scores if Away GF > Home GA</small></p>
-    <p><small>Proven 100% accuracy across 11 matches • Bet responsibly</small></p>
+    <p><strong>Enhanced Comparative Betting System</strong> - Automatic Defensive Strength Detection</p>
+    <p><small>Works for ALL teams • No database needed • Self-adjusting logic</small></p>
+    <p><small>Bet responsibly • Track all bets • Never bet more than you can afford to lose</small></p>
 </div>
 """, unsafe_allow_html=True)
 
-# ==================== SAMPLE DATA ====================
+# ==================== SAMPLE SCENARIOS ====================
 
-with st.expander("📋 Load Realistic Sample Data"):
-    st.markdown("**Based on actual Crystal Palace vs Manchester City data:**")
+with st.expander("📋 Test Different Scenarios"):
+    st.markdown("Test how the system handles different defensive matchups:")
     
-    sample_data = {
-        "Real CP vs MCI (3-0 actual)": {
-            "home_goals_scored": 11,  # 1.13 avg
-            "home_goals_conceded": 9,  # 0.88 avg
-            "away_goals_scored": 19,   # 1.86 avg  
-            "away_goals_conceded": 14,  # 1.43 avg (corrected from 10 to 14 for 1.43 avg)
-            "description": "Real match: MCI 3-0 CP"
+    scenarios = {
+        "Elite Defense vs Strong Attack": {
+            "description": "Top defense faces potent attack",
+            "home_goals_scored": 20,  # Strong attack
+            "home_goals_conceded": 6,  # Elite defense (0.6/game)
+            "away_goals_scored": 18,   # Strong attack
+            "away_goals_conceded": 8   # Elite defense (0.8/game)
         },
-        "Balanced Match": {
-            "home_goals_scored": 15,
-            "home_goals_conceded": 12,
-            "away_goals_scored": 13,
-            "away_goals_conceded": 15,
-            "description": "Both teams likely to score"
+        "Weak Defense vs Weak Attack": {
+            "description": "Both teams struggle defensively and offensively",
+            "home_goals_scored": 8,    # Weak attack
+            "home_goals_conceded": 20, # Weak defense (2.0/game)
+            "away_goals_scored": 9,    # Weak attack  
+            "away_goals_conceded": 19  # Weak defense (1.9/game)
+        },
+        "Balanced Matchup": {
+            "description": "Average teams facing each other",
+            "home_goals_scored": 13,   # Average (1.3/game)
+            "home_goals_conceded": 13, # Average (1.3/game)
+            "away_goals_scored": 12,   # Average (1.2/game)
+            "away_goals_conceded": 14  # Average (1.4/game)
         },
         "Home Dominance": {
-            "home_goals_scored": 20,
-            "home_goals_conceded": 8,
-            "away_goals_scored": 9,
-            "away_goals_conceded": 18,
-            "description": "Home team strong favorite"
+            "description": "Strong home team vs weak away team",
+            "home_goals_scored": 22,   # Very strong (2.2/game)
+            "home_goals_conceded": 9,  # Strong defense (0.9/game)
+            "away_goals_scored": 7,    # Weak attack (0.7/game)
+            "away_goals_conceded": 21  # Weak defense (2.1/game)
         }
     }
     
-    selected_sample = st.selectbox("Choose sample:", list(sample_data.keys()))
+    selected_scenario = st.selectbox("Choose scenario:", list(scenarios.keys()))
     
-    if st.button("Load Sample"):
-        sample = sample_data[selected_sample]
-        st.session_state.home_goals_scored = sample["home_goals_scored"]
-        st.session_state.home_goals_conceded = sample["home_goals_conceded"]
-        st.session_state.away_goals_scored = sample["away_goals_scored"]
-        st.session_state.away_goals_conceded = sample["away_goals_conceded"]
+    if st.button("Load Scenario"):
+        scenario = scenarios[selected_scenario]
+        st.session_state.home_goals_scored = scenario["home_goals_scored"]
+        st.session_state.home_goals_conceded = scenario["home_goals_conceded"]
+        st.session_state.away_goals_scored = scenario["away_goals_scored"]
+        st.session_state.away_goals_conceded = scenario["away_goals_conceded"]
         
-        # Calculate and suggest match count for proper averages
-        suggested_matches = 10
-        st.info(f"**{selected_sample}**: {sample['description']}")
-        st.info(f"Set 'Home Games' and 'Away Games' to {suggested_matches} for correct averages")
+        st.info(f"**{selected_scenario}**: {scenario['description']}")
+        st.info("Set 'Home Games' and 'Away Games' to 10 for correct averages")
         st.rerun()
