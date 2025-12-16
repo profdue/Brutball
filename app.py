@@ -653,9 +653,9 @@ def main():
             """, unsafe_allow_html=True)
     
     # ============================================================================
-    # MARKET VALUE ANALYSIS
+    # ALTERNATIVE BET ANALYSIS (CLEAN VERSION - NO CSS GRIDS)
     # ============================================================================
-    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">📈 MARKET VALUE ANALYSIS</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">🔄 ALTERNATIVE BET ANALYSIS</div>', unsafe_allow_html=True)
     
     # Calculate probabilities for all markets
     btts_yes_prob = calculate_btts_probability(data['home_btts'], data['away_btts'], 
@@ -674,40 +674,53 @@ def main():
     ]
     
     for market_name, odds, true_prob in markets:
-        implied_prob = 1 / odds
         value = (true_prob * odds) - 1
         value_data = calculate_value_and_stake(true_prob, odds)
         
+        # Determine which bet is being analyzed
+        analysis_text = ""
+        if market_name == 'BTTS Yes' and data['home_btts'] >= 70 and data['away_btts'] >= 70:
+            analysis_text = "✓ ALIGNED ≥70% TREND - Primary bet according to system"
+        elif market_name == 'Over 2.5' and data['home_over'] >= 70 and data['away_over'] >= 70:
+            analysis_text = "✓ ALIGNED ≥70% TREND - Primary bet according to system"
+        elif market_name == 'Under 2.5' and data['home_under'] >= 70 and data['away_under'] >= 70:
+            analysis_text = "✓ ALIGNED ≥70% TREND - Primary bet according to system"
+        elif market_name in ['Over 2.5', 'Under 2.5'] and expected_goals > 2.7 and market_name == 'Over 2.5':
+            analysis_text = f"✓ Based on Expected Goals ({expected_goals:.2f} > 2.7)"
+        elif market_name in ['Over 2.5', 'Under 2.5'] and expected_goals < 2.3 and market_name == 'Under 2.5':
+            analysis_text = f"✓ Based on Expected Goals ({expected_goals:.2f} < 2.3)"
+        else:
+            analysis_text = "✗ Not recommended by system logic"
+        
+        # Color based on value
+        value_color = "#10B981" if value >= 0.15 else "#F59E0B" if value >= 0.05 else "#EF4444"
+        
         st.markdown(f"""
         <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <div style="font-weight: 600; font-size: 1.1rem; color: #1F2937;">{market_name}</div>
-                <div style="font-size: 1.2rem; font-weight: 700; color: #1F2937;">{odds:.2f}</div>
-            </div>
-            
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
                 <div>
-                    <div style="font-size: 0.9rem; color: #6B7280;">Implied Probability</div>
-                    <div style="font-weight: 600; color: #4B5563;">{implied_prob:.1%}</div>
-                </div>
-                <div>
-                    <div style="font-size: 0.9rem; color: #6B7280;">True Probability</div>
-                    <div style="font-weight: 600; color: #4B5563;">{true_prob:.1%}</div>
-                </div>
-            </div>
-            
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #E2E8F0;">
-                <div>
-                    <div style="font-size: 0.9rem; color: #6B7280;">Value Edge</div>
-                    <div style="font-weight: 700; color: {'#10B981' if value >= 0.15 else '#F59E0B' if value >= 0.05 else '#EF4444'}">
-                        {value:+.1%}
+                    <h4 style="margin: 0 0 0.5rem 0; color: #1F2937;">{market_name}</h4>
+                    <div style="color: #6B7280; font-size: 0.9rem;">
+                        {analysis_text}
                     </div>
                 </div>
                 <div style="text-align: right;">
-                    <div style="font-size: 0.9rem; color: #6B7280;">Action</div>
-                    <div style="font-weight: 700; color: #1F2937;">{value_data['action']}</div>
+                    <div style="font-size: 1.2rem; font-weight: 700; color: #1F2937;">{odds:.2f}</div>
+                    <div style="font-size: 0.9rem; color: #6B7280;">Market Odds</div>
                 </div>
             </div>
+            
+            <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                <strong style="color: #374151;">System Probability:</strong> {true_prob:.1%}
+            </div>
+            <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                <strong style="color: #374151;">Value Edge:</strong> 
+                <span style="color: {value_color}; font-weight: 700;">{value:+.1%}</span>
+            </div>
+            <div style="color: #4B5563; margin-bottom: 0.5rem;">
+                <strong style="color: #374151;">Action:</strong> {value_data['action']}
+            </div>
+            {f'<div style="color: #4B5563;"><strong style="color: #374151;">Stake:</strong> {value_data["stake"]:.1f}% of bankroll</div>' if value_data['stake'] > 0 else ''}
         </div>
         """, unsafe_allow_html=True)
     
