@@ -1,11 +1,11 @@
 match_id,league,date,home_team,away_team,home_position,away_position,home_odds,away_odds,home_form,away_form,home_manager,away_manager,last_h2h_goals,last_h2h_btts,home_manager_style,away_manager_style,home_attack_rating,away_attack_rating,home_defense_rating,away_defense_rating,home_press_rating,away_press_rating,home_possession_rating,away_possession_rating,home_pragmatic_rating,away_pragmatic_rating
-EPL_2025-12-20_NEW_CHE,Premier League,2025-12-20,Newcastle United,Chelsea,12,4,2.68,2.57,WDWWW,DLWWW,Eddie Howe,Enzo Maresca,,,High press & transition,Possession-based & control,9,8,6,7,9,7,7,9,5,6
-EPL_2025-12-20_BOU_BUR,Premier League,2025-12-20,Bournemouth,Burnley,13,19,1.49,6.58,WDWLW,LLLLW,Andoni Iraola,Scott Parker,,,Progressive/Developing,Pragmatic/Defensive,7,5,6,8,9,6,6,5,5,8
-EPL_2025-12-20_BRI_SUN,Premier League,2025-12-20,Brighton,Sunderland,10,8,1.68,5.19,WLDWW,WLLLD,Fabian Hürzeler,Régis Le Bris,,,Progressive/Developing,Progressive/Developing,8,6,6,7,7,7,8,6,4,6
-EPL_2025-12-20_MCI_WHU,Premier League,2025-12-20,Manchester City,West Ham,2,18,1.22,11.94,WWWWW,LLWWL,Pep Guardiola,Graham Potter,,,Possession-based & control,Balanced/Adaptive,10,7,8,7,9,6,10,8,4,7
-EPL_2025-12-20_WOL_BRE,Premier League,2025-12-20,Wolverhampton,Brentford,20,15,3.65,2.06,LLLDL,LLLLW,Vítor Pereira,Keith Andrews,,,Pragmatic/Defensive,Balanced/Adaptive,5,6,8,7,5,7,5,6,8,7
-EPL_2025-12-20_TOT_LIV,Premier League,2025-12-20,Tottenham,Liverpool,11,7,3.44,2.06,WLDLW,WLDLL,Thomas Frank,Arne Slot,,,Balanced/Adaptive,High press & transition,7,9,8,6,7,9,7,7,7,5
-EPL_2025-12-20_EVE_ARS,Premier League,2025-12-20,Everton,Arsenal,9,1,5.72,1.64,WLWLW,WDDWW,David Moyes,Mikel Arteta,,,Pragmatic/Defensive,Possession-based & control,5,9,9,7,6,8,5,9,9,6
-EPL_2025-12-20_LEE_CRY,Premier League,2025-12-20,Leeds United,Crystal Palace,17,5,2.64,2.77,WLWDL,WWWLL,Daniel Farke,Oliver Glasner,,,Progressive/Developing,Balanced/Adaptive,8,7,6,7,8,6,7,7,5,7
-EPL_2025-12-21_AVL_MUN,Premier League,2025-12-21,Aston Villa,Manchester United,3,6,2.15,3.24,WWWWW,WWDWW,Unai Emery,Ruben Amorim,,,Balanced/Adaptive,High press & transition,8,8,8,6,7,9,7,7,7,5
-EPL_2025-12-22_FUL_NFO,Premier League,2025-12-22,Fulham,Nottingham Forest,14,16,,,LLWWL,WWLLL,Marco Silva,Ange Postecoglou,,,Balanced/Adaptive,High press & transition,8,9,7,5,7,9,7,6,6,4
+EPL_2025-12-20_NEW_CHE,Premier League,2025-12-20,Newcastle United,Chelsea,12,4,2.68,2.57,WDWWW,DLWWW,Eddie Howe,Enzo Maresca,,,"High press & transition","Possession-based & control",9,8,6,7,9,7,7,9,5,6
+EPL_2025-12-20_BOU_BUR,Premier League,2025-12-20,Bournemouth,Burnley,13,19,1.49,6.58,WDWLW,LLLLW,Andoni Iraola,Scott Parker,,,"Progressive/Developing","Pragmatic/Defensive",7,5,6,8,9,6,6,5,5,8
+EPL_2025-12-20_BRI_SUN,Premier League,2025-12-20,Brighton,Sunderland,10,8,1.68,5.19,WLDWW,WLLLD,Fabian Hürzeler,Régis Le Bris,,,"Progressive/Developing","Progressive/Developing",8,6,6,7,7,7,8,6,4,6
+EPL_2025-12-20_MCI_WHU,Premier League,2025-12-20,Manchester City,West Ham,2,18,1.22,11.94,WWWWW,LLWWL,Pep Guardiola,Nuno Espírito Santo,,,"Possession-based & control","Balanced/Adaptive/Pragmatic",10,7,8,7,9,6,10,8,4,7
+EPL_2025-12-20_WOL_BRE,Premier League,2025-12-20,Wolverhampton,Brentford,20,15,3.65,2.06,LLLDL,LLLLW,James Collins (interim),Keith Andrews,,,"Pragmatic/Defensive","Balanced/Adaptive",5,6,8,7,5,7,5,6,8,7
+EPL_2025-12-20_TOT_LIV,Premier League,2025-12-20,Tottenham,Liverpool,11,7,3.44,2.06,WLDLW,WLDLL,Thomas Frank,Arne Slot,,,"Balanced/Adaptive","High press & transition",7,9,8,6,7,9,7,7,7,5
+EPL_2025-12-20_EVE_ARS,Premier League,2025-12-20,Everton,Arsenal,9,1,5.72,1.64,WLWLW,WDDWW,David Moyes,Mikel Arteta,,,"Pragmatic/Defensive","Possession-based & control",5,9,9,7,6,8,5,9,9,6
+EPL_2025-12-20_LEE_CRY,Premier League,2025-12-20,Leeds United,Crystal Palace,17,5,2.64,2.77,WLWDL,WWWLL,Daniel Farke,Oliver Glasner,,,"Balanced/Adaptive","Balanced/Adaptive",8,7,6,7,8,6,7,7,5,7
+EPL_2025-12-21_AVL_MUN,Premier League,2025-12-21,Aston Villa,Manchester United,3,6,2.15,3.24,WWWWW,WWDWW,Unai Emery,Ruben Amorim,,,"Balanced/Adaptive","Structured/Attacking",8,8,8,6,7,9,7,7,7,5
+EPL_2025-12-22_FUL_NFO,Premier League,2025-12-22,Fulham,Nottingham Forest,14,16,,LLWWL,WWLLL,Marco Silva,Sean Dyche,,,"Balanced/Adaptive","Pragmatic/Defensive",8,7,7,6,7,7,7,5,6,8
