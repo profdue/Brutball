@@ -1,0 +1,6 @@
+Match_ID,Date,Home_Team,Away_Team,Home_Personality,Home_Mentality,Home_Form_State,Home_Stakes,Home_Manager_Style,Away_Personality,Away_Mentality,Away_Form_State,Away_Stakes,Away_Manager_Style,Venue,Importance,Timing,Pressure,Favorite_Win_Probability,Home_xG,Away_xG,Home_Win_Odds,Away_Win_Odds,Draw_Odds,Over_2.5_Goals_Odds,Total_Bankroll_USD
+1,2025-08-09,Manchester City,Arsenal,Attacking,Aggressive,Confident,Must-Win,Pragmatic,Defensive,Cautious,Collapsing,Safe,Defensive,Home,Derby,Weekend,High,0.75,2.1,0.8,1.4,7.5,4.5,1.9,5000
+2,2025-08-10,Liverpool,Chelsea,Balanced,Counter-Attack,Comfortable,European,Pragmatic,Erratic,Possession,Desperate,Must-Win,Idealistic,Home,Rivalry,Weekend,High,0.68,1.9,1.2,1.6,5.5,4.0,2.1,5000
+3,2025-08-16,Manchester United,Aston Villa,Defensive,Cautious,Desperate,Relegation,Defensive,Attacking,Aggressive,Confident,European,Gung-ho,Home,Normal,Weekend,Medium,0.55,1.5,1.8,2.2,3.2,3.5,1.8,5000
+4,2025-08-17,Tottenham Hotspur,Newcastle United,Erratic,Possession,Collapsing,Safe,Idealistic,Balanced,Counter-Attack,Comfortable,Safe,Pragmatic,Home,Rivalry,Midweek,Medium,0.60,1.7,1.4,1.9,4.0,3.7,2.0,5000
+5,2025-08-23,Brighton,Brentford,Attacking,Aggressive,Confident,European,Pragmatic,Defensive,Cautious,Comfortable,Relegation,Defensive,Home,Normal,Weekend,Low,0.65,1.8,1.0,1.7,5.0,4.2,1.9,5000
