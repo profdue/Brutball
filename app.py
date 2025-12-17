@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import json
 
 # Page config
 st.set_page_config(
@@ -11,816 +12,789 @@ st.set_page_config(
 )
 
 # Initialize session state
-if 'predictions' not in st.session_state:
-    st.session_state.predictions = []
-if 'current_match' not in st.session_state:
-    st.session_state.current_match = None
+if 'all_predictions' not in st.session_state:
+    st.session_state.all_predictions = []
+if 'batch_results' not in st.session_state:
+    st.session_state.batch_results = []
 
 # -------------------------------------------------------------------
-# INTERPRETATION ENGINE
+# FIXTURES DATABASE
 # -------------------------------------------------------------------
-class InterpretationEngine:
-    """Interprets raw data into narrative signals"""
-    
-    @staticmethod
-    def interpret_odds(home_odds, draw_odds, away_odds):
-        """Interpret betting odds"""
-        # Calculate implied probabilities
-        home_prob = 1 / home_odds if home_odds > 1 else 0
-        away_prob = 1 / away_odds if away_odds > 1 else 0
-        draw_prob = 1 / draw_odds if draw_odds > 1 else 0
-        
-        # Normalize to 100%
-        total = home_prob + draw_prob + away_prob
-        if total > 0:
-            home_prob = home_prob / total * 100
-            away_prob = away_prob / total * 100
-            draw_prob = draw_prob / total * 100
-        
-        # Determine favorite strength
-        if home_odds <= 1.40:
-            return "STRONG FAVORITE", home_prob, "Home"
-        elif home_odds <= 1.80:
-            return "MODERATE FAVORITE", home_prob, "Home"
-        elif away_odds <= 1.40:
-            return "STRONG FAVORITE", away_prob, "Away"
-        elif away_odds <= 1.80:
-            return "MODERATE FAVORITE", away_prob, "Away"
-        else:
-            return "EVEN MATCH", max(home_prob, away_prob), "Even"
-    
-    @staticmethod
-    def interpret_table(home_pos, home_pts, away_pos, away_pts):
-        """Interpret table positions"""
-        # Position categories
-        def get_category(position):
-            if position <= 4:
-                return "European places"
-            elif position <= 6:
-                return "Conference League"
-            elif position <= 10:
-                return "Midtable"
-            elif position <= 17:
-                return "Relegation battle"
-            else:
-                return "Relegation zone"
-        
-        home_cat = get_category(home_pos)
-        away_cat = get_category(away_pos)
-        
-        # Determine stakes
-        if home_cat == "European places" and away_cat == "Relegation zone":
-            return "TITLE VS RELEGATION", "High mismatch"
-        elif home_cat == "European places" and away_cat == "Midtable":
-            return "NEEDS WIN VS SAFE", "Moderate mismatch"
-        elif home_cat == "Relegation battle" and away_cat == "Relegation battle":
-            return "RELEGATION 6-POINTER", "High stakes both"
-        elif "European" in home_cat and "European" in away_cat:
-            return "TOP 4 BATTLE", "High stakes both"
-        else:
-            return "STANDARD MATCH", "Medium stakes"
-    
-    @staticmethod
-    def interpret_h2h(scores):
-        """Interpret H2H scores"""
-        if len(scores) < 2:
-            return "INSUFFICIENT DATA", "Needs more matches"
-        
-        home_wins = 0
-        away_wins = 0
-        draws = 0
-        total_goals = 0
-        
-        for score in scores:
-            try:
-                if '-' in score:
-                    home_goals, away_goals = map(int, score.split('-'))
-                    total_goals += home_goals + away_goals
-                    
-                    if home_goals > away_goals:
-                        home_wins += 1
-                    elif away_goals > home_goals:
-                        away_wins += 1
-                    else:
-                        draws += 1
-            except:
-                continue
-        
-        # Determine pattern
-        if home_wins >= 2 and home_wins > away_wins:
-            return "HOME DOMINATES", f"{home_wins} wins, {total_goals} total goals"
-        elif away_wins >= 2 and away_wins > home_wins:
-            return "AWAY DOMINATES", f"{away_wins} wins, {total_goals} total goals"
-        elif draws >= 2:
-            return "FREQUENT DRAWS", f"{draws} draws, {total_goals} total goals"
-        elif total_goals / len(scores) > 3:
-            return "HIGH SCORING", f"{total_goals/len(scores):.1f} goals per game"
-        else:
-            return "MIXED RESULTS", f"{home_wins}-{draws}-{away_wins}, {total_goals} goals"
-    
-    @staticmethod
-    def interpret_form(home_form, away_form):
-        """Interpret recent form"""
-        def analyze_form(form_string):
-            if not form_string:
-                return 0, 0, 0
-            wins = form_string.count('W')
-            draws = form_string.count('D')
-            losses = form_string.count('L')
-            points = wins * 3 + draws
-            return wins, losses, points
-        
-        home_wins, home_losses, home_pts = analyze_form(home_form)
-        away_wins, away_losses, away_pts = analyze_form(away_form)
-        
-        # Determine form pattern
-        if home_wins >= 4 and away_losses >= 3:
-            return "HOME FLYING, AWAY STRUGGLING", f"Home {home_wins}W, Away {away_losses}L"
-        elif away_wins >= 4 and home_losses >= 3:
-            return "AWAY FLYING, HOME STRUGGLING", f"Away {away_wins}W, Home {home_losses}L"
-        elif home_wins >= 3 and away_wins >= 3:
-            return "BOTH IN FORM", f"Home {home_wins}W, Away {away_wins}W"
-        elif home_losses >= 3 and away_losses >= 3:
-            return "BOTH STRUGGLING", f"Home {home_losses}L, Away {away_losses}L"
-        else:
-            return "MIXED FORM", f"Home {home_pts}pts, Away {away_pts}pts"
-    
-    @staticmethod
-    def interpret_styles(home_manager, away_manager):
-        """Interpret manager styles"""
-        attacking_managers = ["Guardiola", "Klopp", "Arteta", "Postecoglou", "De Zerbi", "Emery"]
-        defensive_managers = ["Moyes", "Dyche", "Hodgson", "Allardyce", "Pulis"]
-        pragmatic_managers = ["Ten Hag", "Howe", "Silva", "Frank", "Cooper"]
-        
-        home_style = "Unknown"
-        away_style = "Unknown"
-        
-        for manager in attacking_managers:
-            if manager.lower() in home_manager.lower():
-                home_style = "Attack"
-            if manager.lower() in away_manager.lower():
-                away_style = "Attack"
-        
-        for manager in defensive_managers:
-            if manager.lower() in home_manager.lower():
-                home_style = "Defense"
-            if manager.lower() in away_manager.lower():
-                away_style = "Defense"
-        
-        for manager in pragmatic_managers:
-            if manager.lower() in home_manager.lower():
-                home_style = "Pragmatic"
-            if manager.lower() in away_manager.lower():
-                away_style = "Pragmatic"
-        
-        if home_style == "Attack" and away_style == "Defense":
-            return "ATTACK VS DEFENSE", "Classic clash"
-        elif home_style == "Defense" and away_style == "Attack":
-            return "DEFENSE VS ATTACK", "Classic clash"
-        elif home_style == "Attack" and away_style == "Attack":
-            return "BOTH ATTACKING", "Entertaining match"
-        elif home_style == "Defense" and away_style == "Defense":
-            return "BOTH DEFENSIVE", "Tactical battle"
-        else:
-            return "MIXED STYLES", "Unpredictable"
+fixtures_db = {
+    "SPANISH LA LIGA": [
+        {"match": "Valencia vs Real Mallorca", "date": "19/12/2025"},
+        {"match": "Real Oviedo vs Celta Vigo", "date": "20/12/2025"},
+        {"match": "Levante vs Real Sociedad", "date": "20/12/2025"},
+        {"match": "Osasuna vs Deportivo Alavés", "date": "20/12/2025"},
+        {"match": "Real Madrid vs Sevilla", "date": "20/12/2025"},
+        {"match": "Girona vs Atlético Madrid", "date": "21/12/2025"},
+        {"match": "Villarreal vs Barcelona", "date": "21/12/2025"},
+        {"match": "Elche vs Rayo Vallecano", "date": "21/12/2025"},
+        {"match": "Real Betis vs Getafe", "date": "21/12/2025"},
+        {"match": "Athletic Bilbao vs Espanyol", "date": "22/12/2025"}
+    ],
+    "ENGLISH PREMIER LEAGUE": [
+        {"match": "Newcastle United vs Chelsea", "date": "20/12/2025"},
+        {"match": "Bournemouth vs Burnley", "date": "20/12/2025"},
+        {"match": "Brighton vs Sunderland", "date": "20/12/2025"},
+        {"match": "Manchester City vs West Ham", "date": "20/12/2025"},
+        {"match": "Wolverhampton vs Brentford", "date": "20/12/2025"},
+        {"match": "Tottenham vs Liverpool", "date": "20/12/2025"},
+        {"match": "Everton vs Arsenal", "date": "20/12/2025"},
+        {"match": "Leeds United vs Crystal Palace", "date": "20/12/2025"},
+        {"match": "Aston Villa vs Manchester United", "date": "21/12/2025"},
+        {"match": "Fulham vs Nottingham Forest", "date": "22/12/2025"}
+    ],
+    "GERMAN BUNDESLIGA": [
+        {"match": "Borussia Dortmund vs Borussia M'gladbach", "date": "19/12/2025"},
+        {"match": "Köln vs Union Berlin", "date": "20/12/2025"},
+        {"match": "Stuttgart vs Hoffenheim", "date": "20/12/2025"},
+        {"match": "Wolfsburg vs Freiburg", "date": "20/12/2025"},
+        {"match": "Hamburger SV vs Eintracht Frankfurt", "date": "20/12/2025"},
+        {"match": "Augsburg vs Werder Bremen", "date": "20/12/2025"},
+        {"match": "RB Leipzig vs Bayer Leverkusen", "date": "20/12/2025"},
+        {"match": "Mainz vs St Pauli", "date": "21/12/2025"},
+        {"match": "Heidenheim vs Bayern Munich", "date": "21/12/2025"}
+    ],
+    "ITALIAN SERIE A": [
+        {"match": "Lazio vs Cremonese", "date": "20/12/2025"},
+        {"match": "Juventus vs Roma", "date": "20/12/2025"},
+        {"match": "Cagliari vs AC Pisa", "date": "21/12/2025"},
+        {"match": "Inter vs Lecce", "date": "21/12/2025"},
+        {"match": "Verona vs Bologna", "date": "21/12/2025"},
+        {"match": "Calcio Como vs Milan", "date": "21/12/2025"},
+        {"match": "Napoli vs Parma", "date": "21/12/2025"},
+        {"match": "Sassuolo vs Torino", "date": "21/12/2025"},
+        {"match": "Fiorentina vs Udinese", "date": "21/12/2025"},
+        {"match": "Genoa vs Atalanta", "date": "21/12/2025"}
+    ],
+    "FRENCH LIGUE 1": [
+        {"match": "Toulouse vs Lens", "date": "02/01/2026"},
+        {"match": "Monaco vs Lyon", "date": "03/01/2026"},
+        {"match": "Nice vs Strasbourg", "date": "03/01/2026"},
+        {"match": "Lille vs Rennes", "date": "03/01/2026"},
+        {"match": "Olympique Marseille vs Nantes", "date": "04/01/2026"},
+        {"match": "Lorient vs Metz", "date": "04/01/2026"},
+        {"match": "Brest vs Auxerre", "date": "04/01/2026"},
+        {"match": "PSG vs Paris FC", "date": "04/01/2026"}
+    ],
+    "DUTCH EREDIVISIE": [
+        {"match": "Heracles vs Heerenveen", "date": "20/12/2025"},
+        {"match": "Excelsior vs PEC Zwolle", "date": "20/12/2025"},
+        {"match": "Nijmegen vs Ajax", "date": "20/12/2025"},
+        {"match": "NAC Breda vs SC Telstar", "date": "20/12/2025"},
+        {"match": "Utrecht vs PSV Eindhoven", "date": "21/12/2025"},
+        {"match": "Go Ahead Eagles vs Groningen", "date": "21/12/2025"},
+        {"match": "Feyenoord vs Twente", "date": "21/12/2025"},
+        {"match": "Volendam vs Sparta Rotterdam", "date": "21/12/2025"}
+    ],
+    "PORTUGUESE PRIMEIRA LIGA": [
+        {"match": "GD Estoril vs Sporting Braga", "date": "19/12/2025"},
+        {"match": "Gil Vicente vs Rio Ave", "date": "20/12/2025"},
+        {"match": "Estrela Amadora vs Moreirense FC", "date": "20/12/2025"},
+        {"match": "AVS vs Nacional Madeira", "date": "21/12/2025"},
+        {"match": "CD Tondela vs Casa Pia AC", "date": "21/12/2025"},
+        {"match": "Santa Clara vs FC Arouca", "date": "21/12/2025"},
+        {"match": "FC Alverca vs Porto", "date": "22/12/2025"},
+        {"match": "SL Benfica vs FC Famalicão", "date": "22/12/2025"},
+        {"match": "Vitória vs Sporting CP", "date": "23/12/2025"}
+    ],
+    "TURKISH SÜPER LIG": [
+        {"match": "Kocaelispor vs Antalyaspor", "date": "19/12/2025"},
+        {"match": "Konyaspor vs Kayserispor", "date": "20/12/2025"},
+        {"match": "Besiktas vs Rizespor", "date": "20/12/2025"},
+        {"match": "Alanyaspor vs Fatih Karagümrük", "date": "21/12/2025"},
+        {"match": "Galatasaray vs Kasımpasa SK", "date": "21/12/2025"},
+        {"match": "Göztepe Izmir vs Samsunspor", "date": "21/12/2025"},
+        {"match": "Basaksehir vs Gaziantep", "date": "22/12/2025"}
+    ]
+}
 
 # -------------------------------------------------------------------
-# NARRATIVE PREDICTION ENGINE
+# QUICK PREDICTION ENGINE
 # -------------------------------------------------------------------
-class NarrativePredictor:
-    """Predicts narrative based on interpreted data"""
+class QuickPredictor:
+    """Quick narrative prediction based on team reputation and match context"""
     
     def __init__(self):
-        self.engine = InterpretationEngine()
-    
-    def predict(self, match_data):
-        """Make prediction from raw data"""
-        
-        # Interpret all inputs
-        odds_interpretation = self.engine.interpret_odds(
-            match_data['home_odds'], 
-            match_data['draw_odds'], 
-            match_data['away_odds']
-        )
-        
-        table_interpretation = self.engine.interpret_table(
-            match_data['home_pos'],
-            match_data['home_pts'],
-            match_data['away_pos'],
-            match_data['away_pts']
-        )
-        
-        h2h_interpretation = self.engine.interpret_h2h(
-            match_data['h2h_scores']
-        )
-        
-        form_interpretation = self.engine.interpret_form(
-            match_data['home_form'],
-            match_data['away_form']
-        )
-        
-        style_interpretation = self.engine.interpret_styles(
-            match_data['home_manager'],
-            match_data['away_manager']
-        )
-        
-        # Score each narrative
-        scores = {
-            'BLITZKRIEG': self.score_blitzkrieg(odds_interpretation, table_interpretation, 
-                                               h2h_interpretation, form_interpretation, style_interpretation),
-            'SHOOTOUT': self.score_shootout(odds_interpretation, table_interpretation,
-                                           h2h_interpretation, form_interpretation, style_interpretation),
-            'SIEGE': self.score_siege(odds_interpretation, table_interpretation,
-                                     h2h_interpretation, form_interpretation, style_interpretation),
-            'CHESS': self.score_chess(odds_interpretation, table_interpretation,
-                                     h2h_interpretation, form_interpretation, style_interpretation)
+        # Team reputation database (simplified for quick predictions)
+        self.team_tiers = {
+            # Spanish La Liga
+            "Real Madrid": {"tier": 1, "style": "attack"},
+            "Barcelona": {"tier": 1, "style": "attack"},
+            "Atlético Madrid": {"tier": 1, "style": "defense"},
+            "Real Sociedad": {"tier": 2, "style": "balanced"},
+            "Villarreal": {"tier": 2, "style": "attack"},
+            "Real Betis": {"tier": 2, "style": "attack"},
+            "Sevilla": {"tier": 2, "style": "balanced"},
+            "Athletic Bilbao": {"tier": 2, "style": "attack"},
+            "Valencia": {"tier": 2, "style": "balanced"},
+            "Girona": {"tier": 2, "style": "attack"},
+            "Osasuna": {"tier": 3, "style": "defense"},
+            "Getafe": {"tier": 3, "style": "defense"},
+            "Celta Vigo": {"tier": 3, "style": "balanced"},
+            "Rayo Vallecano": {"tier": 3, "style": "attack"},
+            "Mallorca": {"tier": 3, "style": "defense"},
+            "Alavés": {"tier": 3, "style": "defense"},
+            "Levante": {"tier": 3, "style": "balanced"},
+            "Espanyol": {"tier": 3, "style": "balanced"},
+            "Elche": {"tier": 4, "style": "defense"},
+            "Oviedo": {"tier": 4, "style": "balanced"},
+            
+            # Premier League
+            "Manchester City": {"tier": 1, "style": "attack"},
+            "Liverpool": {"tier": 1, "style": "attack"},
+            "Arsenal": {"tier": 1, "style": "attack"},
+            "Chelsea": {"tier": 1, "style": "attack"},
+            "Manchester United": {"tier": 1, "style": "balanced"},
+            "Tottenham": {"tier": 1, "style": "attack"},
+            "Newcastle United": {"tier": 1, "style": "attack"},
+            "Aston Villa": {"tier": 2, "style": "attack"},
+            "West Ham": {"tier": 2, "style": "balanced"},
+            "Brighton": {"tier": 2, "style": "attack"},
+            "Brentford": {"tier": 2, "style": "attack"},
+            "Crystal Palace": {"tier": 3, "style": "defense"},
+            "Fulham": {"tier": 3, "style": "balanced"},
+            "Wolverhampton": {"tier": 3, "style": "defense"},
+            "Everton": {"tier": 3, "style": "defense"},
+            "Bournemouth": {"tier": 3, "style": "attack"},
+            "Nottingham Forest": {"tier": 3, "style": "defense"},
+            "Burnley": {"tier": 4, "style": "defense"},
+            "Sunderland": {"tier": 4, "style": "balanced"},
+            "Leeds United": {"tier": 4, "style": "attack"},
+            
+            # Bundesliga
+            "Bayern Munich": {"tier": 1, "style": "attack"},
+            "Borussia Dortmund": {"tier": 1, "style": "attack"},
+            "Bayer Leverkusen": {"tier": 1, "style": "attack"},
+            "RB Leipzig": {"tier": 1, "style": "attack"},
+            "Eintracht Frankfurt": {"tier": 2, "style": "balanced"},
+            "Wolfsburg": {"tier": 2, "style": "balanced"},
+            "Freiburg": {"tier": 2, "style": "defense"},
+            "Hoffenheim": {"tier": 2, "style": "attack"},
+            "Stuttgart": {"tier": 2, "style": "attack"},
+            "Werder Bremen": {"tier": 3, "style": "attack"},
+            "Borussia M'gladbach": {"tier": 3, "style": "balanced"},
+            "Union Berlin": {"tier": 3, "style": "defense"},
+            "Köln": {"tier": 3, "style": "balanced"},
+            "Augsburg": {"tier": 3, "style": "defense"},
+            "Heidenheim": {"tier": 4, "style": "defense"},
+            "Mainz": {"tier": 4, "style": "balanced"},
+            "Hamburger SV": {"tier": 4, "style": "attack"},
+            "St Pauli": {"tier": 4, "style": "balanced"},
+            
+            # Serie A
+            "Inter": {"tier": 1, "style": "balanced"},
+            "Milan": {"tier": 1, "style": "attack"},
+            "Juventus": {"tier": 1, "style": "defense"},
+            "Napoli": {"tier": 1, "style": "attack"},
+            "Roma": {"tier": 1, "style": "balanced"},
+            "Atalanta": {"tier": 1, "style": "attack"},
+            "Lazio": {"tier": 2, "style": "balanced"},
+            "Fiorentina": {"tier": 2, "style": "attack"},
+            "Torino": {"tier": 2, "style": "defense"},
+            "Bologna": {"tier": 2, "style": "balanced"},
+            "Genoa": {"tier": 3, "style": "defense"},
+            "Monza": {"tier": 3, "style": "balanced"},
+            "Udinese": {"tier": 3, "style": "balanced"},
+            "Sassuolo": {"tier": 3, "style": "attack"},
+            "Verona": {"tier": 3, "style": "defense"},
+            "Cagliari": {"tier": 4, "style": "defense"},
+            "Lecce": {"tier": 4, "style": "defense"},
+            "Parma": {"tier": 4, "style": "balanced"},
+            "Cremonese": {"tier": 4, "style": "defense"},
+            "AC Pisa": {"tier": 4, "style": "balanced"},
+            "Calcio Como": {"tier": 4, "style": "balanced"},
+            
+            # Ligue 1
+            "PSG": {"tier": 1, "style": "attack"},
+            "Monaco": {"tier": 1, "style": "attack"},
+            "Lyon": {"tier": 1, "style": "attack"},
+            "Lille": {"tier": 1, "style": "balanced"},
+            "Olympique Marseille": {"tier": 1, "style": "attack"},
+            "Rennes": {"tier": 2, "style": "attack"},
+            "Nice": {"tier": 2, "style": "defense"},
+            "Lens": {"tier": 2, "style": "attack"},
+            "Toulouse": {"tier": 3, "style": "attack"},
+            "Strasbourg": {"tier": 3, "style": "balanced"},
+            "Nantes": {"tier": 3, "style": "defense"},
+            "Lorient": {"tier": 3, "style": "attack"},
+            "Metz": {"tier": 4, "style": "defense"},
+            "Brest": {"tier": 4, "style": "balanced"},
+            "Auxerre": {"tier": 4, "style": "defense"},
+            "Paris FC": {"tier": 4, "style": "balanced"},
+            
+            # Eredivisie
+            "Ajax": {"tier": 1, "style": "attack"},
+            "PSV Eindhoven": {"tier": 1, "style": "attack"},
+            "Feyenoord": {"tier": 1, "style": "attack"},
+            "Twente": {"tier": 2, "style": "balanced"},
+            "AZ Alkmaar": {"tier": 2, "style": "attack"},
+            "Utrecht": {"tier": 2, "style": "balanced"},
+            "Heerenveen": {"tier": 3, "style": "attack"},
+            "Groningen": {"tier": 3, "style": "balanced"},
+            "Nijmegen": {"tier": 3, "style": "defense"},
+            "Heracles": {"tier": 3, "style": "balanced"},
+            "Excelsior": {"tier": 4, "style": "attack"},
+            "PEC Zwolle": {"tier": 4, "style": "balanced"},
+            "NAC Breda": {"tier": 4, "style": "balanced"},
+            "SC Telstar": {"tier": 4, "style": "defense"},
+            "Go Ahead Eagles": {"tier": 4, "style": "balanced"},
+            "Volendam": {"tier": 4, "style": "attack"},
+            "Sparta Rotterdam": {"tier": 4, "style": "defense"},
+            
+            # Primeira Liga
+            "Porto": {"tier": 1, "style": "attack"},
+            "SL Benfica": {"tier": 1, "style": "attack"},
+            "Sporting CP": {"tier": 1, "style": "attack"},
+            "Sporting Braga": {"tier": 1, "style": "attack"},
+            "Vitória": {"tier": 2, "style": "attack"},
+            "Rio Ave": {"tier": 3, "style": "balanced"},
+            "Gil Vicente": {"tier": 3, "style": "balanced"},
+            "Estrela Amadora": {"tier": 3, "style": "defense"},
+            "Moreirense FC": {"tier": 3, "style": "defense"},
+            "AVS": {"tier": 4, "style": "defense"},
+            "Nacional Madeira": {"tier": 4, "style": "balanced"},
+            "CD Tondela": {"tier": 4, "style": "defense"},
+            "Casa Pia AC": {"tier": 4, "style": "defense"},
+            "Santa Clara": {"tier": 4, "style": "balanced"},
+            "FC Arouca": {"tier": 4, "style": "defense"},
+            "FC Alverca": {"tier": 4, "style": "defense"},
+            "FC Famalicão": {"tier": 4, "style": "balanced"},
+            "GD Estoril": {"tier": 4, "style": "balanced"},
+            
+            # Süper Lig
+            "Galatasaray": {"tier": 1, "style": "attack"},
+            "Besiktas": {"tier": 1, "style": "attack"},
+            "Fenerbahce": {"tier": 1, "style": "attack"},
+            "Basaksehir": {"tier": 2, "style": "balanced"},
+            "Antalyaspor": {"tier": 2, "style": "balanced"},
+            "Kayserispor": {"tier": 2, "style": "balanced"},
+            "Konyaspor": {"tier": 3, "style": "defense"},
+            "Alanyaspor": {"tier": 3, "style": "attack"},
+            "Rizespor": {"tier": 3, "style": "defense"},
+            "Fatih Karagümrük": {"tier": 3, "style": "balanced"},
+            "Kasımpasa SK": {"tier": 3, "style": "attack"},
+            "Göztepe Izmir": {"tier": 3, "style": "attack"},
+            "Samsunspor": {"tier": 4, "style": "defense"},
+            "Gaziantep": {"tier": 4, "style": "defense"},
+            "Kocaelispor": {"tier": 4, "style": "balanced"}
         }
+    
+    def get_team_info(self, team_name):
+        """Get team tier and style, with fallback for unknown teams"""
+        # Try exact match
+        if team_name in self.team_tiers:
+            return self.team_tiers[team_name]
         
-        # Get best narrative
-        best_narrative = max(scores.items(), key=lambda x: x[1])
+        # Try partial match
+        for known_team, info in self.team_tiers.items():
+            if known_team.lower() in team_name.lower() or team_name.lower() in known_team.lower():
+                return info
+        
+        # Default for unknown teams
+        return {"tier": 3, "style": "balanced"}
+    
+    def predict_match(self, match_name):
+        """Make quick prediction based on team reputations"""
+        # Split match into teams
+        if " vs " in match_name:
+            home_team, away_team = match_name.split(" vs ")
+        else:
+            home_team, away_team = match_name, "Unknown"
+        
+        # Get team info
+        home_info = self.get_team_info(home_team.strip())
+        away_info = self.get_team_info(away_team.strip())
+        
+        # Calculate tier difference
+        tier_diff = home_info["tier"] - away_info["tier"]
+        
+        # Determine favorite
+        if tier_diff > 1:
+            favorite = "HOME"
+            favorite_strength = "STRONG"
+        elif tier_diff > 0:
+            favorite = "HOME"
+            favorite_strength = "MODERATE"
+        elif tier_diff < -1:
+            favorite = "AWAY"
+            favorite_strength = "STRONG"
+        elif tier_diff < 0:
+            favorite = "AWAY"
+            favorite_strength = "MODERATE"
+        else:
+            favorite = "EVEN"
+            favorite_strength = "EVEN"
+        
+        # Determine style clash
+        style_clash = f"{home_info['style'].upper()} vs {away_info['style'].upper()}"
+        
+        # Make prediction based on tier difference and styles
+        if favorite_strength == "STRONG" and "ATTACK vs DEFENSE" in style_clash:
+            narrative = "BLITZKRIEG"
+            confidence = 75 + (abs(tier_diff) * 5)
+        elif favorite_strength == "MODERATE" and "ATTACK vs DEFENSE" in style_clash:
+            narrative = "SIEGE"
+            confidence = 65 + (abs(tier_diff) * 5)
+        elif favorite == "EVEN" and "ATTACK vs ATTACK" in style_clash:
+            narrative = "SHOOTOUT"
+            confidence = 70
+        elif favorite == "EVEN" and ("DEFENSE vs DEFENSE" in style_clash or "BALANCED" in style_clash):
+            narrative = "CHESS"
+            confidence = 65
+        elif abs(tier_diff) <= 1:
+            narrative = "SIEGE" if "ATTACK vs DEFENSE" in style_clash else "CHESS"
+            confidence = 60
+        else:
+            narrative = "MIXED"
+            confidence = 50
+        
+        # Add variance based on home advantage
+        if favorite == "HOME":
+            confidence += 5
+        elif favorite == "AWAY":
+            confidence -= 5
+        
+        # Cap confidence
+        confidence = min(max(confidence, 45), 85)
+        
+        # Determine tier
+        if confidence >= 75:
+            prediction_tier = "TIER 1 (HIGH)"
+        elif confidence >= 60:
+            prediction_tier = "TIER 2 (MEDIUM)"
+        else:
+            prediction_tier = "TIER 3 (LOW)"
         
         return {
-            'narrative': best_narrative[0],
-            'score': best_narrative[1],
-            'scores': scores,
-            'interpretations': {
-                'odds': odds_interpretation,
-                'table': table_interpretation,
-                'h2h': h2h_interpretation,
-                'form': form_interpretation,
-                'style': style_interpretation
-            }
+            "match": match_name,
+            "narrative": narrative,
+            "confidence": confidence,
+            "tier": prediction_tier,
+            "home_team": home_team.strip(),
+            "away_team": away_team.strip(),
+            "home_tier": home_info["tier"],
+            "away_tier": away_info["tier"],
+            "style_clash": style_clash,
+            "favorite": favorite,
+            "favorite_strength": favorite_strength,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
         }
-    
-    def score_blitzkrieg(self, odds, table, h2h, form, style):
-        """Score Blitzkrieg narrative"""
-        score = 0
-        
-        # Odds: Strong favorite
-        if odds[0] == "STRONG FAVORITE":
-            score += 30
-        elif odds[0] == "MODERATE FAVORITE":
-            score += 20
-        
-        # Table: Mismatch
-        if "VS RELEGATION" in table[0] or "NEEDS WIN VS SAFE" in table[0]:
-            score += 25
-        
-        # H2H: Dominance
-        if "DOMINATES" in h2h[0]:
-            score += 20
-        
-        # Form: Strong vs Weak
-        if "FLYING, AWAY STRUGGLING" in form[0] or "HOME FLYING" in form[0]:
-            score += 15
-        
-        # Style: Attack vs Defense
-        if "ATTACK VS DEFENSE" in style[0]:
-            score += 10
-        
-        return min(score, 100)
-    
-    def score_shootout(self, odds, table, h2h, form, style):
-        """Score Shootout narrative"""
-        score = 0
-        
-        # Odds: Even match
-        if odds[0] == "EVEN MATCH":
-            score += 20
-        
-        # Table: Both need points
-        if "HIGH STAKES BOTH" in table[1] or "TOP 4 BATTLE" in table[0]:
-            score += 25
-        
-        # H2H: High scoring
-        if "HIGH SCORING" in h2h[0]:
-            score += 25
-        
-        # Form: Both in form
-        if "BOTH IN FORM" in form[0]:
-            score += 20
-        
-        # Style: Both attacking
-        if "BOTH ATTACKING" in style[0]:
-            score += 10
-        
-        return min(score, 100)
-    
-    def score_siege(self, odds, table, h2h, form, style):
-        """Score Siege narrative"""
-        score = 0
-        
-        # Odds: Favorite but not too strong
-        if odds[0] in ["MODERATE FAVORITE", "STRONG FAVORITE"]:
-            score += 20
-        
-        # Table: Attacker needs win
-        if "NEEDS WIN" in table[0] or "VS SAFE" in table[0]:
-            score += 25
-        
-        # H2H: Close but favorite wins
-        if "DOMINATES" in h2h[0] or "MIXED RESULTS" in h2h[0]:
-            score += 15
-        
-        # Form: Attacker better form
-        if "HOME FLYING" in form[0] or "AWAY STRUGGLING" in form[0]:
-            score += 20
-        
-        # Style: Attack vs Defense
-        if "ATTACK VS DEFENSE" in style[0]:
-            score += 20
-        
-        return min(score, 100)
-    
-    def score_chess(self, odds, table, h2h, form, style):
-        """Score Chess Match narrative"""
-        score = 0
-        
-        # Odds: Close match
-        if odds[0] == "EVEN MATCH" or odds[2] == "Even":
-            score += 20
-        
-        # Table: High stakes both
-        if "HIGH STAKES" in table[1] or "BATTLE" in table[0]:
-            score += 25
-        
-        # H2H: Low scoring or draws
-        if "FREQUENT DRAWS" in h2h[0] or "MIXED RESULTS" in h2h[0]:
-            score += 20
-        
-        # Form: Both inconsistent
-        if "MIXED FORM" in form[0] or "BOTH STRUGGLING" in form[0]:
-            score += 15
-        
-        # Style: Both defensive or pragmatic
-        if "BOTH DEFENSIVE" in style[0] or "TACTICAL BATTLE" in style[1]:
-            score += 20
-        
-        return min(score, 100)
 
 # -------------------------------------------------------------------
 # STREAMLIT APP
 # -------------------------------------------------------------------
-st.title("⚽ Narrative Predictor Pro")
-st.markdown("**Input raw data → System interprets → Get prediction**")
+st.title("⚽ Weekend Narrative Predictor")
+st.markdown("**Batch analysis for 70+ matches across 8 leagues**")
 
 # Initialize predictor
-predictor = NarrativePredictor()
+predictor = QuickPredictor()
 
 # -------------------------------------------------------------------
-# 1. MATCH SELECTION
+# 1. LEAGUE SELECTION
 # -------------------------------------------------------------------
 st.markdown("---")
-st.subheader("1️⃣ SELECT MATCH")
+st.subheader("1️⃣ SELECT LEAGUES TO ANALYZE")
 
-# Pre-defined examples
-examples = {
-    "Manchester City vs Nottingham Forest": {
-        "home_odds": 1.30, "draw_odds": 5.50, "away_odds": 11.00,
-        "home_pos": 1, "home_pts": 68, "away_pos": 17, "away_pts": 25,
-        "h2h_scores": ["6-0", "2-0", "3-0"],
-        "home_form": "WWWWW", "away_form": "LLLDL",
-        "home_manager": "Guardiola", "away_manager": "Nuno"
-    },
-    "Tottenham vs Liverpool": {
-        "home_odds": 3.80, "draw_odds": 4.00, "away_odds": 1.90,
-        "home_pos": 5, "home_pts": 57, "away_pos": 2, "away_pts": 64,
-        "h2h_scores": ["2-1", "1-1", "2-2"],
-        "home_form": "WWLWW", "away_form": "WWDWW",
-        "home_manager": "Postecoglou", "away_manager": "Klopp"
-    },
-    "Arsenal vs Chelsea": {
-        "home_odds": 1.80, "draw_odds": 3.75, "away_odds": 4.50,
-        "home_pos": 3, "home_pts": 61, "away_pos": 9, "away_pts": 47,
-        "h2h_scores": ["1-0", "0-0", "2-2"],
-        "home_form": "WLWDW", "away_form": "DLLWD",
-        "home_manager": "Arteta", "away_manager": "Pochettino"
-    },
-    "Newcastle vs Everton": {
-        "home_odds": 1.70, "draw_odds": 3.90, "away_odds": 5.00,
-        "home_pos": 8, "home_pts": 50, "away_pos": 16, "away_pts": 28,
-        "h2h_scores": ["1-0", "0-0", "2-1"],
-        "home_form": "WLDWW", "away_form": "LLDLD",
-        "home_manager": "Howe", "away_manager": "Dyche"
-    }
-}
+# League selection checkboxes
+leagues = list(fixtures_db.keys())
+selected_leagues = []
 
-# Match selection
-match_options = list(examples.keys()) + ["Custom Match"]
-selected_match = st.selectbox("Choose match:", match_options)
+cols = st.columns(4)
+for i, league in enumerate(leagues):
+    with cols[i % 4]:
+        if st.checkbox(league, value=True):
+            selected_leagues.append(league)
 
-if selected_match == "Custom Match":
-    col1, col2 = st.columns(2)
+# -------------------------------------------------------------------
+# 2. BATCH PREDICTION
+# -------------------------------------------------------------------
+st.markdown("---")
+st.subheader("2️⃣ GENERATE BATCH PREDICTIONS")
+
+if st.button("🎯 PREDICT ALL SELECTED MATCHES", type="primary", use_container_width=True):
+    
+    all_matches = []
+    for league in selected_leagues:
+        for fixture in fixtures_db[league]:
+            all_matches.append({
+                "league": league,
+                "match": fixture["match"],
+                "date": fixture["date"]
+            })
+    
+    st.session_state.batch_results = []
+    
+    # Progress bar
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    # Make predictions
+    for idx, match_info in enumerate(all_matches):
+        status_text.text(f"Analyzing {match_info['match']}...")
+        
+        prediction = predictor.predict_match(match_info["match"])
+        prediction["league"] = match_info["league"]
+        prediction["date"] = match_info["date"]
+        
+        st.session_state.batch_results.append(prediction)
+        
+        # Update progress
+        progress_bar.progress((idx + 1) / len(all_matches))
+    
+    status_text.text("✅ Analysis complete!")
+    progress_bar.empty()
+
+# -------------------------------------------------------------------
+# 3. RESULTS DISPLAY
+# -------------------------------------------------------------------
+if st.session_state.batch_results:
+    st.markdown("---")
+    st.subheader("3️⃣ PREDICTION RESULTS")
+    
+    # Convert to DataFrame for display
+    results_df = pd.DataFrame(st.session_state.batch_results)
+    
+    # Summary statistics
+    total_matches = len(results_df)
+    tier1_count = len(results_df[results_df['tier'].str.contains('TIER 1')])
+    tier2_count = len(results_df[results_df['tier'].str.contains('TIER 2')])
+    tier3_count = len(results_df[results_df['tier'].str.contains('TIER 3')])
+    
+    # Narrative distribution
+    narrative_counts = results_df['narrative'].value_counts()
+    
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
-        home_team = st.text_input("Home Team")
+        st.metric("Total Matches", total_matches)
     with col2:
-        away_team = st.text_input("Away Team")
-    if home_team and away_team:
-        selected_match = f"{home_team} vs {away_team}"
-    else:
-        selected_match = "Manchester City vs Nottingham Forest"
-
-st.session_state.current_match = selected_match
-
-st.markdown(f"""
-<div style="padding: 1rem; border-radius: 10px; border: 2px solid #e0e0e0; margin-bottom: 1rem;">
-    <h4>{selected_match}</h4>
-    <p>Premier League • Saturday 3pm</p>
-</div>
-""", unsafe_allow_html=True)
+        st.metric("Tier 1 Predictions", tier1_count)
+    with col3:
+        st.metric("Tier 2 Predictions", tier2_count)
+    with col4:
+        st.metric("Average Confidence", f"{results_df['confidence'].mean():.1f}")
+    
+    # Narrative distribution chart
+    st.markdown("#### Narrative Distribution")
+    narrative_data = pd.DataFrame({
+        'Narrative': narrative_counts.index,
+        'Count': narrative_counts.values
+    })
+    
+    # Display as bar chart
+    chart_data = narrative_data.set_index('Narrative')
+    st.bar_chart(chart_data)
+    
+    # -------------------------------------------------------------------
+    # 3A. FILTERABLE RESULTS TABLE
+    # -------------------------------------------------------------------
+    st.markdown("#### Filter Predictions")
+    
+    filter_col1, filter_col2, filter_col3 = st.columns(3)
+    
+    with filter_col1:
+        selected_narratives = st.multiselect(
+            "Filter by Narrative",
+            options=results_df['narrative'].unique(),
+            default=results_df['narrative'].unique()
+        )
+    
+    with filter_col2:
+        selected_tiers = st.multiselect(
+            "Filter by Tier",
+            options=results_df['tier'].unique(),
+            default=results_df['tier'].unique()
+        )
+    
+    with filter_col3:
+        selected_leagues_filter = st.multiselect(
+            "Filter by League",
+            options=results_df['league'].unique(),
+            default=results_df['league'].unique()
+        )
+    
+    # Apply filters
+    filtered_df = results_df[
+        (results_df['narrative'].isin(selected_narratives)) &
+        (results_df['tier'].isin(selected_tiers)) &
+        (results_df['league'].isin(selected_leagues_filter))
+    ]
+    
+    # Display table with key columns
+    display_df = filtered_df[['league', 'match', 'date', 'narrative', 'confidence', 'tier', 'style_clash']].copy()
+    display_df = display_df.sort_values(['confidence', 'league'], ascending=[False, True])
+    
+    # Color coding for narratives
+    def color_narrative(val):
+        if val == 'BLITZKRIEG':
+            return 'background-color: #FFE5E5'
+        elif val == 'SHOOTOUT':
+            return 'background-color: #E5FFE5'
+        elif val == 'SIEGE':
+            return 'background-color: #E5F3FF'
+        elif val == 'CHESS':
+            return 'background-color: #FFF9E5'
+        else:
+            return ''
+    
+    # Color coding for tiers
+    def color_tier(val):
+        if 'TIER 1' in val:
+            return 'background-color: #D4EDDA; color: #155724'
+        elif 'TIER 2' in val:
+            return 'background-color: #FFF3CD; color: #856404'
+        else:
+            return 'background-color: #F8D7DA; color: #721C24'
+    
+    styled_df = display_df.style\
+        .applymap(color_narrative, subset=['narrative'])\
+        .applymap(color_tier, subset=['tier'])\
+        .format({'confidence': '{:.1f}'})
+    
+    st.dataframe(styled_df, use_container_width=True, height=400)
+    
+    # -------------------------------------------------------------------
+    # 3B. KEY MATCHES HIGHLIGHTS
+    # -------------------------------------------------------------------
+    st.markdown("#### 🎯 Key Matches to Watch")
+    
+    # Get top 10 highest confidence predictions
+    top_matches = filtered_df.nlargest(10, 'confidence')
+    
+    for idx, match in top_matches.iterrows():
+        with st.expander(f"**{match['match']}** - {match['narrative']} ({match['confidence']:.1f}/100)"):
+            col_info1, col_info2, col_info3 = st.columns(3)
+            
+            with col_info1:
+                st.write(f"**League:** {match['league']}")
+                st.write(f"**Date:** {match['date']}")
+                st.write(f"**Style:** {match['style_clash']}")
+            
+            with col_info2:
+                st.write(f"**Narrative:** {match['narrative']}")
+                st.write(f"**Confidence:** {match['confidence']:.1f}/100")
+                st.write(f"**Tier:** {match['tier']}")
+            
+            with col_info3:
+                # Betting recommendations
+                bets = {
+                    "BLITZKRIEG": [
+                        "Favorite -1.5 handicap",
+                        "Favorite clean sheet",
+                        "First goal <30 mins"
+                    ],
+                    "SHOOTOUT": [
+                        "Over 2.5 goals",
+                        "BTTS: Yes",
+                        "Late goal (75+ mins)"
+                    ],
+                    "SIEGE": [
+                        "Under 2.5 goals",
+                        "Favorite to win",
+                        "BTTS: No"
+                    ],
+                    "CHESS": [
+                        "Under 2.5 goals",
+                        "BTTS: No",
+                        "0-0 or 1-0 score"
+                    ]
+                }
+                
+                st.write("**Recommended Bets:**")
+                for bet in bets.get(match['narrative'], ["Monitor odds"]):
+                    st.write(f"• {bet}")
+    
+    # -------------------------------------------------------------------
+    # 3C. BULK ACTIONS
+    # -------------------------------------------------------------------
+    st.markdown("#### 📋 Bulk Actions")
+    
+    col_act1, col_act2, col_act3 = st.columns(3)
+    
+    with col_act1:
+        if st.button("📥 Save All Predictions", use_container_width=True):
+            # Save to session state
+            for pred in st.session_state.batch_results:
+                st.session_state.all_predictions.append(pred)
+            st.success(f"✅ Saved {len(st.session_state.batch_results)} predictions")
+    
+    with col_act2:
+        # Export to CSV
+        csv = filtered_df.to_csv(index=False)
+        st.download_button(
+            label="📄 Export to CSV",
+            data=csv,
+            file_name=f"narrative_predictions_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+    
+    with col_act3:
+        # Export to JSON
+        json_data = filtered_df.to_dict(orient='records')
+        st.download_button(
+            label="📊 Export to JSON",
+            data=json.dumps(json_data, indent=2),
+            file_name=f"narrative_predictions_{datetime.now().strftime('%Y%m%d')}.json",
+            mime="application/json",
+            use_container_width=True
+        )
 
 # -------------------------------------------------------------------
-# 2. INPUT RAW DATA
+# 4. PREDICTION HISTORY
+# -------------------------------------------------------------------
+if st.session_state.all_predictions:
+    st.markdown("---")
+    st.subheader("📊 PREDICTION HISTORY")
+    
+    history_df = pd.DataFrame(st.session_state.all_predictions)
+    
+    # Calculate accuracy metrics
+    st.markdown("##### 📈 Performance Summary")
+    
+    col_hist1, col_hist2, col_hist3, col_hist4 = st.columns(4)
+    with col_hist1:
+        st.metric("Total Predictions", len(history_df))
+    with col_hist2:
+        st.metric("Unique Matches", history_df['match'].nunique())
+    with col_hist3:
+        avg_conf = history_df['confidence'].mean()
+        st.metric("Avg Confidence", f"{avg_conf:.1f}")
+    with col_hist4:
+        # Narrative distribution
+        top_narrative = history_df['narrative'].mode()[0] if not history_df.empty else "N/A"
+        st.metric("Most Common", top_narrative)
+    
+    # Recent predictions
+    st.markdown("##### Recent Predictions")
+    recent_display = history_df[['timestamp', 'league', 'match', 'narrative', 'confidence', 'tier']].tail(10)
+    st.dataframe(recent_display, use_container_width=True)
+
+# -------------------------------------------------------------------
+# 5. QUICK ANALYSIS TOOLS
 # -------------------------------------------------------------------
 st.markdown("---")
-st.subheader("2️⃣ INPUT RAW DATA")
+st.subheader("🔍 Quick Analysis Tools")
 
-# Get example data or initialize empty
-if selected_match in examples:
-    example_data = examples[selected_match]
-else:
-    example_data = examples["Manchester City vs Nottingham Forest"]
+tool_cols = st.columns(3)
 
-# Create input columns
-col1, col2 = st.columns(2)
+with tool_cols[0]:
+    if st.button("🔍 Analyze Single Match", use_container_width=True):
+        st.session_state.show_single_analysis = True
 
-with col1:
-    st.markdown("#### 📊 ODDS")
-    home_odds = st.number_input("Home Odds", min_value=1.01, max_value=100.0, 
-                               value=example_data["home_odds"], step=0.1)
-    draw_odds = st.number_input("Draw Odds", min_value=1.01, max_value=100.0,
-                               value=example_data["draw_odds"], step=0.1)
-    away_odds = st.number_input("Away Odds", min_value=1.01, max_value=100.0,
-                               value=example_data["away_odds"], step=0.1)
-    
-    st.markdown("#### 🏆 TABLE POSITION")
-    home_pos = st.number_input("Home Position", min_value=1, max_value=20,
-                              value=example_data["home_pos"])
-    home_pts = st.number_input("Home Points", min_value=0, max_value=100,
-                              value=example_data["home_pts"])
-    away_pos = st.number_input("Away Position", min_value=1, max_value=20,
-                              value=example_data["away_pos"])
-    away_pts = st.number_input("Away Points", min_value=0, max_value=100,
-                              value=example_data["away_pts"])
+with tool_cols[1]:
+    if st.button("📊 Compare Leagues", use_container_width=True):
+        st.session_state.show_league_comparison = True
 
-with col2:
-    st.markdown("#### 🔄 H2H (Last 3 meetings)")
-    h2h1 = st.text_input("Match 1", value=example_data["h2h_scores"][0])
-    h2h2 = st.text_input("Match 2", value=example_data["h2h_scores"][1])
-    h2h3 = st.text_input("Match 3", value=example_data["h2h_scores"][2])
-    h2h_scores = [h2h1, h2h2, h2h3]
-    
-    st.markdown("#### 📈 RECENT FORM (Last 5)")
-    home_form = st.text_input("Home Form (W/D/L)", value=example_data["home_form"],
-                             placeholder="e.g., WWLWD")
-    away_form = st.text_input("Away Form (W/D/L)", value=example_data["away_form"],
-                             placeholder="e.g., LDDLW")
-    
-    st.markdown("#### 🎯 MANAGER STYLES")
-    home_manager = st.text_input("Home Manager", value=example_data["home_manager"])
-    away_manager = st.text_input("Away Manager", value=example_data["away_manager"])
+with tool_cols[2]:
+    if st.button("🎯 Find Best Bets", use_container_width=True):
+        st.session_state.show_best_bets = True
 
-# -------------------------------------------------------------------
-# 3. ANALYZE AND PREDICT
-# -------------------------------------------------------------------
-st.markdown("---")
-
-if st.button("🔍 ANALYZE & PREDICT", type="primary", use_container_width=True):
-    
-    # Prepare match data
-    match_data = {
-        'home_odds': home_odds,
-        'draw_odds': draw_odds,
-        'away_odds': away_odds,
-        'home_pos': home_pos,
-        'home_pts': home_pts,
-        'away_pos': away_pos,
-        'away_pts': away_pts,
-        'h2h_scores': h2h_scores,
-        'home_form': home_form.upper(),
-        'away_form': away_form.upper(),
-        'home_manager': home_manager,
-        'away_manager': away_manager
-    }
-    
-    # Get prediction
-    prediction = predictor.predict(match_data)
-    interpretations = prediction['interpretations']
-    
-    # Store in session state
-    st.session_state.current_prediction = {
-        'match': selected_match,
-        'prediction': prediction,
-        'match_data': match_data
-    }
-    
-    # -------------------------------------------------------------------
-    # 3A. SHOW SYSTEM INTERPRETATION
-    # -------------------------------------------------------------------
-    st.subheader("🧠 SYSTEM INTERPRETATION")
-    
-    interp_col1, interp_col2 = st.columns(2)
-    
-    with interp_col1:
-        st.markdown("##### 📊 ODDS ANALYSIS")
-        st.info(f"**{interpretations['odds'][0]}**")
-        st.write(f"Probability: {interpretations['odds'][1]:.1f}%")
-        st.write(f"Favorite: {interpretations['odds'][2]}")
-        
-        st.markdown("##### 🏆 TABLE ANALYSIS")
-        st.info(f"**{interpretations['table'][0]}**")
-        st.write(interpretations['table'][1])
-        
-        st.markdown("##### 🔄 H2H ANALYSIS")
-        st.info(f"**{interpretations['h2h'][0]}**")
-        st.write(interpretations['h2h'][1])
-    
-    with interp_col2:
-        st.markdown("##### 📈 FORM ANALYSIS")
-        st.info(f"**{interpretations['form'][0]}**")
-        st.write(interpretations['form'][1])
-        
-        st.markdown("##### 🎯 STYLE ANALYSIS")
-        st.info(f"**{interpretations['style'][0]}**")
-        st.write(interpretations['style'][1])
-    
-    # -------------------------------------------------------------------
-    # 3B. SHOW PREDICTION
-    # -------------------------------------------------------------------
+# Single match analysis
+if 'show_single_analysis' in st.session_state and st.session_state.show_single_analysis:
     st.markdown("---")
-    st.subheader("🎯 PREDICTION")
+    st.subheader("🔍 Single Match Analysis")
     
-    narrative_descriptions = {
-        "BLITZKRIEG": "Early domination - Favorite crushes weak opponent",
-        "SHOOTOUT": "End-to-end chaos - Both teams attack relentlessly",
-        "SIEGE": "Attack vs Defense - Attacker dominates but struggles to break through",
-        "CHESS": "Tactical battle - Low scoring, cautious approach from both"
-    }
+    # Get all unique matches
+    all_matches_list = []
+    for league, fixtures in fixtures_db.items():
+        for fixture in fixtures:
+            all_matches_list.append(f"{fixture['match']} ({league})")
     
-    confidence = prediction['score']
-    narrative = prediction['narrative']
+    selected_single_match = st.selectbox("Select a match:", all_matches_list[:50])
     
-    if confidence >= 75:
-        tier = "TIER 1 (HIGH CONFIDENCE)"
-        stake = "2-3% of bankroll"
-        color = "green"
-    elif confidence >= 60:
-        tier = "TIER 2 (MEDIUM CONFIDENCE)"
-        stake = "1-2% of bankroll"
-        color = "orange"
-    else:
-        tier = "TIER 3 (LOW CONFIDENCE)"
-        stake = "0.5-1% of bankroll"
-        color = "red"
-    
-    # Prediction display
-    col_pred1, col_pred2 = st.columns(2)
-    
-    with col_pred1:
-        st.markdown(f"""
-        <div style="padding: 1.5rem; border-radius: 10px; background-color: #f8f9fa; border-left: 5px solid {color};">
-            <h2>🏆 {narrative}</h2>
-            <h1>{confidence}/100</h1>
-            <p>{narrative_descriptions[narrative]}</p>
-            <br>
-            <p><strong>{tier}</strong></p>
-            <p>Recommended stake: {stake}</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col_pred2:
-        # Show all scores
-        st.markdown("#### All Narrative Scores")
-        for narr, score in prediction['scores'].items():
-            col_score1, col_score2, col_score3 = st.columns([2, 5, 1])
-            with col_score1:
-                st.write(narr)
-            with col_score2:
-                st.progress(score/100)
-            with col_score3:
-                st.write(f"{score}")
-    
-    # -------------------------------------------------------------------
-    # 3C. BETTING RECOMMENDATIONS
-    # -------------------------------------------------------------------
-    st.markdown("---")
-    st.subheader("💰 BETTING RECOMMENDATIONS")
-    
-    # Get teams for bet names
-    home_team = selected_match.split(" vs ")[0]
-    away_team = selected_match.split(" vs ")[1]
-    
-    betting_recommendations = {
-        "BLITZKRIEG": [
-            {"bet": f"{home_team if interpretations['odds'][2] == 'Home' else away_team} -1.5 Handicap", 
-             "odds": "1.85-2.00", "stake": "2-3%", "why": "Favorite expected to dominate"},
-            {"bet": "First Goal < 30 minutes", 
-             "odds": "1.70-1.90", "stake": "1-2%", "why": "Early pressure likely"},
-            {"bet": f"{home_team if interpretations['odds'][2] == 'Home' else away_team} Clean Sheet", 
-             "odds": "2.00-2.30", "stake": "1-2%", "why": "Weak opponent unlikely to score"}
-        ],
-        "SHOOTOUT": [
-            {"bet": "Over 2.5 Goals", 
-             "odds": "1.70-1.90", "stake": "2-3%", "why": "High scoring history expected"},
-            {"bet": "Both Teams to Score", 
-             "odds": "1.60-1.80", "stake": "2-3%", "why": "Both teams attacking"},
-            {"bet": "Late Goal (75+ minutes)", 
-             "odds": "2.30-2.70", "stake": "1-2%", "why": "End-to-end action continues late"}
-        ],
-        "SIEGE": [
-            {"bet": "Under 2.5 Goals", 
-             "odds": "1.80-2.00", "stake": "2-3%", "why": "Defensive setup limits goals"},
-            {"bet": f"{home_team if interpretations['odds'][2] == 'Home' else away_team} to Win", 
-             "odds": "1.60-1.80", "stake": "2-3%", "why": "Attacker should eventually break through"},
-            {"bet": "BTTS: No", 
-             "odds": "1.90-2.10", "stake": "1-2%", "why": "Defender struggles to score"}
-        ],
-        "CHESS": [
-            {"bet": "Under 2.5 Goals", 
-             "odds": "1.70-1.90", "stake": "2-3%", "why": "Cautious approach from both"},
-            {"bet": "BTTS: No", 
-             "odds": "1.80-2.00", "stake": "2-3%", "why": "Defensive focus limits scoring chances"},
-            {"bet": "0-0 or 1-0 Correct Score", 
-             "odds": "3.00-4.00", "stake": "1-2%", "why": "Low scoring patterns expected"}
-        ]
-    }
-    
-    bets = betting_recommendations[narrative]
-    
-    bet_cols = st.columns(3)
-    
-    for idx, bet in enumerate(bets):
-        with bet_cols[idx]:
+    if selected_single_match:
+        match_name = selected_single_match.split(" (")[0]
+        prediction = predictor.predict_match(match_name)
+        
+        col_single1, col_single2 = st.columns(2)
+        
+        with col_single1:
             st.markdown(f"""
-            <div style="padding: 1rem; border-radius: 8px; background-color: white; border: 1px solid #e0e0e0; height: 250px;">
-                <h4>✅ BET {idx+1}</h4>
-                <h3>{bet['bet']}</h3>
-                <p><strong>Odds:</strong> {bet['odds']}</p>
-                <p><strong>Stake:</strong> {bet['stake']}</p>
-                <p><em>{bet['why']}</em></p>
+            <div style="padding: 1rem; border-radius: 10px; background-color: #f8f9fa; border-left: 5px solid #00cc96;">
+                <h3>🏆 {prediction['narrative']}</h3>
+                <h1>{prediction['confidence']:.1f}/100</h1>
+                <p><strong>{prediction['tier']}</strong></p>
+                <p>Style: {prediction['style_clash']}</p>
+                <p>Favorite: {prediction['favorite']} ({prediction['favorite_strength']})</p>
             </div>
             """, unsafe_allow_html=True)
+        
+        with col_single2:
+            # Team analysis
+            st.markdown("#### Team Analysis")
+            st.write(f"**{prediction['home_team']}**: Tier {prediction['home_tier']}")
+            st.write(f"**{prediction['away_team']}**: Tier {prediction['away_tier']}")
+            st.write(f"**Tier Difference**: {abs(prediction['home_tier'] - prediction['away_tier'])}")
+            
+            # Betting recommendations
+            st.markdown("#### 💰 Betting Tips")
+            bets = {
+                "BLITZKRIEG": ["Favorite -1.5 handicap", "Clean sheet", "Early goal"],
+                "SHOOTOUT": ["Over 2.5 goals", "BTTS: Yes", "Late drama"],
+                "SIEGE": ["Under 2.5 goals", "Favorite win", "BTTS: No"],
+                "CHESS": ["Under 2.5 goals", "BTTS: No", "0-0 or 1-0"]
+            }
+            
+            for bet in bets.get(prediction['narrative'], ["Monitor odds"]):
+                st.write(f"• {bet}")
 
 # -------------------------------------------------------------------
-# 4. TRACK RESULTS (Always visible if we have prediction)
+# 6. HOW TO USE
 # -------------------------------------------------------------------
-if 'current_prediction' in st.session_state:
-    st.markdown("---")
-    st.subheader("📋 TRACK RESULT")
-    
-    pred = st.session_state.current_prediction
-    
-    col_track1, col_track2, col_track3, col_track4 = st.columns([2, 1, 1, 1])
-    
-    with col_track1:
-        actual_score = st.text_input("Final Score", placeholder="e.g., 3-0")
-        notes = st.text_input("Match Notes", placeholder="What actually happened?")
-    
-    with col_track2:
-        if st.button("✅ Correct", use_container_width=True):
-            st.session_state.predictions.append({
-                'match': pred['match'],
-                'predicted_narrative': pred['prediction']['narrative'],
-                'predicted_score': pred['prediction']['score'],
-                'actual_score': actual_score,
-                'notes': notes,
-                'correct': 'Yes',
-                'date': datetime.now().strftime("%Y-%m-%d")
-            })
-            st.success("✅ Prediction saved as correct!")
-            st.rerun()
-    
-    with col_track3:
-        if st.button("⚠️ Partial", use_container_width=True):
-            st.session_state.predictions.append({
-                'match': pred['match'],
-                'predicted_narrative': pred['prediction']['narrative'],
-                'predicted_score': pred['prediction']['score'],
-                'actual_score': actual_score,
-                'notes': notes,
-                'correct': 'Partial',
-                'date': datetime.now().strftime("%Y-%m-%d")
-            })
-            st.warning("⚠️ Prediction saved as partial match")
-            st.rerun()
-    
-    with col_track4:
-        if st.button("❌ Wrong", use_container_width=True):
-            st.session_state.predictions.append({
-                'match': pred['match'],
-                'predicted_narrative': pred['prediction']['narrative'],
-                'predicted_score': pred['prediction']['score'],
-                'actual_score': actual_score,
-                'notes': notes,
-                'correct': 'No',
-                'date': datetime.now().strftime("%Y-%m-%d")
-            })
-            st.error("❌ Prediction saved - we'll learn from this!")
-            st.rerun()
-
-# -------------------------------------------------------------------
-# 5. PERFORMANCE HISTORY
-# -------------------------------------------------------------------
-if st.session_state.predictions:
-    st.markdown("---")
-    st.subheader("📊 PERFORMANCE HISTORY")
-    
-    # Calculate metrics
-    rated_predictions = [p for p in st.session_state.predictions if p.get('correct') in ['Yes', 'Partial', 'No']]
-    
-    if rated_predictions:
-        correct = sum(1 for p in rated_predictions if p['correct'] == 'Yes')
-        partial = sum(1 for p in rated_predictions if p['correct'] == 'Partial')
-        total = len(rated_predictions)
-        accuracy = (correct + partial * 0.5) / total * 100
-        
-        col_met1, col_met2, col_met3, col_met4 = st.columns(4)
-        with col_met1:
-            st.metric("Total Predictions", total)
-        with col_met2:
-            st.metric("Correct", correct)
-        with col_met3:
-            st.metric("Partial", partial)
-        with col_met4:
-            st.metric("Accuracy", f"{accuracy:.1f}%")
-        
-        # Show recent predictions
-        st.markdown("#### Recent Predictions")
-        recent_data = []
-        for pred in st.session_state.predictions[-10:]:  # Last 10
-            recent_data.append({
-                "Date": pred.get('date', 'N/A'),
-                "Match": pred['match'],
-                "Prediction": pred['predicted_narrative'],
-                "Score": pred['predicted_score'],
-                "Actual": pred.get('actual_score', 'N/A'),
-                "Result": pred.get('correct', 'Not rated'),
-                "Notes": pred.get('notes', '')[:30] + "..." if pred.get('notes') else ''
-            })
-        
-        df = pd.DataFrame(recent_data)
-        st.dataframe(df, use_container_width=True, hide_index=True)
-
-# -------------------------------------------------------------------
-# 6. QUICK START GUIDE
-# -------------------------------------------------------------------
-with st.expander("📚 QUICK START GUIDE"):
+with st.expander("📚 HOW TO USE THIS TOOL"):
     st.markdown("""
-    ### **How to Use This Tool:**
+    ### **Weekend Analysis Workflow:**
     
-    1. **SELECT A MATCH** - Choose from examples or create custom
-    2. **INPUT RAW DATA** - Enter what you see (no interpretation needed):
-       - **Odds** from betting sites
-       - **Table positions** from league table
-       - **H2H scores** from head-to-head history
-       - **Recent form** (W/D/L from last 5 games)
-       - **Manager names** for style analysis
-    3. **CLICK ANALYZE** - System interprets data and makes prediction
-    4. **SEE BETS** - Get 3 tailored betting recommendations
-    5. **TRACK RESULT** - Save outcome after the match
+    1. **SELECT LEAGUES** - Choose which leagues to analyze (default: all)
+    2. **CLICK PREDICT** - System analyzes 70+ matches in seconds
+    3. **REVIEW RESULTS** - See narrative predictions for all matches
+    4. **FILTER & EXPORT** - Focus on specific narratives or tiers
+    5. **TRACK PERFORMANCE** - Save predictions and compare with results
     
-    ### **Where to Find Data:**
-    - **Odds**: Bet365, William Hill, any betting site
-    - **Table**: Premier League official site, Sky Sports
-    - **H2H**: FlashScore, Premier League H2H
-    - **Form**: Last 5 results (W = win, D = draw, L = loss)
-    - **Managers**: Just enter names (system knows styles)
+    ### **Understanding the Predictions:**
     
-    ### **Try the Examples:**
-    - **Man City vs Forest** → Shows BLITZKRIEG
-    - **Spurs vs Liverpool** → Shows SHOOTOUT  
-    - **Arsenal vs Chelsea** → Shows CHESS MATCH
+    **🏆 NARRATIVES:**
+    - **BLITZKRIEG**: Strong favorite vs weak opponent
+    - **SHOOTOUT**: Two attack-minded teams, high scoring
+    - **SIEGE**: Attack vs defense, low scoring
+    - **CHESS**: Two cautious teams, tactical battle
     
-    ### **Time Required:**
-    - **First time**: 5 minutes to understand
-    - **Per match**: 2-3 minutes to input data
-    - **Analysis**: Instant after clicking
+    **📊 TIERS:**
+    - **TIER 1 (HIGH)**: 75+ confidence - Strong bets
+    - **TIER 2 (MEDIUM)**: 60-74 confidence - Good bets
+    - **TIER 3 (LOW)**: <60 confidence - Caution advised
+    
+    ### **Quick Tips:**
+    
+    1. **Focus on Tier 1 matches** for strongest predictions
+    2. **Use filters** to find specific narrative types
+    3. **Export predictions** for weekend tracking
+    4. **Check key matches** highlighted by the system
+    
+    ### **This Weekend's Key Matches:**
+    
+    Based on team reputations, watch for:
+    - **Real Madrid vs Sevilla** (likely BLITZKRIEG)
+    - **Tottenham vs Liverpool** (likely SHOOTOUT)
+    - **Arsenal vs Everton** (could be SIEGE)
+    - **Juventus vs Roma** (likely CHESS)
+    
+    ### **Start Now:**
+    1. Keep all leagues selected
+    2. Click "Predict All Selected Matches"
+    3. Watch as 70+ matches are analyzed
+    4. Review the predictions and betting tips
     """)
 
 # -------------------------------------------------------------------
-# 7. QUICK EXAMPLE BUTTONS
+# 7. FOOTER
 # -------------------------------------------------------------------
 st.markdown("---")
-st.subheader("⚡ QUICK EXAMPLES")
-
-example_cols = st.columns(4)
-
-with example_cols[0]:
-    if st.button("Man City vs Forest", use_container_width=True):
-        st.session_state.current_match = "Manchester City vs Nottingham Forest"
-        st.rerun()
-
-with example_cols[1]:
-    if st.button("Spurs vs Liverpool", use_container_width=True):
-        st.session_state.current_match = "Tottenham vs Liverpool"
-        st.rerun()
-
-with example_cols[2]:
-    if st.button("Arsenal vs Chelsea", use_container_width=True):
-        st.session_state.current_match = "Arsenal vs Chelsea"
-        st.rerun()
-
-with example_cols[3]:
-    if st.button("Newcastle vs Everton", use_container_width=True):
-        st.session_state.current_match = "Newcastle vs Everton"
-        st.rerun()
+st.markdown("""
+<div style="text-align: center; color: #666; padding: 1rem;">
+    <p>⚽ <strong>Narrative Predictor Pro</strong> | Analyze 70+ matches in seconds</p>
+    <p>Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+</div>
+""".format(datetime=datetime), unsafe_allow_html=True)
