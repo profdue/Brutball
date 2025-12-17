@@ -195,7 +195,6 @@ class QuickPredictor:
             "Torino": {"tier": 2, "style": "defense"},
             "Bologna": {"tier": 2, "style": "balanced"},
             "Genoa": {"tier": 3, "style": "defense"},
-            "Monza": {"tier": 3, "style": "balanced"},
             "Udinese": {"tier": 3, "style": "balanced"},
             "Sassuolo": {"tier": 3, "style": "attack"},
             "Verona": {"tier": 3, "style": "defense"},
@@ -229,7 +228,6 @@ class QuickPredictor:
             "PSV Eindhoven": {"tier": 1, "style": "attack"},
             "Feyenoord": {"tier": 1, "style": "attack"},
             "Twente": {"tier": 2, "style": "balanced"},
-            "AZ Alkmaar": {"tier": 2, "style": "attack"},
             "Utrecht": {"tier": 2, "style": "balanced"},
             "Heerenveen": {"tier": 3, "style": "attack"},
             "Groningen": {"tier": 3, "style": "balanced"},
@@ -266,7 +264,6 @@ class QuickPredictor:
             # Süper Lig
             "Galatasaray": {"tier": 1, "style": "attack"},
             "Besiktas": {"tier": 1, "style": "attack"},
-            "Fenerbahce": {"tier": 1, "style": "attack"},
             "Basaksehir": {"tier": 2, "style": "balanced"},
             "Antalyaspor": {"tier": 2, "style": "balanced"},
             "Kayserispor": {"tier": 2, "style": "balanced"},
@@ -473,7 +470,8 @@ if st.session_state.batch_results:
     with col3:
         st.metric("Tier 2 Predictions", tier2_count)
     with col4:
-        st.metric("Average Confidence", f"{results_df['confidence'].mean():.1f}")
+        avg_conf = results_df['confidence'].mean()
+        st.metric("Average Confidence", f"{avg_conf:.1f}")
     
     # Narrative distribution chart
     st.markdown("#### Narrative Distribution")
@@ -789,12 +787,13 @@ with st.expander("📚 HOW TO USE THIS TOOL"):
     """)
 
 # -------------------------------------------------------------------
-# 7. FOOTER
+# 7. FOOTER (FIXED VERSION)
 # -------------------------------------------------------------------
 st.markdown("---")
-st.markdown("""
+current_time = datetime.now().strftime('%Y-%m-%d %H:%M')
+st.markdown(f"""
 <div style="text-align: center; color: #666; padding: 1rem;">
     <p>⚽ <strong>Narrative Predictor Pro</strong> | Analyze 70+ matches in seconds</p>
-    <p>Updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+    <p>Updated: {current_time}</p>
 </div>
-""".format(datetime=datetime), unsafe_allow_html=True)
+""", unsafe_allow_html=True)
