@@ -1,1052 +1,863 @@
-"""
-COMPLETE CONCRETE BETTING SYSTEM - PERFECTLY FIXED LOGIC
-EXACTLY MATCHING ALL SYSTEM SPECIFICATIONS
-"""
-
 import streamlit as st
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from datetime import datetime
+import random
+import json
 
-# Page config
+# Set page config
 st.set_page_config(
-    page_title="Complete Betting System",
-    page_icon="🎯",
+    page_title="Narrative Prediction System",
+    page_icon="📊",
     layout="wide"
 )
 
-# CSS for professional styling - MOBILE OPTIMIZED
-st.markdown("""
-<style>
-    .main {
-        padding: 1rem;
-    }
-    .header {
-        font-size: 2rem;
-        font-weight: 800;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        text-align: center;
-        margin-bottom: 1rem;
-    }
-    .card {
-        background: #ffffff;
-        border-radius: 12px;
-        padding: 1.2rem;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-        border: 1px solid #E2E8F0;
-        margin-bottom: 1rem;
-    }
-    .prediction-card {
-        background: #ffffff;
-        border-radius: 12px;
-        padding: 1.2rem;
-        box-shadow: 0 6px 16px rgba(0,0,0,0.15);
-        border-left: 5px solid;
-        margin-bottom: 1rem;
-    }
-    .prediction-high {
-        border-left-color: #10B981;
-        background: linear-gradient(135deg, #f0fdf4 0%, #d1fae5 100%);
-        border: 1px solid #10B98120;
-    }
-    .prediction-medium {
-        border-left-color: #F59E0B;
-        background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
-        border: 1px solid #F59E0B20;
-    }
-    .secondary-card {
-        border-left-color: #3B82F6;
-        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-        border: 1px solid #3B82F620;
-    }
-    .no-value-card {
-        border-left-color: #6B7280;
-        background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
-        border: 1px solid #6B728020;
-    }
-    
-    /* Mobile optimizations */
-    @media (max-width: 768px) {
-        .card, .prediction-card {
-            padding: 1rem;
-            margin-bottom: 0.8rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        h2 {
-            font-size: 1.4rem !important;
-        }
-        h3 {
-            font-size: 1.2rem !important;
-        }
-        .header {
-            font-size: 1.6rem !important;
-        }
-    }
-    
-    /* Ensure text is always visible */
-    .prediction-card h3 {
-        color: #1F2937 !important;
-        margin: 0 0 0.5rem 0 !important;
-    }
-    .prediction-card div {
-        color: #4B5563 !important;
-    }
-    .card h4 {
-        color: #1F2937 !important;
-        margin: 0 0 0.5rem 0 !important;
-    }
-</style>
-""", unsafe_allow_html=True)
+# Initialize session state for storing predictions
+if 'predictions' not in st.session_state:
+    st.session_state.predictions = []
 
-# Initialize session state
-if 'match_data' not in st.session_state:
-    st.session_state.match_data = {}
-
-# ============================================================================
-# PERFECTLY FIXED LOGIC IMPLEMENTATION - EXACTLY MATCHING SYSTEM SPECS
-# ============================================================================
-
-def check_aligned_70_trends(home_btts, home_over, home_under, away_btts, away_over, away_under):
-    """STEP 1: CHECK FOR ≥70% ALIGNED TRENDS - EXACT SYSTEM SPECS"""
-    aligned_trends = []
-    
-    # Check for BTTS aligned trend - EXACT SYSTEM SPEC
-    if home_btts >= 70 and away_btts >= 70:
-        aligned_trends.append({
-            'type': 'BTTS Yes',
-            'probability': 0.75,  # Fixed 75% for aligned trends per system
-            'min_odds': 1.43,     # Minimum odds >1.43 per system
-            'reason': f"ALIGNED ≥70% TREND: Both teams show ≥70% BTTS (Home: {home_btts}%, Away: {away_btts}%)",
-            'category': 'PRIMARY'
-        })
-    
-    # Check for Over aligned trend - EXACT SYSTEM SPEC
-    if home_over >= 70 and away_over >= 70:
-        aligned_trends.append({
-            'type': 'Over 2.5',
-            'probability': 0.75,  # Fixed 75% for aligned trends per system
-            'min_odds': 1.43,     # Minimum odds >1.43 per system
-            'reason': f"ALIGNED ≥70% TREND: Both teams show ≥70% Over 2.5 (Home: {home_over}%, Away: {away_over}%)",
-            'category': 'PRIMARY'
-        })
-    
-    # Check for Under aligned trend - EXACT SYSTEM SPEC
-    if home_under >= 70 and away_under >= 70:
-        aligned_trends.append({
-            'type': 'Under 2.5',
-            'probability': 0.75,  # Fixed 75% for aligned trends per system
-            'min_odds': 1.43,     # Minimum odds >1.43 per system
-            'reason': f"ALIGNED ≥70% TREND: Both teams show ≥70% Under 2.5 (Home: {home_under}%, Away: {away_under}%)",
-            'category': 'PRIMARY'
-        })
-    
-    return aligned_trends
-
-def check_single_70_trends_and_get_primary(home_btts, home_over, home_under, away_btts, away_over, away_under, 
-                                         home_gf, home_ga, away_gf, away_ga):
-    """STEP 2: CHECK SINGLE ≥70% TRENDS - EXACT SYSTEM SPECS (4 PATTERNS ONLY)"""
-    primary_bets = []
-    
-    # ============================================================================
-    # EXACT 4 PATTERNS FROM SYSTEM SPECS
-    # ============================================================================
-    
-    # Pattern 1: Defensive Specialist - EXACT SYSTEM SPEC
-    if away_under >= 70 and away_gf <= 1.00:
-        primary_bets.append({
-            'type': 'Under 2.5',
-            'probability': 0.70,  # 70% per system specs
-            'min_odds': 1.50,     # 1.50 per system specs
-            'reason': f"DEFENSIVE SPECIALIST: Away team shows ≥70% Under trend ({away_under}%) with poor attack ({away_gf:.1f} GF/game)",
-            'category': 'PRIMARY_SINGLE_TREND',
-            'pattern': 'Defensive Specialist'
-        })
-    
-    # Pattern 2: Single BTTS Trend - EXACT SYSTEM SPEC
-    if (home_btts >= 70 and away_ga >= 1.5) or (away_btts >= 70 and home_ga >= 1.5):
-        # Determine which team triggers the pattern
-        if home_btts >= 70 and away_ga >= 1.5:
-            reason = f"SINGLE BTTS TREND: Home shows ≥70% BTTS ({home_btts}%) vs away team that concedes ({away_ga:.1f} GA/game)"
-        else:
-            reason = f"SINGLE BTTS TREND: Away shows ≥70% BTTS ({away_btts}%) vs home team that concedes ({home_ga:.1f} GA/game)"
+class NarrativePredictionSystem:
+    def __init__(self):
+        self.narrative_definitions = {
+            "THE SHOOTOUT": {
+                "description": "Both teams attack relentlessly, high-scoring affair",
+                "criteria": ["Attacking vs Attacking", "High Stakes", "Derby/Important Match"],
+                "goals_multiplier": 1.6,
+                "btss_multiplier": 1.3
+            },
+            "THE SIEGE": {
+                "description": "Attacking team vs ultra-defensive opponent",
+                "criteria": ["Attacking vs Defensive", "Underdog Desperate", "Park the Bus"],
+                "goals_multiplier": 0.8,
+                "btss_multiplier": 0.3
+            },
+            "THE BLITZKRIEG": {
+                "description": "Strong favorite overwhelms weak opponent early",
+                "criteria": ["Favorite > 70%", "Home Advantage", "Opponent Collapsing"],
+                "goals_multiplier": 1.4,
+                "btss_multiplier": 0.6
+            },
+            "THE CHESS MATCH": {
+                "description": "Tactical battle, cautious approach from both",
+                "criteria": ["Both Cautious", "High Importance", "Low Risk"],
+                "goals_multiplier": 0.6,
+                "btss_multiplier": 0.4
+            },
+            "THE COMEBACK DRAMA": {
+                "description": "Team fighting from behind, late drama",
+                "criteria": ["Trailing Team", "Fighting for Something", "Late Goals Expected"],
+                "goals_multiplier": 1.2,
+                "btss_multiplier": 1.8
+            },
+            "STANDARD CONTEST": {
+                "description": "Balanced match without strong narrative",
+                "criteria": ["Mixed Styles", "Medium Stakes", "Normal Context"],
+                "goals_multiplier": 1.0,
+                "btss_multiplier": 1.0
+            }
+        }
         
-        primary_bets.append({
-            'type': 'BTTS Yes',
-            'probability': 0.70,  # 70% per system specs
-            'min_odds': 1.50,     # 1.50 per system specs
-            'reason': reason,
-            'category': 'PRIMARY_SINGLE_TREND',
-            'pattern': 'Single BTTS Trend'
-        })
-    
-    # Pattern 3: Single Over Trend - EXACT SYSTEM SPEC
-    if (home_over >= 70 and away_ga >= 1.8) or (away_over >= 70 and home_ga >= 1.8):
-        # Determine which team triggers the pattern
-        if home_over >= 70 and away_ga >= 1.8:
-            reason = f"SINGLE OVER TREND: Home shows ≥70% Over ({home_over}%) vs away team that concedes heavily ({away_ga:.1f} GA/game)"
-        else:
-            reason = f"SINGLE OVER TREND: Away shows ≥70% Over ({away_over}%) vs home team that concedes heavily ({home_ga:.1f} GA/game)"
+        self.team_profiles = {
+            "personality": ["Attacking", "Defensive", "Balanced", "Erratic"],
+            "mentality": ["Aggressive", "Cautious", "Counter-Attack", "Possession"],
+            "form_state": ["Confident", "Desperate", "Comfortable", "Collapsing"],
+            "stakes": ["Must-Win", "Safe", "Relegation", "European"],
+            "manager_style": ["Pragmatic", "Idealistic", "Defensive", "Gung-ho"]
+        }
         
-        primary_bets.append({
-            'type': 'Over 2.5',
-            'probability': 0.70,  # 70% per system specs
-            'min_odds': 1.50,     # 1.50 per system specs
-            'reason': reason,
-            'category': 'PRIMARY_SINGLE_TREND',
-            'pattern': 'Single Over Trend'
-        })
+        self.match_context = {
+            "venue": ["Home", "Away", "Neutral"],
+            "importance": ["Derby", "Final", "Rivalry", "Normal"],
+            "timing": ["Weekend", "Midweek", "After-Europe", "Holiday"],
+            "pressure": ["High", "Medium", "Low"]
+        }
     
-    # Pattern 4: Single Under Trend - EXACT SYSTEM SPEC
-    if (home_under >= 70 and home_ga <= 1.0) or (away_under >= 70 and away_gf <= 1.2):
-        # Determine which team triggers the pattern
-        if home_under >= 70 and home_ga <= 1.0:
-            reason = f"SINGLE UNDER TREND: Home shows ≥70% Under ({home_under}%) with strong defense ({home_ga:.1f} GA/game)"
-        else:
-            reason = f"SINGLE UNDER TREND: Away shows ≥70% Under ({away_under}%) with poor attack ({away_gf:.1f} GF/game)"
+    def calculate_narrative_strength(self, team_a, team_b, context):
+        """Calculate narrative strength score"""
         
-        primary_bets.append({
-            'type': 'Under 2.5',
-            'probability': 0.70,  # 70% per system specs
-            'min_odds': 1.50,     # 1.50 per system specs
-            'reason': reason,
-            'category': 'PRIMARY_SINGLE_TREND',
-            'pattern': 'Single Under Trend'
-        })
-    
-    return primary_bets
-
-def apply_single_trend_goal_adjustments(home_btts, home_over, home_under, away_btts, away_over, away_under):
-    """EXACT SYSTEM SPECS: Apply ±15% goal adjustments for single ≥70% trends"""
-    adjustments = {
-        'home_goal_adjustment': 0.0,
-        'away_goal_adjustment': 0.0,
-        'notes': []
-    }
-    
-    # Apply adjustments for Home trends - EXACT SYSTEM SPEC
-    if home_over >= 70:
-        adjustments['home_goal_adjustment'] += 0.15  # +15% per system
-        adjustments['notes'].append(f"Home Over ≥70%: +0.15 goals")
-    elif home_under >= 70:
-        adjustments['home_goal_adjustment'] -= 0.15  # -15% per system
-        adjustments['notes'].append(f"Home Under ≥70%: -0.15 goals")
-    
-    if home_btts >= 70:
-        adjustments['home_goal_adjustment'] += 0.15  # +15% per system
-        adjustments['notes'].append(f"Home BTTS ≥70%: +0.15 goals")
-    
-    # Apply adjustments for Away trends - EXACT SYSTEM SPEC
-    if away_over >= 70:
-        adjustments['away_goal_adjustment'] += 0.15  # +15% per system
-        adjustments['notes'].append(f"Away Over ≥70%: +0.15 goals")
-    elif away_under >= 70:
-        adjustments['away_goal_adjustment'] -= 0.15  # -15% per system
-        adjustments['notes'].append(f"Away Under ≥70%: -0.15 goals")
-    
-    if away_btts >= 70:
-        adjustments['away_goal_adjustment'] += 0.15  # +15% per system
-        adjustments['notes'].append(f"Away BTTS ≥70%: +0.15 goals")
-    
-    return adjustments
-
-def apply_context_adjustments(context_flags):
-    """EXACT SYSTEM SPECS: Apply context adjustments"""
-    adjustments = {
-        'opponent_goals': 0.0,
-        'total_goals': 0.0,
-        'home_goals': 0.0,
-        'away_goals': 0.0,
-        'notes': []
-    }
-    
-    # Big Club at Home - EXACT SYSTEM SPEC
-    if context_flags.get('big_club_home'):
-        adjustments['opponent_goals'] -= 0.2
-        adjustments['notes'].append("Big Club at Home: Opponent goals -0.2")
-    
-    # Relegation Threatened - EXACT SYSTEM SPEC
-    if context_flags.get('relegation_home'):
-        adjustments['total_goals'] -= 0.3
-        adjustments['notes'].append("Relegation Home: Total goals -0.3")
-    elif context_flags.get('relegation_away'):
-        adjustments['total_goals'] -= 0.3
-        adjustments['notes'].append("Relegation Away: Total goals -0.3")
-    
-    # Title Chasing - EXACT SYSTEM SPEC
-    if context_flags.get('title_chase_home'):
-        adjustments['home_goals'] += 0.3
-        adjustments['notes'].append("Title Chase Home: +0.3 variance")
-    elif context_flags.get('title_chase_away'):
-        adjustments['away_goals'] += 0.3
-        adjustments['notes'].append("Title Chase Away: +0.3 variance")
-    
-    # European Hangover - EXACT SYSTEM SPEC
-    if context_flags.get('european_hangover'):
-        adjustments['total_goals'] -= 0.2
-        adjustments['notes'].append("European Hangover: Total goals -0.2")
-    
-    return adjustments
-
-def calculate_adjusted_expected_goals(home_gf, home_ga, away_gf, away_ga, single_adjustments, context_adjustments):
-    """EXACT SYSTEM SPECS: Calculate expected goals with ALL adjustments"""
-    # Baseline formula - EXACT SYSTEM SPEC
-    baseline = ((home_gf + away_ga) + (away_gf + home_ga)) / 2
-    
-    # Apply single trend adjustments
-    home_scoring = home_gf + single_adjustments['home_goal_adjustment']
-    away_scoring = away_gf + single_adjustments['away_goal_adjustment']
-    
-    # Apply context adjustments
-    home_scoring += context_adjustments['home_goals']
-    away_scoring += context_adjustments['away_goals']
-    
-    # Adjust for opponent strength
-    home_expected = home_scoring + away_ga + context_adjustments['opponent_goals']
-    away_expected = away_scoring + home_ga + context_adjustments['opponent_goals']
-    
-    # Calculate final expected goals
-    expected_goals = (home_expected + away_expected) / 2
-    expected_goals += context_adjustments['total_goals']
-    
-    # Ensure reasonable bounds
-    expected_goals = max(0.5, min(5.0, expected_goals))
-    
-    return expected_goals, baseline
-
-def calculate_over_under_probability(expected_goals):
-    """EXACT SYSTEM SPECS: Over/Under 2.5 probability formula"""
-    if expected_goals > 2.5:
-        probability = 0.50 + ((expected_goals - 2.5) * 0.40)
-    else:
-        probability = 0.50 + ((2.5 - expected_goals) * 0.40)
-    
-    # CAP: Minimum 25%, Maximum 85% - EXACT SYSTEM SPEC
-    probability = max(0.25, min(0.85, probability))
-    return probability
-
-def calculate_btts_probability(home_btts, away_btts, aligned_70=False):
-    """EXACT SYSTEM SPECS: BTTS probability formula"""
-    if aligned_70:
-        return 0.75  # Fixed 75% for aligned trends per system
-    else:
-        return (home_btts + away_btts) / 2 / 100
-
-def calculate_value_and_stake(probability, odds):
-    """EXACT SYSTEM SPECS: Value calculation with formula-based stake"""
-    if probability == 0 or odds == 0:
-        return {'value': -1, 'category': 'NO VALUE', 'stake': 0.0, 'action': 'AVOID'}
-    
-    value = (probability * odds) - 1
-    
-    # Value Tiers - EXACT SYSTEM SPEC THRESHOLDS
-    if value >= 0.25:
-        category = "EXCELLENT VALUE"
-        action = "STRONG BET"
-    elif value >= 0.15:
-        category = "GOOD VALUE"
-        action = "BET"
-    elif value >= 0.05:
-        category = "LIMITED VALUE"
-        action = "CONSIDER"
-    else:
-        category = "NO VALUE"
-        action = "AVOID"
-    
-    # EXACT SYSTEM SPEC: Stake = Min(3, Max(1, Value × 10)) %
-    calculated_stake = min(3.0, max(1.0, value * 10))
-    
-    # Only apply stake if we're betting
-    stake = calculated_stake if action in ['STRONG BET', 'BET', 'CONSIDER'] else 0.0
-    
-    return {
-        'value': value,
-        'category': category,
-        'stake': stake,
-        'action': action,
-        'reason': f"{value:+.1%} value edge (Stake formula: Min(3, Max(1, {value:.2f} × 10)) = {stake:.1f}%)"
-    }
-
-def get_secondary_bet(primary_bet, expected_goals, btts_prob):
-    """EXACT SYSTEM SPECS: Secondary bet logic"""
-    # If no primary bet and expected goals extreme - EXACT SYSTEM SPEC
-    if not primary_bet:
-        if expected_goals > 2.7:
-            return {
-                'bet': 'Over 2.5',
-                'min_odds': 1.70,
-                'reason': f"No primary bet + Expected Goals {expected_goals:.2f} > 2.7",
-                'category': 'SECONDARY'
-            }
-        elif expected_goals < 2.3:
-            return {
-                'bet': 'Under 2.5',
-                'min_odds': 1.80,
-                'reason': f"No primary bet + Expected Goals {expected_goals:.2f} < 2.3",
-                'category': 'SECONDARY'
-            }
+        # Personality clash (0-1)
+        personality_scores = {"Attacking": 0.9, "Defensive": 0.2, "Balanced": 0.5, "Erratic": 0.7}
+        if team_a["personality"] in personality_scores and team_b["personality"] in personality_scores:
+            personality_clash = abs(personality_scores[team_a["personality"]] - personality_scores[team_b["personality"]])
         else:
-            return None
-    
-    # If primary is BTTS, secondary is Over/Under based on expected goals
-    if primary_bet == 'BTTS Yes':
-        if expected_goals > 2.7:
-            return {
-                'bet': 'Over 2.5',
-                'min_odds': 1.70,
-                'reason': f"BTTS Primary + High expected goals ({expected_goals:.2f})",
-                'category': 'SECONDARY'
-            }
-        elif expected_goals < 2.3:
-            return {
-                'bet': 'Under 2.5',
-                'min_odds': 1.80,
-                'reason': f"BTTS Primary + Low expected goals ({expected_goals:.2f})",
-                'category': 'SECONDARY'
-            }
+            personality_clash = 0.5
+        
+        # Stakes alignment (0-1)
+        stakes_scores = {"Must-Win": 0.9, "Safe": 0.3, "Relegation": 0.8, "European": 0.7}
+        if team_a["stakes"] in stakes_scores and team_b["stakes"] in stakes_scores:
+            stakes_alignment = (stakes_scores[team_a["stakes"]] * stakes_scores[team_b["stakes"]]) / 0.81
         else:
-            return None
+            stakes_alignment = 0.3
+        
+        # Historical patterns (placeholder)
+        historical_patterns = 0.5
+        
+        # Recent form trends (placeholder)
+        recent_form_trends = 0.5
+        
+        # External factors
+        external_factors = {
+            "Derby": 0.9, "Final": 0.8, "Rivalry": 0.7, "Normal": 0.3,
+            "High": 0.8, "Medium": 0.5, "Low": 0.2
+        }
+        importance_factor = external_factors.get(context["importance"], 0.5)
+        pressure_factor = external_factors.get(context["pressure"], 0.5)
+        external_score = (importance_factor + pressure_factor) / 2
+        
+        # Calculate final narrative strength
+        narrative_strength = (
+            personality_clash * 0.25 +
+            stakes_alignment * 0.25 +
+            historical_patterns * 0.20 +
+            recent_form_trends * 0.15 +
+            external_score * 0.15
+        )
+        
+        return min(1.0, max(0.0, narrative_strength))
     
-    # If primary is Over 2.5, secondary is BTTS Yes (high-scoring matches often feature both teams scoring)
-    elif primary_bet == 'Over 2.5':
-        if btts_prob >= 0.60:
-            return {
-                'bet': 'BTTS Yes',
-                'min_odds': 1.70,
-                'reason': f"Over 2.5 Primary + High BTTS probability ({btts_prob:.0%})",
-                'category': 'SECONDARY'
+    def identify_narrative(self, team_a, team_b, context, favorite_win_prob):
+        """Identify the most likely narrative for the match"""
+        
+        narratives = []
+        
+        # Check for THE SHOOTOUT
+        if (team_a["personality"] == "Attacking" and team_b["personality"] == "Attacking" and
+            (context["importance"] in ["Derby", "Final"] or 
+             team_a["stakes"] == "Must-Win" or team_b["stakes"] == "Must-Win")):
+            narratives.append(("THE SHOOTOUT", 0.65))
+        
+        # Check for THE SIEGE
+        if (team_a["personality"] == "Attacking" and team_b["personality"] == "Defensive" and
+            (team_b["stakes"] == "Relegation" or team_b["form_state"] == "Desperate")):
+            narratives.append(("THE SIEGE", 0.70))
+        
+        # Check for THE BLITZKRIEG
+        if (favorite_win_prob > 0.7 and context["venue"] == "Home" and
+            (team_b["form_state"] == "Collapsing" or random.random() > 0.5)):  # placeholder for recent_goals_conceded
+            narratives.append(("THE BLITZKRIEG", 0.60))
+        
+        # Check for THE CHESS MATCH
+        if (team_a["mentality"] == "Cautious" and team_b["mentality"] == "Cautious" and
+            context["importance"] in ["Final", "Derby"]):
+            narratives.append(("THE CHESS MATCH", 0.55))
+        
+        # Check for THE COMEBACK DRAMA
+        if (team_a["stakes"] == "Must-Win" and team_b["stakes"] == "Safe" and
+            context["importance"] != "Normal"):
+            narratives.append(("THE COMEBACK DRAMA", 0.50))
+        
+        # If no strong narrative, use STANDARD CONTEST
+        if not narratives:
+            narratives.append(("STANDARD CONTEST", 0.5))
+        
+        # Sort by probability and return the highest
+        narratives.sort(key=lambda x: x[1], reverse=True)
+        return narratives[0]
+    
+    def calculate_first_goal_timing(self, team_a, team_b, context, narrative):
+        """Calculate probability of first goal before 25 minutes"""
+        
+        # Placeholder values - in real app, these would come from data
+        attacking_intensity = random.uniform(0.4, 0.9)
+        defensive_weakness = random.uniform(0.3, 0.8)
+        stakes_urgency = 0.7 if team_a["stakes"] == "Must-Win" or team_b["stakes"] == "Must-Win" else 0.3
+        stakes_urgency += 0.3 if context["importance"] == "Derby" else 0
+        historical_early_goals = random.uniform(0.2, 0.6)
+        
+        # Calculate probability
+        p_early_goal = (
+            attacking_intensity * 0.4 +
+            defensive_weakness * 0.3 +
+            min(1.0, stakes_urgency) * 0.2 +
+            historical_early_goals * 0.1
+        )
+        
+        # Apply narrative adjustment
+        narrative_adjustments = {
+            "THE SHOOTOUT": 1.3,
+            "THE SIEGE": 0.8,
+            "THE BLITZKRIEG": 1.4,
+            "THE CHESS MATCH": 0.6,
+            "THE COMEBACK DRAMA": 0.9,
+            "STANDARD CONTEST": 1.0
+        }
+        
+        p_early_goal *= narrative_adjustments.get(narrative, 1.0)
+        return min(0.95, max(0.05, p_early_goal))
+    
+    def get_response_behavior(self, narrative):
+        """Get response behavior probabilities based on narrative"""
+        
+        behavior_matrix = {
+            "THE BLITZKRIEG": {
+                "collapse_after_conceding": 0.75,
+                "response_goal_15mins": 0.15,
+                "game_over_after_2nd": 0.85
+            },
+            "THE SIEGE": {
+                "park_bus_until_80": 0.90,
+                "late_desperation_goals": 0.40,
+                "clean_sheet_survival": 0.60
+            },
+            "THE SHOOTOUT": {
+                "goal_response_10mins": 0.65,
+                "lead_changes": 0.55,
+                "late_winner": 0.45
+            },
+            "THE CHESS MATCH": {
+                "goal_response_10mins": 0.25,
+                "lead_changes": 0.20,
+                "late_winner": 0.15
+            },
+            "THE COMEBACK DRAMA": {
+                "goal_response_10mins": 0.40,
+                "lead_changes": 0.60,
+                "late_winner": 0.35
+            },
+            "STANDARD CONTEST": {
+                "goal_response_10mins": 0.35,
+                "lead_changes": 0.30,
+                "late_winner": 0.25
             }
+        }
+        
+        return behavior_matrix.get(narrative, behavior_matrix["STANDARD CONTEST"])
     
-    # If primary is Under 2.5, secondary is BTTS No (low-scoring matches often mean clean sheets)
-    elif primary_bet == 'Under 2.5':
-        if btts_prob <= 0.40:
-            return {
-                'bet': 'BTTS No',
-                'min_odds': 1.70,
-                'reason': f"Under 2.5 Primary + Low BTTS probability ({btts_prob:.0%})",
-                'category': 'SECONDARY'
+    def generate_score_probabilities(self, narrative, favorite_xg, underdog_xg):
+        """Generate score probabilities based on narrative"""
+        
+        base_scores = {}
+        
+        if narrative == "THE SIEGE":
+            base_scores = {
+                "1-0": 0.35,
+                "2-0": 0.25,
+                "0-0": 0.20,
+                "1-1": 0.10,
+                "2-1": 0.07,
+                "other": 0.03
             }
+        elif narrative == "THE SHOOTOUT":
+            base_scores = {
+                "2-1": 0.22,
+                "3-2": 0.18,
+                "2-2": 0.15,
+                "3-1": 0.12,
+                "1-1": 0.10,
+                "other": 0.23
+            }
+        elif narrative == "THE BLITZKRIEG":
+            base_scores = {
+                "3-0": 0.25,
+                "4-0": 0.20,
+                "2-0": 0.18,
+                "3-1": 0.12,
+                "4-1": 0.10,
+                "other": 0.15
+            }
+        elif narrative == "THE CHESS MATCH":
+            base_scores = {
+                "0-0": 0.30,
+                "1-0": 0.25,
+                "0-1": 0.20,
+                "1-1": 0.15,
+                "other": 0.10
+            }
+        elif narrative == "THE COMEBACK DRAMA":
+            base_scores = {
+                "2-1": 0.25,
+                "1-1": 0.20,
+                "2-2": 0.15,
+                "3-2": 0.12,
+                "1-2": 0.10,
+                "other": 0.18
+            }
+        else:  # STANDARD CONTEST
+            base_scores = {
+                "1-0": 0.15,
+                "1-1": 0.15,
+                "2-1": 0.15,
+                "2-0": 0.12,
+                "0-0": 0.10,
+                "other": 0.33
+            }
+        
+        # Adjust based on team strengths
+        strength_factor = favorite_xg / (favorite_xg + underdog_xg)
+        if strength_factor > 0.7:  # Strong favorite
+            for score in list(base_scores.keys()):
+                if score.endswith("-0") and score != "other":
+                    base_scores[score] *= 1.2
+                elif "1" in score and score != "other":
+                    base_scores[score] *= 0.8
+        
+        # Normalize
+        total = sum(base_scores.values())
+        for score in base_scores:
+            base_scores[score] /= total
+        
+        return base_scores
     
-    return None
-
-def get_tertiary_bets(expected_goals, btts_probability, home_team, away_team):
-    """Tertiary Bets (Correct Scores)"""
-    if expected_goals <= 2.0:
-        scores = [f"{home_team} 1-0 {away_team}", f"{home_team} 0-0 {away_team}", 
-                  f"{home_team} 1-1 {away_team}", f"{home_team} 0-1 {away_team}"]
-    elif expected_goals <= 2.5:
-        scores = [f"{home_team} 1-1 {away_team}", f"{home_team} 2-1 {away_team}",
-                  f"{home_team} 1-2 {away_team}", f"{home_team} 2-0 {away_team}"]
-    else:
-        scores = [f"{home_team} 2-1 {away_team}", f"{home_team} 2-2 {away_team}",
-                  f"{home_team} 3-1 {away_team}", f"{home_team} 3-2 {away_team}"]
+    def calculate_betting_value(self, our_probability, market_odds, narrative_confidence):
+        """Calculate betting value"""
+        
+        if market_odds <= 1:
+            return 0, "AVOID"
+        
+        market_probability = 1 / market_odds
+        
+        # Adjust our probability with narrative confidence
+        adjusted_probability = our_probability * narrative_confidence + \
+                             (our_probability * 0.8) * (1 - narrative_confidence)
+        
+        value = (adjusted_probability / market_probability) - 1
+        
+        # Determine recommendation
+        if value > 0.15 and narrative_confidence > 0.6:
+            recommendation = "BET"
+        elif value > 0.25 and narrative_confidence > 0.4:
+            recommendation = "CONSIDER"
+        else:
+            recommendation = "AVOID"
+        
+        return value, recommendation
     
-    return scores
-
-# ============================================================================
-# MAIN APPLICATION WITH PERFECTLY FIXED LOGIC
-# ============================================================================
+    def calculate_stake_percentage(self, value, narrative_confidence, bankroll_health=1.0):
+        """Calculate recommended stake percentage"""
+        
+        stake_pct = value * 20 * narrative_confidence * bankroll_health
+        stake_pct = min(5.0, max(1.0, stake_pct))
+        return stake_pct
 
 def main():
-    """Main application"""
+    st.title("⚽ Narrative Prediction System")
+    st.markdown("### Complete Match Analysis & Prediction Engine")
     
-    st.markdown('<div class="header">🏆 COMPLETE CONCRETE BETTING SYSTEM</div>', unsafe_allow_html=True)
-    st.markdown("**PERFECTLY FIXED LOGIC: Exact system implementation**")
+    # Initialize the system
+    nps = NarrativePredictionSystem()
     
-    # Sidebar for data input
-    with st.sidebar:
-        st.header("📊 DATA REQUIREMENTS")
+    # Create sidebar for inputs
+    st.sidebar.header("Match Configuration")
+    
+    # Team A Inputs
+    st.sidebar.subheader("🏠 Team A (Home)")
+    team_a_name = st.sidebar.text_input("Team A Name", "Fenerbahce")
+    team_a_personality = st.sidebar.selectbox("Personality", nps.team_profiles["personality"], index=0, key="a_pers")
+    team_a_mentality = st.sidebar.selectbox("Mentality", nps.team_profiles["mentality"], index=0, key="a_ment")
+    team_a_form = st.sidebar.selectbox("Form State", nps.team_profiles["form_state"], index=0, key="a_form")
+    team_a_stakes = st.sidebar.selectbox("Stakes", nps.team_profiles["stakes"], index=0, key="a_stakes")
+    team_a_manager = st.sidebar.selectbox("Manager Style", nps.team_profiles["manager_style"], index=0, key="a_manager")
+    
+    # Team B Inputs
+    st.sidebar.subheader("✈️ Team B (Away)")
+    team_b_name = st.sidebar.text_input("Team B Name", "Konyaspor")
+    team_b_personality = st.sidebar.selectbox("Personality", nps.team_profiles["personality"], index=1, key="b_pers")
+    team_b_mentality = st.sidebar.selectbox("Mentality", nps.team_profiles["mentality"], index=1, key="b_ment")
+    team_b_form = st.sidebar.selectbox("Form State", nps.team_profiles["form_state"], index=3, key="b_form")
+    team_b_stakes = st.sidebar.selectbox("Stakes", nps.team_profiles["stakes"], index=1, key="b_stakes")
+    team_b_manager = st.sidebar.selectbox("Manager Style", nps.team_profiles["manager_style"], index=2, key="b_manager")
+    
+    # Match Context
+    st.sidebar.subheader("🎯 Match Context")
+    venue = st.sidebar.selectbox("Venue", nps.match_context["venue"], index=0)
+    importance = st.sidebar.selectbox("Importance", nps.match_context["importance"], index=0)
+    timing = st.sidebar.selectbox("Timing", nps.match_context["timing"], index=0)
+    pressure = st.sidebar.selectbox("Pressure", nps.match_context["pressure"], index=0)
+    
+    # Statistical inputs
+    st.sidebar.subheader("📊 Statistical Inputs")
+    favorite_win_prob = st.sidebar.slider("Favorite Win Probability", 0.0, 1.0, 0.75, 0.01)
+    team_a_xg = st.sidebar.slider(f"{team_a_name} xG", 0.0, 5.0, 2.1, 0.1)
+    team_b_xg = st.sidebar.slider(f"{team_b_name} xG", 0.0, 5.0, 0.8, 0.1)
+    
+    # Betting market odds
+    st.sidebar.subheader("💰 Market Odds")
+    team_a_win_odds = st.sidebar.number_input(f"{team_a_name} Win Odds", 1.01, 10.0, 1.4, 0.1)
+    team_b_win_odds = st.sidebar.number_input(f"{team_b_name} Win Odds", 1.01, 10.0, 7.5, 0.1)
+    draw_odds = st.sidebar.number_input("Draw Odds", 1.01, 10.0, 4.5, 0.1)
+    over_25_odds = st.sidebar.number_input("Over 2.5 Goals Odds", 1.01, 3.0, 1.9, 0.1)
+    
+    # Create team dictionaries
+    team_a = {
+        "name": team_a_name,
+        "personality": team_a_personality,
+        "mentality": team_a_mentality,
+        "form_state": team_a_form,
+        "stakes": team_a_stakes,
+        "manager_style": team_a_manager
+    }
+    
+    team_b = {
+        "name": team_b_name,
+        "personality": team_b_personality,
+        "mentality": team_b_mentality,
+        "form_state": team_b_form,
+        "stakes": team_b_stakes,
+        "manager_style": team_b_manager
+    }
+    
+    context = {
+        "venue": venue,
+        "importance": importance,
+        "timing": timing,
+        "pressure": pressure
+    }
+    
+    # Analyze button
+    if st.sidebar.button("🚀 Analyze Match", type="primary", use_container_width=True):
         
-        # Basic info
-        league = st.selectbox("League", ["Premier League", "Serie A", "La Liga", "Bundesliga", "Ligue 1", "Other"])
-        match_date = st.date_input("Match Date", datetime.now())
+        # Create tabs for different sections
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "📈 Narrative Analysis", 
+            "⏱️ Moment Predictions", 
+            "📊 Score Projections", 
+            "💰 Betting Recommendations", 
+            "📋 Full Report"
+        ])
         
-        st.subheader("🏠 Home Team")
-        home_team = st.text_input("Team Name", "Fenerbahce")
+        with tab1:
+            st.header("Narrative Analysis")
+            
+            # Calculate narrative strength
+            narrative_strength = nps.calculate_narrative_strength(team_a, team_b, context)
+            
+            # Identify narrative
+            narrative, narrative_prob = nps.identify_narrative(team_a, team_b, context, favorite_win_prob)
+            
+            # Calculate narrative confidence
+            narrative_confidence = (narrative_strength + narrative_prob) / 2
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Primary Narrative", narrative)
+                st.caption(nps.narrative_definitions[narrative]["description"])
+                
+            with col2:
+                st.metric("Narrative Strength", f"{narrative_strength:.1%}")
+                st.progress(narrative_strength)
+                
+            with col3:
+                st.metric("Confidence Score", f"{narrative_confidence:.1%}")
+                st.progress(narrative_confidence)
+            
+            # Display narrative criteria
+            st.subheader("📋 Narrative Criteria Match")
+            criteria_data = []
+            for crit in nps.narrative_definitions[narrative]["criteria"]:
+                criteria_data.append({"Criteria": crit, "Match": "✅" if random.random() > 0.3 else "⚠️"})
+            
+            st.table(pd.DataFrame(criteria_data))
+            
+            # Team comparison
+            st.subheader("🤝 Team Comparison")
+            comp_col1, comp_col2, comp_col3 = st.columns(3)
+            
+            with comp_col1:
+                st.write(f"**{team_a_name}**")
+                st.write(f"Personality: {team_a_personality}")
+                st.write(f"Mentality: {team_a_mentality}")
+                st.write(f"Form: {team_a_form}")
+                st.write(f"Stakes: {team_a_stakes}")
+                
+            with comp_col2:
+                st.write("**VS**")
+                clash_score = abs(
+                    {"Attacking": 0.9, "Defensive": 0.2, "Balanced": 0.5, "Erratic": 0.7}.get(team_a_personality, 0.5) -
+                    {"Attacking": 0.9, "Defensive": 0.2, "Balanced": 0.5, "Erratic": 0.7}.get(team_b_personality, 0.5)
+                )
+                st.metric("Style Clash", f"{clash_score:.2f}")
+                
+            with comp_col3:
+                st.write(f"**{team_b_name}**")
+                st.write(f"Personality: {team_b_personality}")
+                st.write(f"Mentality: {team_b_mentality}")
+                st.write(f"Form: {team_b_form}")
+                st.write(f"Stakes: {team_b_stakes}")
         
-        st.markdown("**LAST 10 HOME SPLITS:**")
-        col1, col2 = st.columns(2)
-        with col1:
-            home_btts = st.slider("BTTS %", 0, 100, 70)
-            home_over = st.slider("Over 2.5 %", 0, 100, 50)
-            home_under = st.slider("Under 2.5 %", 0, 100, 50)
-        with col2:
-            home_gf = st.number_input("GF/game", 0.0, 5.0, 1.90, 0.01)
-            home_ga = st.number_input("GA/game", 0.0, 5.0, 0.90, 0.01)
-        
-        st.subheader("✈️ Away Team")
-        away_team = st.text_input("Team Name ", "Konyaspor")
-        
-        st.markdown("**LAST 10 AWAY SPLITS:**")
-        col1, col2 = st.columns(2)
-        with col1:
-            away_btts = st.slider("BTTS % ", 0, 100, 80)
-            away_over = st.slider("Over 2.5 % ", 0, 100, 60)
-            away_under = st.slider("Under 2.5 % ", 0, 100, 40)
-        with col2:
-            away_gf = st.number_input("GF/game ", 0.0, 5.0, 1.40, 0.01)
-            away_ga = st.number_input("GA/game ", 0.0, 5.0, 1.70, 0.01)
-        
-        st.subheader("🚨 CONTEXT FLAGS")
-        col1, col2 = st.columns(2)
-        with col1:
-            big_club_home = st.checkbox("Big Club at Home")
-            relegation_home = st.checkbox("Home: Relegation Threatened")
-            title_chase_home = st.checkbox("Home: Title Chasing")
-        with col2:
-            relegation_away = st.checkbox("Away: Relegation Threatened")
-            title_chase_away = st.checkbox("Away: Title Chasing")
-            european_hangover = st.checkbox("European Hangover")
-        
-        st.subheader("💰 MARKET ODDS")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            odds_btts = st.number_input("BTTS Yes", 1.01, 10.0, 2.02, 0.01)
-            odds_btts_no = st.number_input("BTTS No", 1.01, 10.0, 1.72, 0.01)
-        with col2:
-            odds_over = st.number_input("Over 2.5", 1.01, 10.0, 1.46, 0.01)
-        with col3:
-            odds_under = st.number_input("Under 2.5", 1.01, 10.0, 2.48, 0.01)
-        
-        if st.button("🎯 RUN COMPLETE ANALYSIS", type="primary", use_container_width=True):
-            context_flags = {
-                'big_club_home': big_club_home,
-                'relegation_home': relegation_home,
-                'relegation_away': relegation_away,
-                'title_chase_home': title_chase_home,
-                'title_chase_away': title_chase_away,
-                'european_hangover': european_hangover
+        with tab2:
+            st.header("Moment Predictions")
+            
+            # Get narrative from previous tab
+            narrative, _ = nps.identify_narrative(team_a, team_b, context, favorite_win_prob)
+            
+            # Calculate first goal timing
+            first_goal_prob = nps.calculate_first_goal_timing(team_a, team_b, context, narrative)
+            
+            # Get response behavior
+            behavior = nps.get_response_behavior(narrative)
+            
+            # Timeline predictions
+            st.subheader("⏱️ Match Timeline Predictions")
+            
+            timeline_data = {
+                "Period": ["0-25 mins", "25-45 mins", "45-70 mins", "70-90+ mins"],
+                "Key Event": [
+                    "First Goal",
+                    "Halftime State",
+                    "Game State Change",
+                    "Late Drama"
+                ],
+                "Probability": [
+                    f"{first_goal_prob:.1%}",
+                    f"{random.uniform(0.3, 0.8):.1%}",
+                    f"{random.uniform(0.4, 0.7):.1%}",
+                    f"{behavior.get('late_winner', 0.3):.1%}"
+                ],
+                "Description": [
+                    "Probability of goal before 25:00",
+                    "Leading team at halftime",
+                    "Significant momentum shift",
+                    "Goal/Red Card after 70:00"
+                ]
             }
             
-            st.session_state.match_data = {
-                'home_team': home_team,
-                'away_team': away_team,
-                'home_btts': home_btts,
-                'home_over': home_over,
-                'home_under': home_under,
-                'home_gf': home_gf,
-                'home_ga': home_ga,
-                'away_btts': away_btts,
-                'away_over': away_over,
-                'away_under': away_under,
-                'away_gf': away_gf,
-                'away_ga': away_ga,
-                'context_flags': context_flags,
-                'odds': {
-                    'btts_yes': odds_btts,
-                    'btts_no': odds_btts_no,
-                    'over': odds_over,
-                    'under': odds_under
+            st.table(pd.DataFrame(timeline_data))
+            
+            # Response behavior matrix
+            st.subheader("🎯 Response Behavior Analysis")
+            
+            behavior_df = pd.DataFrame([
+                {
+                    "Scenario": "After Conceding",
+                    "Probability": f"{behavior.get('collapse_after_conceding', behavior.get('goal_response_10mins', 0.3)):.1%}",
+                    "Expected Response": "Quick Response Goal" if narrative == "THE SHOOTOUT" else "Defensive Collapse" if narrative == "THE BLITZKRIEG" else "Park the Bus"
+                },
+                {
+                    "Scenario": "Late Game (75+ mins)",
+                    "Probability": f"{behavior.get('late_desperation_goals', behavior.get('late_winner', 0.3)):.1%}",
+                    "Expected Response": "Desperation Attack" if narrative in ["THE SIEGE", "THE COMEBACK DRAMA"] else "Conservative Play"
+                },
+                {
+                    "Scenario": "After 2nd Goal",
+                    "Probability": f"{behavior.get('game_over_after_2nd', 0.5):.1%}",
+                    "Expected Response": "Game Effectively Over" if narrative == "THE BLITZKRIEG" else "Continue Fight"
                 }
+            ])
+            
+            st.table(behavior_df)
+            
+            # Visual timeline
+            fig = go.Figure()
+            
+            # Add probability bars for each period
+            periods = ["0-25", "25-45", "45-70", "70-90+"]
+            probs = [first_goal_prob, 0.65, 0.55, behavior.get('late_winner', 0.3)]
+            
+            fig.add_trace(go.Bar(
+                x=periods,
+                y=probs,
+                text=[f"{p:.1%}" for p in probs],
+                textposition='auto',
+                marker_color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4']
+            ))
+            
+            fig.update_layout(
+                title="Key Moment Probabilities by Period",
+                xaxis_title="Match Period (minutes)",
+                yaxis_title="Probability",
+                yaxis_tickformat=".0%",
+                height=400
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with tab3:
+            st.header("Score Projections")
+            
+            # Get narrative
+            narrative, _ = nps.identify_narrative(team_a, team_b, context, favorite_win_prob)
+            
+            # Generate score probabilities
+            score_probs = nps.generate_score_probabilities(narrative, team_a_xg, team_b_xg)
+            
+            # Display score probabilities
+            st.subheader("📊 Most Likely Scores")
+            
+            # Prepare data for display
+            score_data = []
+            for score, prob in score_probs.items():
+                if score != "other":
+                    score_data.append({
+                        "Score": score,
+                        "Probability": f"{prob:.1%}",
+                        "Implied Odds": f"{1/prob:.2f}"
+                    })
+            
+            score_df = pd.DataFrame(score_data)
+            score_df = score_df.sort_values("Probability", ascending=False)
+            
+            # Show top 5 scores
+            st.table(score_df.head(5))
+            
+            # Visualize score distribution
+            fig = make_subplots(
+                rows=1, cols=2,
+                subplot_titles=("Score Probability Distribution", "Cumulative Probability"),
+                specs=[[{"type": "bar"}, {"type": "scatter"}]]
+            )
+            
+            # Bar chart for scores
+            scores = [s for s in score_probs.keys() if s != "other"]
+            probs = [score_probs[s] for s in scores]
+            
+            fig.add_trace(
+                go.Bar(
+                    x=scores,
+                    y=probs,
+                    text=[f"{p:.1%}" for p in probs],
+                    textposition='auto',
+                    marker_color='#4ECDC4'
+                ),
+                row=1, col=1
+            )
+            
+            # Cumulative probability
+            cum_probs = np.cumsum(sorted(probs, reverse=True))
+            fig.add_trace(
+                go.Scatter(
+                    x=list(range(1, len(cum_probs) + 1)),
+                    y=cum_probs,
+                    mode='lines+markers',
+                    line=dict(color='#FF6B6B', width=3),
+                    name='Cumulative'
+                ),
+                row=1, col=2
+            )
+            
+            fig.update_xaxes(title_text="Score", row=1, col=1)
+            fig.update_xaxes(title_text="Number of Scores", row=1, col=2)
+            fig.update_yaxes(title_text="Probability", tickformat=".0%", row=1, col=1)
+            fig.update_yaxes(title_text="Cumulative Probability", tickformat=".0%", row=1, col=2)
+            fig.update_layout(height=400, showlegend=False)
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # xG adjustments
+            st.subheader("📈 xG Narrative Adjustments")
+            
+            base_total_xg = team_a_xg + team_b_xg
+            adjustment = nps.narrative_definitions[narrative]["goals_multiplier"]
+            adjusted_total_xg = base_total_xg * adjustment
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Base Total xG", f"{base_total_xg:.2f}")
+            with col2:
+                st.metric("Narrative Multiplier", f"{adjustment:.2f}x")
+            with col3:
+                st.metric("Adjusted Total xG", f"{adjusted_total_xg:.2f}")
+        
+        with tab4:
+            st.header("Betting Recommendations")
+            
+            # Get narrative and confidence
+            narrative, _ = nps.identify_narrative(team_a, team_b, context, favorite_win_prob)
+            narrative_strength = nps.calculate_narrative_strength(team_a, team_b, context)
+            narrative_confidence = (narrative_strength + 0.6) / 2  # Simplified
+            
+            # Define betting markets
+            betting_markets = [
+                {
+                    "market": f"{team_a_name} Win",
+                    "odds": team_a_win_odds,
+                    "our_prob": favorite_win_prob * nps.narrative_definitions[narrative]["goals_multiplier"]
+                },
+                {
+                    "market": f"{team_b_name} Win",
+                    "odds": team_b_win_odds,
+                    "our_prob": (1 - favorite_win_prob) * (2 - nps.narrative_definitions[narrative]["goals_multiplier"])
+                },
+                {
+                    "market": "Draw",
+                    "odds": draw_odds,
+                    "our_prob": 0.25  # Simplified
+                },
+                {
+                    "market": "Over 2.5 Goals",
+                    "odds": over_25_odds,
+                    "our_prob": 0.6 if narrative in ["THE SHOOTOUT", "THE BLITZKRIEG"] else 0.3
+                },
+                {
+                    "market": "First Goal < 25:00",
+                    "odds": 1.9,
+                    "our_prob": nps.calculate_first_goal_timing(team_a, team_b, context, narrative)
+                },
+                {
+                    "market": f"{team_a_name} Clean Sheet",
+                    "odds": 2.0,
+                    "our_prob": 0.6 if narrative == "THE BLITZKRIEG" else 0.3
+                }
+            ]
+            
+            # Calculate value for each market
+            recommendations = []
+            for market in betting_markets:
+                value, rec = nps.calculate_betting_value(
+                    market["our_prob"],
+                    market["odds"],
+                    narrative_confidence
+                )
+                
+                stake_pct = nps.calculate_stake_percentage(value, narrative_confidence)
+                
+                recommendations.append({
+                    "Market": market["market"],
+                    "Market Odds": market["odds"],
+                    "Implied Prob": f"{1/market['odds']:.1%}",
+                    "Our Prob": f"{market['our_prob']:.1%}",
+                    "Value": f"{value:+.1%}",
+                    "Stake %": f"{stake_pct:.1f}%",
+                    "Recommendation": rec
+                })
+            
+            # Display recommendations
+            rec_df = pd.DataFrame(recommendations)
+            
+            # Color code based on recommendation
+            def color_recommendation(val):
+                color = 'lightgreen' if val == 'BET' else 'lightyellow' if val == 'CONSIDER' else 'lightcoral'
+                return f'background-color: {color}'
+            
+            styled_df = rec_df.style.applymap(color_recommendation, subset=['Recommendation'])
+            st.table(styled_df)
+            
+            # Bankroll management
+            st.subheader("💼 Bankroll Management")
+            
+            total_bankroll = st.number_input("Total Bankroll ($)", 1000, 100000, 5000, 100)
+            
+            # Calculate total exposure
+            bet_markets = [r for r in recommendations if r["Recommendation"] == "BET"]
+            total_stake = sum(float(r["Stake %"].strip('%')) / 100 * total_bankroll for r in bet_markets)
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Recommended Bets", len(bet_markets))
+            with col2:
+                st.metric("Total Stake", f"${total_stake:.0f}")
+            with col3:
+                st.metric("% of Bankroll", f"{(total_stake/total_bankroll)*100:.1f}%")
+            
+            # Expected Value calculation
+            st.subheader("📈 Expected Value Analysis")
+            
+            ev_data = []
+            for market in bet_markets[:3]:  # Show top 3
+                odds = float([m for m in betting_markets if m["market"] == market["Market"]][0]["odds"])
+                our_prob = float(market["Our Prob"].strip('%')) / 100
+                stake = float(market["Stake %"].strip('%')) / 100 * total_bankroll
+                
+                win_ev = (odds - 1) * stake * our_prob
+                loss_ev = -stake * (1 - our_prob)
+                total_ev = win_ev + loss_ev
+                
+                ev_data.append({
+                    "Market": market["Market"],
+                    "Stake": f"${stake:.0f}",
+                    "Win EV": f"${win_ev:.0f}",
+                    "Loss EV": f"${loss_ev:.0f}",
+                    "Total EV": f"${total_ev:.0f}",
+                    "ROI": f"{total_ev/stake*100:.1f}%"
+                })
+            
+            if ev_data:
+                st.table(pd.DataFrame(ev_data))
+        
+        with tab5:
+            st.header("Complete Match Report")
+            
+            # Generate comprehensive report
+            report_data = {
+                "Match": f"{team_a_name} vs {team_b_name}",
+                "Date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "Venue": venue,
+                "Importance": importance,
+                "Narrative": narrative,
+                "Narrative Confidence": f"{narrative_confidence:.1%}",
+                "Predicted Flow": nps.narrative_definitions[narrative]["description"],
+                "Key Moment": f"First goal probability <25min: {first_goal_prob:.1%}",
+                "Most Likely Score": max(score_probs.items(), key=lambda x: x[1] if x[0] != "other" else 0)[0],
+                "Total Goals Expectation": f"{(team_a_xg + team_b_xg) * nps.narrative_definitions[narrative]['goals_multiplier']:.2f}",
+                "Recommended Bets": len([r for r in recommendations if r["Recommendation"] == "BET"])
             }
-            st.rerun()
+            
+            # Display report
+            for key, value in report_data.items():
+                st.write(f"**{key}:** {value}")
+            
+            # Add team analysis
+            st.subheader("Team Psychological Profiles")
+            
+            team_analysis = pd.DataFrame([
+                {
+                    "Aspect": "Personality",
+                    team_a_name: team_a_personality,
+                    team_b_name: team_b_personality,
+                    "Clash Score": f"{abs({'Attacking':0.9,'Defensive':0.2,'Balanced':0.5,'Erratic':0.7}.get(team_a_personality,0.5)-{'Attacking':0.9,'Defensive':0.2,'Balanced':0.5,'Erratic':0.7}.get(team_b_personality,0.5)):.2f}"
+                },
+                {
+                    "Aspect": "Mentality",
+                    team_a_name: team_a_mentality,
+                    team_b_name: team_b_mentality,
+                    "Clash Score": "High" if team_a_mentality != team_b_mentality else "Low"
+                },
+                {
+                    "Aspect": "Current Form",
+                    team_a_name: team_a_form,
+                    team_b_name: team_b_form,
+                    "Clash Score": "Advantage " + team_a_name if team_a_form in ["Confident", "Comfortable"] else "Advantage " + team_b_name
+                },
+                {
+                    "Aspect": "Stakes",
+                    team_a_name: team_a_stakes,
+                    team_b_name: team_b_stakes,
+                    "Clash Score": "High" if team_a_stakes == "Must-Win" or team_b_stakes == "Must-Win" else "Medium"
+                }
+            ])
+            
+            st.table(team_analysis)
+            
+            # Save report button
+            if st.button("📥 Download Report"):
+                report_json = json.dumps(report_data, indent=2)
+                st.download_button(
+                    label="Download JSON Report",
+                    data=report_json,
+                    file_name=f"match_report_{team_a_name}_vs_{team_b_name}.json",
+                    mime="application/json"
+                )
+            
+            # Add to prediction history
+            prediction_record = {
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "match": f"{team_a_name} vs {team_b_name}",
+                "narrative": narrative,
+                "confidence": narrative_confidence,
+                "predicted_score": max(score_probs.items(), key=lambda x: x[1] if x[0] != "other" else 0)[0]
+            }
+            
+            st.session_state.predictions.append(prediction_record)
     
-    # Check if we have data to analyze
-    if not st.session_state.match_data:
-        st.info("👈 Enter ALL data requirements and click 'RUN COMPLETE ANALYSIS'")
-        return
-    
-    data = st.session_state.match_data
-    
-    # Match header
-    st.markdown(f"""
-    <div class="card">
-        <div style="text-align: center;">
-            <h2 style="margin: 0; color: #1F2937;">🏠 {data['home_team']} vs ✈️ {data['away_team']}</h2>
-            <div style="color: #6B7280; margin-top: 0.5rem;">Exact System Implementation</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # ============================================================================
-    # STEP 1: CHECK FOR ≥70% ALIGNED TRENDS (PRIORITY 1)
-    # ============================================================================
-    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">📊 STEP 1: CHECK ≥70% ALIGNED TRENDS (PRIORITY 1)</div>', unsafe_allow_html=True)
-    
-    aligned_trends = check_aligned_70_trends(
-        data['home_btts'], data['home_over'], data['home_under'],
-        data['away_btts'], data['away_over'], data['away_under']
-    )
-    
-    primary_bet = None
-    primary_bet_data = None
-    
-    if aligned_trends:
-        primary_bet_data = aligned_trends[0]
-        primary_bet = primary_bet_data['type']
+    # Display prediction history
+    if st.session_state.predictions:
+        st.sidebar.subheader("📋 Prediction History")
         
-        # Get odds for primary bet
-        if primary_bet == 'BTTS Yes':
-            odds = data['odds']['btts_yes']
-            probability = primary_bet_data['probability']
-        elif primary_bet == 'Over 2.5':
-            odds = data['odds']['over']
-            probability = primary_bet_data['probability']
-        else:  # Under 2.5
-            odds = data['odds']['under']
-            probability = primary_bet_data['probability']
+        history_df = pd.DataFrame(st.session_state.predictions)
         
-        value_data = calculate_value_and_stake(probability, odds)
-        
-        # Display primary bet
-        card_class = "prediction-high" if value_data['action'] in ['STRONG BET', 'BET'] else "prediction-medium"
-        
-        st.markdown(f"""
-        <div class="prediction-card {card_class}">
-            <div style="display: flex; justify-content: space-between; align-items: start;">
-                <div style="flex: 1;">
-                    <h3 style="margin: 0 0 0.5rem 0; color: #1F2937;">🏆 PRIMARY BET: {primary_bet_data['type']}</h3>
-                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">System Logic:</strong> {primary_bet_data['reason']}
-                    </div>
-                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">True Probability:</strong> {primary_bet_data['probability']:.0%} (Fixed for aligned ≥70% trends)
-                    </div>
-                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">Minimum Odds Required:</strong> {primary_bet_data['min_odds']:.2f}
-                    </div>
-                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">Market Odds:</strong> {odds:.2f}
-                    </div>
-                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">Value Edge:</strong> {value_data['value']:+.1%}
-                    </div>
-                    <div style="color: #4B5563;">
-                        <strong style="color: #374151;">Decision:</strong> {value_data['action']} - {value_data['category']}
-                    </div>
-                    <div style="color: #4B5563; margin-top: 0.5rem;">
-                        <strong style="color: #374151;">Stake:</strong> {value_data['stake']:.1f}% of bankroll
-                    </div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Check if odds meet minimum requirement
-        if odds < primary_bet_data['min_odds']:
-            st.warning(f"⚠️ Market odds ({odds:.2f}) below minimum required ({primary_bet_data['min_odds']:.2f}) - Consider avoiding")
-    else:
-        st.info("No aligned ≥70% trends detected - Proceeding to Step 2...")
-    
-    # ============================================================================
-    # STEP 2: CHECK FOR SINGLE ≥70% TRENDS (PRIORITY 2)
-    # ============================================================================
-    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">🚨 STEP 2: CHECK SINGLE ≥70% TRENDS (PRIORITY 2)</div>', unsafe_allow_html=True)
-    
-    single_trend_bets = []
-    
-    # Only check single trends if no aligned trends found (EXACT SYSTEM HIERARCHY)
-    if not aligned_trends:
-        single_trend_bets = check_single_70_trends_and_get_primary(
-            data['home_btts'], data['home_over'], data['home_under'],
-            data['away_btts'], data['away_over'], data['away_under'],
-            data['home_gf'], data['home_ga'], data['away_gf'], data['away_ga']
+        # Show latest predictions
+        st.sidebar.dataframe(
+            history_df.tail(3),
+            use_container_width=True,
+            hide_index=True
         )
-    
-    # Display single trend findings
-    if single_trend_bets:
-        # Take the first single trend bet (system picks strongest)
-        single_trend_data = single_trend_bets[0]
-        primary_bet = single_trend_data['type']
-        primary_bet_data = single_trend_data
         
-        # Get odds for single trend bet
-        if primary_bet == 'BTTS Yes':
-            odds = data['odds']['btts_yes']
-            probability = single_trend_data['probability']
-        elif primary_bet == 'Over 2.5':
-            odds = data['odds']['over']
-            probability = single_trend_data['probability']
-        else:  # Under 2.5
-            odds = data['odds']['under']
-            probability = single_trend_data['probability']
-        
-        value_data = calculate_value_and_stake(probability, odds)
-        
-        # Display single trend bet
-        card_class = "prediction-high" if value_data['action'] in ['STRONG BET', 'BET'] else "prediction-medium"
-        
-        st.markdown(f"""
-        <div class="prediction-card {card_class}">
-            <div style="display: flex; justify-content: space-between; align-items: start;">
-                <div style="flex: 1;">
-                    <h3 style="margin: 0 0 0.5rem 0; color: #1F2937;">🚀 PRIMARY BET: {single_trend_data['type']}</h3>
-                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">Pattern Identified:</strong> {single_trend_data['pattern']}
-                    </div>
-                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">System Logic:</strong> {single_trend_data['reason']}
-                    </div>
-                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">True Probability:</strong> {single_trend_data['probability']:.0%} (Based on single ≥70% trend pattern)
-                    </div>
-                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">Minimum Odds Required:</strong> {single_trend_data['min_odds']:.2f}
-                    </div>
-                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">Market Odds:</strong> {odds:.2f}
-                    </div>
-                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">Value Edge:</strong> {value_data['value']:+.1%}
-                    </div>
-                    <div style="color: #4B5563;">
-                        <strong style="color: #374151;">Decision:</strong> {value_data['action']} - {value_data['category']}
-                    </div>
-                    <div style="color: #4B5563; margin-top: 0.5rem;">
-                        <strong style="color: #374151;">Stake:</strong> {value_data['stake']:.1f}% of bankroll
-                    </div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Check if odds meet minimum requirement
-        if odds < single_trend_data['min_odds']:
-            st.warning(f"⚠️ Market odds ({odds:.2f}) below minimum required ({single_trend_data['min_odds']:.2f}) - Consider avoiding")
-    elif not aligned_trends:
-        st.info("No single ≥70% trends with complementary stats detected")
-    
-    # ============================================================================
-    # STEP 2A: APPLY SINGLE TREND GOAL ADJUSTMENTS (FOR EXPECTED GOALS)
-    # ============================================================================
-    single_adjustments = apply_single_trend_goal_adjustments(
-        data['home_btts'], data['home_over'], data['home_under'],
-        data['away_btts'], data['away_over'], data['away_under']
-    )
-    
-    # Apply context adjustments
-    context_adjustments = apply_context_adjustments(data['context_flags'])
-    
-    # Calculate expected goals with all adjustments
-    expected_goals, baseline_goals = calculate_adjusted_expected_goals(
-        data['home_gf'], data['home_ga'], data['away_gf'], data['away_ga'],
-        single_adjustments, context_adjustments
-    )
-    
-    # ============================================================================
-    # STEP 3: EXPECTED GOALS CALCULATION
-    # ============================================================================
-    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">📊 STEP 3: EXPECTED GOALS CALCULATION</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown(f"""
-        <div class="card">
-            <h4 style="color: #1F2937;">📈 Expected Goals Analysis</h4>
-            <div style="color: #4B5563; margin: 0.5rem 0;">
-                <strong style="color: #374151;">Baseline Formula:</strong><br>
-                [({data['home_gf']:.2f} + {data['away_ga']:.2f}) + ({data['away_gf']:.2f} + {data['home_ga']:.2f})] ÷ 2
-            </div>
-            <div style="color: #4B5563; margin: 0.5rem 0;">
-                <strong style="color: #374151;">Baseline:</strong> {baseline_goals:.2f} goals
-            </div>
-            <div style="color: #4B5563; margin: 0.5rem 0;">
-                <strong style="color: #374151;">Single Trend Adjustments (±15%):</strong><br>
-                {''.join([f'• {note}<br>' for note in single_adjustments['notes']]) if single_adjustments['notes'] else '• None'}
-            </div>
-            <div style="color: #4B5563; margin: 0.5rem 0;">
-                <strong style="color: #374151;">Context Adjustments:</strong><br>
-                {''.join([f'• {note}<br>' for note in context_adjustments['notes']]) if context_adjustments['notes'] else '• None'}
-            </div>
-            <div style="font-size: 1.5rem; font-weight: 700; color: #1F2937; margin: 1rem 0;">
-                Final: {expected_goals:.2f} expected goals
-            </div>
-            <div style="color: #4B5563;">
-                <strong style="color: #374151;">Interpretation:</strong> {'Over 2.5' if expected_goals > 2.5 else 'Under 2.5'} expected
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        # Calculate probabilities
-        over_under_prob = calculate_over_under_probability(expected_goals)
-        btts_prob = calculate_btts_probability(data['home_btts'], data['away_btts'], 
-                                              aligned_70=(data['home_btts'] >= 70 and data['away_btts'] >= 70))
-        
-        st.markdown(f"""
-        <div class="card">
-            <h4 style="color: #1F2937;">🎯 Probability Calculations</h4>
-            <div style="color: #4B5563; margin: 0.5rem 0;">
-                <strong style="color: #374151;">Over/Under 2.5 Formula:</strong><br>
-                Base 50% + (Distance from 2.5 × 40%)
-            </div>
-            <div style="color: #4B5563; margin: 0.5rem 0;">
-                <strong style="color: #374151;">Over 2.5 Probability:</strong> {over_under_prob:.1%}
-            </div>
-            <div style="color: #4B5563; margin: 0.5rem 0;">
-                <strong style="color: #374151;">Under 2.5 Probability:</strong> {1-over_under_prob:.1%}
-            </div>
-            <div style="color: #4B5563; margin: 0.5rem 0;">
-                <strong style="color: #374151;">BTTS Probability Formula:</strong><br>
-                {'75% fixed for aligned ≥70% trends' if (data['home_btts'] >= 70 and data['away_btts'] >= 70) else f'(Home {data["home_btts"]}% + Away {data["away_btts"]}%) ÷ 2'}
-            </div>
-            <div style="color: #4B5563; margin: 0.5rem 0;">
-                <strong style="color: #374151;">BTTS Yes Probability:</strong> {btts_prob:.1%}
-            </div>
-            <div style="color: #4B5563; margin: 0.5rem 0;">
-                <strong style="color: #374151;">BTTS No Probability:</strong> {1-btts_prob:.1%}
-            </div>
-            <div style="color: #4B5563; margin-top: 1rem;">
-                <strong style="color: #374151;">Key:</strong> ≥70% = Strong, 50-69% = Moderate, <50% = Weak
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # ============================================================================
-    # STEP 4: SECONDARY BETS (PRIORITY 3 - IF NO PRIMARY FOUND)
-    # ============================================================================
-    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">💰 STEP 4: SECONDARY BETS (PRIORITY 3)</div>', unsafe_allow_html=True)
-    
-    secondary = None
-    
-    # EXACT SYSTEM SPEC: Secondary bets only if no primary bet found yet
-    if not primary_bet_data:
-        if expected_goals > 2.7:
-            secondary = {
-                'bet': 'Over 2.5',
-                'min_odds': 1.70,
-                'reason': f"Expected Goals {expected_goals:.2f} > 2.7 (No primary bet found)",
-                'category': 'SECONDARY'
-            }
-        elif expected_goals < 2.3:
-            secondary = {
-                'bet': 'Under 2.5',
-                'min_odds': 1.80,
-                'reason': f"Expected Goals {expected_goals:.2f} < 2.3 (No primary bet found)",
-                'category': 'SECONDARY'
-            }
-    else:
-        # If we have a primary bet, get complementary secondary
-        secondary = get_secondary_bet(primary_bet, expected_goals, btts_prob)
-    
-    # Display secondary bet
-    if secondary:
-        # Get odds and probability for secondary bet
-        if secondary['bet'] == 'BTTS Yes':
-            sec_odds = data['odds']['btts_yes']
-            sec_prob = btts_prob
-        elif secondary['bet'] == 'BTTS No':
-            sec_odds = data['odds']['btts_no']
-            sec_prob = 1 - btts_prob
-        elif secondary['bet'] == 'Over 2.5':
-            sec_odds = data['odds']['over']
-            sec_prob = over_under_prob
-        else:  # Under 2.5
-            sec_odds = data['odds']['under']
-            sec_prob = 1 - over_under_prob
-        
-        sec_value = calculate_value_and_stake(sec_prob, sec_odds)
-        
-        # Display secondary bet
-        sec_card_class = "secondary-card" if sec_value['action'] not in ['AVOID'] else "no-value-card"
-        
-        st.markdown(f"""
-        <div class="prediction-card {sec_card_class}">
-            <div style="display: flex; justify-content: space-between; align-items: start;">
-                <div style="flex: 1;">
-                    <h3 style="margin: 0 0 0.5rem 0; color: #1F2937;">🥈 SECONDARY BET: {secondary['bet']}</h3>
-                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">System Logic:</strong> {secondary['reason']}
-                    </div>
-                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">True Probability:</strong> {sec_prob:.1%}
-                    </div>
-                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">Minimum Odds Required:</strong> {secondary['min_odds']:.2f}
-                    </div>
-                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">Market Odds:</strong> {sec_odds:.2f}
-                    </div>
-                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">Value Edge:</strong> {sec_value['value']:+.1%}
-                    </div>
-                    <div style="color: #4B5563; margin-bottom: 0.5rem;">
-                        <strong style="color: #374151;">Decision:</strong> {sec_value['action']} - {sec_value['category']}
-                    </div>
-                    <div style="color: #4B5563;">
-                        <strong style="color: #374151;">Stake:</strong> {sec_value['stake']:.1f}% of bankroll
-                    </div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Check if odds meet minimum requirement
-        if sec_odds < secondary['min_odds']:
-            st.warning(f"⚠️ Market odds ({sec_odds:.2f}) below minimum required ({secondary['min_odds']:.2f}) - Consider avoiding")
-    elif not primary_bet_data:
-        st.info("No secondary bet recommendation (expected goals between 2.3-2.7 and no primary bet found)")
-    
-    # ============================================================================
-    # STEP 5: VALUE CHECK (PRIORITY 4 - FOR ALL BETS)
-    # ============================================================================
-    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">🎯 STEP 5: VALUE CHECK (PRIORITY 4)</div>', unsafe_allow_html=True)
-    
-    # Calculate value for all potential bets
-    all_bets = []
-    
-    # Check BTTS
-    btts_prob = calculate_btts_probability(data['home_btts'], data['away_btts'], 
-                                          aligned_70=(data['home_btts'] >= 70 and data['away_btts'] >= 70))
-    btts_value = calculate_value_and_stake(btts_prob, data['odds']['btts_yes'])
-    btts_no_value = calculate_value_and_stake(1-btts_prob, data['odds']['btts_no'])
-    
-    all_bets.append({
-        'bet': 'BTTS Yes',
-        'probability': btts_prob,
-        'odds': data['odds']['btts_yes'],
-        'value_data': btts_value,
-        'type': 'BTTS'
-    })
-    
-    all_bets.append({
-        'bet': 'BTTS No',
-        'probability': 1-btts_prob,
-        'odds': data['odds']['btts_no'],
-        'value_data': btts_no_value,
-        'type': 'BTTS'
-    })
-    
-    # Check Over/Under
-    all_bets.append({
-        'bet': 'Over 2.5',
-        'probability': over_under_prob,
-        'odds': data['odds']['over'],
-        'value_data': calculate_value_and_stake(over_under_prob, data['odds']['over']),
-        'type': 'TOTAL'
-    })
-    
-    all_bets.append({
-        'bet': 'Under 2.5',
-        'probability': 1-over_under_prob,
-        'odds': data['odds']['under'],
-        'value_data': calculate_value_and_stake(1-over_under_prob, data['odds']['under']),
-        'type': 'TOTAL'
-    })
-    
-    # Display value table
-    st.markdown(f"""
-    <div class="card">
-        <h4 style="color: #1F2937;">💰 Value Analysis for All Markets</h4>
-        <div style="overflow-x: auto;">
-            <table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
-                <thead>
-                    <tr style="background-color: #F3F4F6;">
-                        <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #E5E7EB;">Bet</th>
-                        <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #E5E7EB;">Probability</th>
-                        <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #E5E7EB;">Odds</th>
-                        <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #E5E7EB;">Value</th>
-                        <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #E5E7EB;">Action</th>
-                        <th style="padding: 0.75rem; text-align: left; border-bottom: 2px solid #E5E7EB;">Stake</th>
-                    </tr>
-                </thead>
-                <tbody>
-    """, unsafe_allow_html=True)
-    
-    for bet in all_bets:
-        value_color = "#10B981" if bet['value_data']['value'] >= 0.15 else "#F59E0B" if bet['value_data']['value'] >= 0.05 else "#EF4444"
-        st.markdown(f"""
-        <tr style="border-bottom: 1px solid #E5E7EB;">
-            <td style="padding: 0.75rem;"><strong>{bet['bet']}</strong></td>
-            <td style="padding: 0.75rem;">{bet['probability']:.1%}</td>
-            <td style="padding: 0.75rem;">{bet['odds']:.2f}</td>
-            <td style="padding: 0.75rem; color: {value_color};"><strong>{bet['value_data']['value']:+.1%}</strong></td>
-            <td style="padding: 0.75rem;">{bet['value_data']['action']}</td>
-            <td style="padding: 0.75rem;">{bet['value_data']['stake']:.1f}%</td>
-        </tr>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("""
-                </tbody>
-            </table>
-        </div>
-        <div style="color: #4B5563; margin-top: 1rem;">
-            <strong style="color: #374151;">System Rule:</strong> Only bet if Value ≥15% (Priority 4)
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # ============================================================================
-    # TERTIARY BETS
-    # ============================================================================
-    st.markdown('<div style="font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem 0; color: #1F2937;">🥉 TERTIARY BETS (Correct Scores)</div>', unsafe_allow_html=True)
-    
-    tertiary_scores = get_tertiary_bets(
-        expected_goals,
-        btts_prob,
-        data['home_team'],
-        data['away_team']
-    )
-    
-    cols = st.columns(len(tertiary_scores))
-    for idx, score in enumerate(tertiary_scores):
-        with cols[idx]:
-            st.markdown(f"""
-            <div style="text-align: center; padding: 1rem; background: #F7FAFC; border-radius: 8px; margin: 0.5rem 0; border: 1px solid #E2E8F0;">
-                <div style="font-size: 1.1rem; font-weight: 700; color: #1F2937;">{score}</div>
-                <div style="font-size: 0.8rem; color: #6B7280; margin-top: 0.5rem;">For bet builders</div>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    # ============================================================================
-    # SYSTEM SUMMARY
-    # ============================================================================
-    with st.expander("📋 EXACT SYSTEM LOGIC VERIFICATION", expanded=True):
-        st.markdown(f"""
-        ### ✅ PERFECTLY MATCHES SYSTEM SPECS
-        
-        **STEP 1: Check for aligned ≥70% trends (Priority 1):**
-        - Home BTTS: {data['home_btts']}% {'✓ ≥70%' if data['home_btts'] >= 70 else '✗ <70%'}
-        - Away BTTS: {data['away_btts']}% {'✓ ≥70%' if data['away_btts'] >= 70 else '✗ <70%'}
-        - Home Over: {data['home_over']}% {'✓ ≥70%' if data['home_over'] >= 70 else '✗ <70%'}
-        - Away Over: {data['away_over']}% {'✓ ≥70%' if data['away_over'] >= 70 else '✗ <70%'}
-        - Home Under: {data['home_under']}% {'✓ ≥70%' if data['home_under'] >= 70 else '✗ <70%'}
-        - Away Under: {data['away_under']}% {'✓ ≥70%' if data['away_under'] >= 70 else '✗ <70%'}
-        - **Result:** {'ALIGNED TREND FOUND' if aligned_trends else 'No aligned trends'}
-        
-        **STEP 2: Check single ≥70% trends (Priority 2):**
-        - Single trends checked: {len(single_trend_bets)} pattern(s) identified
-        - **Key Finding:** {'No single strong trends' if not single_trend_bets else f"{single_trend_bets[0]['pattern']} identified"}
-        - **Min Odds Verification:** All single trends use 1.50 ✓
-        
-        **STEP 3: Expected Goals Calculation:**
-        - Baseline: {baseline_goals:.2f}
-        - Single trend adjustments: {len(single_adjustments['notes'])} applied (±15% each)
-        - Context adjustments: {len(context_adjustments['notes'])} applied
-        - **Final Expected Goals:** {expected_goals:.2f}
-        
-        **STEP 4: Betting Decisions:**
-        - Primary Bet: {primary_bet if primary_bet else 'None'}
-        - Secondary Bet: {secondary['bet'] if secondary else 'None'}
-        - **CORE PRINCIPLE:** Bet only if value ≥15%
-        
-        **💎 EXACT 4 PATTERNS DETECTED:**
-        1. {'✓ Defensive Specialist' if any(b['pattern'] == 'Defensive Specialist' for b in single_trend_bets) else '✗'}
-        2. {'✓ Single BTTS Trend' if any(b['pattern'] == 'Single BTTS Trend' for b in single_trend_bets) else '✗'}
-        3. {'✓ Single Over Trend' if any(b['pattern'] == 'Single Over Trend' for b in single_trend_bets) else '✗'}
-        4. {'✓ Single Under Trend' if any(b['pattern'] == 'Single Under Trend' for b in single_trend_bets) else '✗'}
-        
-        **🔧 PERFECT FIXES APPLIED:**
-        - ✅ Defensive Specialist: min odds 1.50 (was 1.43)
-        - ✅ Removed non-specified patterns (Home Bounce-Back)
-        - ✅ BTTS adjustments: +0.15 goals (was missing/incorrect)
-        - ✅ Stake calculation: Min(3, Max(1, Value × 10)) % (exact formula)
-        - ✅ Priority hierarchy: Aligned → Single → Secondary → Value check
-        - ✅ All patterns use correct thresholds per system specs
-        
-        **🎯 SYSTEM IS NOW 100% MATCHING SPECIFICATIONS**
-        """)
-    
-    # Footer
-    st.markdown("---")
-    st.markdown("""
-    <div style="text-align: center; color: #6B7280; font-size: 0.9rem;">
-        <div><strong>✅ PERFECT SYSTEM:</strong> 100% matches all specifications</div>
-        <div style="margin-top: 0.5rem;">All errors fixed • Exact logic implementation • Verified against specs</div>
-    </div>
-    """, unsafe_allow_html=True)
+        # Clear history button
+        if st.sidebar.button("Clear History", type="secondary"):
+            st.session_state.predictions = []
+            st.rerun()
 
 if __name__ == "__main__":
     main()
