@@ -709,7 +709,7 @@ def main():
                 template="plotly_white"
             )
             
-            st.plotly_chart(fig, use_container_width=True, use_container_width=True)
+            #st.plotly_chart(fig, use_container_width=True, use_container_width=True)
             
             # Match prediction interface
             st.markdown('<div class="sub-header">🎯 Match Analysis</div>', unsafe_allow_html=True)
