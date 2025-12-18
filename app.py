@@ -2,948 +2,602 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime
-import json
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
-# Page config
-st.set_page_config(
-    page_title="Narrative Predictor Pro v4.0",
-    page_icon="⚽",
-    layout="wide"
-)
-
-# Initialize session state
-if 'all_predictions' not in st.session_state:
-    st.session_state.all_predictions = []
-if 'batch_results' not in st.session_state:
-    st.session_state.batch_results = []
-
-# -------------------------------------------------------------------
-# CORE PREDICTION ENGINE (OUR ORIGINAL TESTED LOGIC)
-# -------------------------------------------------------------------
 class NarrativePredictionEngine:
-    """ORIGINAL TESTED LOGIC FROM v3.0 - Now Integrated"""
+    """Core prediction engine with all our tested logic"""
     
     def __init__(self):
+        # Manager style database (from your Premier League list)
+        self.manager_db = {
+            "Mikel Arteta": {"style": "Possession-based & control", "attack": 9, "defense": 7, "press": 8, "possession": 9, "pragmatic": 6},
+            "Unai Emery": {"style": "Balanced/Adaptive", "attack": 8, "defense": 8, "press": 7, "possession": 7, "pragmatic": 7},
+            "Andoni Iraola": {"style": "Progressive/Developing", "attack": 7, "defense": 6, "press": 9, "possession": 6, "pragmatic": 5},
+            "Keith Andrews": {"style": "Balanced/Adaptive", "attack": 6, "defense": 7, "press": 7, "possession": 6, "pragmatic": 7},
+            "Fabian Hürzeler": {"style": "Progressive/Developing", "attack": 8, "defense": 6, "press": 7, "possession": 8, "pragmatic": 4},
+            "Scott Parker": {"style": "Pragmatic/Defensive", "attack": 5, "defense": 8, "press": 6, "possession": 5, "pragmatic": 8},
+            "Enzo Maresca": {"style": "Possession-based & control", "attack": 8, "defense": 7, "press": 7, "possession": 9, "pragmatic": 6},
+            "Oliver Glasner": {"style": "Balanced/Adaptive", "attack": 7, "defense": 7, "press": 6, "possession": 7, "pragmatic": 7},
+            "David Moyes": {"style": "Pragmatic/Defensive", "attack": 5, "defense": 9, "press": 6, "possession": 5, "pragmatic": 9},
+            "Marco Silva": {"style": "Balanced/Adaptive", "attack": 8, "defense": 7, "press": 7, "possession": 7, "pragmatic": 6},
+            "Daniel Farke": {"style": "Progressive/Developing", "attack": 8, "defense": 6, "press": 8, "possession": 7, "pragmatic": 5},
+            "Arne Slot": {"style": "High press & transition", "attack": 9, "defense": 6, "press": 9, "possession": 7, "pragmatic": 5},
+            "Pep Guardiola": {"style": "Possession-based & control", "attack": 10, "defense": 8, "press": 9, "possession": 10, "pragmatic": 4},
+            "Ruben Amorim": {"style": "High press & transition", "attack": 8, "defense": 6, "press": 9, "possession": 7, "pragmatic": 5},
+            "Eddie Howe": {"style": "High press & transition", "attack": 9, "defense": 6, "press": 9, "possession": 7, "pragmatic": 5},
+            "Ange Postecoglou": {"style": "High press & transition", "attack": 9, "defense": 5, "press": 9, "possession": 6, "pragmatic": 4},
+            "Régis Le Bris": {"style": "Progressive/Developing", "attack": 6, "defense": 7, "press": 7, "possession": 6, "pragmatic": 6},
+            "Thomas Frank": {"style": "Balanced/Adaptive", "attack": 7, "defense": 8, "press": 7, "possession": 7, "pragmatic": 7},
+            "Graham Potter": {"style": "Balanced/Adaptive", "attack": 7, "defense": 7, "press": 6, "possession": 8, "pragmatic": 7},
+            "Vítor Pereira": {"style": "Pragmatic/Defensive", "attack": 5, "defense": 8, "press": 5, "possession": 5, "pragmatic": 8}
+        }
+        
+        # Narrative definitions
         self.narratives = {
             "BLITZKRIEG": {
                 "description": "Early Domination - Favorite crushes weak opponent",
-                "key_indicators": ["favorite_prob > 65%", "home_advantage", "early_goal_history"],
-                "betting_recommendations": [
-                    "Favorite -1.5 Asian Handicap",
-                    "Favorite clean sheet",
-                    "First goal before 25:00",
-                    "Over 3.5 total goals"
-                ],
-                "expected_flow": "Early pressure → Breakthrough <30 mins → Opponent collapses → Multiple goals"
+                "flow": "• Early pressure from favorite (0-15 mins)\n• Breakthrough before 30 mins\n• Opponent confidence collapses\n• Additional goals in 35-65 minute window",
+                "betting_markets": ["Favorite win", "Favorite clean sheet", "First goal before 25:00", "Over 2.5 team goals"]
             },
             "SHOOTOUT": {
                 "description": "End-to-End Chaos - Both teams attack, weak defenses",
-                "key_indicators": ["both_BTTS_high", "both_attack_minded", "weak_defenses"],
-                "betting_recommendations": [
-                    "Over 3.5 goals",
-                    "BTTS: Yes",
-                    "Both teams to score & Over 2.5",
-                    "Late goal after 75:00"
-                ],
-                "expected_flow": "Fast start → Early goals → Lead changes → Late drama"
+                "flow": "• Fast start from both teams\n• Early goals probable\n• Lead changes possible\n• Late drama very likely",
+                "betting_markets": ["Over 2.5 goals", "BTTS: Yes", "Both teams to score & Over 2.5", "Late goal after 75:00"]
             },
             "SIEGE": {
                 "description": "Attack vs Defense - One dominates, other parks bus",
-                "key_indicators": ["possession_mismatch", "attacker_motivation", "defender_desperation"],
-                "betting_recommendations": [
-                    "Under 2.5 goals",
-                    "Favorite to win",
-                    "BTTS: No",
-                    "First goal 45-70 mins"
-                ],
-                "expected_flow": "Attacker dominates possession → Frustration builds → Breakthrough 45-70 mins"
+                "flow": "• Attacker dominates possession (60%+)\n• Defender parks bus\n• Breakthrough often 45-70 mins\n• Clean sheet OR counter-attack goal",
+                "betting_markets": ["Under 2.5 goals", "Favorite to win", "BTTS: No", "First goal 45-70 mins"]
             },
             "CHESS_MATCH": {
                 "description": "Tactical Stalemate - Both cautious, few chances",
-                "key_indicators": ["both_cautious", "high_importance", "low_scoring_history"],
-                "betting_recommendations": [
-                    "Under 2.5 goals",
-                    "BTTS: No",
-                    "0-0 or 1-0 correct score",
-                    "Fewer than 10 corners total"
-                ],
-                "expected_flow": "Cautious start → Midfield battle → Set piece threat → First goal decisive"
-            },
-            "SIEGE_WITH_COUNTER": {
-                "description": "Hybrid - Attack dominates but faces counter threat",
-                "key_indicators": ["attacker_dominates", "defender_counter_threat", "BTTS_possible"],
-                "betting_recommendations": [
-                    "BTTS: Yes",
-                    "Over 2.5 goals",
-                    "Favorite to win",
-                    "Both teams to score halves"
-                ],
-                "expected_flow": "Attacker controls → Defender counters → Both teams score → Tense finish"
+                "flow": "• Cautious start from both\n• Midfield battle dominates\n• Set pieces become crucial\n• First goal often decisive",
+                "betting_markets": ["Under 2.5 goals", "BTTS: No", "0-0 or 1-0", "Few goals first half"]
             }
         }
     
-    # ---------------------------------------------------------------
-    # ORIGINAL SCORING FORMULAS (TESTED AND VALIDATED)
-    # ---------------------------------------------------------------
+    def calculate_favorite_probability(self, home_odds, away_odds):
+        """Convert odds to implied probabilities"""
+        home_implied = 1 / home_odds
+        away_implied = 1 / away_odds
+        total = home_implied + away_implied
+        
+        home_prob = home_implied / total * 100
+        away_prob = away_implied / total * 100
+        
+        favorite_prob = max(home_prob, away_prob)
+        favorite_is_home = home_prob > away_prob
+        
+        return {
+            "home_probability": home_prob,
+            "away_probability": away_prob,
+            "favorite_probability": favorite_prob,
+            "favorite_is_home": favorite_is_home,
+            "favorite_strength": "STRONG" if favorite_prob >= 70 else "MODERATE" if favorite_prob >= 60 else "WEAK"
+        }
+    
+    def analyze_form(self, form_string):
+        """Convert form string to rating"""
+        if not form_string or len(form_string) < 3:
+            return {"rating": 5, "confidence": 3}
+        
+        form_map = {"W": 2, "D": 1, "L": 0}
+        points = 0
+        
+        for char in form_string.upper():
+            if char in form_map:
+                points += form_map[char]
+        
+        avg_points = points / len(form_string)
+        rating = (avg_points / 2) * 10
+        
+        return {"rating": min(10, rating), "confidence": min(10, len(form_string) * 2)}
     
     def calculate_blitzkrieg_score(self, match_data):
-        """BLITZKRIEG scoring from original logic"""
+        """Calculate BLITZKRIEG score (0-100)"""
         score = 0
         
-        # 1. Favorite probability (0-30 points) - From original formula
-        favorite_prob = match_data.get("favorite_probability", 50)
-        score += min(30, max(0, (favorite_prob - 50) * 0.6))
+        # Favorite probability (0-30 points)
+        prob = self.calculate_favorite_probability(match_data["home_odds"], match_data["away_odds"])
+        favorite_prob = prob["favorite_probability"]
+        score += min(30, (favorite_prob - 50) * 0.6) if favorite_prob > 50 else 0
         
-        # 2. Home advantage (0-20 points)
-        if match_data.get("home_team_favorite", True):
+        # Home advantage if favorite (0-20 points)
+        if prob["favorite_is_home"]:
             score += 20
-        elif match_data.get("neutral_venue", False):
-            score += 5
         
-        # 3. Early goal history (0-25 points) - ORIGINAL FORMULA
-        home_early = match_data.get("home_early_goal_percentage", 0)
-        away_early_conceded = match_data.get("away_early_goal_conceded_percentage", 0)
-        early_score = (home_early + away_early_conceded) / 2
-        score += min(25, early_score * 0.25)
-        
-        # 4. Stakes mismatch (0-15 points) - ORIGINAL FORMULA
-        favorite_stakes = match_data.get("favorite_stakes", 0)
-        underdog_stakes = match_data.get("underdog_stakes", 0)
-        stakes_diff = abs(favorite_stakes - underdog_stakes)
+        # Stakes mismatch (0-15 points)
+        home_stakes = 10 - (match_data["home_position"] / 20 * 10)
+        away_stakes = 10 - (match_data["away_position"] / 20 * 10)
+        stakes_diff = abs(home_stakes - away_stakes)
         score += min(15, stakes_diff * 1.5)
         
-        # 5. Opponent collapse tendency (0-10 points)
-        collapse_history = match_data.get("opponent_collapse_history", 0)
-        score += min(10, collapse_history * 0.1)
+        # Form mismatch (0-20 points)
+        home_form = self.analyze_form(match_data["home_form"])["rating"]
+        away_form = self.analyze_form(match_data["away_form"])["rating"]
+        form_diff = abs(home_form - away_form)
+        score += min(20, form_diff * 2)
         
-        return min(100, max(0, score))
+        # Manager style mismatch (0-15 points)
+        home_attack = match_data["home_attack_rating"]
+        away_defense = match_data["away_defense_rating"]
+        style_mismatch = abs(home_attack - (10 - away_defense))
+        score += min(15, style_mismatch * 1.5)
+        
+        return min(100, score)
     
     def calculate_shootout_score(self, match_data):
-        """SHOOTOUT scoring from original logic"""
+        """Calculate SHOOTOUT score (0-100)"""
         score = 0
         
-        # 1. Both BTTS percentage (0-30 points) - ORIGINAL FORMULA
-        home_btts = match_data.get("home_btts_percentage", 0)
-        away_btts = match_data.get("away_btts_percentage", 0)
-        avg_btts = (home_btts + away_btts) / 2
-        score += min(30, avg_btts * 0.3)
-        
-        # 2. Both Over 2.5 percentage (0-25 points) - ORIGINAL FORMULA
-        home_over = match_data.get("home_over_25_percentage", 0)
-        away_over = match_data.get("away_over_25_percentage", 0)
-        avg_over = (home_over + away_over) / 2
-        score += min(25, avg_over * 0.25)
-        
-        # 3. Manager attack style (0-20 points)
-        home_attack = match_data.get("home_manager_attack_rating", 0)
-        away_attack = match_data.get("away_manager_attack_rating", 0)
+        # Both teams attacking (0-30 points)
+        home_attack = match_data["home_attack_rating"]
+        away_attack = match_data["away_attack_rating"]
         avg_attack = (home_attack + away_attack) / 2
-        score += min(20, avg_attack * 2)
+        score += min(30, avg_attack * 3)
         
-        # 4. Defensive weakness both (0-15 points) - ORIGINAL FORMULA
-        home_def_weak = match_data.get("home_defensive_weakness", 0)
-        away_def_weak = match_data.get("away_defensive_weakness", 0)
-        avg_def_weak = (home_def_weak + away_def_weak) / 2
-        score += min(15, avg_def_weak * 1.5)
+        # Both teams weak defense (0-25 points)
+        home_defense = match_data["home_defense_rating"]
+        away_defense = match_data["away_defense_rating"]
+        avg_defense_weakness = (10 - home_defense + 10 - away_defense) / 2
+        score += min(25, avg_defense_weakness * 2.5)
         
-        # 5. High stakes both (0-10 points)
-        both_high_stakes = match_data.get("both_high_stakes", False)
-        score += 10 if both_high_stakes else 0
+        # High press both (0-20 points)
+        home_press = match_data["home_press_rating"]
+        away_press = match_data["away_press_rating"]
+        avg_press = (home_press + away_press) / 2
+        score += min(20, avg_press * 2)
         
-        return min(100, max(0, score))
+        # Recent H2H high scoring (0-15 points)
+        if match_data["last_h2h_goals"] >= 3:
+            score += 15
+        elif match_data["last_h2h_goals"] >= 2:
+            score += 10
+        elif match_data["last_h2h_goals"] > 0:
+            score += 5
+        
+        # Both teams similar stakes (0-10 points)
+        home_stakes = 10 - (match_data["home_position"] / 20 * 10)
+        away_stakes = 10 - (match_data["away_position"] / 20 * 10)
+        stakes_similarity = 10 - abs(home_stakes - away_stakes)
+        score += min(10, stakes_similarity)
+        
+        return min(100, score)
     
     def calculate_siege_score(self, match_data):
-        """SIEGE scoring from original logic"""
+        """Calculate SIEGE score (0-100)"""
         score = 0
         
-        # 1. Possession mismatch (0-25 points) - ORIGINAL FORMULA
-        home_possession = match_data.get("home_avg_possession", 50)
-        away_possession = match_data.get("away_avg_possession", 50)
-        possession_diff = abs(home_possession - away_possession)
-        score += min(25, possession_diff * 0.5)
+        # Possession/attack mismatch (0-30 points)
+        home_attack = match_data["home_attack_rating"]
+        away_defense = match_data["away_defense_rating"]
+        home_possession = match_data["home_possession_rating"]
         
-        # 2. Shots ratio (0-20 points) - ORIGINAL FORMULA
-        home_shots = match_data.get("home_avg_shots", 10)
-        away_shots_conceded = match_data.get("away_avg_shots_conceded", 10)
-        shots_ratio = home_shots / max(away_shots_conceded, 1)
-        if shots_ratio > 1.5:
-            score += 20
-        elif shots_ratio > 1.2:
+        attack_defense_diff = abs(home_attack - away_defense)
+        score += min(30, attack_defense_diff * 3)
+        
+        # Favorite advantage (0-25 points)
+        prob = self.calculate_favorite_probability(match_data["home_odds"], match_data["away_odds"])
+        if prob["favorite_is_home"] and prob["favorite_probability"] >= 60:
+            score += 25
+        elif prob["favorite_is_home"]:
             score += 15
-        elif shots_ratio > 1.0:
+        
+        # Pragmatic vs attacking (0-20 points)
+        home_pragmatic = match_data["home_pragmatic_rating"]
+        away_pragmatic = match_data["away_pragmatic_rating"]
+        pragmatic_diff = abs(home_pragmatic - away_pragmatic)
+        score += min(20, pragmatic_diff * 2)
+        
+        # Low H2H goals (0-15 points)
+        if match_data["last_h2h_goals"] <= 2:
+            score += 15
+        elif match_data["last_h2h_goals"] <= 3:
             score += 10
+        else:
+            score += 5
         
-        # 3. Attacker motivation (0-20 points)
-        attacker_motivation = match_data.get("attacker_motivation", 0)
-        score += attacker_motivation * 2
+        # Form mismatch (0-10 points)
+        home_form = self.analyze_form(match_data["home_form"])["rating"]
+        away_form = self.analyze_form(match_data["away_form"])["rating"]
+        form_diff = abs(home_form - away_form)
+        score += min(10, form_diff)
         
-        # 4. Defender desperation (0-15 points)
-        defender_desperation = match_data.get("defender_desperation", 0)
-        score += defender_desperation * 1.5
-        
-        # 5. Counter attack threat (0-10 points)
-        counter_threat = match_data.get("defender_counter_threat", 0)
-        score += counter_threat
-        
-        # 6. Clean sheet history (0-10 points)
-        attacker_clean_sheets = match_data.get("attacker_clean_sheet_percentage", 0)
-        score += min(10, attacker_clean_sheets * 0.1)
-        
-        return min(100, max(0, score))
+        return min(100, score)
     
     def calculate_chess_match_score(self, match_data):
-        """CHESS MATCH scoring from original logic"""
+        """Calculate CHESS MATCH score (0-100)"""
         score = 0
         
-        # 1. Both cautious (0-30 points) - ORIGINAL FORMULA
-        home_cautious = match_data.get("home_cautious_rating", 0)
-        away_cautious = match_data.get("away_cautious_rating", 0)
-        avg_cautious = (home_cautious + away_cautious) / 2
-        score += min(30, avg_cautious * 3)
-        
-        # 2. Match importance (0-25 points)
-        importance = match_data.get("match_importance", 0)
-        score += importance * 2.5
-        
-        # 3. Manager pragmatism (0-20 points)
-        home_pragmatic = match_data.get("home_manager_pragmatic_rating", 0)
-        away_pragmatic = match_data.get("away_manager_pragmatic_rating", 0)
+        # Both managers pragmatic (0-30 points)
+        home_pragmatic = match_data["home_pragmatic_rating"]
+        away_pragmatic = match_data["away_pragmatic_rating"]
         avg_pragmatic = (home_pragmatic + away_pragmatic) / 2
-        score += min(20, avg_pragmatic * 2)
+        score += min(30, avg_pragmatic * 3)
         
-        # 4. H2H low scoring (0-15 points) - ORIGINAL FORMULA
-        h2h_low_scoring = match_data.get("h2h_low_scoring_percentage", 0)
-        score += min(15, h2h_low_scoring * 0.15)
+        # Close match (0-25 points)
+        prob = self.calculate_favorite_probability(match_data["home_odds"], match_data["away_odds"])
+        favorite_prob = prob["favorite_probability"]
+        if favorite_prob < 55:
+            score += 25
+        elif favorite_prob < 60:
+            score += 15
+        else:
+            score += 5
         
-        # 5. Both Under 2.5 percentage (0-10 points) - ORIGINAL FORMULA
-        home_under = match_data.get("home_under_25_percentage", 0)
-        away_under = match_data.get("away_under_25_percentage", 0)
-        avg_under = (home_under + away_under) / 2
-        score += min(10, avg_under * 0.1)
+        # Both teams good defense (0-20 points)
+        home_defense = match_data["home_defense_rating"]
+        away_defense = match_data["away_defense_rating"]
+        avg_defense = (home_defense + away_defense) / 2
+        score += min(20, avg_defense * 2)
         
-        return min(100, max(0, score))
+        # Low H2H goals history (0-15 points)
+        if match_data["last_h2h_goals"] <= 2:
+            score += 15
+        elif match_data["last_h2h_goals"] <= 3:
+            score += 10
+        else:
+            score += 5
+        
+        # Similar stakes (0-10 points)
+        home_stakes = 10 - (match_data["home_position"] / 20 * 10)
+        away_stakes = 10 - (match_data["away_position"] / 20 * 10)
+        stakes_diff = abs(home_stakes - away_stakes)
+        score += min(10, 10 - stakes_diff)
+        
+        return min(100, score)
     
-    def calculate_siege_with_counter_score(self, match_data):
-        """SIEGE WITH COUNTER hybrid scoring"""
-        siege_score = self.calculate_siege_score(match_data)
-        
-        # Adjust for counter threat
-        counter_threat = match_data.get("defender_counter_threat", 0)
-        counter_adjustment = counter_threat * 0.5
-        
-        # If counter threat is high, it's more likely to be hybrid
-        if counter_threat >= 7:
-            siege_score = siege_score * 0.7 + 30  # Convert to hybrid
-        elif counter_threat >= 5:
-            siege_score = siege_score * 0.8 + 20
-        
-        return min(100, max(0, siege_score))
-    
-    def calculate_expected_goals(self, match_data):
-        """Calculate expected goals - ORIGINAL FORMULA FROM OUR SYSTEM"""
-        home_gf = match_data.get("home_gf_per_game", 1.5)
-        home_ga = match_data.get("home_ga_per_game", 1.0)
-        away_gf = match_data.get("away_gf_per_game", 1.2)
-        away_ga = match_data.get("away_ga_per_game", 1.3)
-        
-        # Original formula: [(Home_GF + Away_GA) + (Away_GF + Home_GA)] ÷ 2
-        expected_goals = ((home_gf + away_ga) + (away_gf + home_ga)) / 2
-        
-        # Apply narrative adjustments (from our tested system)
-        dominant_narrative = self.predict_dominant_narrative(match_data)
-        
-        narrative_adjustments = {
-            "BLITZKRIEG": 1.15,
-            "SHOOTOUT": 1.25,
-            "SIEGE": 0.85,
-            "CHESS_MATCH": 0.75,
-            "SIEGE_WITH_COUNTER": 1.0
-        }
-        
-        adjustment = narrative_adjustments.get(dominant_narrative, 1.0)
-        return expected_goals * adjustment
-    
-    def calculate_btts_probability(self, match_data):
-        """Calculate BTTS probability - ORIGINAL FORMULA"""
-        home_btts = match_data.get("home_btts_percentage", 50) / 100
-        away_btts = match_data.get("away_btts_percentage", 50) / 100
-        
-        # Original formula: (Home_BTTS% + Away_BTTS%) ÷ 2
-        btts_prob = (home_btts + away_btts) / 2
-        
-        # Adjust based on narrative
-        narrative = self.predict_dominant_narrative(match_data)
-        if narrative == "SHOOTOUT":
-            btts_prob = min(0.85, btts_prob * 1.2)
-        elif narrative == "CHESS_MATCH":
-            btts_prob = max(0.25, btts_prob * 0.7)
-        
-        return btts_prob
-    
-    def predict_dominant_narrative(self, match_data):
-        """Main prediction function using ORIGINAL LOGIC"""
-        scores = {}
+    def predict_match(self, match_data):
+        """Main prediction function for one match"""
         
         # Calculate all narrative scores
-        scores["BLITZKRIEG"] = self.calculate_blitzkrieg_score(match_data)
-        scores["SHOOTOUT"] = self.calculate_shootout_score(match_data)
-        scores["SIEGE"] = self.calculate_siege_score(match_data)
-        scores["CHESS_MATCH"] = self.calculate_chess_match_score(match_data)
-        scores["SIEGE_WITH_COUNTER"] = self.calculate_siege_with_counter_score(match_data)
+        scores = {
+            "BLITZKRIEG": self.calculate_blitzkrieg_score(match_data),
+            "SHOOTOUT": self.calculate_shootout_score(match_data),
+            "SIEGE": self.calculate_siege_score(match_data),
+            "CHESS_MATCH": self.calculate_chess_match_score(match_data)
+        }
         
-        # Find dominant narrative
+        # Determine dominant narrative
         dominant_narrative = max(scores, key=scores.get)
         dominant_score = scores[dominant_narrative]
         
-        # Determine tier based on ORIGINAL THRESHOLDS
+        # Determine tier and confidence
         if dominant_score >= 75:
-            tier = "TIER 1 (HIGH CONFIDENCE)"
-            confidence_level = "HIGH"
+            tier = "TIER 1 (STRONG)"
+            confidence = "High"
+            stake = "2-3 units"
         elif dominant_score >= 60:
-            tier = "TIER 2 (MEDIUM CONFIDENCE)"
-            confidence_level = "MEDIUM"
+            tier = "TIER 2 (MEDIUM)"
+            confidence = "Medium"
+            stake = "1-2 units"
         elif dominant_score >= 50:
-            tier = "TIER 3 (LOW CONFIDENCE)"
-            confidence_level = "LOW"
+            tier = "TIER 3 (WEAK)"
+            confidence = "Low"
+            stake = "0.5-1 unit"
         else:
             tier = "TIER 4 (AVOID)"
-            confidence_level = "VERY LOW"
+            confidence = "Very Low"
+            stake = "No bet"
         
-        # Calculate expected goals and BTTS probability
-        expected_goals = self.calculate_expected_goals(match_data)
-        btts_probability = self.calculate_btts_probability(match_data)
+        # Calculate expected goals
+        prob = self.calculate_favorite_probability(match_data["home_odds"], match_data["away_odds"])
+        favorite_strength = prob["favorite_strength"]
         
-        # Determine Over/Under prediction
-        if expected_goals > 2.7:
-            over_under = "OVER 2.5"
-            over_probability = 50 + ((expected_goals - 2.5) * 40)  # Original formula
-            over_probability = min(85, max(15, over_probability))
-            under_probability = 100 - over_probability
-        else:
-            over_under = "UNDER 2.5"
-            under_probability = 50 + ((2.5 - expected_goals) * 40)  # Original formula
-            under_probability = min(85, max(15, under_probability))
-            over_probability = 100 - under_probability
+        if dominant_narrative == "BLITZKRIEG":
+            expected_goals = 3.2 if favorite_strength == "STRONG" else 2.8
+            btts_prob = 40 if match_data["last_h2h_btts"] == "Yes" else 30
+            over_25_prob = 70
+        elif dominant_narrative == "SHOOTOUT":
+            expected_goals = 3.5
+            btts_prob = 75
+            over_25_prob = 85
+        elif dominant_narrative == "SIEGE":
+            expected_goals = 2.1
+            btts_prob = 40 if match_data["last_h2h_btts"] == "Yes" else 35
+            over_25_prob = 30
+        else:  # CHESS_MATCH
+            expected_goals = 1.8
+            btts_prob = 35 if match_data["last_h2h_btts"] == "Yes" else 30
+            over_25_prob = 25
+        
+        # Generate betting recommendations
+        narrative_info = self.narratives[dominant_narrative]
         
         return {
+            "match": f"{match_data['home_team']} vs {match_data['away_team']}",
+            "date": match_data["date"],
             "scores": scores,
             "dominant_narrative": dominant_narrative,
             "dominant_score": dominant_score,
             "tier": tier,
-            "confidence_level": confidence_level,
+            "confidence": confidence,
             "expected_goals": expected_goals,
-            "btts_probability": btts_probability * 100,
-            "over_under_prediction": over_under,
-            "over_probability": over_probability,
-            "under_probability": under_probability,
-            "key_moments": self.generate_key_moments(dominant_narrative),
-            "risk_factors": self.identify_risk_factors(match_data, dominant_narrative),
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
+            "btts_probability": btts_prob,
+            "over_25_probability": over_25_prob,
+            "stake_recommendation": stake,
+            "expected_flow": narrative_info["flow"],
+            "betting_markets": narrative_info["betting_markets"],
+            "description": narrative_info["description"]
         }
-    
-    def generate_key_moments(self, narrative):
-        """Generate key moments based on narrative"""
-        moments = {
-            "BLITZKRIEG": [
-                "First goal: 15-30 mins (70% probability)",
-                "Second goal within 15 mins of first",
-                "Halftime lead: 80% probability",
-                "Game effectively over by 70 mins"
-            ],
-            "SHOOTOUT": [
-                "First goal: 10-25 mins (65% probability)",
-                "Response goals within 15 mins of conceding",
-                "Lead changes possible",
-                "Late goals: 55% probability after 75 mins"
-            ],
-            "SIEGE": [
-                "First goal: 45-70 mins (60% probability)",
-                "Attacker dominates possession (60%+)",
-                "Set piece opportunities crucial",
-                "Late breakthrough or stalemate"
-            ],
-            "CHESS_MATCH": [
-                "First goal: 40-70 mins if any (50% probability)",
-                "Set piece creates best chances",
-                "Few yellow cards (discipline maintained)",
-                "First goal often decisive"
-            ],
-            "SIEGE_WITH_COUNTER": [
-                "First goal: 30-60 mins",
-                "Counter-attack goal within 15 mins of conceding",
-                "Both teams have clear chances",
-                "Late nerves if score remains close"
-            ]
-        }
-        return moments.get(narrative, ["Standard match progression"])
-    
-    def identify_risk_factors(self, match_data, narrative):
-        """Identify risk factors based on match data"""
-        risks = []
-        
-        # Common risks
-        if match_data.get("home_injuries", 0) >= 3:
-            risks.append("Home team injury concerns")
-        if match_data.get("away_injuries", 0) >= 3:
-            risks.append("Away team injury concerns")
-        
-        # Narrative-specific risks
-        if narrative == "BLITZKRIEG":
-            risks.append("Early set piece concession could disrupt momentum")
-            risks.append("Red card changes dynamic completely")
-        elif narrative == "SHOOTOUT":
-            risks.append("Early red card could kill the open game")
-            risks.append("Fatigue affects defensive discipline later")
-        elif narrative == "SIEGE":
-            risks.append("Early counter-attack goal changes narrative")
-            risks.append("Attacker red card kills momentum")
-        elif narrative == "CHESS_MATCH":
-            risks.append("Early goal forces complete tactical change")
-            risks.append("Individual mistake breaks deadlock")
-        
-        return risks if risks else ["Standard match risks apply"]
 
-# -------------------------------------------------------------------
-# FIXTURES DATABASE WITH SAMPLE STATS
-# -------------------------------------------------------------------
-fixtures_db = {
-    "SPANISH LA LIGA": [
-        {"match": "Real Madrid vs Sevilla", "date": "20/12/2025",
-         "home_stats": {"btts_percentage": 60, "over_25_percentage": 70, "gf_per_game": 2.1, "ga_per_game": 0.8},
-         "away_stats": {"btts_percentage": 50, "over_25_percentage": 60, "gf_per_game": 1.4, "ga_per_game": 1.2}},
-        {"match": "Barcelona vs Atlético Madrid", "date": "21/12/2025",
-         "home_stats": {"btts_percentage": 65, "over_25_percentage": 75, "gf_per_game": 2.3, "ga_per_game": 1.0},
-         "away_stats": {"btts_percentage": 40, "over_25_percentage": 50, "gf_per_game": 1.2, "ga_per_game": 0.9}}
-    ],
-    "ENGLISH PREMIER LEAGUE": [
-        {"match": "Manchester City vs West Ham", "date": "20/12/2025",
-         "home_stats": {"btts_percentage": 55, "over_25_percentage": 80, "gf_per_game": 2.4, "ga_per_game": 0.7},
-         "away_stats": {"btts_percentage": 70, "over_25_percentage": 65, "gf_per_game": 1.6, "ga_per_game": 1.8}},
-        {"match": "Tottenham vs Liverpool", "date": "20/12/2025",
-         "home_stats": {"btts_percentage": 75, "over_25_percentage": 80, "gf_per_game": 2.0, "ga_per_game": 1.5},
-         "away_stats": {"btts_percentage": 70, "over_25_percentage": 75, "gf_per_game": 2.1, "ga_per_game": 1.4}}
-    ],
-    "ITALIAN SERIE A": [
-        {"match": "Juventus vs Roma", "date": "20/12/2025",
-         "home_stats": {"btts_percentage": 40, "over_25_percentage": 45, "gf_per_game": 1.5, "ga_per_game": 0.8},
-         "away_stats": {"btts_percentage": 45, "over_25_percentage": 50, "gf_per_game": 1.4, "ga_per_game": 1.0}}
-    ]
-}
-
-# -------------------------------------------------------------------
-# STREAMLIT APP WITH ORIGINAL LOGIC
-# -------------------------------------------------------------------
-st.title("⚽ Narrative Predictor Pro v4.0")
-st.markdown("**Original Tested Logic Integrated | Statistical Analysis Engine**")
-
-# Initialize engine
-engine = NarrativePredictionEngine()
-
-# -------------------------------------------------------------------
-# 1. BATCH ANALYSIS OR SINGLE MATCH
-# -------------------------------------------------------------------
-st.markdown("---")
-st.subheader("1️⃣ ANALYSIS MODE")
-
-analysis_mode = st.radio(
-    "Choose analysis mode:",
-    ["Batch Analysis (Multiple Leagues)", "Single Match Deep Analysis"],
-    horizontal=True
-)
-
-# -------------------------------------------------------------------
-# 2. BATCH ANALYSIS
-# -------------------------------------------------------------------
-if analysis_mode == "Batch Analysis (Multiple Leagues)":
-    st.markdown("---")
-    st.subheader("2️⃣ SELECT LEAGUES FOR BATCH ANALYSIS")
+def main():
+    st.set_page_config(
+        page_title="Narrative Prediction Engine",
+        page_icon="⚽",
+        layout="wide"
+    )
     
-    leagues = list(fixtures_db.keys())
-    selected_leagues = []
+    # Custom CSS
+    st.markdown("""
+    <style>
+    .main-header {
+        font-size: 2.5rem;
+        color: #1E88E5;
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+    .sub-header {
+        font-size: 1.5rem;
+        color: #424242;
+        margin-top: 2rem;
+    }
+    .prediction-card {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 10px 0;
+        border-left: 5px solid #1E88E5;
+    }
+    .tier-1 {
+        border-left: 5px solid #4CAF50;
+    }
+    .tier-2 {
+        border-left: 5px solid #FF9800;
+    }
+    .tier-3 {
+        border-left: 5px solid #F44336;
+    }
+    .score-bar {
+        height: 20px;
+        background-color: #e0e0e0;
+        border-radius: 10px;
+        margin: 5px 0;
+    }
+    .score-fill {
+        height: 100%;
+        border-radius: 10px;
+        background-color: #1E88E5;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
-    cols = st.columns(3)
-    for i, league in enumerate(leagues):
-        with cols[i % 3]:
-            if st.checkbox(league, value=True):
-                selected_leagues.append(league)
+    st.markdown('<h1 class="main-header">⚽ NARRATIVE PREDICTION ENGINE</h1>', unsafe_allow_html=True)
+    st.markdown("### **Upload CSV → Get Predictions**")
     
-    if st.button("🎯 RUN BATCH PREDICTIONS", type="primary", use_container_width=True):
-        all_matches = []
-        for league in selected_leagues:
-            for fixture in fixtures_db[league]:
-                all_matches.append({
-                    "league": league,
-                    "match": fixture["match"],
-                    "date": fixture["date"],
-                    "home_stats": fixture["home_stats"],
-                    "away_stats": fixture["away_stats"]
-                })
-        
-        st.session_state.batch_results = []
-        
-        # Progress bar
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        for idx, match_info in enumerate(all_matches):
-            status_text.text(f"Analyzing {match_info['match']}...")
-            
-            # Prepare match data with stats
-            match_data = {
-                "home_btts_percentage": match_info["home_stats"]["btts_percentage"],
-                "away_btts_percentage": match_info["away_stats"]["btts_percentage"],
-                "home_over_25_percentage": match_info["home_stats"]["over_25_percentage"],
-                "away_over_25_percentage": match_info["away_stats"]["over_25_percentage"],
-                "home_gf_per_game": match_info["home_stats"]["gf_per_game"],
-                "home_ga_per_game": match_info["home_stats"]["ga_per_game"],
-                "away_gf_per_game": match_info["away_stats"]["gf_per_game"],
-                "away_ga_per_game": match_info["away_stats"]["ga_per_game"],
-                "favorite_probability": 65 if "Real Madrid" in match_info["match"] or "Manchester City" in match_info["match"] else 50,
-                "home_team_favorite": True,
-                "home_early_goal_percentage": 40,
-                "away_early_goal_conceded_percentage": 50,
-                "favorite_stakes": 7,
-                "underdog_stakes": 3,
-                "home_manager_attack_rating": 8,
-                "away_manager_attack_rating": 6,
-                "home_defensive_weakness": 3,
-                "away_defensive_weakness": 5,
-                "home_avg_possession": 65,
-                "away_avg_possession": 45,
-                "home_avg_shots": 16,
-                "away_avg_shots_conceded": 14,
-                "attacker_motivation": 7,
-                "defender_desperation": 6,
-                "defender_counter_threat": 4,
-                "home_cautious_rating": 4,
-                "away_cautious_rating": 6,
-                "match_importance": 8,
-                "home_manager_pragmatic_rating": 5,
-                "away_manager_pragmatic_rating": 7,
-                "h2h_low_scoring_percentage": 40,
-                "home_under_25_percentage": 100 - match_info["home_stats"]["over_25_percentage"],
-                "away_under_25_percentage": 100 - match_info["away_stats"]["over_25_percentage"]
-            }
-            
-            prediction = engine.predict_dominant_narrative(match_data)
-            prediction["league"] = match_info["league"]
-            prediction["match"] = match_info["match"]
-            prediction["date"] = match_info["date"]
-            
-            st.session_state.batch_results.append(prediction)
-            
-            progress_bar.progress((idx + 1) / len(all_matches))
-        
-        status_text.text("✅ Analysis complete!")
-        progress_bar.empty()
-
-# -------------------------------------------------------------------
-# 3. SINGLE MATCH DEEP ANALYSIS
-# -------------------------------------------------------------------
-else:
-    st.markdown("---")
-    st.subheader("2️⃣ SINGLE MATCH DEEP ANALYSIS")
+    # Initialize engine
+    engine = NarrativePredictionEngine()
     
-    # Get all matches
-    all_matches_list = []
-    for league, fixtures in fixtures_db.items():
-        for fixture in fixtures:
-            all_matches_list.append(f"{fixture['match']} ({league})")
+    # Create two columns
+    col1, col2 = st.columns([1, 2])
     
-    selected_match_full = st.selectbox("Select match:", all_matches_list)
-    
-    if selected_match_full:
-        match_name = selected_match_full.split(" (")[0]
-        league = selected_match_full.split("(")[1].replace(")", "")
+    with col1:
+        st.markdown('<h3 class="sub-header">📤 Upload Match Data</h3>', unsafe_allow_html=True)
         
-        # Find match stats
-        match_stats = None
-        for fixture in fixtures_db[league]:
-            if fixture["match"] == match_name:
-                match_stats = fixture
-                break
+        # File upload
+        uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
         
-        if match_stats:
-            st.markdown("---")
-            st.subheader(f"3️⃣ STATISTICAL ANALYSIS: {match_name}")
-            
-            # Display stats
-            col_stats1, col_stats2 = st.columns(2)
-            
-            with col_stats1:
-                st.markdown("**Home Team Statistics**")
-                stats = match_stats["home_stats"]
-                st.write(f"BTTS %: {stats['btts_percentage']}%")
-                st.write(f"Over 2.5 %: {stats['over_25_percentage']}%")
-                st.write(f"Goals For/Game: {stats['gf_per_game']}")
-                st.write(f"Goals Against/Game: {stats['ga_per_game']}")
-            
-            with col_stats2:
-                st.markdown("**Away Team Statistics**")
-                stats = match_stats["away_stats"]
-                st.write(f"BTTS %: {stats['btts_percentage']}%")
-                st.write(f"Over 2.5 %: {stats['over_25_percentage']}%")
-                st.write(f"Goals For/Game: {stats['gf_per_game']}")
-                st.write(f"Goals Against/Game: {stats['ga_per_game']}")
-            
-            # User can adjust parameters
-            st.markdown("---")
-            st.subheader("4️⃣ ADJUST ANALYSIS PARAMETERS")
-            
-            with st.form("analysis_params"):
-                col_params1, col_params2 = st.columns(2)
+        if uploaded_file is not None:
+            try:
+                # Read CSV
+                df = pd.read_csv(uploaded_file)
+                st.success(f"✅ Successfully loaded {len(df)} matches")
                 
-                with col_params1:
-                    st.markdown("**Context Factors**")
-                    favorite_probability = st.slider("Favorite Win Probability %", 0, 100, 65)
-                    home_team_favorite = st.checkbox("Home team is favorite", True)
-                    match_importance = st.slider("Match Importance (0-10)", 0, 10, 7)
-                    home_injuries = st.slider("Home team key injuries", 0, 5, 0)
-                    away_injuries = st.slider("Away team key injuries", 0, 5, 0)
+                # Show data preview
+                with st.expander("📊 Data Preview", expanded=False):
+                    st.dataframe(df.head())
                 
-                with col_params2:
-                    st.markdown("**Team Characteristics**")
-                    home_manager_attack = st.slider("Home manager attack rating", 0, 10, 8)
-                    away_manager_attack = st.slider("Away manager attack rating", 0, 10, 6)
-                    home_cautious = st.slider("Home team cautiousness", 0, 10, 4)
-                    away_cautious = st.slider("Away team cautiousness", 0, 10, 6)
-                    defender_counter_threat = st.slider("Away counter threat", 0, 10, 4)
+                # Select matches to predict
+                st.markdown("### Select Matches to Predict")
                 
-                if st.form_submit_button("🚀 RUN ORIGINAL PREDICTION ALGORITHM"):
-                    # Prepare match data
-                    match_data = {
-                        "home_btts_percentage": match_stats["home_stats"]["btts_percentage"],
-                        "away_btts_percentage": match_stats["away_stats"]["btts_percentage"],
-                        "home_over_25_percentage": match_stats["home_stats"]["over_25_percentage"],
-                        "away_over_25_percentage": match_stats["away_stats"]["over_25_percentage"],
-                        "home_gf_per_game": match_stats["home_stats"]["gf_per_game"],
-                        "home_ga_per_game": match_stats["home_stats"]["ga_per_game"],
-                        "away_gf_per_game": match_stats["away_stats"]["gf_per_game"],
-                        "away_ga_per_game": match_stats["away_stats"]["ga_per_game"],
-                        "favorite_probability": favorite_probability,
-                        "home_team_favorite": home_team_favorite,
-                        "home_early_goal_percentage": 40,
-                        "away_early_goal_conceded_percentage": 50,
-                        "favorite_stakes": 7,
-                        "underdog_stakes": 3,
-                        "home_manager_attack_rating": home_manager_attack,
-                        "away_manager_attack_rating": away_manager_attack,
-                        "home_defensive_weakness": 10 - home_manager_attack,
-                        "away_defensive_weakness": 10 - away_manager_attack,
-                        "home_avg_possession": 65,
-                        "away_avg_possession": 45,
-                        "home_avg_shots": 16,
-                        "away_avg_shots_conceded": 14,
-                        "attacker_motivation": 7,
-                        "defender_desperation": 6,
-                        "defender_counter_threat": defender_counter_threat,
-                        "home_cautious_rating": home_cautious,
-                        "away_cautious_rating": away_cautious,
-                        "match_importance": match_importance,
-                        "home_manager_pragmatic_rating": 5,
-                        "away_manager_pragmatic_rating": 7,
-                        "h2h_low_scoring_percentage": 40,
-                        "home_under_25_percentage": 100 - match_stats["home_stats"]["over_25_percentage"],
-                        "away_under_25_percentage": 100 - match_stats["away_stats"]["over_25_percentage"],
-                        "home_injuries": home_injuries,
-                        "away_injuries": away_injuries
-                    }
+                match_options = df.apply(lambda row: f"{row['home_team']} vs {row['away_team']} ({row['date']})", axis=1).tolist()
+                selected_matches = st.multiselect("Choose matches", match_options, default=match_options[:3])
+                
+                # Process selected matches
+                if st.button("🚀 Generate Predictions", type="primary"):
+                    predictions = []
                     
-                    # Run prediction
-                    with st.spinner("Running original prediction algorithms..."):
-                        prediction = engine.predict_dominant_narrative(match_data)
-                        prediction["match"] = match_name
-                        prediction["league"] = league
-                        prediction["date"] = match_stats["date"]
+                    with st.spinner("Analyzing matches..."):
+                        for match_str in selected_matches:
+                            # Find the match in dataframe
+                            match_idx = match_options.index(match_str)
+                            match_row = df.iloc[match_idx]
+                            
+                            # Convert row to match_data dict
+                            match_data = {
+                                "home_team": match_row["home_team"],
+                                "away_team": match_row["away_team"],
+                                "date": match_row["date"],
+                                "home_position": match_row["home_position"],
+                                "away_position": match_row["away_position"],
+                                "home_odds": match_row["home_odds"],
+                                "away_odds": match_row["away_odds"],
+                                "home_form": match_row["home_form"],
+                                "away_form": match_row["away_form"],
+                                "home_manager": match_row["home_manager"],
+                                "away_manager": match_row["away_manager"],
+                                "last_h2h_goals": match_row["last_h2h_goals"],
+                                "last_h2h_btts": match_row["last_h2h_btts"],
+                                "home_attack_rating": match_row["home_attack_rating"],
+                                "away_attack_rating": match_row["away_attack_rating"],
+                                "home_defense_rating": match_row["home_defense_rating"],
+                                "away_defense_rating": match_row["away_defense_rating"],
+                                "home_press_rating": match_row["home_press_rating"],
+                                "away_press_rating": match_row["away_press_rating"],
+                                "home_possession_rating": match_row["home_possession_rating"],
+                                "away_possession_rating": match_row["away_possession_rating"],
+                                "home_pragmatic_rating": match_row["home_pragmatic_rating"],
+                                "away_pragmatic_rating": match_row["away_pragmatic_rating"]
+                            }
+                            
+                            # Get prediction
+                            prediction = engine.predict_match(match_data)
+                            predictions.append(prediction)
                     
-                    # Store in session
-                    st.session_state.current_prediction = prediction
-                    st.session_state.show_results = True
+                    # Store predictions in session state
+                    st.session_state.predictions = predictions
+                    
+            except Exception as e:
+                st.error(f"Error reading CSV: {e}")
+                st.info("Make sure your CSV has the correct columns from our template.")
+        
+        else:
+            st.info("👆 **Upload your match data CSV**")
+            st.markdown("### CSV Format Required:")
+            st.code("""match_id,league,date,home_team,away_team,home_position,away_position,home_odds,away_odds,home_form,away_form,home_manager,away_manager,last_h2h_goals,last_h2h_btts,home_manager_style,away_manager_style,home_attack_rating,away_attack_rating,home_defense_rating,away_defense_rating,home_press_rating,away_press_rating,home_possession_rating,away_possession_rating,home_pragmatic_rating,away_pragmatic_rating""")
             
-            # Display results if available
-            if 'show_results' in st.session_state and st.session_state.show_results:
-                prediction = st.session_state.current_prediction
+            # Sample data download
+            st.markdown("### 📥 Download Sample CSV")
+            sample_data = pd.DataFrame([{
+                "match_id": "EPL_2025-12-20_NEW_CHE",
+                "league": "Premier League",
+                "date": "2025-12-20",
+                "home_team": "Newcastle United",
+                "away_team": "Chelsea",
+                "home_position": 12,
+                "away_position": 4,
+                "home_odds": 2.68,
+                "away_odds": 2.57,
+                "home_form": "WWWWL",
+                "away_form": "DWWWD",
+                "home_manager": "Eddie Howe",
+                "away_manager": "Enzo Maresca",
+                "last_h2h_goals": 2,
+                "last_h2h_btts": "No",
+                "home_manager_style": "High press & transition",
+                "away_manager_style": "Possession-based & control",
+                "home_attack_rating": 9,
+                "away_attack_rating": 8,
+                "home_defense_rating": 6,
+                "away_defense_rating": 7,
+                "home_press_rating": 9,
+                "away_press_rating": 7,
+                "home_possession_rating": 7,
+                "away_possession_rating": 9,
+                "home_pragmatic_rating": 5,
+                "away_pragmatic_rating": 6
+            }])
+            
+            csv = sample_data.to_csv(index=False)
+            st.download_button(
+                label="Download Sample CSV",
+                data=csv,
+                file_name="sample_match_data.csv",
+                mime="text/csv"
+            )
+    
+    with col2:
+        st.markdown('<h3 class="sub-header">🎯 Prediction Results</h3>', unsafe_allow_html=True)
+        
+        if "predictions" in st.session_state and st.session_state.predictions:
+            predictions = st.session_state.predictions
+            
+            for i, pred in enumerate(predictions):
+                # Determine tier class
+                tier_class = ""
+                if pred["tier"] == "TIER 1 (STRONG)":
+                    tier_class = "tier-1"
+                elif pred["tier"] == "TIER 2 (MEDIUM)":
+                    tier_class = "tier-2"
+                else:
+                    tier_class = "tier-3"
                 
-                st.markdown("---")
-                st.subheader("5️⃣ PREDICTION RESULTS")
+                st.markdown(f'<div class="prediction-card {tier_class}">', unsafe_allow_html=True)
                 
-                # Main prediction card
+                # Match header
+                st.markdown(f"### **{pred['match']}**")
+                st.markdown(f"**Date:** {pred['date']} | **Tier:** {pred['tier']} | **Confidence:** {pred['confidence']}")
+                
+                # Narrative prediction
                 col_pred1, col_pred2 = st.columns(2)
                 
                 with col_pred1:
-                    # Determine color based on tier
-                    tier_colors = {
-                        "TIER 1 (HIGH CONFIDENCE)": "#28a745",
-                        "TIER 2 (MEDIUM CONFIDENCE)": "#ffc107",
-                        "TIER 3 (LOW CONFIDENCE)": "#dc3545",
-                        "TIER 4 (AVOID)": "#6c757d"
-                    }
+                    st.metric(
+                        "Predicted Narrative",
+                        pred["dominant_narrative"],
+                        delta=f"Score: {pred['dominant_score']:.1f}/100"
+                    )
                     
-                    color = tier_colors.get(prediction["tier"], "#007bff")
-                    
-                    st.markdown(f"""
-                    <div style="padding: 1.5rem; border-radius: 10px; border-left: 6px solid {color}; background-color: #f8f9fa;">
-                        <h2>🎯 {prediction['dominant_narrative']}</h2>
-                        <h1 style="color: {color};">{prediction['dominant_score']:.1f}/100</h1>
-                        <h3>{prediction['tier']}</h3>
-                        <p><strong>Confidence:</strong> {prediction['confidence_level']}</p>
-                        <p>{engine.narratives[prediction['dominant_narrative']]['description']}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    # Narrative scores visualization
+                    st.markdown("**All Narrative Scores:**")
+                    for narrative, score in pred["scores"].items():
+                        st.markdown(f"{narrative}:")
+                        st.markdown(f'<div class="score-bar"><div class="score-fill" style="width: {score}%"></div></div>', unsafe_allow_html=True)
+                        st.markdown(f"<small>{score:.1f}/100</small>", unsafe_allow_html=True)
                 
                 with col_pred2:
-                    st.markdown("**📊 Statistical Projections**")
-                    
-                    # Expected goals gauge
-                    fig = go.Figure(go.Indicator(
-                        mode = "gauge+number",
-                        value = prediction['expected_goals'],
-                        title = {'text': "Expected Goals"},
-                        domain = {'x': [0, 1], 'y': [0, 1]},
-                        gauge = {
-                            'axis': {'range': [0, 5]},
-                            'bar': {'color': "#007bff"},
-                            'steps': [
-                                {'range': [0, 2.5], 'color': "#d4edda"},
-                                {'range': [2.5, 5], 'color': "#f8d7da"}
-                            ],
-                            'threshold': {
-                                'line': {'color': "red", 'width': 4},
-                                'thickness': 0.75,
-                                'value': 2.5
-                            }
-                        }
-                    ))
-                    fig.update_layout(height=200, margin=dict(l=10, r=10, t=50, b=10))
-                    st.plotly_chart(fig, use_container_width=True)
+                    # Key stats
+                    st.markdown("**Key Statistics:**")
+                    st.write(f"**Expected Goals:** {pred['expected_goals']:.1f}")
+                    st.write(f"**BTTS Probability:** {pred['btts_probability']}%")
+                    st.write(f"**Over 2.5 Probability:** {pred['over_25_probability']}%")
+                    st.write(f"**Recommended Stake:** {pred['stake_recommendation']}")
                 
-                # All narrative scores
-                st.markdown("#### All Narrative Scores")
-                scores_df = pd.DataFrame({
-                    "Narrative": list(prediction["scores"].keys()),
-                    "Score": list(prediction["scores"].values())
-                }).sort_values("Score", ascending=False)
-                
-                # Bar chart
-                fig = go.Figure(data=[
-                    go.Bar(
-                        x=scores_df["Narrative"],
-                        y=scores_df["Score"],
-                        text=[f"{s:.1f}" for s in scores_df["Score"]],
-                        textposition='auto',
-                        marker_color=['#28a745' if s == prediction['dominant_narrative'] else '#6c757d' 
-                                    for s in scores_df["Narrative"]]
-                    )
-                ])
-                fig.update_layout(
-                    title="Narrative Scores Comparison",
-                    yaxis_title="Score",
-                    height=300
-                )
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Key insights in columns
-                col_insights1, col_insights2, col_insights3 = st.columns(3)
-                
-                with col_insights1:
-                    st.markdown("#### 📈 Probability Analysis")
-                    st.write(f"**BTTS Probability:** {prediction['btts_probability']:.1f}%")
-                    st.write(f"**{prediction['over_under_prediction']} Probability:**")
-                    st.write(f"  - Over 2.5: {prediction['over_probability']:.1f}%")
-                    st.write(f"  - Under 2.5: {prediction['under_probability']:.1f}%")
-                
-                with col_insights2:
-                    st.markdown("#### 🎯 Key Moments")
-                    for moment in prediction["key_moments"]:
-                        st.write(f"• {moment}")
-                
-                with col_insights3:
-                    st.markdown("#### ⚠️ Risk Factors")
-                    for risk in prediction["risk_factors"]:
-                        st.write(f"• {risk}")
+                # Expected flow
+                with st.expander("📈 Expected Match Flow", expanded=False):
+                    st.write(pred["expected_flow"])
                 
                 # Betting recommendations
-                st.markdown("---")
-                st.subheader("💰 BETTING RECOMMENDATIONS")
+                st.markdown("**💰 Betting Recommendations:**")
+                for j, bet in enumerate(pred["betting_markets"], 1):
+                    st.write(f"{j}. {bet}")
                 
-                narrative_info = engine.narratives[prediction['dominant_narrative']]
+                # Narrative description
+                st.info(f"**Insight:** {pred['description']}")
                 
-                col_bets1, col_bets2 = st.columns(2)
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Export predictions
+            st.markdown("---")
+            st.markdown("### 📊 Export Predictions")
+            
+            if st.button("Export to CSV"):
+                export_df = pd.DataFrame([{
+                    "Match": p["match"],
+                    "Date": p["date"],
+                    "Predicted_Narrative": p["dominant_narrative"],
+                    "Narrative_Score": p["dominant_score"],
+                    "Tier": p["tier"],
+                    "Confidence": p["confidence"],
+                    "Expected_Goals": p["expected_goals"],
+                    "BTTS_Probability": p["btts_probability"],
+                    "Over_25_Probability": p["over_25_probability"],
+                    "Stake_Recommendation": p["stake_recommendation"]
+                } for p in predictions])
                 
-                with col_bets1:
-                    st.markdown("**Recommended Bets:**")
-                    for bet in narrative_info["betting_recommendations"]:
-                        st.write(f"✅ {bet}")
-                    
-                    # Stake suggestion based on tier
-                    stake_suggestions = {
-                        "TIER 1 (HIGH CONFIDENCE)": "2-3 units (Strong bet)",
-                        "TIER 2 (MEDIUM CONFIDENCE)": "1-2 units (Good bet)",
-                        "TIER 3 (LOW CONFIDENCE)": "0.5-1 unit (Caution)",
-                        "TIER 4 (AVOID)": "No bet"
-                    }
-                    
-                    st.markdown(f"**Stake Suggestion:** {stake_suggestions.get(prediction['tier'], 'Monitor odds')}")
+                csv_export = export_df.to_csv(index=False)
                 
-                with col_bets2:
-                    st.markdown("**Expected Match Flow:**")
-                    st.info(narrative_info["expected_flow"])
-                    
-                    st.markdown("**Key Indicators:**")
-                    st.write(", ".join(narrative_info["key_indicators"]))
-                
-                # Save prediction
-                if st.button("💾 Save This Prediction"):
-                    if 'all_predictions' not in st.session_state:
-                        st.session_state.all_predictions = []
-                    st.session_state.all_predictions.append(prediction)
-                    st.success("✅ Prediction saved to history!")
-
-# -------------------------------------------------------------------
-# 4. RESULTS DISPLAY (BATCH MODE)
-# -------------------------------------------------------------------
-if st.session_state.batch_results:
-    st.markdown("---")
-    st.subheader("📊 BATCH PREDICTION RESULTS")
-    
-    results_df = pd.DataFrame(st.session_state.batch_results)
-    
-    # Summary statistics
-    col_sum1, col_sum2, col_sum3, col_sum4 = st.columns(4)
-    with col_sum1:
-        total = len(results_df)
-        st.metric("Total Matches", total)
-    with col_sum2:
-        tier1 = len(results_df[results_df['tier'].str.contains('TIER 1')])
-        st.metric("Tier 1 Predictions", tier1)
-    with col_sum3:
-        avg_score = results_df['dominant_score'].mean()
-        st.metric("Avg Score", f"{avg_score:.1f}")
-    with col_sum4:
-        top_narrative = results_df['dominant_narrative'].mode()[0]
-        st.metric("Top Narrative", top_narrative)
-    
-    # Interactive table
-    st.markdown("#### Filterable Predictions Table")
-    
-    # Filters
-    col_filt1, col_filt2, col_filt3 = st.columns(3)
-    with col_filt1:
-        selected_narratives = st.multiselect(
-            "Narratives",
-            options=results_df['dominant_narrative'].unique(),
-            default=results_df['dominant_narrative'].unique()
-        )
-    with col_filt2:
-        selected_tiers = st.multiselect(
-            "Tiers",
-            options=results_df['tier'].unique(),
-            default=results_df['tier'].unique()
-        )
-    with col_filt3:
-        selected_leagues = st.multiselect(
-            "Leagues",
-            options=results_df['league'].unique(),
-            default=results_df['league'].unique()
-        )
-    
-    # Apply filters
-    filtered_df = results_df[
-        (results_df['dominant_narrative'].isin(selected_narratives)) &
-        (results_df['tier'].isin(selected_tiers)) &
-        (results_df['league'].isin(selected_leagues))
-    ].sort_values('dominant_score', ascending=False)
-    
-    # Display table
-    display_cols = ['league', 'match', 'date', 'dominant_narrative', 'dominant_score', 'tier', 'expected_goals', 'btts_probability']
-    display_df = filtered_df[display_cols].copy()
-    
-    # Color formatting
-    def color_score(val):
-        if val >= 75:
-            return 'background-color: #d4edda; color: #155724'
-        elif val >= 60:
-            return 'background-color: #fff3cd; color: #856404'
+                st.download_button(
+                    label="Download Predictions CSV",
+                    data=csv_export,
+                    file_name=f"narrative_predictions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv"
+                )
+        
         else:
-            return 'background-color: #f8d7da; color: #721c24'
-    
-    def color_goals(val):
-        if val > 2.7:
-            return 'background-color: #f8d7da; color: #721c24'  # Red for high
-        elif val < 2.3:
-            return 'background-color: #d4edda; color: #155724'  # Green for low
-        else:
-            return 'background-color: #fff3cd; color: #856404'  # Yellow for medium
-    
-    styled_df = display_df.style\
-        .format({
-            'dominant_score': '{:.1f}',
-            'expected_goals': '{:.2f}',
-            'btts_probability': '{:.1f}%'
-        })\
-        .applymap(color_score, subset=['dominant_score'])\
-        .applymap(color_goals, subset=['expected_goals'])
-    
-    st.dataframe(styled_df, use_container_width=True, height=400)
-    
-    # Export options
-    st.markdown("#### Export Results")
-    col_exp1, col_exp2 = st.columns(2)
-    
-    with col_exp1:
-        csv = filtered_df.to_csv(index=False)
-        st.download_button(
-            label="📥 Download CSV",
-            data=csv,
-            file_name=f"predictions_{datetime.now().strftime('%Y%m%d')}.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
-    
-    with col_exp2:
-        json_data = filtered_df.to_dict(orient='records')
-        st.download_button(
-            label="📊 Download JSON",
-            data=json.dumps(json_data, indent=2),
-            file_name=f"predictions_{datetime.now().strftime('%Y%m%d')}.json",
-            mime="application/json",
-            use_container_width=True
-        )
+            st.info("👈 **Upload a CSV file and generate predictions to see results here**")
+            
+            # Show example prediction
+            st.markdown("### Example Prediction:")
+            st.markdown('<div class="prediction-card tier-1">', unsafe_allow_html=True)
+            st.markdown("#### **Manchester City vs West Ham**")
+            st.markdown("**Predicted Narrative:** BLITZKRIEG")
+            st.markdown("**Score:** 85.3/100 | **Tier:** TIER 1 | **Confidence:** High")
+            st.markdown("**Expected Flow:** Early pressure from City, breakthrough before 30 mins, opponent collapses")
+            st.markdown("**Betting Recommendations:**")
+            st.write("1. Manchester City -2.5 handicap")
+            st.write("2. Manchester City clean sheet")
+            st.write("3. First goal before 25:00")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-# -------------------------------------------------------------------
-# 5. PREDICTION HISTORY
-# -------------------------------------------------------------------
-if st.session_state.all_predictions:
-    st.markdown("---")
-    st.subheader("📈 PREDICTION HISTORY & PERFORMANCE")
-    
-    history_df = pd.DataFrame(st.session_state.all_predictions)
-    
-    # Performance metrics
-    col_hist1, col_hist2, col_hist3 = st.columns(3)
-    with col_hist1:
-        st.metric("Total Predictions", len(history_df))
-    with col_hist2:
-        avg_conf = history_df['dominant_score'].mean()
-        st.metric("Avg Confidence", f"{avg_conf:.1f}")
-    with col_hist3:
-        common_narrative = history_df['dominant_narrative'].mode()[0]
-        st.metric("Most Common", common_narrative)
-    
-    # Recent predictions
-    st.markdown("#### Recent Predictions")
-    recent = history_df[['timestamp', 'match', 'dominant_narrative', 'dominant_score', 'tier']].tail(10)
-    st.dataframe(recent, use_container_width=True)
-
-# -------------------------------------------------------------------
-# 6. FOOTER
-# -------------------------------------------------------------------
-st.markdown("---")
-st.markdown("""
-<div style="text-align: center; color: #666; padding: 1rem;">
-    <p>⚽ <strong>Narrative Predictor Pro v4.0</strong> | Original Tested Logic Integrated</p>
-    <p>Uses statistical formulas from validated system | Updated: {}</p>
-</div>
-""".format(datetime.now().strftime('%Y-%m-%d %H:%M')), unsafe_allow_html=True)
+if __name__ == "__main__":
+    main()
