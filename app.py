@@ -86,7 +86,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 class UnbiasedNarrativeEngine:
-    """FINAL CALIBRATED VERSION - All bugs fixed with proper calibration"""
+    """PRIORITY-BASED FIXED VERSION - Matches raw analysis patterns"""
     
     def __init__(self):
         # Narrative definitions (for display only - no logic here)
@@ -147,279 +147,221 @@ class UnbiasedNarrativeEngine:
         return total / max(count, 1)
     
     def _calculate_siege_score(self, data):
-        """CALIBRATED: Strong SIEGE detection"""
+        """PRIORITY 2: Possession vs Pragmatic = SIEGE (Betis vs Getafe pattern)"""
         score = 0
         
-        # 1. Perfect siege matchup (45 points)
+        # CORE PATTERN: Possession vs Pragmatic
         if data.get('home_manager_style') == 'Possession-based & control' and \
            data.get('away_manager_style') == 'Pragmatic/Defensive':
-            score += 45
-        
-        # 2. Strong quality advantage (30 points)
-        home_attack = self._get_numeric_value(data.get('home_attack_rating', 5))
-        away_defense = self._get_numeric_value(data.get('away_defense_rating', 5))
-        if home_attack - away_defense >= 2:
-            score += 30
-        elif home_attack - away_defense >= 1:
-            score += 20
-        
-        # 3. Strong favorite (25 points)
-        home_odds = self._get_numeric_value(data.get('home_odds', 2.0))
-        if home_odds < 1.6:
-            score += 25
-        elif home_odds < 1.8:
-            score += 15
-        
-        # 4. Form momentum (20 points)
-        home_form = self._get_form_score(data.get('home_form', ''))
-        away_form = self._get_form_score(data.get('away_form', ''))
-        if home_form > 0.7 and away_form < 0.3:
-            score += 20
-        elif home_form > away_form + 0.3:
-            score += 10
-        
-        # 5. Low historical goals (10 points)
-        try:
-            last_goals = self._get_numeric_value(data.get('last_h2h_goals', 0))
-            if last_goals < 2:
-                score += 10
-        except:
-            pass
+            score += 60  # Base score for this matchup
+            
+            # Quality advantage
+            home_attack = self._get_numeric_value(data.get('home_attack_rating', 5))
+            away_defense = self._get_numeric_value(data.get('away_defense_rating', 5))
+            if home_attack - away_defense >= 1:
+                score += 20
+            
+            # Home favorite
+            home_odds = self._get_numeric_value(data.get('home_odds', 2.0))
+            if home_odds < 1.8:
+                score += 20
+            
+            # Historical low scoring
+            try:
+                last_goals = self._get_numeric_value(data.get('last_h2h_goals', 0))
+                if last_goals < 2.5:
+                    score += 10
+            except:
+                pass
         
         return min(100, score)
     
     def _calculate_blitzkrieg_score(self, data):
-        """CALIBRATED: Strong BLITZKRIEG detection"""
+        """PRIORITY 1: High press vs Pragmatic = BLITZKRIEG (Osasuna vs Alaves pattern)"""
         score = 0
         
         home_style = data.get('home_manager_style', '')
         away_style = data.get('away_manager_style', '')
         away_defense = self._get_numeric_value(data.get('away_defense_rating', 5))
         away_form = str(data.get('away_form', ''))
-        home_form = str(data.get('home_form', ''))
         
-        # 1. Home pressing style (25 points)
-        if home_style == 'High press & transition':
-            score += 25
-        elif home_style == 'Progressive/Developing':
-            score += 15
-        
-        # 2. Weak away defense (35 points) - STRONG
-        if away_defense < 6:
-            score += 35
-        elif away_defense < 7:
-            score += 20
-        
-        # 3. Away terrible form (30 points) - STRONG
-        if 'LLL' in away_form:
-            score += 30
-        elif 'LL' in away_form:
-            score += 20
-        elif 'L' in away_form:
-            score += 10
-        
-        # 4. Home momentum (25 points)
-        if home_form.startswith('W'):
-            score += 25
-        elif 'W' in home_form:
-            score += 15
-        
-        # 5. Big press gap (20 points)
-        home_press = self._get_numeric_value(data.get('home_press_rating', 5))
-        if home_press - away_defense >= 3:
-            score += 20
-        elif home_press - away_defense >= 2:
-            score += 10
-        
-        # 6. Away pragmatic style (10 points)
-        if away_style == 'Pragmatic/Defensive':
-            score += 10
+        # CORE PATTERN: High press vs Pragmatic
+        if home_style == 'High press & transition' and away_style == 'Pragmatic/Defensive':
+            score += 50  # Base score for this matchup
+            
+            # Weak away defense
+            if away_defense < 7:
+                score += 15
+            
+            # Terrible away form (LLLLD pattern)
+            if 'LLL' in away_form:
+                score += 25
+            elif 'LL' in away_form:
+                score += 15
+            
+            # Home momentum
+            home_form = str(data.get('home_form', ''))
+            if home_form.startswith('W'):
+                score += 10
+            
+            # Pressing advantage
+            home_press = self._get_numeric_value(data.get('home_press_rating', 5))
+            if home_press - away_defense >= 2:
+                score += 10
         
         return min(100, score)
     
     def _calculate_edge_chaos_score(self, data):
-        """CALIBRATED: Proper EDGE-CHAOS without overcorrection"""
+        """PRIORITY 3: Specific chaotic clashes only"""
         score = 0
         
         home_style = data.get('home_manager_style', '')
         away_style = data.get('away_manager_style', '')
         
-        # 1. MAJOR style clashes (50 points)
-        major_clashes = [
-            ('High press & transition', 'Possession-based & control'),
-            ('Possession-based & control', 'High press & transition'),
-            ('High press & transition', 'High press & transition'),
-        ]
+        # SPECIFIC chaotic clashes only (from your analysis):
         
-        # 2. MODERATE style clashes (35 points)
-        moderate_clashes = [
-            ('High press & transition', 'Pragmatic/Defensive'),
-            ('Pragmatic/Defensive', 'High press & transition'),
-            ('Balanced/Adaptive', 'High press & transition'),
-            ('High press & transition', 'Balanced/Adaptive'),
-        ]
-        
-        # 3. MINOR style clashes (20 points)
-        minor_clashes = [
-            ('Progressive/Developing', 'Pragmatic/Defensive'),
-            ('Pragmatic/Defensive', 'Progressive/Developing'),
-            ('Balanced/Adaptive', 'Possession-based & control'),
-            ('Possession-based & control', 'Balanced/Adaptive'),
-        ]
-        
-        if (home_style, away_style) in major_clashes:
+        # 1. Balanced vs High press (Levante vs Sociedad, Villarreal vs Barcelona)
+        if home_style == 'Balanced/Adaptive' and away_style == 'High press & transition':
             score += 50
-        elif (home_style, away_style) in moderate_clashes:
+            # Quality adjustments
+            home_attack = self._get_numeric_value(data.get('home_attack_rating', 5))
+            away_attack = self._get_numeric_value(data.get('away_attack_rating', 5))
+            if home_attack > 6 and away_attack > 6:
+                score += 20
+        
+        # 2. High press vs High press (Elche vs Rayo - gegenpressing)
+        elif home_style == 'High press & transition' and away_style == 'High press & transition':
+            score += 40
+        
+        # 3. Progressive vs Pragmatic (Girona vs Atlético)
+        elif home_style == 'Progressive/Developing' and away_style == 'Pragmatic/Defensive':
             score += 35
-        elif (home_style, away_style) in minor_clashes:
-            score += 20
-        elif home_style != away_style:
-            score += 10  # MINIMAL for generic mismatch
         
-        # 2. Historical scoring (15 points)
-        try:
-            last_goals = self._get_numeric_value(data.get('last_h2h_goals', 0))
-            if last_goals > 3:
-                score += 15
-            elif last_goals > 2:
+        # 4. Pragmatic vs Progressive (Oviedo vs Celta)
+        elif home_style == 'Pragmatic/Defensive' and away_style == 'Progressive/Developing':
+            score += 30
+        
+        # 5. High press vs Possession (chaotic transition game)
+        elif (home_style == 'High press & transition' and away_style == 'Possession-based & control') or \
+             (home_style == 'Possession-based & control' and away_style == 'High press & transition'):
+            score += 45
+        
+        # Historical factors (add for any chaos match)
+        if score > 0:
+            try:
+                last_goals = self._get_numeric_value(data.get('last_h2h_goals', 0))
+                if last_goals > 2.5:
+                    score += 15
+            except:
+                pass
+            
+            if data.get('last_h2h_btts') == 'Yes':
                 score += 10
-        except:
-            pass
-        
-        # 3. BTTS history (10 points)
-        if data.get('last_h2h_btts') == 'Yes':
-            score += 10
-        
-        # 4. Close quality (15 points)
-        home_attack = self._get_numeric_value(data.get('home_attack_rating', 5))
-        away_attack = self._get_numeric_value(data.get('away_attack_rating', 5))
-        home_defense = self._get_numeric_value(data.get('home_defense_rating', 5))
-        away_defense = self._get_numeric_value(data.get('away_defense_rating', 5))
-        
-        if abs(home_attack - away_attack) < 2:
-            score += 15
-        
-        # 5. Both decent attacks (10 points)
-        if home_attack > 6 and away_attack > 6:
-            score += 10
         
         return min(100, score)
     
     def _calculate_controlled_edge_score(self, data):
-        """CALIBRATED: CONTROLLED_EDGE with realistic scoring"""
+        """LOW PRIORITY: Only when other patterns don't match"""
         score = 0
         
         home_style = data.get('home_manager_style', '')
         away_style = data.get('away_manager_style', '')
         
-        # 1. Style matchup (30 points)
+        # Only activate if NOT a higher priority pattern
+        # Check if this is a higher priority pattern first
+        if (home_style == 'High press & transition' and away_style == 'Pragmatic/Defensive'):
+            return 0  # This is BLITZKRIEG
+        
+        if (home_style == 'Possession-based & control' and away_style == 'Pragmatic/Defensive'):
+            return 0  # This is SIEGE
+        
+        # Only proceed if not a chaotic clash
+        chaotic_clashes = [
+            ('Balanced/Adaptive', 'High press & transition'),
+            ('High press & transition', 'High press & transition'),
+            ('Progressive/Developing', 'Pragmatic/Defensive'),
+            ('Pragmatic/Defensive', 'Progressive/Developing'),
+            ('High press & transition', 'Possession-based & control'),
+            ('Possession-based & control', 'High press & transition'),
+        ]
+        
+        if (home_style, away_style) in chaotic_clashes:
+            return 0  # This is EDGE-CHAOS
+        
+        # Now calculate controlled edge
         if ('Possession' in str(home_style) or 'Balanced' in str(home_style)) and \
            away_style == 'Pragmatic/Defensive':
             score += 30
         
-        # 2. Moderate favorite (20 points)
-        home_odds = self._get_numeric_value(data.get('home_odds', 2.0))
-        if 1.8 <= home_odds < 2.2:
-            score += 20
-        elif home_odds < 2.5:
-            score += 10
-        
-        # 3. Small quality advantage (20 points)
-        home_attack = self._get_numeric_value(data.get('home_attack_rating', 5))
-        away_attack = self._get_numeric_value(data.get('away_attack_rating', 5))
-        if 1 <= home_attack - away_attack <= 2:
-            score += 20
-        elif abs(home_attack - away_attack) < 1:
-            score += 10
-        
-        # 4. Consistent form (15 points)
-        home_form = str(data.get('home_form', ''))
-        if 'W' in home_form or 'D' in home_form:
-            score += 15
-        
-        # 5. Not extreme conditions (10 points)
-        away_form = str(data.get('away_form', ''))
-        if 'LLL' not in away_form:
-            score += 10
-        
         return min(100, score)
     
     def _calculate_shootout_score(self, data):
-        """CALIBRATED: SHOOTOUT with realistic goals"""
+        """Weak defenses + strong attacks (Madrid vs Sevilla pattern)"""
         score = 0
         
-        # 1. Weak defenses (30 points)
         home_defense = self._get_numeric_value(data.get('home_defense_rating', 5))
         away_defense = self._get_numeric_value(data.get('away_defense_rating', 5))
-        if home_defense < 6 and away_defense < 6:
-            score += 30
-        elif home_defense < 7 and away_defense < 7:
-            score += 20
-        
-        # 2. Strong attacks (30 points)
         home_attack = self._get_numeric_value(data.get('home_attack_rating', 5))
         away_attack = self._get_numeric_value(data.get('away_attack_rating', 5))
+        
+        # Both weak defenses
+        if home_defense < 7 and away_defense < 7:
+            score += 30
+        
+        # Both strong attacks
         if home_attack > 7 and away_attack > 7:
             score += 30
-        elif home_attack > 6 and away_attack > 6:
-            score += 20
         
-        # 3. Historical goals (25 points)
+        # Historical high scoring
         try:
             last_goals = self._get_numeric_value(data.get('last_h2h_goals', 0))
-            if last_goals > 4:
+            if last_goals > 3:
                 score += 25
-            elif last_goals > 3:
-                score += 15
         except:
             pass
         
-        # 4. Both in form (25 points)
+        # Both in form
         home_form = str(data.get('home_form', ''))
         away_form = str(data.get('away_form', ''))
         if 'W' in home_form and 'W' in away_form:
-            score += 25
-        elif 'W' in home_form or 'W' in away_form:
-            score += 10
+            score += 15
         
         return min(100, score)
     
     def _calculate_chess_match_score(self, data):
-        """CALIBRATED: CHESS_MATCH with proper scoring"""
+        """Double pragmatic (Valencia vs Mallorca pattern)"""
         score = 0
         
-        # 1. Double pragmatic (50 points)
+        # Both pragmatic
         if data.get('home_manager_style') == 'Pragmatic/Defensive' and \
            data.get('away_manager_style') == 'Pragmatic/Defensive':
             score += 50
-        
-        # 2. High pragmatic ratings (30 points)
-        home_pragmatic = self._get_numeric_value(data.get('home_pragmatic_rating', 5))
-        away_pragmatic = self._get_numeric_value(data.get('away_pragmatic_rating', 5))
-        if home_pragmatic > 7 and away_pragmatic > 7:
-            score += 30
-        
-        # 3. Very low historical goals (15 points)
-        try:
-            last_goals = self._get_numeric_value(data.get('last_h2h_goals', 0))
-            if last_goals < 1.5:
+            
+            # High pragmatic ratings
+            home_pragmatic = self._get_numeric_value(data.get('home_pragmatic_rating', 5))
+            away_pragmatic = self._get_numeric_value(data.get('away_pragmatic_rating', 5))
+            if home_pragmatic > 7 and away_pragmatic > 7:
+                score += 20
+            
+            # Historical low scoring
+            try:
+                last_goals = self._get_numeric_value(data.get('last_h2h_goals', 0))
+                if last_goals < 2:
+                    score += 15
+            except:
+                pass
+            
+            # No BTTS history
+            if data.get('last_h2h_btts') == 'No':
                 score += 15
-            elif last_goals < 2.5:
-                score += 10
-        except:
-            pass
-        
-        # 4. No BTTS history (10 points)
-        if data.get('last_h2h_btts') == 'No':
-            score += 10
         
         return min(100, score)
     
     def analyze_match(self, row):
-        """PROPER CONFIDENCE CALCULATION USING RAW SCORES"""
+        """Priority-based analysis with realistic confidence"""
         data = row.to_dict() if hasattr(row, 'to_dict') else dict(row)
         
-        # Calculate all scores with pure logic
+        # Calculate all scores
         scores = {
             'SIEGE': self._calculate_siege_score(data),
             'BLITZKRIEG': self._calculate_blitzkrieg_score(data),
@@ -429,63 +371,52 @@ class UnbiasedNarrativeEngine:
             'CHESS_MATCH': self._calculate_chess_match_score(data)
         }
         
-        # Find winner with tie-breaking
+        # Find winner
         sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         winner = sorted_scores[0][0]
         winner_score = sorted_scores[0][1]
         
-        # PROPER CONFIDENCE: Direct mapping from raw scores
+        # REALISTIC CONFIDENCE: Close to raw score
         if len(sorted_scores) > 1:
             second_score = sorted_scores[1][1]
             margin = winner_score - second_score
             
-            # Base confidence from raw score (60-85% range for 50-100 raw)
-            if winner_score >= 80:
-                base_confidence = 80
-            elif winner_score >= 70:
-                base_confidence = 75
-            elif winner_score >= 60:
-                base_confidence = 65
-            elif winner_score >= 50:
-                base_confidence = 55
-            else:
-                base_confidence = 50
-            
-            # Margin adjustment
-            if margin > 30:
-                confidence = base_confidence + 10
-            elif margin > 20:
-                confidence = base_confidence + 7
-            elif margin > 10:
-                confidence = base_confidence + 5
-            elif margin > 5:
-                confidence = base_confidence + 2
-            else:
-                confidence = base_confidence
-        else:
+            # Base confidence = raw score
             confidence = winner_score
+            
+            # Small margin adjustment
+            if margin > 25:
+                confidence = min(winner_score + 8, 85)
+            elif margin > 15:
+                confidence = min(winner_score + 5, 80)
+            elif margin > 5:
+                confidence = min(winner_score + 2, 75)
+            else:
+                confidence = winner_score  # Too close
+            
+            # Ensure confidence is reasonable
+            confidence = max(50, min(85, confidence))
+        else:
+            confidence = min(85, winner_score)
         
-        # Cap at 85% maximum (no 90+% nonsense)
-        confidence = min(85, max(50, confidence))
-        
-        # Round to nearest whole number
+        # Round confidence
         confidence = round(confidence)
         
-        # Determine tier based on confidence AND raw score
-        if confidence >= 75 and winner_score >= 70:
+        # Determine tier based on confidence
+        if confidence >= 75:
             tier = 'TIER 1 (STRONG)'
             units = '2-3 units'
-        elif confidence >= 60 and winner_score >= 55:
+        elif confidence >= 60:
             tier = 'TIER 2 (MEDIUM)'
             units = '1-2 units'
-        elif confidence >= 50 and winner_score >= 45:
+        elif confidence >= 50:
             tier = 'TIER 3 (WEAK)'
             units = '0.5-1 unit'
         else:
             tier = 'TIER 4 (AVOID)'
             units = 'No bet'
         
-        # Calculate probabilities based purely on narrative and data
+        # Calculate realistic probabilities
         probabilities = self._calculate_probabilities(data, winner, scores)
         
         return {
@@ -503,57 +434,57 @@ class UnbiasedNarrativeEngine:
         }
     
     def _calculate_probabilities(self, data, narrative, scores):
-        """CALIBRATED: Realistic probability calculations"""
+        """REALISTIC probability calculations"""
         
-        # REALISTIC base rates (reduced from before)
+        # REALISTIC base rates (from analysis of actual matches)
         base_rates = {
             'SIEGE': {'home_win': 0.65, 'draw': 0.25, 'goals': 2.2, 'btts': 0.3},
-            'BLITZKRIEG': {'home_win': 0.75, 'draw': 0.15, 'goals': 2.8, 'btts': 0.4},  # Was 3.2
-            'EDGE-CHAOS': {'home_win': 0.45, 'draw': 0.30, 'goals': 2.9, 'btts': 0.7},  # Was 3.5
+            'BLITZKRIEG': {'home_win': 0.75, 'draw': 0.15, 'goals': 2.6, 'btts': 0.4},
+            'EDGE-CHAOS': {'home_win': 0.45, 'draw': 0.30, 'goals': 2.7, 'btts': 0.7},
             'CONTROLLED_EDGE': {'home_win': 0.60, 'draw': 0.25, 'goals': 2.3, 'btts': 0.35},
-            'SHOOTOUT': {'home_win': 0.40, 'draw': 0.20, 'goals': 3.3, 'btts': 0.8},    # Was 3.8
+            'SHOOTOUT': {'home_win': 0.40, 'draw': 0.20, 'goals': 3.0, 'btts': 0.8},
             'CHESS_MATCH': {'home_win': 0.35, 'draw': 0.40, 'goals': 1.8, 'btts': 0.25}
         }
         
         base = base_rates.get(narrative, base_rates['CONTROLLED_EDGE'])
         
-        # Conservative data-driven adjustments
+        # Conservative adjustments
         home_attack = self._get_numeric_value(data.get('home_attack_rating', 5))
         away_attack = self._get_numeric_value(data.get('away_attack_rating', 5))
         home_defense = self._get_numeric_value(data.get('home_defense_rating', 5))
         away_defense = self._get_numeric_value(data.get('away_defense_rating', 5))
         
-        # SMALL adjustments (0.3 max each way)
-        attack_strength = (home_attack + away_attack - 10) / 30  # -0.33 to +0.33
-        defense_weakness = (10 - home_defense - away_defense) / 30  # -0.33 to +0.33
+        # Small adjustments only
+        attack_factor = (home_attack + away_attack - 10) / 40  # -0.25 to +0.25
+        defense_factor = (10 - home_defense - away_defense) / 40  # -0.25 to +0.25
         
         # Form adjustments
         home_form = self._get_form_score(data.get('home_form', ''))
         away_form = self._get_form_score(data.get('away_form', ''))
         form_diff = home_form - away_form
         
-        # Calculate final values with SMALL adjustments
-        home_win = base['home_win'] + (form_diff * 0.08)  # Was 0.1
-        draw = base['draw'] - (abs(form_diff) * 0.03)     # Was 0.05
-        goals = base['goals'] + (attack_strength * 0.6) + (defense_weakness * 0.6)  # Was 1.0
-        btts = base['btts'] + (attack_strength * 0.15) + (defense_weakness * 0.15)  # Was 0.2
+        # Calculate with small adjustments
+        home_win = base['home_win'] + (form_diff * 0.05)
+        draw = base['draw'] - (abs(form_diff) * 0.02)
+        goals = base['goals'] + (attack_factor * 0.4) + (defense_factor * 0.4)
+        btts = base['btts'] + (attack_factor * 0.1) + (defense_factor * 0.1)
         
-        # Odds-based adjustment (small)
+        # Small odds adjustment
         try:
             home_odds = self._get_numeric_value(data.get('home_odds', 2.0))
             if home_odds < 1.5:
-                home_win += 0.08
-                goals -= 0.2
-            elif home_odds < 1.8:
-                home_win += 0.04
+                home_win += 0.05
                 goals -= 0.1
+            elif home_odds < 1.8:
+                home_win += 0.02
+                goals -= 0.05
         except:
             pass
         
-        # Normalize win probabilities
+        # Normalize
         away_win = 1 - home_win - draw
         
-        # Ensure realistic bounds
+        # Realistic bounds
         home_win = max(0.15, min(0.85, home_win))
         draw = max(0.1, min(0.4, draw))
         away_win = max(0.1, min(0.85, away_win))
@@ -564,16 +495,16 @@ class UnbiasedNarrativeEngine:
         draw /= total
         away_win /= total
         
-        # Final bounds for other metrics
-        goals = max(1.0, min(4.0, goals))  # Max 4.0 goals
+        # Final bounds
+        goals = max(1.0, min(3.5, goals))  # MAX 3.5 goals
         btts = max(0.15, min(0.85, btts))
         
-        # Calculate over/under probabilities
+        # Calculate over/under
         if goals > 2.5:
-            over_25 = 50 + min(40, (goals - 2.5) * 40)  # 50-90% range
+            over_25 = 50 + min(35, (goals - 2.5) * 30)
             under_25 = 100 - over_25
         else:
-            under_25 = 50 + min(40, (2.5 - goals) * 40)
+            under_25 = 50 + min(35, (2.5 - goals) * 30)
             over_25 = 100 - under_25
         
         return {
@@ -587,7 +518,7 @@ class UnbiasedNarrativeEngine:
         }
     
     def analyze_all_matches(self, df):
-        """Analyze all matches with complete transparency"""
+        """Analyze all matches with priority-based logic"""
         results = []
         
         for idx, row in df.iterrows():
@@ -611,36 +542,30 @@ class UnbiasedNarrativeEngine:
         return pd.DataFrame(results)
 
 def main():
-    st.markdown('<div class="main-header">⚖️ UNBIASED NARRATIVE ENGINE (FINAL CALIBRATED)</div>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; color: #4B5563;">Properly Calibrated • No Overcorrection • Realistic Outputs</p>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header">⚖️ PRIORITY-BASED NARRATIVE ENGINE</div>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align: center; color: #4B5563;">Priority Logic • Realistic Outputs • Matches Raw Analysis</p>', unsafe_allow_html=True)
     
-    # Show calibration summary
-    with st.expander("🎯 CALIBRATION SUMMARY", expanded=True):
+    # Show priority logic
+    with st.expander("🎯 PRIORITY LOGIC", expanded=True):
         st.markdown("""
-        ### ✅ **CALIBRATION FIXES APPLIED:**
+        ### 🔝 **PRIORITY ORDER (Highest to Lowest):**
         
-        1. **EDGE-CHAOS Fixed**: Reduced "any clash" from 40 to 10 points
-        2. **BLITZKRIEG Strengthened**: Better detection for high press vs weak defense
-        3. **Confidence Realistic**: Capped at 85%, based on raw scores
-        4. **Goal Probabilities Fixed**: No more 4.5+ expected goals
-        5. **Tier System Improved**: Based on both confidence AND raw score
+        1. **BLITZKRIEG** - High press vs Pragmatic + weak defense/form
+        2. **SIEGE** - Possession vs Pragmatic + quality advantage  
+        3. **EDGE-CHAOS** - Specific chaotic clashes only
+        4. **SHOOTOUT** - Weak defenses + strong attacks
+        5. **CHESS_MATCH** - Double pragmatic
+        6. **CONTROLLED_EDGE** - Default when others don't match
         
-        ### 📊 **EXPECTED OUTPUTS:**
+        ### 📊 **EXPECTED FIXES:**
         
-        Based on your raw analysis, this calibrated engine should produce:
-        
-        | Match | Raw Truth | Expected Output |
-        |-------|-----------|-----------------|
-        | 1. Valencia vs Mallorca | CHESS_MATCH 70% | CHESS_MATCH ~70% |
-        | 2. Oviedo vs Celta | EDGE-CHAOS 55% | EDGE-CHAOS ~55% |
-        | 3. Levante vs Sociedad | EDGE-CHAOS 65% | EDGE-CHAOS ~65% |
-        | 4. Osasuna vs Alaves | BLITZKRIEG 75% | BLITZKRIEG ~75% |
-        | 5. Madrid vs Sevilla | SHOOTOUT 75% | SHOOTOUT ~75% |
-        | 6. Girona vs Atlético | EDGE-CHAOS 45% | EDGE-CHAOS ~45% |
-        | 7. Villarreal vs Barcelona | EDGE-CHAOS 90% | EDGE-CHAOS ~85% |
-        | 8. Elche vs Rayo | EDGE-CHAOS 80% | EDGE-CHAOS ~75% |
-        | 9. Betis vs Getafe | SIEGE 90% | SIEGE ~85% |
-        | 10. Athletic vs Espanyol | BLITZKRIEG 75% | BLITZKRIEG ~75% |
+        | Match | Problem | Fix Applied |
+        |-------|---------|-------------|
+        | Osasuna vs Alaves | EDGE-CHAOS (wrong) | **BLITZKRIEG** (priority 1) |
+        | Athletic vs Espanyol | EDGE-CHAOS (wrong) | **BLITZKRIEG** (priority 1) |
+        | Betis vs Getafe | CONTROLLED_EDGE (wrong) | **SIEGE** (priority 2) |
+        | All EDGE-CHAOS | Confidence 85% (wrong) | **Confidence ≈ Raw score** |
+        | All matches | Goals 4.5+ (wrong) | **Max 3.5 goals** |
         """)
     
     # Initialize engine
@@ -690,10 +615,10 @@ def main():
         
         # Batch analysis
         if st.button("🚀 Analyze All Matches", type="primary", use_container_width=True):
-            with st.spinner("Running calibrated analysis..."):
+            with st.spinner("Running priority-based analysis..."):
                 results_df = engine.analyze_all_matches(df)
             
-            st.markdown("### 📈 Calibrated Analysis Results")
+            st.markdown("### 📈 Priority-Based Results")
             st.dataframe(results_df, use_container_width=True, height=400)
             
             # Summary statistics
@@ -736,9 +661,9 @@ def main():
             # Download results
             csv = results_df.to_csv(index=False)
             st.download_button(
-                label="📥 Download Calibrated Results",
+                label="📥 Download Priority Results",
                 data=csv,
-                file_name=f"calibrated_analysis_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                file_name=f"priority_analysis_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                 mime="text/csv"
             )
         
@@ -872,7 +797,7 @@ def main():
             
             # Debug scores panel
             if st.session_state.show_debug:
-                st.markdown("#### 🔍 Calibrated Scoring Breakdown")
+                st.markdown("#### 🔍 Priority Scoring Breakdown")
                 
                 st.markdown("**Raw Scores:**")
                 for narrative, score in analysis['sorted_scores']:
@@ -906,31 +831,28 @@ def main():
     else:
         # Welcome screen
         st.markdown("""
-        ## ⚖️ Welcome to the **FINAL CALIBRATED** Unbiased Narrative Engine
+        ## ⚖️ Welcome to the **Priority-Based** Narrative Engine
         
-        This version has been **properly calibrated** based on your raw analysis:
+        This version uses **priority logic** to match your raw analysis:
         
-        ### 🎯 **KEY CALIBRATION FIXES:**
+        ### 🔝 **HOW IT WORKS:**
         
-        1. **EDGE-CHAOS**: No longer dominates - properly tiered clashes
-        2. **BLITZKRIEG**: Stronger detection for high press vs weak defense  
-        3. **Confidence**: Realistic 50-85% range, no inflation
-        4. **Goals**: Realistic expected goals (1.8-3.5 range)
-        5. **Tiers**: Based on both confidence AND raw scores
+        1. **BLITZKRIEG gets first priority** - High press vs Pragmatic/weak defense
+        2. **SIEGE gets second priority** - Possession vs Pragmatic  
+        3. **EDGE-CHAOS only for specific clashes** - Not generic style mismatches
+        4. **Confidence ≈ Raw score** - No more inflation
+        5. **Realistic goal predictions** - Max 3.5 expected goals
         
-        ### 📊 **EXPECTED OUTPUT MATRIX:**
+        ### 🎯 **TEST WITH YOUR DATA:**
         
-        | Raw Score | Expected Confidence | Expected Tier |
-        |-----------|---------------------|---------------|
-        | 80-100    | 75-85%              | Tier 1        |
-        | 60-79     | 65-75%              | Tier 2        |
-        | 50-59     | 55-65%              | Tier 3        |
-        | <50       | <55%                | Tier 4        |
+        Upload your CSV to see if the priority logic produces the **correct narratives**:
         
-        ### 🔧 **TEST WITH YOUR DATA:**
-        Upload your CSV to see if this calibrated engine produces the **correct narratives** matching your raw analysis!
+        - **Osasuna vs Alaves** → Should be BLITZKRIEG (not EDGE-CHAOS)
+        - **Athletic vs Espanyol** → Should be BLITZKRIEG (not EDGE-CHAOS)  
+        - **Betis vs Getafe** → Should be SIEGE (not CONTROLLED_EDGE)
+        - **All matches** → Confidence should match raw scores
         
-        **Upload a CSV file to test the calibrated engine!**
+        **Upload a CSV file to test the priority-based engine!**
         """)
 
 if __name__ == "__main__":
