@@ -3,12 +3,13 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from datetime import datetime
 import warnings
 warnings.filterwarnings('ignore')
 
 # Page configuration
 st.set_page_config(
-    page_title="⚡ Narrative Intelligence Engine",
+    page_title="⚖️ Unbiased Narrative Engine",
     page_icon="⚽",
     layout="wide"
 )
@@ -58,15 +59,38 @@ st.markdown("""
         margin: 8px 0;
         border-left: 4px solid #3B82F6;
     }
+    
+    .debug-panel {
+        background: #F3F4F6;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 10px 0;
+        font-family: monospace;
+        font-size: 0.9rem;
+    }
+    
+    .score-bar {
+        height: 20px;
+        background: #E5E7EB;
+        border-radius: 10px;
+        margin: 5px 0;
+        overflow: hidden;
+    }
+    
+    .score-fill {
+        height: 100%;
+        border-radius: 10px;
+        transition: width 0.5s;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-class NarrativeIntelligenceEngine:
-    """Pure Logic Narrative Engine"""
+class UnbiasedNarrativeEngine:
+    """Completely Unbiased Engine - Pure Data Logic Only"""
     
     def __init__(self):
-        # Narrative definitions
-        self.narrative_rules = {
+        # Narrative definitions (for display only - no logic here)
+        self.narrative_info = {
             'SIEGE': {
                 'description': 'Dominant possession team vs defensive bus. Low scoring, methodical breakthrough.',
                 'markets': ['Under 2.5 goals', 'BTTS: No', 'Favorite win to nil', 'Few corners total'],
@@ -99,262 +123,15 @@ class NarrativeIntelligenceEngine:
             }
         }
         
-    def analyze_match(self, row):
-        """Analyze a single match and determine its narrative"""
-        # Convert row to dict for easier access
-        data = row.to_dict() if hasattr(row, 'to_dict') else dict(row)
-        
-        # Calculate scores for each narrative
-        scores = {}
-        
-        # SIEGE scoring
-        siege_score = 0
-        if data.get('home_manager_style') == 'Possession-based & control' and data.get('away_manager_style') == 'Pragmatic/Defensive':
-            siege_score += 30
-        if data.get('home_odds', 2.0) < 1.5:
-            siege_score += 20
-        if data.get('home_attack_rating', 5) - data.get('away_defense_rating', 5) > 2:
-            siege_score += 20
-        if isinstance(data.get('home_form'), str) and 'W' in data['home_form']:
-            siege_score += 15
-        if isinstance(data.get('away_form'), str) and 'L' in data['away_form']:
-            siege_score += 15
-        scores['SIEGE'] = min(100, siege_score)
-        
-        # BLITZKRIEG scoring
-        blitzkrieg_score = 0
-        if data.get('home_manager_style') == 'High press & transition':
-            blitzkrieg_score += 25
-        if data.get('away_defense_rating', 5) < 6:
-            blitzkrieg_score += 20
-        if isinstance(data.get('home_form'), str) and data['home_form'][:2] == 'WW':
-            blitzkrieg_score += 20
-        if isinstance(data.get('away_form'), str) and 'L' in data['away_form']:
-            blitzkrieg_score += 15
-        if data.get('home_press_rating', 5) - data.get('away_defense_rating', 5) > 3:
-            blitzkrieg_score += 20
-        scores['BLITZKRIEG'] = min(100, blitzkrieg_score)
-        
-        # EDGE-CHAOS scoring
-        edge_chaos_score = 0
-        home_style = data.get('home_manager_style', '')
-        away_style = data.get('away_manager_style', '')
-        
-        if (home_style == 'High press & transition' and away_style == 'Possession-based & control') or \
-           (away_style == 'High press & transition' and home_style == 'Possession-based & control'):
-            edge_chaos_score += 30
-        
+    def _get_numeric_value(self, value, default=5):
+        """Safely convert to numeric"""
         try:
-            if data.get('last_h2h_goals', 0) > 3:
-                edge_chaos_score += 25
+            return float(value)
         except:
-            pass
-            
-        if data.get('last_h2h_btts') == 'Yes':
-            edge_chaos_score += 20
-            
-        if abs(data.get('home_attack_rating', 5) - data.get('away_attack_rating', 5)) < 2:
-            edge_chaos_score += 15
-            
-        if data.get('home_attack_rating', 5) > 7 and data.get('away_attack_rating', 5) > 7:
-            edge_chaos_score += 10
-            
-        scores['EDGE-CHAOS'] = min(100, edge_chaos_score)
-        
-        # CONTROLLED_EDGE scoring
-        controlled_score = 0
-        if 'Possession' in str(home_style) or 'Balanced' in str(home_style):
-            if away_style == 'Pragmatic/Defensive':
-                controlled_score += 30
-                
-        if data.get('home_odds', 2.0) < 2.0:
-            controlled_score += 20
-            
-        if data.get('home_attack_rating', 5) > data.get('away_attack_rating', 5):
-            controlled_score += 20
-            
-        if isinstance(data.get('home_form'), str) and ('W' in data['home_form'] or 'D' in data['home_form']):
-            controlled_score += 15
-            
-        if isinstance(data.get('home_form'), str) and 'LLL' not in data['home_form']:
-            controlled_score += 15
-            
-        scores['CONTROLLED_EDGE'] = min(100, controlled_score)
-        
-        # SHOOTOUT scoring
-        shootout_score = 0
-        if data.get('home_defense_rating', 5) < 6 and data.get('away_defense_rating', 5) < 6:
-            shootout_score += 25
-            
-        if data.get('home_attack_rating', 5) > 7 and data.get('away_attack_rating', 5) > 7:
-            shootout_score += 25
-            
-        try:
-            if data.get('last_h2h_goals', 0) > 4:
-                shootout_score += 25
-        except:
-            pass
-            
-        if isinstance(data.get('home_form'), str) and 'W' in data['home_form']:
-            if isinstance(data.get('away_form'), str) and 'W' in data['away_form']:
-                shootout_score += 25
-                
-        scores['SHOOTOUT'] = min(100, shootout_score)
-        
-        # CHESS_MATCH scoring
-        chess_score = 0
-        if home_style == 'Pragmatic/Defensive' and away_style == 'Pragmatic/Defensive':
-            chess_score += 40
-            
-        if data.get('home_pragmatic_rating', 5) > 7 and data.get('away_pragmatic_rating', 5) > 7:
-            chess_score += 30
-            
-        try:
-            if data.get('last_h2h_goals', 0) < 2:
-                chess_score += 15
-        except:
-            pass
-            
-        if data.get('last_h2h_btts') == 'No':
-            chess_score += 15
-            
-        scores['CHESS_MATCH'] = min(100, chess_score)
-        
-        # Determine primary narrative
-        primary_narrative = max(scores, key=scores.get)
-        confidence = scores[primary_narrative]
-        
-        # Determine tier based on confidence
-        if confidence >= 70:
-            tier = 'TIER 1 (STRONG)'
-            units = '2-3 units'
-        elif confidence >= 50:
-            tier = 'TIER 2 (MEDIUM)'
-            units = '1-2 units'
-        elif confidence >= 30:
-            tier = 'TIER 3 (WEAK)'
-            units = '0.5-1 unit'
-        else:
-            tier = 'TIER 4 (AVOID)'
-            units = 'No bet'
-        
-        # Calculate probabilities
-        probs = self._calculate_probabilities(data, primary_narrative)
-        
-        return {
-            'narrative': primary_narrative,
-            'confidence': confidence,
-            'tier': tier,
-            'units': units,
-            'description': self.narrative_rules[primary_narrative]['description'],
-            'markets': self.narrative_rules[primary_narrative]['markets'],
-            'color': self.narrative_rules[primary_narrative]['color'],
-            'probabilities': probs,
-            'scores': scores,
-            'match_data': data
-        }
+            return float(default)
     
-    def _calculate_probabilities(self, data, narrative):
-        """Calculate narrative-specific probabilities"""
-        # Get ratings with defaults
-        home_attack = float(data.get('home_attack_rating', 5)) / 10
-        away_attack = float(data.get('away_attack_rating', 5)) / 10
-        home_defense = float(data.get('home_defense_rating', 5)) / 10
-        away_defense = float(data.get('away_defense_rating', 5)) / 10
-        
-        # Get form scores
-        home_form = self._form_score(data.get('home_form', ''))
-        away_form = self._form_score(data.get('away_form', ''))
-        
-        # Base adjustments based on narrative
-        if narrative == 'SIEGE':
-            base_home_win = 0.6 + (home_attack - away_defense) * 0.2
-            base_draw = 0.25
-            total_goals = 2.0 + (home_attack - 0.5) * 0.5
-            btts_prob = 0.3
-            
-        elif narrative == 'BLITZKRIEG':
-            press_diff = (float(data.get('home_press_rating', 5)) - float(data.get('away_defense_rating', 5))) / 20
-            base_home_win = 0.7 + press_diff
-            base_draw = 0.15
-            total_goals = 3.0 + home_attack * 0.5
-            btts_prob = 0.4
-            
-        elif narrative == 'EDGE-CHAOS':
-            base_home_win = 0.4 + (home_attack - away_attack) * 0.1
-            base_draw = 0.3
-            total_goals = 3.5
-            btts_prob = 0.7
-            
-        elif narrative == 'CONTROLLED_EDGE':
-            base_home_win = 0.55 + (home_attack - away_attack) * 0.15
-            base_draw = 0.3
-            total_goals = 2.2
-            btts_prob = 0.35
-            
-        elif narrative == 'SHOOTOUT':
-            base_home_win = 0.45 + (home_attack - away_attack) * 0.1
-            base_draw = 0.2
-            total_goals = 3.8
-            btts_prob = 0.8
-            
-        elif narrative == 'CHESS_MATCH':
-            base_home_win = 0.35
-            base_draw = 0.4
-            total_goals = 1.8
-            btts_prob = 0.25
-            
-        else:
-            # Balanced battle (default)
-            base_home_win = 0.4 + (home_attack - away_attack) * 0.1
-            base_draw = 0.3
-            total_goals = 2.5
-            btts_prob = 0.5
-        
-        # Adjust based on form
-        form_diff = (home_form - away_form) * 0.1
-        home_win_prob = base_home_win + form_diff
-        draw_prob = base_draw - abs(form_diff) * 0.1
-        total_goals += (home_form + away_form - 1) * 0.3
-        btts_prob += (home_form + away_form - 1) * 0.1
-        
-        # Adjust based on odds
-        try:
-            home_odds = float(data.get('home_odds', 2.0))
-            if home_odds < 1.5:
-                home_win_prob += 0.1
-                total_goals -= 0.3
-        except:
-            pass
-        
-        # Normalize probabilities
-        home_win_prob = max(0.15, min(0.85, home_win_prob))
-        draw_prob = max(0.1, min(0.4, draw_prob))
-        away_win_prob = 1 - home_win_prob - draw_prob
-        away_win_prob = max(0.1, min(0.85, away_win_prob))
-        
-        # Re-normalize if needed
-        total = home_win_prob + draw_prob + away_win_prob
-        home_win_prob /= total
-        draw_prob /= total
-        away_win_prob /= total
-        
-        # Final adjustments
-        total_goals = max(1.0, min(5.0, total_goals))
-        btts_prob = max(0.1, min(0.9, btts_prob))
-        
-        return {
-            'home_win': home_win_prob * 100,
-            'draw': draw_prob * 100,
-            'away_win': away_win_prob * 100,
-            'total_goals': total_goals,
-            'btts': btts_prob * 100,
-            'over_25': 70 if total_goals > 2.5 else 30,
-            'under_25': 70 if total_goals < 2.5 else 30
-        }
-    
-    def _form_score(self, form_str):
-        """Convert form string to numeric score"""
+    def _get_form_score(self, form_str):
+        """Pure form scoring - no bias"""
         if not isinstance(form_str, str):
             return 0.5
         
@@ -369,15 +146,342 @@ class NarrativeIntelligenceEngine:
         
         return total / max(count, 1)
     
+    def _calculate_siege_score(self, data):
+        """Pure SIEGE scoring logic"""
+        score = 0
+        
+        # 1. Style matchup (40 points max)
+        if data.get('home_manager_style') == 'Possession-based & control' and \
+           data.get('away_manager_style') == 'Pragmatic/Defensive':
+            score += 40
+        
+        # 2. Quality differential (20 points max)
+        home_attack = self._get_numeric_value(data.get('home_attack_rating', 5))
+        away_defense = self._get_numeric_value(data.get('away_defense_rating', 5))
+        if home_attack - away_defense > 2:
+            score += 20
+        
+        # 3. Market expectation (20 points max)
+        home_odds = self._get_numeric_value(data.get('home_odds', 2.0))
+        if home_odds < 1.5:
+            score += 20
+        
+        # 4. Form momentum (20 points max)
+        home_form = self._get_form_score(data.get('home_form', ''))
+        away_form = self._get_form_score(data.get('away_form', ''))
+        if home_form > 0.6 and away_form < 0.4:
+            score += 20
+        
+        return min(100, score)
+    
+    def _calculate_blitzkrieg_score(self, data):
+        """Pure BLITZKRIEG scoring logic"""
+        score = 0
+        
+        # 1. Pressing style (25 points max)
+        if data.get('home_manager_style') == 'High press & transition':
+            score += 25
+        
+        # 2. Defense weakness (20 points max)
+        away_defense = self._get_numeric_value(data.get('away_defense_rating', 5))
+        if away_defense < 6:
+            score += 20
+        
+        # 3. Recent momentum (20 points max)
+        home_form = str(data.get('home_form', ''))
+        if len(home_form) >= 2 and home_form[:2] == 'WW':
+            score += 20
+        
+        # 4. Press vs defense gap (20 points max)
+        home_press = self._get_numeric_value(data.get('home_press_rating', 5))
+        if home_press - away_defense > 3:
+            score += 20
+        
+        # 5. Away form weakness (15 points max)
+        away_form = str(data.get('away_form', ''))
+        if 'L' in away_form:
+            score += 15
+        
+        return min(100, score)
+    
+    def _calculate_edge_chaos_score(self, data):
+        """Pure EDGE-CHAOS scoring logic"""
+        score = 0
+        
+        home_style = data.get('home_manager_style', '')
+        away_style = data.get('away_manager_style', '')
+        
+        # 1. Style clash (50 points max) - FIXED: Increased from 30
+        style_pairs = [
+            ('High press & transition', 'Possession-based & control'),
+            ('Possession-based & control', 'High press & transition'),
+            ('High press & transition', 'High press & transition'),  # Gegenpressing clash
+            ('Counter-attack', 'Possession-based & control')
+        ]
+        
+        if (home_style, away_style) in style_pairs:
+            score += 50
+        
+        # 2. Historical scoring (25 points max)
+        try:
+            last_goals = self._get_numeric_value(data.get('last_h2h_goals', 0))
+            if last_goals > 3:
+                score += 25
+        except:
+            pass
+        
+        # 3. BTTS history (20 points max)
+        if data.get('last_h2h_btts') == 'Yes':
+            score += 20
+        
+        # 4. Close quality (15 points max)
+        home_attack = self._get_numeric_value(data.get('home_attack_rating', 5))
+        away_attack = self._get_numeric_value(data.get('away_attack_rating', 5))
+        if abs(home_attack - away_attack) < 2:
+            score += 15
+        
+        # 5. Both attacking (10 points max)
+        if home_attack > 7 and away_attack > 7:
+            score += 10
+        
+        return min(100, score)
+    
+    def _calculate_controlled_edge_score(self, data):
+        """Pure CONTROLLED_EDGE scoring logic"""
+        score = 0
+        
+        home_style = data.get('home_manager_style', '')
+        away_style = data.get('away_manager_style', '')
+        
+        # 1. Style matchup (30 points max)
+        if ('Possession' in str(home_style) or 'Balanced' in str(home_style)) and \
+           away_style == 'Pragmatic/Defensive':
+            score += 30
+        
+        # 2. Market expectation (20 points max)
+        home_odds = self._get_numeric_value(data.get('home_odds', 2.0))
+        if home_odds < 2.0:
+            score += 20
+        
+        # 3. Quality advantage (20 points max)
+        home_attack = self._get_numeric_value(data.get('home_attack_rating', 5))
+        away_attack = self._get_numeric_value(data.get('away_attack_rating', 5))
+        if home_attack > away_attack:
+            score += 20
+        
+        # 4. Consistent form (15 points max)
+        home_form = str(data.get('home_form', ''))
+        if 'W' in home_form or 'D' in home_form:
+            score += 15
+        
+        # 5. No bad streaks (15 points max)
+        if 'LLL' not in home_form:
+            score += 15
+        
+        return min(100, score)
+    
+    def _calculate_shootout_score(self, data):
+        """Pure SHOOTOUT scoring logic"""
+        score = 0
+        
+        # 1. Weak defenses (25 points max)
+        home_defense = self._get_numeric_value(data.get('home_defense_rating', 5))
+        away_defense = self._get_numeric_value(data.get('away_defense_rating', 5))
+        if home_defense < 6 and away_defense < 6:
+            score += 25
+        
+        # 2. Strong attacks (25 points max)
+        home_attack = self._get_numeric_value(data.get('home_attack_rating', 5))
+        away_attack = self._get_numeric_value(data.get('away_attack_rating', 5))
+        if home_attack > 7 and away_attack > 7:
+            score += 25
+        
+        # 3. Historical goals (25 points max)
+        try:
+            last_goals = self._get_numeric_value(data.get('last_h2h_goals', 0))
+            if last_goals > 4:
+                score += 25
+        except:
+            pass
+        
+        # 4. Both in form (25 points max)
+        home_form = str(data.get('home_form', ''))
+        away_form = str(data.get('away_form', ''))
+        if 'W' in home_form and 'W' in away_form:
+            score += 25
+        
+        return min(100, score)
+    
+    def _calculate_chess_match_score(self, data):
+        """Pure CHESS_MATCH scoring logic"""
+        score = 0
+        
+        # 1. Pragmatic styles (40 points max)
+        if data.get('home_manager_style') == 'Pragmatic/Defensive' and \
+           data.get('away_manager_style') == 'Pragmatic/Defensive':
+            score += 40
+        
+        # 2. High pragmatic ratings (30 points max)
+        home_pragmatic = self._get_numeric_value(data.get('home_pragmatic_rating', 5))
+        away_pragmatic = self._get_numeric_value(data.get('away_pragmatic_rating', 5))
+        if home_pragmatic > 7 and away_pragmatic > 7:
+            score += 30
+        
+        # 3. Low historical goals (15 points max)
+        try:
+            last_goals = self._get_numeric_value(data.get('last_h2h_goals', 0))
+            if last_goals < 2:
+                score += 15
+        except:
+            pass
+        
+        # 4. No BTTS history (15 points max)
+        if data.get('last_h2h_btts') == 'No':
+            score += 15
+        
+        return min(100, score)
+    
+    def analyze_match(self, row):
+        """Completely unbiased match analysis"""
+        data = row.to_dict() if hasattr(row, 'to_dict') else dict(row)
+        
+        # Calculate all scores with pure logic
+        scores = {
+            'SIEGE': self._calculate_siege_score(data),
+            'BLITZKRIEG': self._calculate_blitzkrieg_score(data),
+            'EDGE-CHAOS': self._calculate_edge_chaos_score(data),
+            'CONTROLLED_EDGE': self._calculate_controlled_edge_score(data),
+            'SHOOTOUT': self._calculate_shootout_score(data),
+            'CHESS_MATCH': self._calculate_chess_match_score(data)
+        }
+        
+        # Find winner with tie-breaking
+        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        winner = sorted_scores[0][0]
+        winner_score = sorted_scores[0][1]
+        
+        # Calculate confidence based on margin (no bias)
+        if len(sorted_scores) > 1:
+            margin = winner_score - sorted_scores[1][1]
+            # Confidence: 50% base + margin-based adjustment (capped at 90%)
+            confidence = min(90, 50 + (margin * 0.8))
+        else:
+            confidence = winner_score
+        
+        # Determine tier purely by confidence
+        if confidence >= 70:
+            tier = 'TIER 1 (STRONG)'
+            units = '2-3 units'
+        elif confidence >= 50:
+            tier = 'TIER 2 (MEDIUM)'
+            units = '1-2 units'
+        elif confidence >= 30:
+            tier = 'TIER 3 (WEAK)'
+            units = '0.5-1 unit'
+        else:
+            tier = 'TIER 4 (AVOID)'
+            units = 'No bet'
+        
+        # Calculate probabilities based purely on narrative and data
+        probabilities = self._calculate_probabilities(data, winner, scores)
+        
+        return {
+            'narrative': winner,
+            'confidence': confidence,
+            'tier': tier,
+            'units': units,
+            'description': self.narrative_info[winner]['description'],
+            'markets': self.narrative_info[winner]['markets'],
+            'color': self.narrative_info[winner]['color'],
+            'probabilities': probabilities,
+            'scores': scores,
+            'sorted_scores': sorted_scores,
+            'data': data
+        }
+    
+    def _calculate_probabilities(self, data, narrative, scores):
+        """Pure probability calculation - no subjective adjustments"""
+        
+        # Base rates from narrative
+        base_rates = {
+            'SIEGE': {'home_win': 0.65, 'draw': 0.25, 'goals': 2.2, 'btts': 0.3},
+            'BLITZKRIEG': {'home_win': 0.75, 'draw': 0.15, 'goals': 3.2, 'btts': 0.4},
+            'EDGE-CHAOS': {'home_win': 0.45, 'draw': 0.30, 'goals': 3.5, 'btts': 0.7},
+            'CONTROLLED_EDGE': {'home_win': 0.60, 'draw': 0.25, 'goals': 2.3, 'btts': 0.35},
+            'SHOOTOUT': {'home_win': 0.40, 'draw': 0.20, 'goals': 3.8, 'btts': 0.8},
+            'CHESS_MATCH': {'home_win': 0.35, 'draw': 0.40, 'goals': 1.8, 'btts': 0.25}
+        }
+        
+        base = base_rates.get(narrative, base_rates['CONTROLLED_EDGE'])
+        
+        # Pure data-driven adjustments (no opinion)
+        home_attack = self._get_numeric_value(data.get('home_attack_rating', 5))
+        away_attack = self._get_numeric_value(data.get('away_attack_rating', 5))
+        home_defense = self._get_numeric_value(data.get('home_defense_rating', 5))
+        away_defense = self._get_numeric_value(data.get('away_defense_rating', 5))
+        
+        # Attack/defense adjustments
+        attack_strength = (home_attack + away_attack) / 20  # 0-1 scale
+        defense_weakness = (20 - home_defense - away_defense) / 20  # 0-1 scale
+        
+        # Form adjustments
+        home_form = self._get_form_score(data.get('home_form', ''))
+        away_form = self._get_form_score(data.get('away_form', ''))
+        form_diff = home_form - away_form
+        
+        # Calculate final values
+        home_win = base['home_win'] + (form_diff * 0.1)
+        draw = base['draw'] - (abs(form_diff) * 0.05)
+        goals = base['goals'] + (attack_strength * 1.0) + (defense_weakness * 1.0)
+        btts = base['btts'] + (attack_strength * 0.2) + (defense_weakness * 0.2)
+        
+        # Odds-based adjustment (if heavy favorite, increase home win)
+        try:
+            home_odds = self._get_numeric_value(data.get('home_odds', 2.0))
+            if home_odds < 1.5:
+                home_win += 0.1
+                goals -= 0.3
+        except:
+            pass
+        
+        # Normalize win probabilities
+        away_win = 1 - home_win - draw
+        
+        # Ensure bounds
+        home_win = max(0.15, min(0.85, home_win))
+        draw = max(0.1, min(0.4, draw))
+        away_win = max(0.1, min(0.85, away_win))
+        
+        # Final normalization
+        total = home_win + draw + away_win
+        home_win /= total
+        draw /= total
+        away_win /= total
+        
+        # Final bounds for other metrics
+        goals = max(1.0, min(5.0, goals))
+        btts = max(0.1, min(0.9, btts))
+        
+        return {
+            'home_win': home_win * 100,
+            'draw': draw * 100,
+            'away_win': away_win * 100,
+            'total_goals': goals,
+            'btts': btts * 100,
+            'over_25': 70 if goals > 2.5 else 30,
+            'under_25': 70 if goals < 2.5 else 30
+        }
+    
     def analyze_all_matches(self, df):
-        """Analyze all matches in dataframe"""
+        """Analyze all matches with complete transparency"""
         results = []
         
         for idx, row in df.iterrows():
             analysis = self.analyze_match(row)
+            
             results.append({
                 'Match': f"{row['home_team']} vs {row['away_team']}",
-                'Date': row['date'] if 'date' in row else 'Unknown',
+                'Date': row.get('date', 'Unknown'),
                 'Narrative': analysis['narrative'],
                 'Confidence': f"{analysis['confidence']:.1f}%",
                 'Tier': analysis['tier'],
@@ -393,12 +497,13 @@ class NarrativeIntelligenceEngine:
         return pd.DataFrame(results)
 
 def main():
-    st.markdown('<div class="main-header">⚡ NARRATIVE INTELLIGENCE ENGINE</div>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; color: #4B5563;">Pure Logic • Team Names in Markets • Actionable Insights</p>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header">⚖️ UNBIASED NARRATIVE ENGINE</div>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align: center; color: #4B5563;">Pure Data Logic • No Subjective Bias • Transparent Decisions</p>', unsafe_allow_html=True)
     
     # Initialize engine
     if 'engine' not in st.session_state:
-        st.session_state.engine = NarrativeIntelligenceEngine()
+        st.session_state.engine = UnbiasedNarrativeEngine()
+        st.session_state.show_debug = False
     
     engine = st.session_state.engine
     
@@ -428,6 +533,9 @@ def main():
                 else:
                     st.session_state.df_filtered = df.copy()
                     
+                # Debug toggle
+                st.session_state.show_debug = st.checkbox("Show Debug Scores", value=False)
+                    
             except Exception as e:
                 st.error(f"Error loading file: {str(e)}")
                 st.session_state.df = None
@@ -439,14 +547,14 @@ def main():
         
         # Batch analysis
         if st.button("🚀 Analyze All Matches", type="primary", use_container_width=True):
-            with st.spinner("Analyzing matches..."):
+            with st.spinner("Running unbiased analysis..."):
                 results_df = engine.analyze_all_matches(df)
             
-            st.markdown("### 📈 Batch Analysis Results")
+            st.markdown("### 📈 Unbiased Analysis Results")
             st.dataframe(results_df, use_container_width=True, height=400)
             
             # Summary statistics
-            st.markdown("### 📊 Summary Statistics")
+            st.markdown("### 📊 Performance Metrics")
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
@@ -485,9 +593,9 @@ def main():
             # Download results
             csv = results_df.to_csv(index=False)
             st.download_button(
-                label="📥 Download Results",
+                label="📥 Download Unbiased Results",
                 data=csv,
-                file_name="narrative_analysis.csv",
+                file_name=f"unbiased_analysis_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                 mime="text/csv"
             )
         
@@ -619,43 +727,57 @@ def main():
             else:
                 st.info("No specific market recommendations for this narrative")
             
-            # Narrative scores breakdown
-            with st.expander("🔍 Narrative Scores Breakdown"):
-                scores_df = pd.DataFrame({
-                    'Narrative': list(analysis['scores'].keys()),
-                    'Score': list(analysis['scores'].values())
-                }).sort_values('Score', ascending=False)
+            # Debug scores panel
+            if st.session_state.show_debug:
+                st.markdown("#### 🔍 Unbiased Scoring Breakdown")
                 
-                st.dataframe(scores_df, use_container_width=True)
+                st.markdown("**Raw Scores:**")
+                for narrative, score in analysis['sorted_scores']:
+                    percentage = score
+                    color_map = {
+                        'SIEGE': '#EF4444',
+                        'BLITZKRIEG': '#F59E0B',
+                        'EDGE-CHAOS': '#10B981',
+                        'CONTROLLED_EDGE': '#3B82F6',
+                        'SHOOTOUT': '#8B5CF6',
+                        'CHESS_MATCH': '#6B7280'
+                    }
+                    
+                    st.markdown(f"""
+                    <div style="margin: 5px 0;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                            <span><strong>{narrative}</strong></span>
+                            <span>{score:.1f}</span>
+                        </div>
+                        <div class="score-bar">
+                            <div class="score-fill" style="width: {percentage}%; background-color: {color_map.get(narrative, '#999')};"></div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
                 
-                # Visualize scores
-                fig = go.Figure(data=[
-                    go.Bar(
-                        x=scores_df['Narrative'],
-                        y=scores_df['Score'],
-                        marker_color=['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#6B7280']
-                    )
-                ])
-                fig.update_layout(
-                    title="Narrative Match Scores",
-                    xaxis_title="Narrative",
-                    yaxis_title="Score (%)",
-                    height=400
-                )
-                st.plotly_chart(fig, use_container_width=True)
+                # Show margin
+                if len(analysis['sorted_scores']) > 1:
+                    margin = analysis['sorted_scores'][0][1] - analysis['sorted_scores'][1][1]
+                    st.info(f"**Winning margin:** {margin:.1f} points")
     
     else:
         # Welcome screen
         st.markdown("""
-        ## ⚽ Welcome to the Narrative Intelligence Engine
+        ## ⚖️ Welcome to the Unbiased Narrative Engine
         
-        This engine analyzes football matches based on **tactical narratives** rather than just statistics.
+        This engine makes decisions **based purely on data** with **zero subjective bias**.
         
         ### 🔑 How it works:
         1. **Upload your CSV** with match data
-        2. **Engine analyzes** each match's tactical setup
-        3. **Classifies into narratives** (Siege, Blitzkrieg, Edge-Chaos, etc.)
-        4. **Provides specific betting recommendations** for each narrative
+        2. **Engine calculates scores** using pure mathematical rules
+        3. **No human adjustments** - the data decides everything
+        4. **Transparent scoring** - see exactly how decisions are made
+        
+        ### ⚖️ Key Principles:
+        - **No subjective adjustments** to scoring
+        - **No opinion-based tweaks** to narratives
+        - **Pure data-driven logic** only
+        - **Complete transparency** in calculations
         
         ### 📋 Required CSV Columns:
         ```
@@ -671,15 +793,16 @@ def main():
         last_h2h_goals, last_h2h_btts
         ```
         
-        ### 🎯 Key Narratives:
-        - **SIEGE**: Dominant possession vs parked bus
-        - **BLITZKRIEG**: Early high-press onslaught
-        - **EDGE-CHAOS**: Style clash with transitions
-        - **CONTROLLED_EDGE**: Methodical favorite vs organized underdog
-        - **SHOOTOUT**: End-to-end attacking chaos
-        - **CHESS_MATCH**: Tactical stalemate
+        ### 🎯 Narrative Detection:
+        Each narrative has **pure mathematical scoring rules**:
+        - **SIEGE**: Possession vs Pragmatic + Quality gap + Favorite odds
+        - **BLITZKRIEG**: High press + Weak defense + Recent form
+        - **EDGE-CHAOS**: Style clash + Historical goals + Close quality
+        - **CONTROLLED_EDGE**: Controlled style + Favorite + Consistent form
+        - **SHOOTOUT**: Weak defenses + Strong attacks + High-scoring history
+        - **CHESS_MATCH**: Pragmatic styles + Low historical goals
         
-        **Upload a CSV file to get started!**
+        **Upload a CSV file to begin unbiased analysis!**
         """)
 
 if __name__ == "__main__":
