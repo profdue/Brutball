@@ -1,6 +1,6 @@
 match_id,league,date,home_team,away_team,home_position,away_position,home_odds,away_odds,home_form,away_form,home_manager,away_manager,last_h2h_goals,last_h2h_btts,home_manager_style,away_manager_style,home_attack_rating,away_attack_rating,home_defense_rating,away_defense_rating,home_press_rating,away_press_rating,home_possession_rating,away_possession_rating,home_pragmatic_rating,away_pragmatic_rating
 LL_2025-12-19_VAL_MAL,La Liga,2025-12-19,Valencia,Mallorca,18,5,2.05,3.42,DWDLL,WDWDW,Rubén Baraja,Jagoba Arrasate,1,No,Pragmatic/Defensive,Pragmatic/Defensive,7,6,7,7,6,6,6,5,7,8
-LL_2025-12-20_OVI_CEL,La Liga,2025-12-20,Real Oviedo,Celta Vigo,19,17,3.81,2.11,DDDLL,WWWWL,Luis Carrión,Claudio Giráldez,4,Yes,Pragmatic/Defensive,Progressive/Developing,6,7,7,6,5,6,6,7,8,6
+LL_2025-12-20_OVI_CEL,La Liga,2025-12-20,Real Oviedo,Celta Vigo,19,2,3.81,2.11,DDDLL,WWWWL,Luis Carrión,Claudio Giráldez,4,Yes,Pragmatic/Defensive,Progressive/Developing,6,7,7,6,5,6,6,7,8,6
 LL_2025-12-20_LEV_RSO,La Liga,2025-12-20,Levante,Real Sociedad,20,16,3.37,2.19,LLLLD,LWDDL,Javi Calleja,Imanol Alguacil,3,Yes,Balanced/Adaptive,High press & transition,6,8,7,7,6,8,6,8,7,5
 LL_2025-12-20_OSA_ALA,La Liga,2025-12-20,Osasuna,Alaves,12,19,2.31,3.56,WLLWD,LLLLD,Jagoba Arrasate,Luis García Plaza,4,Yes,High press & transition,Pragmatic/Defensive,7,6,7,7,7,5,6,5,7,8
 LL_2025-12-20_RMA_SEV,La Liga,2025-12-20,Real Madrid,Sevilla,4,6,1.23,11.70,WLWWW,WDLLW,Xabi Alonso,García Pimienta,6,Yes,Possession-based & control,Possession-based & control,9,8,8,7,7,7,9,8,5,6
