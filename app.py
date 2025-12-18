@@ -1,6 +1,6 @@
 # app.py - NARRATIVE PREDICTION ENGINE v2.3 FINAL
 # ✅ ALL LOGIC FIXES APPLIED - NO HARDCODING, NO DATA MANIPULATION
-# ✅ Uses CSV data EXACTLY as provided
+# ✅ TEAM NAMES in betting markets instead of "Favorite"
 
 import streamlit as st
 import pandas as pd
@@ -48,7 +48,7 @@ class FinalPredictionEngine:
             "SIEGE": {
                 "description": "Attack vs Defense - Dominant attacker vs organized defense",
                 "flow": "• Attacker dominates possession (60%+) from start\n• Defender parks bus in organized low block\n• Frustration builds as chances are missed\n• Breakthrough often comes 45-70 mins (not early)\n• Clean sheet OR counter-attack consolation goal",
-                "primary_markets": ["Under 2.5 goals", "Favorite to win", "BTTS: No", "First goal 45-70 mins", "Fewer than 10 corners total"],
+                "primary_markets": ["Under 2.5 goals", "{favorite} to win", "BTTS: No", "First goal 45-70 mins", "Fewer than 10 corners total"],
                 "color": "#2196F3"
             },
             "SHOOTOUT": {
@@ -60,7 +60,7 @@ class FinalPredictionEngine:
             "CONTROLLED_EDGE": {
                 "description": "Grinding Advantage - Favorite edges cautious game",
                 "flow": "• Cautious start from both sides\n• Favorite gradually establishes control\n• Breakthrough likely 30-60 mins\n• Limited scoring chances overall\n• Narrow victory or draw",
-                "primary_markets": ["Under 2.5 goals", "BTTS: No", "Favorite to win or draw", "First goal 30-60 mins", "Few corners total"],
+                "primary_markets": ["Under 2.5 goals", "BTTS: No", "{favorite} to win or draw", "First goal 30-60 mins", "Few corners total"],
                 "color": "#FF9800",
                 "subtypes": {
                     "HIGH_QUALITY": {"description": "High Quality Grind", "color": "#FF9800"},
@@ -77,7 +77,7 @@ class FinalPredictionEngine:
             "BLITZKRIEG": {
                 "description": "Early Domination - Favorite crushes weak opponent",
                 "flow": "• Early pressure from favorite (0-15 mins)\n• Breakthrough before 30 mins\n• Opponent confidence collapses after first goal\n• Additional goals in 35-65 minute window\n• Game effectively over by 70 mins",
-                "primary_markets": ["Favorite to win", "Favorite clean sheet", "First goal before 25:00", "Over 2.5 team goals for favorite", "Favorite -1.5 Asian handicap"],
+                "primary_markets": ["{favorite} to win", "{favorite} clean sheet", "First goal before 25:00", "Over 2.5 team goals for {favorite}", "{favorite} -1.5 Asian handicap"],
                 "color": "#4CAF50"
             }
         }
@@ -452,10 +452,43 @@ class FinalPredictionEngine:
         
         return min(100, score)
     
+    # ========== ENHANCED BETTING MARKETS WITH TEAM NAMES ==========
+    
+    def get_favorite_team_name(self, match_data):
+        """Get the actual favorite team name instead of just 'favorite'"""
+        prob = self.calculate_favorite_probability(match_data["home_odds"], match_data["away_odds"])
+        
+        if prob["favorite_is_home"]:
+            return match_data["home_team"]
+        else:
+            return match_data["away_team"]
+    
+    def format_betting_markets(self, narrative, match_data):
+        """Format betting markets with actual team names"""
+        favorite_name = self.get_favorite_team_name(match_data)
+        
+        if narrative == "EDGE-CHAOS":
+            # Hybrid narrative uses its own markets
+            return self.hybrid_narratives["EDGE-CHAOS"]["hybrid_markets"]
+        
+        # Get base markets for the narrative
+        if narrative in self.narratives:
+            base_markets = self.narratives[narrative]["primary_markets"]
+        else:
+            base_markets = []
+        
+        # Replace {favorite} placeholder with actual team name
+        formatted_markets = []
+        for market in base_markets:
+            formatted_market = market.replace("{favorite}", favorite_name)
+            formatted_markets.append(formatted_market)
+        
+        return formatted_markets
+    
     # ========== MAIN PREDICTION LOGIC ==========
     
     def predict_match(self, match_data, debug=False):
-        """Main prediction with all logic fixes"""
+        """Main prediction with all logic fixes and enhanced betting markets"""
         
         if debug:
             print(f"\n{'='*60}")
@@ -574,16 +607,20 @@ class FinalPredictionEngine:
             
             if dominant_narrative in self.narratives:
                 narrative_info = self.narratives[dominant_narrative]
-                markets = narrative_info["primary_markets"]
                 flow = narrative_info["flow"]
                 description = narrative_info["description"]
             else:
-                markets = []
                 flow = ""
                 description = dominant_narrative
+            
+            # Get formatted betting markets WITH TEAM NAMES
+            markets = self.format_betting_markets(dominant_narrative, match_data)
         
         # Final validation
         over25 = self.validate_probabilities(xg, btts, over25, dominant_narrative)
+        
+        # Get favorite team name for display
+        favorite_name = self.get_favorite_team_name(match_data)
         
         # Step 8: Prepare result
         result = {
@@ -602,6 +639,7 @@ class FinalPredictionEngine:
             "expected_flow": flow,
             "betting_markets": markets,
             "description": description,
+            "favorite_team": favorite_name,  # NEW: Store favorite team name
             "narrative_color": self.narratives.get(dominant_narrative, {}).get("color", "#6c757d"),
             "probabilities": self.calculate_favorite_probability(match_data["home_odds"], match_data["away_odds"]),
             "ground_truth_flags": {
@@ -626,6 +664,7 @@ class FinalPredictionEngine:
             print(f"\n[DEBUG] Final Prediction: {dominant_narrative}")
             print(f"  Score: {dominant_score:.1f}/100")
             print(f"  Tier: {tier}")
+            print(f"  Favorite Team: {favorite_name}")
             print(f"  Probabilities: xG={xg:.1f}, BTTS={btts:.1f}%, Over 2.5={over25:.1f}%")
             print(f"\n{'='*60}")
             print(f"PREDICTION COMPLETE")
@@ -691,12 +730,19 @@ def main():
         font-weight: bold;
         display: inline-block;
     }
+    .favorite-highlight {
+        background-color: #E3F2FD;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-weight: bold;
+        color: #1565C0;
+    }
     </style>
     """, unsafe_allow_html=True)
     
     # Header
     st.markdown('<h1 style="font-size: 2.8rem; color: #1E88E5; text-align: center; margin-bottom: 0.5rem;">⚽ NARRATIVE PREDICTION ENGINE v2.3</h1>', unsafe_allow_html=True)
-    st.markdown("### **FINAL VERSION • NO DATA MANIPULATION • PURE LOGIC**")
+    st.markdown("### **FINAL VERSION • TEAM NAMES IN MARKETS • PURE LOGIC**")
     
     engine = FinalPredictionEngine()
     
@@ -854,6 +900,9 @@ def main():
                 st.markdown(f"### {pred['match']}")
                 st.markdown(f"**Date:** {pred['date']} | **Tier:** {pred['tier']}")
                 
+                # Show favorite team
+                st.markdown(f"**Favorite:** <span class='favorite-highlight'>{pred['favorite_team']}</span>", unsafe_allow_html=True)
+                
                 # Narrative display
                 if pred["dominant_narrative"] == "EDGE-CHAOS":
                     st.markdown(f'<div style="background: linear-gradient(90deg, {pred["narrative_color"]}, {pred.get("secondary_color", "#FF5722")}); color: white; padding: 8px 16px; border-radius: 20px; display: inline-block; margin: 10px 0;">'
@@ -944,10 +993,19 @@ def main():
                 st.markdown("#### 💡 Insights")
                 st.info(pred["description"])
                 
-                # Betting markets
+                # Betting markets WITH TEAM NAMES
                 st.markdown("#### 💰 Recommended Markets")
                 for market in pred["betting_markets"]:
-                    st.markdown(f"• {market}")
+                    # Highlight the favorite team name in markets
+                    if pred["favorite_team"] in market:
+                        # Make favorite team name stand out
+                        highlighted_market = market.replace(
+                            pred["favorite_team"], 
+                            f"<span class='favorite-highlight'>{pred['favorite_team']}</span>"
+                        )
+                        st.markdown(f"• {highlighted_market}", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"• {market}")
                 
                 # Ground truth explanation
                 with st.expander("🔍 Ground Truth Analysis", expanded=False):
@@ -1012,15 +1070,26 @@ def main():
         
         with st.expander("ℹ️ About This Version", expanded=True):
             st.markdown("""
-            ### ✅ **NO DATA MANIPULATION VERSION**
+            ### ✅ **ENHANCED VERSION WITH TEAM NAMES**
             
-            **Key Principles:**
-            1. **Uses CSV data EXACTLY as provided** - no changes to team names, managers, or ratings
-            2. **NO hardcoding** of any team-specific logic
-            3. **Pure logic engine** that works with any valid CSV data
-            4. **All fixes applied** to the logic only
+            **Key Improvements:**
+            1. **TEAM NAMES in betting markets** - No more "favorite to win"
+            2. **Uses CSV data EXACTLY as provided** - no changes to team names, managers, or ratings
+            3. **NO hardcoding** of any team-specific logic
+            4. **Pure logic engine** that works with any valid CSV data
             
-            ### 🔧 **Logic Fixes Applied:**
+            ### 🎯 **Examples of Enhanced Markets:**
+            
+            **Before:** ❌ "Favorite to win"
+            **After:** ✅ "Manchester City to win"
+            
+            **Before:** ❌ "Favorite clean sheet"  
+            **After:** ✅ "Arsenal clean sheet"
+            
+            **Before:** ❌ "Over 2.5 team goals for favorite"
+            **After:** ✅ "Over 2.5 team goals for Manchester City"
+            
+            ### 🔧 **All Logic Fixes Applied:**
             
             1. **SIEGE Priority Bug Fixed:**
                - SIEGE now has absolute priority when detected
@@ -1028,19 +1097,15 @@ def main():
             
             2. **SIEGE Score Calculation Fixed:**
                - Now correctly handles both home and away favorites
-               - Uses CSV values exactly as provided
             
             3. **Probability Coherence:**
                - BTTS and Over 2.5 probabilities are logically consistent
-            
-            4. **Subtype Display:**
-               - CONTROLLED_EDGE shows appropriate subtypes
             
             ### 📋 **How to Use:**
             1. Upload your CSV file
             2. Select matches to analyze
             3. Run the prediction engine
-            4. View results based on your actual CSV data
+            4. View results with clear team names in betting markets
             """)
 
 if __name__ == "__main__":
