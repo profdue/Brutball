@@ -41,6 +41,9 @@ st.markdown("""
         border-left: 5px solid #3B82F6;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
+    .away-card {
+        border-left: 5px solid #EF4444;
+    }
     .prediction-badge {
         display: inline-block;
         padding: 5px 12px;
@@ -433,7 +436,7 @@ class UniversalFootballPredictor:
         
         return {
             'home_team': home_data.get('home_team', 'Home'),
-            'away_team': home_data.get('away_team', 'Away'),
+            'away_team': away_data.get('away_team', 'Away'),
             'home_win_prob': round(home_win_prob * 100, 1),
             'away_win_prob': round(away_win_prob * 100, 1),
             'draw_prob': round(draw_prob * 100, 1),
@@ -467,31 +470,94 @@ class UniversalFootballPredictor:
                     'away': round(away_manager_score, 1)
                 }
             },
-            'weights': weights
+            'weights': weights,
+            'home_odds': home_odds,
+            'away_odds': away_odds
         }
 
 def load_and_preprocess_data(uploaded_file):
     """Load and preprocess uploaded CSV data"""
     df = pd.read_csv(uploaded_file)
     
+    # Standardize column names - handle different naming conventions
+    column_mapping = {
+        # Team names
+        'home_team': ['home_team', 'Home Team', 'Home', 'HomeTeam'],
+        'away_team': ['away_team', 'Away Team', 'Away', 'AwayTeam'],
+        
+        # League and date
+        'league': ['league', 'League', 'competition', 'Competition'],
+        'date': ['date', 'Date', 'match_date', 'Match Date'],
+        
+        # Positions
+        'home_position': ['home_position', 'Home Position', 'home_pos', 'HomePos'],
+        'away_position': ['away_position', 'Away Position', 'away_pos', 'AwayPos'],
+        
+        # Odds
+        'home_odds': ['home_odds', 'Home Odds', 'home_odd', 'HomeOdd'],
+        'away_odds': ['away_odds', 'Away Odds', 'away_odd', 'AwayOdd'],
+        
+        # Form
+        'home_form': ['home_form', 'Home Form', 'home_form_str', 'HomeForm'],
+        'away_form': ['away_form', 'Away Form', 'away_form_str', 'AwayForm'],
+        
+        # Manager styles
+        'home_manager_style': ['home_manager_style', 'Home Manager Style', 'home_mgr_style'],
+        'away_manager_style': ['away_manager_style', 'Away Manager Style', 'away_mgr_style'],
+        
+        # Ratings
+        'home_attack_rating': ['home_attack_rating', 'Home Attack Rating', 'home_attack'],
+        'away_attack_rating': ['away_attack_rating', 'Away Attack Rating', 'away_attack'],
+        'home_defense_rating': ['home_defense_rating', 'Home Defense Rating', 'home_defense'],
+        'away_defense_rating': ['away_defense_rating', 'Away Defense Rating', 'away_defense']
+    }
+    
+    # Apply column mapping
+    for standard_name, possible_names in column_mapping.items():
+        for possible_name in possible_names:
+            if possible_name in df.columns and standard_name not in df.columns:
+                df[standard_name] = df[possible_name]
+                break
+    
     # Convert numeric columns
     numeric_columns = ['home_position', 'away_position', 'home_odds', 'away_odds',
                       'home_attack_rating', 'away_attack_rating',
-                      'home_defense_rating', 'away_defense_rating',
-                      'home_press_rating', 'away_press_rating',
-                      'home_possession_rating', 'away_possession_rating',
-                      'home_pragmatic_rating', 'away_pragmatic_rating']
+                      'home_defense_rating', 'away_defense_rating']
     
     for col in numeric_columns:
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(5)
     
-    # Ensure required columns exist
-    required_columns = ['home_team', 'away_team', 'league', 'date']
-    for col in required_columns:
+    # Ensure required columns exist with defaults
+    required_defaults = {
+        'home_team': 'Home Team',
+        'away_team': 'Away Team',
+        'league': 'Unknown League',
+        'date': 'Unknown Date',
+        'home_position': 10,
+        'away_position': 10,
+        'home_odds': 2.0,
+        'away_odds': 2.0,
+        'home_form': 'LLLLL',
+        'away_form': 'LLLLL',
+        'home_manager_style': 'Balanced/Adaptive',
+        'away_manager_style': 'Balanced/Adaptive',
+        'home_attack_rating': 5,
+        'away_attack_rating': 5,
+        'home_defense_rating': 5,
+        'away_defense_rating': 5
+    }
+    
+    for col, default_value in required_defaults.items():
         if col not in df.columns:
-            st.error(f"Missing required column: {col}")
-            return None
+            df[col] = default_value
+            st.warning(f"⚠️ Column '{col}' not found in CSV. Using default value: {default_value}")
+    
+    # Clean form strings - remove any non-WDL characters
+    if 'home_form' in df.columns:
+        df['home_form'] = df['home_form'].astype(str).str.upper().str.replace('[^WDL]', '', regex=True)
+    if 'away_form' in df.columns:
+        df['away_form'] = df['away_form'].astype(str).str.upper().str.replace('[^WDL]', '', regex=True)
     
     return df
 
@@ -549,7 +615,7 @@ def create_probability_gauge(prediction):
     fig = make_subplots(
         rows=1, cols=3,
         specs=[[{'type': 'indicator'}, {'type': 'indicator'}, {'type': 'indicator'}]],
-        subplot_titles=('Home Win', 'Draw', 'Away Win')
+        subplot_titles=(f"{prediction['home_team']} Win", "Draw", f"{prediction['away_team']} Win")
     )
     
     # Home win gauge
@@ -608,7 +674,7 @@ def create_probability_gauge(prediction):
     return fig
 
 def main():
-    st.markdown('<div class="main-header">⚽ Universal Football Predictor</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header">⚽ Universal Football Predictor v2.0</div>', unsafe_allow_html=True)
     
     # Initialize predictor
     predictor = UniversalFootballPredictor()
@@ -620,15 +686,26 @@ def main():
         uploaded_file = st.file_uploader("Upload CSV File", type=['csv'])
         
         if uploaded_file:
-            df = load_and_preprocess_data(uploaded_file)
-            
-            if df is not None:
+            try:
+                df = load_and_preprocess_data(uploaded_file)
+                
+                # Display column mapping info
+                with st.expander("📋 CSV Column Mapping"):
+                    st.write(f"**Total matches loaded:** {len(df)}")
+                    st.write("**Columns found:**")
+                    for col in df.columns:
+                        st.write(f"- {col}")
+                
                 # League selection
                 leagues = df['league'].unique() if 'league' in df.columns else ['Unknown']
                 selected_league = st.selectbox("Select League", leagues)
                 
-                # Match selection
-                matches = df.apply(lambda row: f"{row['home_team']} vs {row['away_team']} ({row['date']})", axis=1)
+                # Match selection - create descriptive match strings
+                df['match_display'] = df.apply(
+                    lambda row: f"{row['home_team']} vs {row['away_team']} ({row['date']})", 
+                    axis=1
+                )
+                matches = df['match_display'].tolist()
                 selected_match = st.selectbox("Select Match", matches)
                 
                 # Match context options
@@ -648,9 +725,14 @@ def main():
                 show_components = st.checkbox("Show Component Scores", value=True)
                 show_value_bets = st.checkbox("Highlight Value Bets", value=True)
                 
+            except Exception as e:
+                st.error(f"Error loading file: {str(e)}")
+                st.info("Please check your CSV format and try again.")
+                df = None
+        
         else:
             st.info("Please upload a CSV file to get started")
-            st.code("""Required columns:
+            st.code("""Required columns (or similar names):
 - home_team, away_team
 - league, date
 - home_odds, away_odds
@@ -663,7 +745,7 @@ def main():
     # Main content area
     if uploaded_file and df is not None:
         # Get selected match data
-        match_idx = matches.tolist().index(selected_match)
+        match_idx = df[df['match_display'] == selected_match].index[0]
         match_data = df.iloc[match_idx]
         
         # Prepare data for prediction
@@ -672,10 +754,10 @@ def main():
             'home_position': match_data['home_position'],
             'home_odds': match_data['home_odds'],
             'form': match_data['home_form'],
-            'home_manager_style': match_data.get('home_manager_style', 'Balanced/Adaptive'),
-            'home_attack_rating': match_data.get('home_attack_rating', 5),
-            'home_defense_rating': match_data.get('home_defense_rating', 5),
-            'home_manager_rating': match_data.get('home_pragmatic_rating', 7)
+            'home_manager_style': match_data['home_manager_style'],
+            'home_attack_rating': match_data['home_attack_rating'],
+            'home_defense_rating': match_data['home_defense_rating'],
+            'home_manager_rating': 7  # Default manager rating
         }
         
         away_data = {
@@ -683,10 +765,10 @@ def main():
             'away_position': match_data['away_position'],
             'away_odds': match_data['away_odds'],
             'form': match_data['away_form'],
-            'away_manager_style': match_data.get('away_manager_style', 'Balanced/Adaptive'),
-            'away_attack_rating': match_data.get('away_attack_rating', 5),
-            'away_defense_rating': match_data.get('away_defense_rating', 5),
-            'away_manager_rating': match_data.get('away_pragmatic_rating', 7)
+            'away_manager_style': match_data['away_manager_style'],
+            'away_attack_rating': match_data['away_attack_rating'],
+            'away_defense_rating': match_data['away_defense_rating'],
+            'away_manager_rating': 7  # Default manager rating
         }
         
         # Make prediction
@@ -707,6 +789,7 @@ def main():
                 <p><strong>Position:</strong> {match_data['home_position']}</p>
                 <p><strong>Form:</strong> {match_data['home_form']}</p>
                 <p><strong>Manager Style:</strong> {home_data['home_manager_style']}</p>
+                <p><strong>Attack/Defense:</strong> {home_data['home_attack_rating']}/{home_data['home_defense_rating']}</p>
             </div>
             """, unsafe_allow_html=True)
         
@@ -721,11 +804,12 @@ def main():
         
         with col3:
             st.markdown(f"""
-            <div class="match-card">
+            <div class="match-card away-card">
                 <h3>✈️ {prediction['away_team']}</h3>
                 <p><strong>Position:</strong> {match_data['away_position']}</p>
                 <p><strong>Form:</strong> {match_data['away_form']}</p>
                 <p><strong>Manager Style:</strong> {away_data['away_manager_style']}</p>
+                <p><strong>Attack/Defense:</strong> {away_data['away_attack_rating']}/{away_data['away_defense_rating']}</p>
             </div>
             """, unsafe_allow_html=True)
         
@@ -744,12 +828,12 @@ def main():
             confidence_class = "low-confidence"
             confidence_text = "Low Confidence"
         
-        favorite_text = f"{prediction['home_team'] if prediction['favorite'] == 'home' else prediction['away_team']}"
+        favorite_team = prediction['home_team'] if prediction['favorite'] == 'home' else prediction['away_team']
         
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.markdown(f'<div class="metric-card"><h4>🏆 Favorite</h4><h3>{favorite_text}</h3></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card"><h4>🏆 Favorite</h4><h3>{favorite_team}</h3></div>', unsafe_allow_html=True)
         
         with col2:
             st.markdown(f'<div class="metric-card"><h4>📊 Confidence</h4><span class="prediction-badge {confidence_class}">{confidence_text} ({confidence}%)</span></div>', unsafe_allow_html=True)
@@ -760,7 +844,8 @@ def main():
         
         with col4:
             ev_count = len(prediction['value_bets'])
-            st.markdown(f'<div class="metric-card"><h4>💰 Value Bets</h4><h3>{ev_count}</h3></div>', unsafe_allow_html=True)
+            ev_color = "#10B981" if ev_count > 0 else "#6B7280"
+            st.markdown(f'<div class="metric-card"><h4>💰 Value Bets</h4><h3 style="color: {ev_color};">{ev_count}</h3></div>', unsafe_allow_html=True)
         
         # Probability gauges
         st.plotly_chart(create_probability_gauge(prediction), use_container_width=True)
@@ -771,11 +856,19 @@ def main():
             
             for bet in prediction['value_bets']:
                 ev_percent = bet['ev'] * 100
+                market_name = bet['market'].replace('_', ' ').title()
+                if market_name == 'Home Win':
+                    team_name = prediction['home_team']
+                elif market_name == 'Away Win':
+                    team_name = prediction['away_team']
+                else:
+                    team_name = "Draw"
+                
                 st.markdown(f"""
                 <div class="match-card">
                     <span class="prediction-badge value-bet">VALUE BET</span>
-                    <strong>{bet['market'].replace('_', ' ').title()}</strong> at odds {bet['odds']:.2f}<br>
-                    Expected Value: <strong>{ev_percent:.1f}%</strong>
+                    <strong>{team_name}</strong> at odds {bet['odds']:.2f}<br>
+                    <strong>Expected Value:</strong> {ev_percent:.1f}%
                 </div>
                 """, unsafe_allow_html=True)
         
@@ -795,19 +888,21 @@ def main():
             """, unsafe_allow_html=True)
         
         with col2:
+            btts_color = "#10B981" if prediction['btts_prob'] > 50 else "#EF4444"
             st.markdown(f"""
             <div class="metric-card">
                 <h4>Both Teams to Score</h4>
-                <h2>{prediction['btts_prob']}%</h2>
+                <h2 style="color: {btts_color};">{prediction['btts_prob']}%</h2>
                 <p>Probability</p>
             </div>
             """, unsafe_allow_html=True)
         
         with col3:
+            over_color = "#10B981" if prediction['over_25_prob'] > 50 else "#EF4444"
             st.markdown(f"""
             <div class="metric-card">
                 <h4>Over 2.5 Goals</h4>
-                <h2>{prediction['over_25_prob']}%</h2>
+                <h2 style="color: {over_color};">{prediction['over_25_prob']}%</h2>
                 <p>Probability</p>
             </div>
             """, unsafe_allow_html=True)
@@ -815,12 +910,17 @@ def main():
         with col4:
             home_odds = match_data['home_odds']
             away_odds = match_data['away_odds']
+            home_implied = (1/home_odds)*100 if home_odds > 0 else 0
+            away_implied = (1/away_odds)*100 if away_odds > 0 else 0
+            
             st.markdown(f"""
             <div class="metric-card">
                 <h4>Market Odds</h4>
-                <p><strong>Home:</strong> {home_odds:.2f}</p>
-                <p><strong>Away:</strong> {away_odds:.2f}</p>
-                <p><strong>Implied:</strong> {(1/home_odds)*100:.1f}% / {(1/away_odds)*100:.1f}%</p>
+                <p><strong>{prediction['home_team']}:</strong> {home_odds:.2f}</p>
+                <p><strong>{prediction['away_team']}:</strong> {away_odds:.2f}</p>
+                <p><strong>Implied Probability:</strong></p>
+                <p>{prediction['home_team']}: {home_implied:.1f}%</p>
+                <p>{prediction['away_team']}: {away_implied:.1f}%</p>
             </div>
             """, unsafe_allow_html=True)
         
@@ -836,7 +936,7 @@ def main():
             # Component scores table
             comp_data = prediction['component_scores']
             comp_df = pd.DataFrame({
-                'Component': ['Form', 'Market', 'Quality', 'Manager'],
+                'Component': ['Form (60%)', 'Market (25%)', 'Quality (10%)', 'Manager (5%)'],
                 prediction['home_team']: [
                     comp_data['form']['home'],
                     comp_data['market']['home'],
@@ -851,45 +951,78 @@ def main():
                 ]
             })
             
-            st.dataframe(comp_df, use_container_width=True, hide_index=True)
+            # Style the dataframe
+            st.dataframe(
+                comp_df.style.format({
+                    prediction['home_team']: '{:.1f}',
+                    prediction['away_team']: '{:.1f}'
+                }).background_gradient(
+                    subset=[prediction['home_team'], prediction['away_team']],
+                    cmap='RdYlGn',
+                    vmin=0,
+                    vmax=100
+                ),
+                use_container_width=True,
+                hide_index=True
+            )
             
             # Radar chart
             st.plotly_chart(create_radar_chart(prediction), use_container_width=True)
         
         # Detailed analysis
         with st.expander("📋 Detailed Analysis Report"):
+            home_form_analysis = "excellent" if 'W' in str(match_data['home_form']) else "poor" if 'L' in str(match_data['home_form']) else "mixed"
+            away_form_analysis = "excellent" if 'W' in str(match_data['away_form']) else "poor" if 'L' in str(match_data['away_form']) else "mixed"
+            
             st.markdown(f"""
-            ### Match Analysis Summary
+            ### 🎯 Match Analysis Summary
             
-            **Favorite Designation:** {favorite_text} is predicted as the favorite with {confidence:.1f}% confidence.
+            **Favorite Designation:** **{favorite_team}** is predicted as the favorite with **{confidence:.1f}% confidence**.
             
-            **Key Factors:**
-            1. **Form Advantage:** {'Home team' if comp_data['form']['home'] > comp_data['form']['away'] else 'Away team'} has better recent form
-            2. **Market View:** Odds suggest {favorite_text} is {'underpriced' if prediction['value_bets'] else 'fairly priced'}
-            3. **Quality Differential:** {abs(match_data['home_position'] - match_data['away_position'])} positions difference in table
-            4. **Managerial Battle:** {home_data['home_manager_style']} vs {away_data['away_manager_style']}
+            **Key Factors Driving Prediction:**
             
-            **Recommended Approach:**
-            - This is a **{confidence_text.lower()}** confidence prediction
-            - {f"Consider value bets identified above" if prediction['value_bets'] else "No strong value bets identified"}
-            - Expected to be a {'high' if prediction['over_25_prob'] > 60 else 'low' if prediction['over_25_prob'] < 40 else 'moderate'} scoring game
+            1. **📈 Form Analysis:**
+               - **{prediction['home_team']}:** {home_form_analysis} recent form ({match_data['home_form']})
+               - **{prediction['away_team']}:** {away_form_analysis} recent form ({match_data['away_form']})
+               - **Advantage:** {'Home' if comp_data['form']['home'] > comp_data['form']['away'] else 'Away'} team
+            
+            2. **💰 Market View:**
+               - Current odds: {prediction['home_team']} {home_odds:.2f} | {prediction['away_team']} {away_odds:.2f}
+               - **Value Alert:** {f"{len(prediction['value_bets'])} value bet(s) identified" if prediction['value_bets'] else "No strong value bets"}
+            
+            3. **🏆 Quality Differential:**
+               - Table positions: {prediction['home_team']} ({match_data['home_position']}th) vs {prediction['away_team']} ({match_data['away_position']}th)
+               - {abs(match_data['home_position'] - match_data['away_position'])} positions difference
+            
+            4. **🧠 Managerial Battle:**
+               - **{prediction['home_team']}:** {home_data['home_manager_style']}
+               - **{prediction['away_team']}:** {away_data['away_manager_style']}
+               - **Style matchup:** {home_data['home_manager_style']} vs {away_data['away_manager_style']}
+            
+            **🎲 Recommended Approach:**
+            - This is a **{confidence_text.lower()} confidence** prediction
+            - Expected to be a **{'high' if prediction['over_25_prob'] > 60 else 'low' if prediction['over_25_prob'] < 40 else 'moderate'} scoring** game
+            - BTTS probability: **{prediction['btts_prob']}%**
+            - {f"**Consider value bets identified above**" if prediction['value_bets'] else "**No strong value bets identified**"}
             """)
         
         # Batch processing option
-        if st.button("📊 Analyze All Matches in File"):
+        if st.button("📊 Analyze All Matches in File", type="primary"):
             st.markdown('<div class="sub-header">📈 Batch Analysis Results</div>', unsafe_allow_html=True)
             
             all_predictions = []
+            progress_bar = st.progress(0)
+            
             for idx, row in df.iterrows():
                 home_data = {
                     'home_team': row['home_team'],
                     'home_position': row['home_position'],
                     'home_odds': row['home_odds'],
                     'form': row['home_form'],
-                    'home_manager_style': row.get('home_manager_style', 'Balanced/Adaptive'),
-                    'home_attack_rating': row.get('home_attack_rating', 5),
-                    'home_defense_rating': row.get('home_defense_rating', 5),
-                    'home_manager_rating': row.get('home_pragmatic_rating', 7)
+                    'home_manager_style': row['home_manager_style'],
+                    'home_attack_rating': row['home_attack_rating'],
+                    'home_defense_rating': row['home_defense_rating'],
+                    'home_manager_rating': 7
                 }
                 
                 away_data = {
@@ -897,64 +1030,107 @@ def main():
                     'away_position': row['away_position'],
                     'away_odds': row['away_odds'],
                     'form': row['away_form'],
-                    'away_manager_style': row.get('away_manager_style', 'Balanced/Adaptive'),
-                    'away_attack_rating': row.get('away_attack_rating', 5),
-                    'away_defense_rating': row.get('away_defense_rating', 5),
-                    'away_manager_rating': row.get('away_pragmatic_rating', 7)
+                    'away_manager_style': row['away_manager_style'],
+                    'away_attack_rating': row['away_attack_rating'],
+                    'away_defense_rating': row['away_defense_rating'],
+                    'away_manager_rating': 7
                 }
                 
                 pred = predictor.predict_match(home_data, away_data, row['league'], match_context)
                 all_predictions.append(pred)
+                progress_bar.progress((idx + 1) / len(df))
             
             # Create summary dataframe
             summary_df = pd.DataFrame([{
                 'Match': f"{p['home_team']} vs {p['away_team']}",
+                'Date': row['date'],
                 'Favorite': p['home_team'] if p['favorite'] == 'home' else p['away_team'],
-                'Confidence': p['confidence'],
+                'Confidence %': p['confidence'],
                 'Home Win %': p['home_win_prob'],
                 'Draw %': p['draw_prob'],
                 'Away Win %': p['away_win_prob'],
-                'Value Bets': len(p['value_bets'])
-            } for p in all_predictions])
+                'Value Bets': len(p['value_bets']),
+                'Total xG': p['expected_goals']['total_xg'],
+                'BTTS %': p['btts_prob'],
+                'Over 2.5 %': p['over_25_prob']
+            } for p, (_, row) in zip(all_predictions, df.iterrows())])
             
-            st.dataframe(summary_df, use_container_width=True)
+            # Display with formatting
+            styled_df = summary_df.style.format({
+                'Confidence %': '{:.1f}',
+                'Home Win %': '{:.1f}',
+                'Draw %': '{:.1f}',
+                'Away Win %': '{:.1f}',
+                'Total xG': '{:.2f}',
+                'BTTS %': '{:.1f}',
+                'Over 2.5 %': '{:.1f}'
+            }).background_gradient(
+                subset=['Confidence %', 'Home Win %', 'Away Win %'],
+                cmap='RdYlGn',
+                vmin=0,
+                vmax=100
+            )
+            
+            st.dataframe(styled_df, use_container_width=True, height=400)
+            
+            # Summary statistics
+            st.markdown("### 📊 Batch Analysis Summary")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                avg_confidence = summary_df['Confidence %'].mean()
+                st.metric("Average Confidence", f"{avg_confidence:.1f}%")
+            
+            with col2:
+                total_value_bets = summary_df['Value Bets'].sum()
+                st.metric("Total Value Bets", total_value_bets)
+            
+            with col3:
+                home_fav_count = len([p for p in all_predictions if p['favorite'] == 'home'])
+                st.metric("Home Favorites", home_fav_count)
+            
+            with col4:
+                away_fav_count = len([p for p in all_predictions if p['favorite'] == 'away'])
+                st.metric("Away Favorites", away_fav_count)
             
             # Download button for results
             csv = summary_df.to_csv(index=False)
             st.download_button(
-                label="📥 Download Predictions as CSV",
+                label="📥 Download All Predictions as CSV",
                 data=csv,
-                file_name="football_predictions.csv",
-                mime="text/csv"
+                file_name=f"football_predictions_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                type="primary"
             )
     
     else:
         # Show welcome/instructions
         st.markdown("""
-        ## Welcome to the Universal Football Predictor
+        ## 🎯 Welcome to the Universal Football Predictor v2.0
         
         This advanced prediction engine uses a sophisticated weighted framework to analyze football matches across any league.
         
-        ### How it works:
-        1. **Upload your CSV file** with match data (see sidebar for required columns)
-        2. **Select a league and match** to analyze
-        3. **Configure match context** (derby, season timing)
-        4. **Get detailed predictions** including probabilities, value bets, and component analysis
+        ### 🚀 How it works:
+        1. **📤 Upload your CSV file** with match data (see sidebar for required columns)
+        2. **🏆 Select a league and match** to analyze
+        3. **⚙️ Configure match context** (derby, season timing)
+        4. **📊 Get detailed predictions** including probabilities, value bets, and component analysis
         
-        ### Key Features:
-        - **Universal Framework**: Works for any league worldwide
-        - **Dynamic Weighting**: Adjusts based on league efficiency and match context
-        - **Value Bet Detection**: Identifies positive expected value opportunities
-        - **Component Analysis**: Breaks down form, market, quality, and manager factors
-        - **Statistical Modeling**: Uses Poisson distributions for goal expectations
+        ### 🔑 Key Features:
+        - **🌍 Universal Framework**: Works for any league worldwide
+        - **⚖️ Dynamic Weighting**: Adjusts based on league efficiency and match context
+        - **💰 Value Bet Detection**: Identifies positive expected value opportunities
+        - **🔍 Component Analysis**: Breaks down form, market, quality, and manager factors
+        - **📈 Statistical Modeling**: Uses Poisson distributions for goal expectations
+        - **🔄 Smart Column Mapping**: Handles different CSV column naming conventions
         
-        ### Sample CSV format:
+        ### 📋 Sample CSV format:
         ```csv
         match_id,league,date,home_team,away_team,home_position,away_position,home_odds,away_odds,home_form,away_form,home_manager_style,away_manager_style,home_attack_rating,away_attack_rating,home_defense_rating,away_defense_rating
         EPL_001,Premier League,2025-12-20,Team A,Team B,5,12,1.80,4.20,WWDLW,LLDWL,Possession-based & control,High press & transition,8,6,7,5
         ```
         
-        Upload a file in the sidebar to get started!
+        **📤 Upload a file in the sidebar to get started!**
         """)
         
         # Show sample data
