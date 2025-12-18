@@ -1,25 +1,24 @@
-# app.py - NARRATIVE PREDICTION ENGINE v2.2 - HYBRID EDITION
-# ✅ Complete hybrid narrative system with stress-tested discipline
+# app.py - NARRATIVE PREDICTION ENGINE v2.3
+# ✅ Implements ground truth rules directly from CSV analysis
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import io
 import base64
 
 # ==============================================
-# HYBRID NARRATIVE PREDICTION ENGINE
-# ✅ Implements hybrid narratives with 8-point margin rule
+# GROUND TRUTH PREDICTION ENGINE v2.3
+# ✅ Direct CSV signal mapping with suppression logic
 # ==============================================
 
-class HybridNarrativePredictionEngine:
-    """Enhanced engine with hybrid narrative logic"""
+class GroundTruthPredictionEngine:
+    """Engine that implements direct CSV signal mapping"""
     
     def __init__(self):
-        # Manager style database
+        # Manager database
         self.manager_db = {
             "Mikel Arteta": {"style": "Possession-based & control", "attack": 9, "defense": 7, "press": 8, "possession": 9, "pragmatic": 6},
             "Unai Emery": {"style": "Balanced/Adaptive", "attack": 8, "defense": 8, "press": 7, "possession": 7, "pragmatic": 7},
@@ -43,34 +42,28 @@ class HybridNarrativePredictionEngine:
             "Vítor Pereira": {"style": "Pragmatic/Defensive", "attack": 5, "defense": 8, "press": 5, "possession": 5, "pragmatic": 8}
         }
         
-        # Narrative definitions with hybrid compatibility
+        # Narrative definitions with ground truth rules
         self.narratives = {
-            "BLITZKRIEG": {
-                "description": "Early Domination - Favorite crushes weak opponent",
-                "flow": "• Early pressure from favorite (0-15 mins)\n• Breakthrough before 30 mins\n• Opponent confidence collapses after first goal\n• Additional goals in 35-65 minute window\n• Game effectively over by 70 mins",
-                "primary_markets": ["Favorite to win", "Favorite clean sheet", "First goal before 25:00", "Over 2.5 team goals for favorite", "Favorite -1.5 Asian handicap"],
-                "color": "#4CAF50",
-                "eligibility_rules": {
-                    "min_attack_diff": 2,
-                    "min_possession_diff": 2,
-                    "max_favorite_odds": 1.60,
-                    "min_favorite_prob": 65,
-                    "min_tier": 2
-                }
+            "SIEGE": {
+                "description": "Attack vs Defense - Dominant attacker vs organized defense",
+                "flow": "• Attacker dominates possession (60%+) from start\n• Defender parks bus in organized low block\n• Frustration builds as chances are missed\n• Breakthrough often comes 45-70 mins (not early)\n• Clean sheet OR counter-attack consolation goal",
+                "primary_markets": ["Under 2.5 goals", "Favorite to win", "BTTS: No", "First goal 45-70 mins", "Fewer than 10 corners total"],
+                "color": "#2196F3",
+                "suppression_rule": "Defense ≥ 8 AND Pragmatic ≥ 7"
             },
             "SHOOTOUT": {
                 "description": "End-to-End Chaos - Both teams attack, weak defenses",
                 "flow": "• Fast start from both teams (0-10 mins high intensity)\n• Early goals probable (first 25 mins)\n• Lead changes possible throughout match\n• End-to-end action with both teams committing forward\n• Late drama very likely (goals after 75 mins)",
                 "primary_markets": ["Over 2.5 goals", "BTTS: Yes", "Both teams to score & Over 2.5", "Late goal after 75:00", "Lead changes in match"],
                 "color": "#FF5722",
-                "btts_range": (65, 75),
-                "over25_range": (75, 85)
+                "suppression_rule": "NOT (Defense ≥ 8 AND Pragmatic ≥ 7)"
             },
-            "SIEGE": {
-                "description": "Attack vs Defense - One dominates, other parks bus",
-                "flow": "• Attacker dominates possession (60%+) from start\n• Defender parks bus in organized low block\n• Frustration builds as chances are missed\n• Breakthrough often comes 45-70 mins (not early)\n• Clean sheet OR counter-attack consolation goal",
-                "primary_markets": ["Under 2.5 goals", "Favorite to win", "BTTS: No", "First goal 45-70 mins", "Fewer than 10 corners total"],
-                "color": "#2196F3"
+            "CONTROLLED_EDGE": {
+                "description": "Grinding Advantage - Favorite edges cautious game",
+                "flow": "• Cautious start from both sides\n• Favorite gradually establishes control\n• Breakthrough likely 30-60 mins\n• Limited scoring chances overall\n• Narrow victory or draw",
+                "primary_markets": ["Under 2.5 goals", "BTTS: No", "Favorite to win or draw", "First goal 30-60 mins", "Few corners total"],
+                "color": "#FF9800",
+                "subtypes": ["HIGH_QUALITY", "LOW_TEMPO", "STANDARD"]
             },
             "CHESS_MATCH": {
                 "description": "Tactical Stalemate - Both cautious, few chances",
@@ -78,21 +71,23 @@ class HybridNarrativePredictionEngine:
                 "primary_markets": ["Under 2.5 goals", "BTTS: No", "0-0 or 1-0 correct score", "Few goals first half", "Under 1.5 goals"],
                 "color": "#9C27B0"
             },
-            "CONTROLLED_EDGE": {
-                "description": "Grinding Advantage - Favorite edges cautious game",
-                "flow": "• Cautious start from both sides\n• Favorite gradually establishes control\n• Breakthrough likely 30-60 mins\n• Limited scoring chances overall\n• Narrow victory or draw",
-                "primary_markets": ["Under 2.5 goals", "BTTS: No", "Favorite to win or draw", "First goal 30-60 mins", "Few corners total"],
-                "color": "#FF9800"
+            "BLITZKRIEG": {
+                "description": "Early Domination - Favorite crushes weak opponent",
+                "flow": "• Early pressure from favorite (0-15 mins)\n• Breakthrough before 30 mins\n• Opponent confidence collapses after first goal\n• Additional goals in 35-65 minute window\n• Game effectively over by 70 mins",
+                "primary_markets": ["Favorite to win", "Favorite clean sheet", "First goal before 25:00", "Over 2.5 team goals for favorite", "Favorite -1.5 Asian handicap"],
+                "color": "#4CAF50",
+                "eligibility_rules": ["Attack diff ≥ 2", "Possession diff ≥ 2", "Odds ≤ 1.60", "Prob ≥ 65%", "Tier ≥ 2"]
             }
         }
         
-        # Hybrid narrative definitions
+        # Hybrid narratives
         self.hybrid_narratives = {
             "EDGE-CHAOS": {
                 "description": "Tight but Explosive - Controlled game that could erupt",
                 "parent_narratives": ["CONTROLLED_EDGE", "SHOOTOUT"],
-                "color": "#FF9800",  # Orange (mix of CONTROLLED_EDGE orange + SHOOTOUT red)
+                "color": "#FF9800",
                 "secondary_color": "#FF5722",
+                "trigger_conditions": ["HIGH_PRESS_HIGH_ATTACK", "STYLE_CLASH", "ATTACK_HEAVY"],
                 "hybrid_markets": [
                     "Over 2.25 goals (Asian)",
                     "BTTS: Lean Yes", 
@@ -105,7 +100,7 @@ class HybridNarrativePredictionEngine:
             "EDGE-DOMINATION": {
                 "description": "Patient Pressure - Controlled favorite grinding down resistance",
                 "parent_narratives": ["CONTROLLED_EDGE", "SIEGE"],
-                "color": "#FF9800",  # Orange (mix of CONTROLLED_EDGE orange + SIEGE blue)
+                "color": "#FF9800",
                 "secondary_color": "#2196F3",
                 "hybrid_markets": [
                     "Under 2.75 goals (Asian)",
@@ -115,24 +110,10 @@ class HybridNarrativePredictionEngine:
                     "Under 10.5 corners total"
                 ],
                 "flow": "• Controlled start with favorite establishing dominance\n• Patient buildup against organized defense\n• Breakthrough likely mid-game rather than early\n• Low-scoring but controlled by favorite"
-            },
-            "HIGH-TEMPO": {
-                "description": "Fast Start, High Scoring - Early goals lead to open game",
-                "parent_narratives": ["SHOOTOUT", "BLITZKRIEG"],
-                "color": "#FF5722",  # Red (mix of SHOOTOUT red + BLITZKRIEG green)
-                "secondary_color": "#4CAF50",
-                "hybrid_markets": [
-                    "Over 3.0 goals (Asian)",
-                    "First goal before 25:00",
-                    "Both teams to score",
-                    "Game to have 3+ goals",
-                    "Favorite to win & Over 2.5"
-                ],
-                "flow": "• High intensity from start\n• Early goals likely\n• Game opens up after first goal\n• Could become one-sided or remain chaotic"
             }
         }
     
-    # ========== CORE CALCULATION METHODS ==========
+    # ========== GROUND TRUTH RULES ==========
     
     def calculate_favorite_probability(self, home_odds, away_odds):
         """Convert odds to implied probabilities"""
@@ -179,86 +160,145 @@ class HybridNarrativePredictionEngine:
             "odds_gap": abs(home_odds - away_odds)
         }
     
-    def analyze_form(self, form_string):
-        """Convert form string to rating"""
-        if not form_string or len(form_string) < 3:
-            return {"rating": 5, "confidence": 3, "trend": "stable", "scoring_rate": 0.5}
-        
-        form_map = {"W": 2, "D": 1, "L": 0}
-        points = 0
-        scoring_games = 0
-        
-        for char in form_string.upper():
-            if char in form_map:
-                points += form_map[char]
-                if char != 'L':
-                    scoring_games += 1
-        
-        avg_points = points / len(form_string)
-        rating = (avg_points / 2) * 10
-        scoring_rate = scoring_games / len(form_string)
-        
-        # Determine trend
-        recent = form_string[-3:] if len(form_string) >= 3 else form_string
-        win_count = recent.count('W') + recent.count('w')
-        
-        if win_count >= 2:
-            trend = "improving"
-        elif 'W' not in recent and 'w' not in recent:
-            trend = "declining"
-        else:
-            trend = "stable"
-        
-        return {
-            "rating": min(10, rating),
-            "confidence": min(10, len(form_string) * 2),
-            "trend": trend,
-            "points": points,
-            "games": len(form_string),
-            "scoring_rate": scoring_rate
-        }
+    # ========== RULE 1: SIEGE DETECTION (FIRST PRIORITY) ==========
     
-    # ========== NARRATIVE SCORING METHODS ==========
-    
-    def calculate_blitzkrieg_score(self, match_data):
-        """Calculate BLITZKRIEG score"""
-        score = 0
+    def detect_siege(self, match_data):
+        """RULE 1: Detect SIEGE conditions (Attack ≥ 8 vs Defense ≥ 8 + Pragmatic ≥ 7)"""
         prob = self.calculate_favorite_probability(match_data["home_odds"], match_data["away_odds"])
         
-        # 1. FAVORITE STRENGTH
-        if prob["favorite_strength"] == "ELITE":
-            score += 35
-        elif prob["favorite_strength"] == "STRONG":
-            score += 25
-        elif prob["favorite_strength"] == "MODERATE":
-            score += 15
+        if prob["favorite_is_home"]:
+            attacker_attack = match_data["home_attack_rating"]
+            defender_defense = match_data["away_defense_rating"]
+            defender_pragmatic = match_data["away_pragmatic_rating"]
+        else:
+            attacker_attack = match_data["away_attack_rating"]
+            defender_defense = match_data["home_defense_rating"]
+            defender_pragmatic = match_data["home_pragmatic_rating"]
         
-        # 2. ATTACK vs DEFENSE MISMATCH
-        home_attack = match_data["home_attack_rating"]
-        away_defense = match_data["away_defense_rating"]
-        away_attack = match_data["away_attack_rating"]
-        home_defense = match_data["home_defense_rating"]
+        # SIEGE Conditions (ALL must be true):
+        # 1. Attacker attack ≥ 8
+        # 2. Defender defense ≥ 8
+        # 3. Defender pragmatic ≥ 7
+        # 4. Favorite probability ≥ 60%
         
-        home_advantage = home_attack - (10 - away_defense)
-        away_advantage = away_attack - (10 - home_defense)
+        siege_conditions = [
+            attacker_attack >= 8,
+            defender_defense >= 8,
+            defender_pragmatic >= 7,
+            prob["favorite_probability"] >= 60
+        ]
         
-        if home_advantage >= 3 or away_advantage >= 3:
-            score += 30
-        elif home_advantage >= 2 or away_advantage >= 2:
+        return all(siege_conditions)
+    
+    # ========== RULE 2: SHOOTOUT SUPPRESSION ==========
+    
+    def is_shootout_suppressed(self, match_data):
+        """RULE 2: Check if SHOOTOUT should be suppressed"""
+        # Condition: Either team has defense ≥ 8 AND pragmatic ≥ 7
+        home_suppress = (match_data["home_defense_rating"] >= 8 and 
+                         match_data["home_pragmatic_rating"] >= 7)
+        away_suppress = (match_data["away_defense_rating"] >= 8 and 
+                         match_data["away_pragmatic_rating"] >= 7)
+        
+        return home_suppress or away_suppress
+    
+    # ========== RULE 3: HYBRID VOLATILITY OVERRIDE ==========
+    
+    def check_hybrid_override(self, match_data):
+        """RULE 3: Check conditions that force hybrid consideration"""
+        conditions = []
+        
+        # Condition A: HIGH_PRESS_HIGH_ATTACK
+        # Both teams press high (≥7) AND attack high (≥7)
+        if (match_data["home_press_rating"] >= 7 and 
+            match_data["away_press_rating"] >= 7 and
+            match_data["home_attack_rating"] >= 7 and 
+            match_data["away_attack_rating"] >= 7):
+            conditions.append("HIGH_PRESS_HIGH_ATTACK")
+        
+        # Condition B: STYLE_CLASH
+        # High press vs Possession style clash
+        press_diff = abs(match_data["home_press_rating"] - match_data["away_press_rating"])
+        possession_diff = abs(match_data["home_possession_rating"] - match_data["away_possession_rating"])
+        
+        if press_diff >= 3 and possession_diff >= 3:
+            conditions.append("STYLE_CLASH")
+        
+        # Condition C: ATTACK_HEAVY
+        # Both attacks ≥ 8, defenses ≤ 7
+        if (match_data["home_attack_rating"] >= 8 and 
+            match_data["away_attack_rating"] >= 8 and
+            match_data["home_defense_rating"] <= 7 and 
+            match_data["away_defense_rating"] <= 7):
+            conditions.append("ATTACK_HEAVY")
+        
+        return conditions
+    
+    # ========== RULE 4: CONTROLLED_EDGE SUBCLASSIFICATION ==========
+    
+    def subclassify_controlled_edge(self, match_data):
+        """RULE 4: Differentiate between CONTROLLED_EDGE subtypes"""
+        avg_attack = (match_data["home_attack_rating"] + match_data["away_attack_rating"]) / 2
+        avg_press = (match_data["home_press_rating"] + match_data["away_press_rating"]) / 2
+        
+        if avg_attack >= 7.5 and avg_press >= 7:
+            return "HIGH_QUALITY"  # e.g., Aston Villa vs Man Utd
+        elif avg_attack <= 6 and avg_press <= 6:
+            return "LOW_TEMPO"  # e.g., Wolves vs Brentford
+        else:
+            return "STANDARD"
+    
+    # ========== NARRATIVE SCORING WITH SUPPRESSION ==========
+    
+    def calculate_narrative_scores(self, match_data):
+        """Calculate scores with suppression rules applied"""
+        scores = {
+            "SIEGE": self.calculate_siege_score(match_data),
+            "SHOOTOUT": self.calculate_shootout_score(match_data),
+            "CONTROLLED_EDGE": self.calculate_controlled_edge_score(match_data),
+            "CHESS_MATCH": self.calculate_chess_match_score(match_data),
+            "BLITZKRIEG": self.calculate_blitzkrieg_score(match_data)
+        }
+        
+        # Apply suppression rules
+        if self.is_shootout_suppressed(match_data):
+            scores["SHOOTOUT"] *= 0.5  # Halve SHOOTOUT score
+        
+        # Apply SIEGE boost if detected
+        if self.detect_siege(match_data):
+            scores["SIEGE"] += 30
+        
+        return scores
+    
+    def calculate_siege_score(self, match_data):
+        """Calculate SIEGE score"""
+        score = 0
+        
+        # Check for attacker vs defender mismatch
+        prob = self.calculate_favorite_probability(match_data["home_odds"], match_data["away_odds"])
+        
+        if prob["favorite_is_home"]:
+            if (match_data["home_attack_rating"] >= 8 and 
+                match_data["away_defense_rating"] >= 8):
+                score += 40
+        else:
+            if (match_data["away_attack_rating"] >= 8 and 
+                match_data["home_defense_rating"] >= 8):
+                score += 40
+        
+        # Add for pragmatic defense
+        if (match_data["home_pragmatic_rating"] >= 7 or 
+            match_data["away_pragmatic_rating"] >= 7):
             score += 20
         
-        # 3. FORM DOMINANCE
-        home_form = self.analyze_form(match_data["home_form"])["rating"]
-        away_form = self.analyze_form(match_data["away_form"])["rating"]
-        form_diff = abs(home_form - away_form)
-        score += min(20, form_diff * 2)
-        
-        # 4. TACTICAL MISMATCH
-        home_press = match_data["home_press_rating"]
-        away_press = match_data["away_press_rating"]
-        press_diff = abs(home_press - away_press)
-        if press_diff >= 3:
+        # Possession dominance
+        possession_diff = abs(match_data["home_possession_rating"] - match_data["away_possession_rating"])
+        if possession_diff >= 3:
             score += 15
+        
+        # Favorite strength
+        if prob["favorite_strength"] in ["STRONG", "ELITE"]:
+            score += 10
         
         return min(100, score)
     
@@ -266,92 +306,64 @@ class HybridNarrativePredictionEngine:
         """Calculate SHOOTOUT score"""
         score = 0
         
-        # 1. BOTH ATTACKING
-        home_attack = match_data["home_attack_rating"]
-        away_attack = match_data["away_attack_rating"]
-        
-        if home_attack >= 8 and away_attack >= 8:
+        # Both attacking (primary factor)
+        if (match_data["home_attack_rating"] >= 7 and 
+            match_data["away_attack_rating"] >= 7):
             score += 30
-        elif home_attack >= 7 and away_attack >= 7:
-            score += 20
-        elif home_attack >= 6 and away_attack >= 6:
-            score += 10
         
-        # 2. BOTH WEAK DEFENSE
-        home_defense = match_data["home_defense_rating"]
-        away_defense = match_data["away_defense_rating"]
-        avg_defense = (home_defense + away_defense) / 2
-        
-        if avg_defense <= 5.5:
+        # Weak defenses (secondary factor)
+        avg_defense = (match_data["home_defense_rating"] + match_data["away_defense_rating"]) / 2
+        if avg_defense <= 6.5:
             score += 25
-        elif avg_defense <= 6.5:
-            score += 18
-        
-        # 3. HIGH PRESS BOTH
-        home_press = match_data["home_press_rating"]
-        away_press = match_data["away_press_rating"]
-        
-        if home_press >= 8 and away_press >= 8:
-            score += 20
-        elif home_press >= 7 and away_press >= 7:
-            score += 12
-        
-        # 4. HISTORICAL HIGH SCORING
-        if match_data["last_h2h_goals"] >= 4:
+        elif avg_defense <= 7:
             score += 15
-        elif match_data["last_h2h_goals"] >= 3:
-            score += 10
         
-        # 5. BTTS HISTORY + FORM
+        # High press both
+        if (match_data["home_press_rating"] >= 7 and 
+            match_data["away_press_rating"] >= 7):
+            score += 20
+        
+        # Historical high scoring
+        if match_data["last_h2h_goals"] >= 3:
+            score += 15
+        
+        # BTTS history
         if match_data["last_h2h_btts"] == "Yes":
-            score += 8
-        
-        home_form = match_data["home_form"]
-        away_form = match_data["away_form"]
-        home_scoring = sum(1 for r in home_form[-3:] if r.upper() != 'L')
-        away_scoring = sum(1 for r in away_form[-3:] if r.upper() != 'L')
-        
-        if home_scoring >= 2 and away_scoring >= 2:
-            score += 7
+            score += 10
         
         return min(100, score)
     
-    def calculate_siege_score(self, match_data):
-        """Calculate SIEGE score"""
+    def calculate_controlled_edge_score(self, match_data):
+        """Calculate CONTROLLED_EDGE score"""
         score = 0
         
-        # 1. ATTACKER vs DEFENDER MISMATCH
-        home_attack = match_data["home_attack_rating"]
-        away_defense = match_data["away_defense_rating"]
-        away_attack = match_data["away_attack_rating"]
-        home_defense = match_data["home_defense_rating"]
-        
-        if home_attack >= 8 and away_defense >= 8:
-            score += 30
-        elif home_attack >= 7 and away_defense >= 7:
-            score += 20
-        
-        if away_attack >= 8 and home_defense >= 8:
+        # Slight favorite
+        prob = self.calculate_favorite_probability(match_data["home_odds"], match_data["away_odds"])
+        if 55 <= prob["favorite_probability"] < 65:
             score += 25
+        elif 50 <= prob["favorite_probability"] < 55:
+            score += 15
         
-        # 2. POSSESSION DOMINANCE
-        home_possession = match_data["home_possession_rating"]
-        away_possession = match_data["away_possession_rating"]
-        possession_diff = abs(home_possession - away_possession)
-        if possession_diff >= 3:
+        # Balanced teams
+        attack_diff = abs(match_data["home_attack_rating"] - match_data["away_attack_rating"])
+        defense_diff = abs(match_data["home_defense_rating"] - match_data["away_defense_rating"])
+        
+        if attack_diff <= 2 and defense_diff <= 2:
             score += 20
         
-        # 3. PRAGMATIC DEFENDER
-        home_pragmatic = match_data["home_pragmatic_rating"]
-        away_pragmatic = match_data["away_pragmatic_rating"]
-        
-        if (home_pragmatic >= 7 and away_pragmatic <= 5) or (away_pragmatic >= 7 and home_pragmatic <= 5):
+        # Moderate defenses
+        if (6 <= match_data["home_defense_rating"] <= 8 and 
+            6 <= match_data["away_defense_rating"] <= 8):
             score += 15
         
-        # 4. LOW H2H GOALS
-        if match_data["last_h2h_goals"] <= 1:
+        # Conservative approach
+        if (match_data["home_pragmatic_rating"] >= 5 and 
+            match_data["away_pragmatic_rating"] >= 5):
             score += 15
-        elif match_data["last_h2h_goals"] <= 2:
+        
+        # Close table positions
+        position_gap = abs(match_data["home_position"] - match_data["away_position"])
+        if position_gap <= 3:
             score += 10
         
         return min(100, score)
@@ -360,200 +372,105 @@ class HybridNarrativePredictionEngine:
         """Calculate CHESS MATCH score"""
         score = 0
         
-        # 1. CLOSE MATCH
+        # Very close match
         prob = self.calculate_favorite_probability(match_data["home_odds"], match_data["away_odds"])
-        favorite_prob = prob["favorite_probability"]
-        
-        if favorite_prob < 52:
-            score += 25
-        elif favorite_prob < 55:
-            score += 18
-        
-        # 2. BOTH PRAGMATIC
-        home_pragmatic = match_data["home_pragmatic_rating"]
-        away_pragmatic = match_data["away_pragmatic_rating"]
-        
-        if home_pragmatic >= 7 and away_pragmatic >= 7:
+        if prob["favorite_probability"] < 52:
             score += 25
         
-        # 3. BOTH STRONG DEFENSE
-        home_defense = match_data["home_defense_rating"]
-        away_defense = match_data["away_defense_rating"]
+        # Both pragmatic
+        if (match_data["home_pragmatic_rating"] >= 7 and 
+            match_data["away_pragmatic_rating"] >= 7):
+            score += 25
         
-        if home_defense >= 8 and away_defense >= 8:
+        # Both strong defense
+        if (match_data["home_defense_rating"] >= 8 and 
+            match_data["away_defense_rating"] >= 8):
             score += 20
         
-        # 4. BOTH MODERATE/LOW ATTACK
-        home_attack = match_data["home_attack_rating"]
-        away_attack = match_data["away_attack_rating"]
-        
-        if home_attack <= 6 and away_attack <= 6:
-            score += 15
-        
-        # 5. HISTORICAL LOW SCORING
-        if match_data["last_h2h_goals"] <= 2:
+        # Both moderate/low attack
+        if (match_data["home_attack_rating"] <= 6 and 
+            match_data["away_attack_rating"] <= 6):
             score += 15
         
         return min(100, score)
     
-    def calculate_controlled_edge_score(self, match_data):
-        """Calculate CONTROLLED EDGE score"""
+    def calculate_blitzkrieg_score(self, match_data):
+        """Calculate BLITZKRIEG score"""
         score = 0
         
-        # 1. SLIGHT FAVORITE
         prob = self.calculate_favorite_probability(match_data["home_odds"], match_data["away_odds"])
         
-        if 55 <= prob["favorite_probability"] < 65:
-            score += 20
-        elif 50 <= prob["favorite_probability"] < 55:
-            score += 10
+        # Elite favorite
+        if prob["favorite_strength"] == "ELITE":
+            score += 40
         
-        # 2. BALANCED TEAMS
-        home_attack = match_data["home_attack_rating"]
-        away_attack = match_data["away_attack_rating"]
-        home_defense = match_data["home_defense_rating"]
-        away_defense = match_data["away_defense_rating"]
+        # Attack vs defense mismatch
+        if prob["favorite_is_home"]:
+            if (match_data["home_attack_rating"] - match_data["away_defense_rating"]) >= 3:
+                score += 30
+        else:
+            if (match_data["away_attack_rating"] - match_data["home_defense_rating"]) >= 3:
+                score += 30
         
-        attack_diff = abs(home_attack - away_attack)
-        defense_diff = abs(home_defense - away_defense)
-        
-        if attack_diff <= 2 and defense_diff <= 2:
-            score += 18
-        
-        # 3. MODERATE DEFENSE BOTH
-        if 6 <= home_defense <= 8 and 6 <= away_defense <= 8:
-            score += 15
-        
-        # 4. CONSERVATIVE APPROACH
-        home_pragmatic = match_data["home_pragmatic_rating"]
-        away_pragmatic = match_data["away_pragmatic_rating"]
-        
-        if home_pragmatic >= 5 and away_pragmatic >= 5:
-            score += 12
-        
-        # 5. CLOSE TABLE POSITIONS
-        position_gap = abs(match_data["home_position"] - match_data["away_position"])
-        if position_gap <= 3:
-            score += 10
-        
-        # 6. LOW/MODERATE H2H GOALS
-        if match_data["last_h2h_goals"] <= 3:
-            score += 8
+        # Form dominance
+        # (form analysis would go here)
         
         return min(100, score)
     
-    # ========== HYBRID LOGIC METHODS ==========
+    # ========== DYNAMIC PROBABILITY CALCULATIONS ==========
     
-    def calculate_all_scores(self, match_data):
-        """Calculate all narrative scores"""
-        return {
-            "BLITZKRIEG": self.calculate_blitzkrieg_score(match_data),
-            "SHOOTOUT": self.calculate_shootout_score(match_data),
-            "SIEGE": self.calculate_siege_score(match_data),
-            "CHESS_MATCH": self.calculate_chess_match_score(match_data),
-            "CONTROLLED_EDGE": self.calculate_controlled_edge_score(match_data)
-        }
-    
-    def check_hybrid_eligibility(self, scores, tier_level):
-        """Check if match qualifies for hybrid narrative"""
-        # Get top two narratives
-        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        top_narrative, top_score = sorted_scores[0]
-        second_narrative, second_score = sorted_scores[1]
+    def calculate_dynamic_probabilities(self, narrative, match_data, subtype=None):
+        """Calculate probabilities based on actual ratings"""
         
-        # Rule 1: Margin < 8 points
-        margin = top_score - second_score
-        if margin >= 8:
-            return None  # No hybrid, clear winner
+        # Base calculations from ratings
+        avg_attack = (match_data["home_attack_rating"] + match_data["away_attack_rating"]) / 20
+        avg_defense = (match_data["home_defense_rating"] + match_data["away_defense_rating"]) / 20
+        avg_press = (match_data["home_press_rating"] + match_data["away_press_rating"]) / 20
         
-        # Rule 2: Tier must be 1 or 2
-        if tier_level not in [1, 2]:
-            return None
-        
-        # Rule 3: Check if combination is allowed
-        allowed_hybrids = self.hybrid_narratives.keys()
-        for hybrid_name, hybrid_data in self.hybrid_narratives.items():
-            parents = set(hybrid_data["parent_narratives"])
-            if {top_narrative, second_narrative} == parents:
-                return {
-                    "hybrid_type": hybrid_name,
-                    "primary_narrative": top_narrative,
-                    "secondary_narrative": second_narrative,
-                    "primary_score": top_score,
-                    "secondary_score": second_score,
-                    "margin": margin,
-                    "weight": top_score / (top_score + second_score)
-                }
-        
-        return None
-    
-    def is_blitzkrieg_eligible(self, match_data, prob, tier_level):
-        """Check BLITZKRIEG eligibility"""
-        if tier_level < 2:
-            return False
-        
-        # Get favorite's ratings
-        if prob["favorite_is_home"]:
-            attack_rating = match_data["home_attack_rating"]
-            defense_rating = match_data["away_defense_rating"]
-            possession_rating = match_data["home_possession_rating"]
-            opp_possession = match_data["away_possession_rating"]
-        else:
-            attack_rating = match_data["away_attack_rating"]
-            defense_rating = match_data["home_defense_rating"]
-            possession_rating = match_data["away_possession_rating"]
-            opp_possession = match_data["home_possession_rating"]
-        
-        # Check all rules
-        if attack_rating - defense_rating < 2:
-            return False
-        if possession_rating - opp_possession < 2:
-            return False
-        if prob["favorite_odds"] > 1.60:
-            return False
-        if prob["favorite_probability"] < 65:
-            return False
-        
-        return True
-    
-    # ========== PROBABILITY CALCULATION METHODS ==========
-    
-    def calculate_base_probabilities(self, narrative, match_data):
-        """Calculate base probabilities for a narrative"""
-        # Base BTTS calculation
-        home_defense = match_data["home_defense_rating"]
-        away_defense = match_data["away_defense_rating"]
-        defense_factor = (home_defense + away_defense) / 20
-        
-        home_attack = match_data["home_attack_rating"]
-        away_attack = match_data["away_attack_rating"]
-        attack_factor = (home_attack + away_attack) / 20
-        
-        if narrative == "BLITZKRIEG":
-            btts = 30 + (15 * (1 - defense_factor))
-            btts = min(45, max(30, btts + (5 * attack_factor)))
-            xg = 3.4
-        
+        if narrative == "SIEGE":
+            # Base: 2.4-3.0 range
+            base_xg = 2.4 + (avg_attack * 0.6)
+            # Defense reduces xG
+            xg = base_xg * (1 - (avg_defense * 0.1))
+            btts = 30 + (15 * (1 - avg_defense))
+            
         elif narrative == "SHOOTOUT":
-            btts = 65 + (10 * (1 - defense_factor))
-            btts = min(80, max(65, btts + (10 * attack_factor)))
-            xg = 3.6
-        
-        elif narrative == "SIEGE":
-            btts = 40 * (1 - defense_factor)
-            xg = 2.4
+            # Base: 3.2-3.8 range
+            base_xg = 3.2 + (avg_attack * 0.6)
+            # Press increases xG
+            xg = base_xg * (1 + (avg_press * 0.1))
+            btts = 65 + (15 * (1 - avg_defense))
+            
+        elif narrative == "CONTROLLED_EDGE":
+            # Subtype-based scaling
+            if subtype == "HIGH_QUALITY":
+                # 2.8-3.2 range
+                base_xg = 2.8 + (avg_attack * 0.4)
+                btts = 45 + (15 * (1 - avg_defense))
+            elif subtype == "LOW_TEMPO":
+                # 2.2-2.6 range
+                base_xg = 2.2 + (avg_attack * 0.4)
+                btts = 35 + (10 * (1 - avg_defense))
+            else:  # STANDARD
+                # 2.4-2.8 range
+                base_xg = 2.4 + (avg_attack * 0.4)
+                btts = 40 + (12 * (1 - avg_defense))
+            
+            xg = base_xg
         
         elif narrative == "CHESS_MATCH":
-            btts = 30 * (1 - defense_factor)
-            xg = 1.9
-        
-        elif narrative == "CONTROLLED_EDGE":
-            btts = 40 + (10 * (1 - defense_factor))
-            xg = 2.8
-        
-        else:
+            # 1.8-2.2 range
+            xg = 1.8 + (avg_attack * 0.4)
+            btts = 30 * (1 - avg_defense)
+            
+        elif narrative == "BLITZKRIEG":
+            # 3.0-3.4 range
+            xg = 3.0 + (avg_attack * 0.4)
+            btts = 30 + (10 * (1 - avg_defense))
+            
+        else:  # Hybrid or unknown
+            xg = 2.5 + (avg_attack * 0.5)
             btts = 50
-            xg = 2.5
         
         # Calculate Over 2.5 based on xG
         if xg >= 3.5:
@@ -572,63 +489,78 @@ class HybridNarrativePredictionEngine:
             over25 += 10
         elif narrative == "BLITZKRIEG":
             over25 += 5
-        elif narrative in ["SIEGE", "CHESS_MATCH", "CONTROLLED_EDGE"]:
+        elif narrative in ["SIEGE", "CHESS_MATCH"]:
             over25 -= 10
+        elif narrative == "CONTROLLED_EDGE":
+            if subtype == "HIGH_QUALITY":
+                over25 += 5
+            elif subtype == "LOW_TEMPO":
+                over25 -= 5
         
         return {
-            "btts": max(20, min(85, btts)),
-            "over25": max(25, min(90, over25)),
-            "xg": max(1.8, min(4.0, xg))
+            "xg": max(1.8, min(4.0, round(xg, 1))),
+            "btts": max(20, min(85, round(btts, 1))),
+            "over25": max(25, min(90, over25))
         }
     
-    def calculate_hybrid_probabilities(self, hybrid_info, match_data):
-        """Calculate blended probabilities for hybrid narrative"""
-        primary = hybrid_info["primary_narrative"]
-        secondary = hybrid_info["secondary_narrative"]
-        weight = hybrid_info["weight"]
-        
-        # Get base probabilities
-        primary_probs = self.calculate_base_probabilities(primary, match_data)
-        secondary_probs = self.calculate_base_probabilities(secondary, match_data)
-        
-        # Blend probabilities
-        btts = (primary_probs["btts"] * weight) + (secondary_probs["btts"] * (1 - weight))
-        over25 = (primary_probs["over25"] * weight) + (secondary_probs["over25"] * (1 - weight))
-        xg = (primary_probs["xg"] * weight) + (secondary_probs["xg"] * (1 - weight))
-        
-        return {
-            "btts": round(btts, 1),
-            "over25": round(over25, 1),
-            "xg": round(xg, 1),
-            "primary_weight": weight,
-            "secondary_weight": 1 - weight
-        }
-    
-    # ========== MAIN PREDICTION FUNCTION ==========
+    # ========== MAIN PREDICTION LOGIC ==========
     
     def predict_match(self, match_data):
-        """Main prediction function with hybrid logic"""
-        # Calculate all scores
-        scores = self.calculate_all_scores(match_data)
+        """Main prediction with ground truth rules"""
         
-        # Get probability info for BLITZKRIEG eligibility check
-        prob = self.calculate_favorite_probability(match_data["home_odds"], match_data["away_odds"])
+        # ===== STEP 1: Apply ground truth rules =====
+        siege_detected = self.detect_siege(match_data)
+        shootout_suppressed = self.is_shootout_suppressed(match_data)
+        hybrid_conditions = self.check_hybrid_override(match_data)
+        ce_subtype = self.subclassify_controlled_edge(match_data)
         
-        # Determine initial tier and confidence
-        initial_dominant = max(scores, key=scores.get)
-        initial_score = scores[initial_dominant]
+        # ===== STEP 2: Calculate scores with suppression =====
+        scores = self.calculate_narrative_scores(match_data)
         
-        if initial_score >= 75:
+        # ===== STEP 3: Determine narrative =====
+        
+        # First check for forced SIEGE
+        if siege_detected and scores["SIEGE"] >= 50:
+            dominant_narrative = "SIEGE"
+            dominant_score = scores["SIEGE"]
+            force_reason = "SIEGE_DETECTED"
+        
+        # Check for hybrid conditions
+        elif hybrid_conditions and scores["CONTROLLED_EDGE"] >= 50 and scores["SHOOTOUT"] >= 50:
+            # Check margin for hybrid
+            sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+            top_narrative, top_score = sorted_scores[0]
+            second_narrative, second_score = sorted_scores[1]
+            
+            if (top_narrative in ["CONTROLLED_EDGE", "SHOOTOUT"] and 
+                second_narrative in ["CONTROLLED_EDGE", "SHOOTOUT"] and
+                abs(top_score - second_score) < 15):  # Looser margin for forced hybrids
+                
+                dominant_narrative = "EDGE-CHAOS"
+                dominant_score = max(top_score, second_score)
+                force_reason = f"HYBRID_OVERRIDE: {hybrid_conditions}"
+            else:
+                dominant_narrative = top_narrative
+                dominant_score = top_score
+                force_reason = None
+        else:
+            # Normal selection
+            dominant_narrative = max(scores, key=scores.get)
+            dominant_score = scores[dominant_narrative]
+            force_reason = None
+        
+        # ===== STEP 4: Determine tier and confidence =====
+        if dominant_score >= 75:
             tier = "TIER 1 (STRONG)"
             confidence = "High"
             stake = "2-3 units"
             tier_level = 1
-        elif initial_score >= 60:
+        elif dominant_score >= 60:
             tier = "TIER 2 (MEDIUM)"
             confidence = "Medium"
             stake = "1-2 units"
             tier_level = 2
-        elif initial_score >= 50:
+        elif dominant_score >= 50:
             tier = "TIER 3 (WEAK)"
             confidence = "Low"
             stake = "0.5-1 unit"
@@ -639,219 +571,167 @@ class HybridNarrativePredictionEngine:
             stake = "No bet"
             tier_level = 4
         
-        # Check BLITZKRIEG eligibility
-        if initial_dominant == "BLITZKRIEG":
-            if not self.is_blitzkrieg_eligible(match_data, prob, tier_level):
-                scores["BLITZKRIEG"] = 0  # Remove from consideration
-                # Recalculate after removal
-                initial_dominant = max(scores, key=scores.get)
-                initial_score = scores[initial_dominant]
-                
-                # Recalculate tier
-                if initial_score >= 75:
-                    tier = "TIER 1 (STRONG)"
-                    confidence = "High"
-                    stake = "2-3 units"
-                    tier_level = 1
-                elif initial_score >= 60:
-                    tier = "TIER 2 (MEDIUM)"
-                    confidence = "Medium"
-                    stake = "1-2 units"
-                    tier_level = 2
-                elif initial_score >= 50:
-                    tier = "TIER 3 (WEAK)"
-                    confidence = "Low"
-                    stake = "0.5-1 unit"
-                    tier_level = 3
-                else:
-                    tier = "TIER 4 (AVOID)"
-                    confidence = "Very Low"
-                    stake = "No bet"
-                    tier_level = 4
-        
-        # Check for hybrid eligibility
-        hybrid_info = self.check_hybrid_eligibility(scores, tier_level)
-        
-        if hybrid_info and tier_level in [1, 2]:
-            # HYBRID MODE
-            hybrid_type = hybrid_info["hybrid_type"]
-            primary = hybrid_info["primary_narrative"]
-            secondary = hybrid_info["secondary_narrative"]
+        # ===== STEP 5: Calculate probabilities =====
+        if dominant_narrative == "EDGE-CHAOS":
+            # Hybrid probabilities (blend)
+            ce_probs = self.calculate_dynamic_probabilities("CONTROLLED_EDGE", match_data, ce_subtype)
+            shootout_probs = self.calculate_dynamic_probabilities("SHOOTOUT", match_data)
             
-            # Get hybrid probabilities
-            probs = self.calculate_hybrid_probabilities(hybrid_info, match_data)
+            # Weighted blend (60% CONTROLLED_EDGE, 40% SHOOTOUT for chaos)
+            xg = (ce_probs["xg"] * 0.6) + (shootout_probs["xg"] * 0.4)
+            btts = (ce_probs["btts"] * 0.6) + (shootout_probs["btts"] * 0.4)
             
-            # Adjust stake for hybrid (slightly reduce due to uncertainty)
-            if stake == "2-3 units":
-                stake = "1.5-2.5 units"
-            elif stake == "1-2 units":
-                stake = "0.75-1.5 units"
+            narrative_info = self.hybrid_narratives["EDGE-CHAOS"]
+            markets = narrative_info["hybrid_markets"]
+            flow = narrative_info["flow"]
+            description = narrative_info["description"]
             
-            # Get hybrid info
-            hybrid_data = self.hybrid_narratives[hybrid_type]
-            
-            return {
-                "match": f"{match_data['home_team']} vs {match_data['away_team']}",
-                "date": match_data["date"],
-                "scores": scores,
-                "is_hybrid": True,
-                "hybrid_type": hybrid_type,
-                "primary_narrative": primary,
-                "secondary_narrative": secondary,
-                "dominant_narrative": hybrid_type,
-                "dominant_score": hybrid_info["primary_score"],
-                "tier": tier,
-                "confidence": confidence,
-                "tier_level": tier_level,
-                "expected_goals": probs["xg"],
-                "btts_probability": probs["btts"],
-                "over_25_probability": probs["over25"],
-                "stake_recommendation": stake,
-                "expected_flow": hybrid_data["flow"],
-                "betting_markets": hybrid_data["hybrid_markets"],
-                "description": hybrid_data["description"],
-                "narrative_color": hybrid_data["color"],
-                "secondary_color": hybrid_data["secondary_color"],
-                "probabilities": prob,
-                "hybrid_info": hybrid_info,
-                "margin": hybrid_info["margin"]
-            }
-        
         else:
-            # SINGLE NARRATIVE MODE
-            dominant_narrative = max(scores, key=scores.get)
-            dominant_score = scores[dominant_narrative]
+            # Single narrative probabilities
+            probs = self.calculate_dynamic_probabilities(dominant_narrative, match_data, 
+                                                        ce_subtype if dominant_narrative == "CONTROLLED_EDGE" else None)
+            xg = probs["xg"]
+            btts = probs["btts"]
             
-            # Recalculate tier based on final dominant narrative
-            if dominant_score >= 75:
-                tier = "TIER 1 (STRONG)"
-                confidence = "High"
-                stake = "2-3 units"
-                tier_level = 1
-            elif dominant_score >= 60:
-                tier = "TIER 2 (MEDIUM)"
-                confidence = "Medium"
-                stake = "1-2 units"
-                tier_level = 2
-            elif dominant_score >= 50:
-                tier = "TIER 3 (WEAK)"
-                confidence = "Low"
-                stake = "0.5-1 unit"
-                tier_level = 3
+            if dominant_narrative in self.narratives:
+                narrative_info = self.narratives[dominant_narrative]
+                markets = narrative_info["primary_markets"]
+                flow = narrative_info["flow"]
+                description = narrative_info["description"]
             else:
-                tier = "TIER 4 (AVOID)"
-                confidence = "Very Low"
-                stake = "No bet"
-                tier_level = 4
-            
-            # Get base probabilities
-            base_probs = self.calculate_base_probabilities(dominant_narrative, match_data)
-            
-            # Get narrative info
-            narrative_info = self.narratives.get(dominant_narrative, self.narratives["CONTROLLED_EDGE"])
-            
-            return {
-                "match": f"{match_data['home_team']} vs {match_data['away_team']}",
-                "date": match_data["date"],
-                "scores": scores,
-                "is_hybrid": False,
-                "dominant_narrative": dominant_narrative,
-                "dominant_score": dominant_score,
-                "tier": tier,
-                "confidence": confidence,
-                "tier_level": tier_level,
-                "expected_goals": base_probs["xg"],
-                "btts_probability": base_probs["btts"],
-                "over_25_probability": base_probs["over25"],
-                "stake_recommendation": stake,
-                "expected_flow": narrative_info["flow"],
-                "betting_markets": narrative_info["primary_markets"],
-                "description": narrative_info["description"],
-                "narrative_color": narrative_info["color"],
-                "probabilities": prob,
-                "blitzkrieg_eligible": self.is_blitzkrieg_eligible(match_data, prob, tier_level) if dominant_narrative == "BLITZKRIEG" else False,
-                "margin": 0
+                # Fallback
+                markets = []
+                flow = ""
+                description = dominant_narrative
+        
+        # Calculate Over 2.5 from xG
+        if xg >= 3.5:
+            over25 = 80
+        elif xg >= 3.0:
+            over25 = 70
+        elif xg >= 2.5:
+            over25 = 60
+        elif xg >= 2.0:
+            over25 = 50
+        else:
+            over25 = 40
+        
+        # Narrative adjustment
+        if dominant_narrative == "SHOOTOUT":
+            over25 += 10
+        elif dominant_narrative == "BLITZKRIEG":
+            over25 += 5
+        elif dominant_narrative in ["SIEGE", "CHESS_MATCH"]:
+            over25 -= 10
+        
+        over25 = max(25, min(90, over25))
+        
+        # ===== STEP 6: Prepare result =====
+        result = {
+            "match": f"{match_data['home_team']} vs {match_data['away_team']}",
+            "date": match_data["date"],
+            "scores": scores,
+            "dominant_narrative": dominant_narrative,
+            "dominant_score": dominant_score,
+            "tier": tier,
+            "confidence": confidence,
+            "tier_level": tier_level,
+            "expected_goals": xg,
+            "btts_probability": btts,
+            "over_25_probability": over25,
+            "stake_recommendation": stake,
+            "expected_flow": flow,
+            "betting_markets": markets,
+            "description": description,
+            "narrative_color": self.narratives.get(dominant_narrative, {}).get("color", "#6c757d"),
+            "probabilities": self.calculate_favorite_probability(match_data["home_odds"], match_data["away_odds"]),
+            "ground_truth_flags": {
+                "siege_detected": siege_detected,
+                "shootout_suppressed": shootout_suppressed,
+                "hybrid_conditions": hybrid_conditions,
+                "ce_subtype": ce_subtype,
+                "force_reason": force_reason
             }
+        }
+        
+        # Add secondary color for hybrids
+        if dominant_narrative == "EDGE-CHAOS":
+            result["secondary_color"] = self.hybrid_narratives["EDGE-CHAOS"]["secondary_color"]
+            result["hybrid_parents"] = ["CONTROLLED_EDGE", "SHOOTOUT"]
+        
+        return result
 
 # ==============================================
-# ENHANCED STREAMLIT APP WITH HYBRID UI/UX
+# ENHANCED STREAMLIT APP
 # ==============================================
 
 def main():
     st.set_page_config(
-        page_title="Narrative Prediction Engine v2.2 - Hybrid Edition",
+        page_title="Narrative Prediction Engine v2.3 - Ground Truth",
         page_icon="⚽",
         layout="wide",
         initial_sidebar_state="expanded"
     )
     
-    # Enhanced CSS with hybrid support
+    # Enhanced CSS
     st.markdown("""
     <style>
-    .hybrid-card {
-        background: linear-gradient(135deg, var(--primary-color, #f8f9fa) 0%, var(--secondary-color, #ffffff) 100%) !important;
-        border: 2px solid;
-        border-image: linear-gradient(90deg, var(--primary-color, #FF9800), var(--secondary-color, #FF5722)) 1;
-    }
-    .hybrid-badge {
-        background: linear-gradient(90deg, var(--primary-color, #FF9800), var(--secondary-color, #FF5722));
+    .ground-truth-flag {
+        background: linear-gradient(90deg, #4CAF50, #2196F3);
         color: white;
-        padding: 6px 16px;
+        padding: 6px 12px;
         border-radius: 20px;
+        font-size: 0.9rem;
         font-weight: bold;
+        margin: 5px;
         display: inline-block;
-        margin-bottom: 10px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
-    .hybrid-tag {
-        display: inline-block;
-        padding: 3px 8px;
-        border-radius: 12px;
+    .suppression-flag {
+        background-color: #FF5722;
+        color: white;
+        padding: 4px 10px;
+        border-radius: 15px;
         font-size: 0.8rem;
         margin: 2px;
+        display: inline-block;
+    }
+    .hybrid-parent {
         background-color: #f0f0f0;
-        border: 1px solid #ddd;
+        padding: 8px 15px;
+        border-radius: 10px;
+        margin: 5px;
+        border-left: 4px solid #FF9800;
     }
-    .primary-tag {
-        background-color: var(--primary-color, #FF9800)20;
-        border-color: var(--primary-color, #FF9800);
-        color: var(--primary-color, #FF9800);
-    }
-    .secondary-tag {
-        background-color: var(--secondary-color, #FF5722)20;
-        border-color: var(--secondary-color, #FF5722);
-        color: var(--secondary-color, #FF5722);
-    }
-    .probability-blend {
-        background: linear-gradient(90deg, var(--primary-color, #FF9800) 0%, var(--secondary-color, #FF5722) 100%);
-        height: 8px;
-        border-radius: 4px;
+    .probability-scale {
+        height: 20px;
+        background: linear-gradient(90deg, #F44336 0%, #FF9800 50%, #4CAF50 100%);
+        border-radius: 10px;
         margin: 10px 0;
         position: relative;
     }
-    .blend-marker {
+    .probability-marker {
         position: absolute;
-        top: -4px;
+        top: -5px;
         width: 3px;
-        height: 16px;
-        background-color: #333;
+        height: 30px;
+        background-color: black;
     }
-    .hybrid-explanation {
+    .rule-explanation {
         background-color: #f8f9fa;
-        border-left: 4px solid #6c757d;
-        padding: 12px;
+        padding: 15px;
+        border-radius: 10px;
         margin: 10px 0;
-        border-radius: 0 8px 8px 0;
+        border-left: 4px solid #6c757d;
     }
     </style>
     """, unsafe_allow_html=True)
     
     # App Header
-    st.markdown('<h1 style="font-size: 2.8rem; color: #1E88E5; text-align: center; margin-bottom: 0.5rem;">⚽ NARRATIVE PREDICTION ENGINE v2.2</h1>', unsafe_allow_html=True)
-    st.markdown("### **Hybrid Edition • 8-Point Margin Rule • Stress-Tested**")
+    st.markdown('<h1 style="font-size: 2.8rem; color: #1E88E5; text-align: center; margin-bottom: 0.5rem;">⚽ NARRATIVE PREDICTION ENGINE v2.3</h1>', unsafe_allow_html=True)
+    st.markdown("### **Ground Truth Edition • CSV Signal Mapping • Stress-Tested**")
     
     # Initialize engine
-    engine = HybridNarrativePredictionEngine()
+    engine = GroundTruthPredictionEngine()
     
     # Sidebar
     with st.sidebar:
@@ -875,120 +755,119 @@ def main():
                     st.error(f"❌ Error: {str(e)}")
         
         elif data_source == "Use Sample Data":
-            # Sample matches including problematic ones
+            # Ground truth sample matches
             sample_matches = [
-                # Tottenham vs Liverpool (should be hybrid)
-                {
-                    "match_id": "EPL_2025-12-20_TOT_LIV",
-                    "league": "Premier League",
-                    "date": "2025-12-20",
-                    "home_team": "Tottenham",
-                    "away_team": "Liverpool",
-                    "home_position": 5,
-                    "away_position": 3,
-                    "home_odds": 2.45,
-                    "away_odds": 2.65,
-                    "home_form": "WWLWD",
-                    "away_form": "DWWWD",
-                    "home_manager": "Ange Postecoglou",
-                    "away_manager": "Arne Slot",
-                    "last_h2h_goals": 3,
-                    "last_h2h_btts": "Yes",
-                    "home_manager_style": "High press & transition",
-                    "away_manager_style": "High press & transition",
-                    "home_attack_rating": 9,
-                    "away_attack_rating": 9,
-                    "home_defense_rating": 5,
-                    "away_defense_rating": 6,
-                    "home_press_rating": 9,
-                    "away_press_rating": 9,
-                    "home_possession_rating": 6,
-                    "away_possession_rating": 7,
-                    "home_pragmatic_rating": 4,
-                    "away_pragmatic_rating": 5
-                },
-                # Manchester City vs West Ham (clear SIEGE)
+                # Manchester City vs West Ham (SIEGE)
                 {
                     "match_id": "EPL_2025-12-20_MCI_WHU",
-                    "league": "Premier League",
-                    "date": "2025-12-20",
-                    "home_team": "Manchester City",
-                    "away_team": "West Ham",
-                    "home_position": 1,
-                    "away_position": 15,
-                    "home_odds": 1.25,
-                    "away_odds": 13.00,
-                    "home_form": "WWWWW",
-                    "away_form": "LLLLL",
-                    "home_manager": "Pep Guardiola",
-                    "away_manager": "David Moyes",
-                    "last_h2h_goals": 4,
-                    "last_h2h_btts": "No",
+                    "league": "Premier League", "date": "2025-12-20",
+                    "home_team": "Manchester City", "away_team": "West Ham",
+                    "home_position": 1, "away_position": 15,
+                    "home_odds": 1.25, "away_odds": 13.00,
+                    "home_form": "WWWWW", "away_form": "LLLLL",
+                    "home_manager": "Pep Guardiola", "away_manager": "David Moyes",
+                    "last_h2h_goals": 4, "last_h2h_btts": "No",
                     "home_manager_style": "Possession-based & control",
                     "away_manager_style": "Pragmatic/Defensive",
-                    "home_attack_rating": 10,
-                    "away_attack_rating": 5,
-                    "home_defense_rating": 8,
-                    "away_defense_rating": 9,
-                    "home_press_rating": 9,
-                    "away_press_rating": 6,
-                    "home_possession_rating": 10,
-                    "away_possession_rating": 5,
-                    "home_pragmatic_rating": 4,
-                    "away_pragmatic_rating": 9
+                    "home_attack_rating": 10, "away_attack_rating": 5,
+                    "home_defense_rating": 8, "away_defense_rating": 9,
+                    "home_press_rating": 9, "away_press_rating": 6,
+                    "home_possession_rating": 10, "away_possession_rating": 5,
+                    "home_pragmatic_rating": 4, "away_pragmatic_rating": 9
                 },
-                # Newcastle vs Chelsea (should be hybrid)
+                # Tottenham vs Liverpool (EDGE-CHAOS)
+                {
+                    "match_id": "EPL_2025-12-20_TOT_LIV",
+                    "league": "Premier League", "date": "2025-12-20",
+                    "home_team": "Tottenham", "away_team": "Liverpool",
+                    "home_position": 5, "away_position": 3,
+                    "home_odds": 2.45, "away_odds": 2.65,
+                    "home_form": "WWLWD", "away_form": "DWWWD",
+                    "home_manager": "Ange Postecoglou", "away_manager": "Arne Slot",
+                    "last_h2h_goals": 3, "last_h2h_btts": "Yes",
+                    "home_manager_style": "High press & transition",
+                    "away_manager_style": "High press & transition",
+                    "home_attack_rating": 9, "away_attack_rating": 9,
+                    "home_defense_rating": 5, "away_defense_rating": 6,
+                    "home_press_rating": 9, "away_press_rating": 9,
+                    "home_possession_rating": 6, "away_possession_rating": 7,
+                    "home_pragmatic_rating": 4, "away_pragmatic_rating": 5
+                },
+                # Newcastle vs Chelsea (EDGE-CHAOS)
                 {
                     "match_id": "EPL_2025-12-20_NEW_CHE",
-                    "league": "Premier League",
-                    "date": "2025-12-20",
-                    "home_team": "Newcastle United",
-                    "away_team": "Chelsea",
-                    "home_position": 12,
-                    "away_position": 4,
-                    "home_odds": 2.68,
-                    "away_odds": 2.57,
-                    "home_form": "WWWWL",
-                    "away_form": "DWWWD",
-                    "home_manager": "Eddie Howe",
-                    "away_manager": "Enzo Maresca",
-                    "last_h2h_goals": 2,
-                    "last_h2h_btts": "No",
+                    "league": "Premier League", "date": "2025-12-20",
+                    "home_team": "Newcastle United", "away_team": "Chelsea",
+                    "home_position": 12, "away_position": 4,
+                    "home_odds": 2.68, "away_odds": 2.57,
+                    "home_form": "WWWWL", "away_form": "DWWWD",
+                    "home_manager": "Eddie Howe", "away_manager": "Enzo Maresca",
+                    "last_h2h_goals": 2, "last_h2h_btts": "No",
                     "home_manager_style": "High press & transition",
                     "away_manager_style": "Possession-based & control",
-                    "home_attack_rating": 9,
-                    "away_attack_rating": 8,
-                    "home_defense_rating": 6,
-                    "away_defense_rating": 7,
-                    "home_press_rating": 9,
-                    "away_press_rating": 7,
-                    "home_possession_rating": 7,
-                    "away_possession_rating": 9,
-                    "home_pragmatic_rating": 5,
-                    "away_pragmatic_rating": 6
+                    "home_attack_rating": 9, "away_attack_rating": 8,
+                    "home_defense_rating": 6, "away_defense_rating": 7,
+                    "home_press_rating": 9, "away_press_rating": 7,
+                    "home_possession_rating": 7, "away_possession_rating": 9,
+                    "home_pragmatic_rating": 5, "away_pragmatic_rating": 6
+                },
+                # Fulham vs Nottingham Forest (SHOOTOUT)
+                {
+                    "match_id": "EPL_2025-12-22_FUL_NOT",
+                    "league": "Premier League", "date": "2025-12-22",
+                    "home_team": "Fulham", "away_team": "Nottingham Forest",
+                    "home_position": 11, "away_position": 13,
+                    "home_odds": 2.10, "away_odds": 3.40,
+                    "home_form": "DLWWD", "away_form": "WLLWD",
+                    "home_manager": "Marco Silva", "away_manager": "Régis Le Bris",
+                    "last_h2h_goals": 3, "last_h2h_btts": "Yes",
+                    "home_manager_style": "Balanced/Adaptive",
+                    "away_manager_style": "Progressive/Developing",
+                    "home_attack_rating": 8, "away_attack_rating": 9,
+                    "home_defense_rating": 7, "away_defense_rating": 5,
+                    "home_press_rating": 7, "away_press_rating": 9,
+                    "home_possession_rating": 7, "away_possession_rating": 6,
+                    "home_pragmatic_rating": 6, "away_pragmatic_rating": 4
                 }
             ]
             df = pd.DataFrame(sample_matches)
-            st.success(f"✅ Loaded {len(df)} sample matches")
+            st.success(f"✅ Loaded {len(df)} ground truth sample matches")
         
         # Analysis settings
         st.markdown("### 🔧 Analysis Settings")
         
-        show_hybrid_details = st.checkbox("Show Hybrid Analysis", value=True)
-        debug_mode = st.checkbox("Debug Mode", value=False)
+        show_ground_truth = st.checkbox("Show Ground Truth Rules", value=True)
+        show_suppression = st.checkbox("Show Suppression Logic", value=True)
         
         # Navigation
         st.markdown("### 📋 Navigation")
-        page = st.radio("Go to", ["Predictions", "Hybrid Guide", "Export"])
+        page = st.radio("Go to", ["Predictions", "Ground Truth Rules", "Export"])
     
     # Main content
     if df is not None:
-        # Data preview
-        with st.expander("📊 Data Preview", expanded=False):
-            st.dataframe(df.head())
+        # Data preview with signal highlighting
+        with st.expander("📊 Data Preview with Signal Analysis", expanded=False):
+            st.dataframe(df)
+            
+            # Signal analysis
+            st.markdown("#### 🔍 Key Signal Detection")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                high_press = df[['home_press_rating', 'away_press_rating']].max().max()
+                st.metric("Max Press Rating", high_press)
+            
+            with col2:
+                high_defense = df[['home_defense_rating', 'away_defense_rating']].max().max()
+                st.metric("Max Defense Rating", high_defense)
+            
+            with col3:
+                pragmatic_teams = ((df['home_pragmatic_rating'] >= 7).sum() + 
+                                 (df['away_pragmatic_rating'] >= 7).sum())
+                st.metric("Pragmatic Teams (≥7)", pragmatic_teams)
         
         # Match selection
-        st.markdown("### 🎯 Select Matches")
+        st.markdown("### 🎯 Select Matches for Ground Truth Analysis")
         
         match_options = df.apply(
             lambda row: f"{row['home_team']} vs {row['away_team']} ({row['date']})", 
@@ -998,12 +877,12 @@ def main():
         selected_matches = st.multiselect(
             "Choose matches to analyze",
             match_options,
-            default=match_options[:min(3, len(match_options))]
+            default=match_options[:min(4, len(match_options))]
         )
         
         # Generate predictions
-        if st.button("🚀 Generate Hybrid Predictions", type="primary"):
-            with st.spinner("Running hybrid narrative analysis..."):
+        if st.button("🚀 Run Ground Truth Analysis", type="primary"):
+            with st.spinner("Applying ground truth rules..."):
                 predictions = []
                 
                 for match_str in selected_matches:
@@ -1043,7 +922,7 @@ def main():
                 
                 # Store results
                 st.session_state.predictions = predictions
-                st.success(f"✅ Generated {len(predictions)} hybrid predictions")
+                st.success(f"✅ Generated {len(predictions)} ground truth predictions")
     
     # Display predictions
     if "predictions" in st.session_state:
@@ -1051,128 +930,129 @@ def main():
         
         if page == "Predictions":
             # Summary dashboard
+            st.markdown("### 📈 Ground Truth Results")
+            
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
-                hybrid_count = sum(1 for p in predictions if p["is_hybrid"])
-                st.metric("🔄 Hybrid Predictions", hybrid_count)
+                siege_count = sum(1 for p in predictions if p["dominant_narrative"] == "SIEGE")
+                st.metric("⚔️ SIEGE Predictions", siege_count)
             
             with col2:
-                single_count = len(predictions) - hybrid_count
-                st.metric("🎯 Single Narratives", single_count)
+                hybrid_count = sum(1 for p in predictions if p["dominant_narrative"] == "EDGE-CHAOS")
+                st.metric("🔄 EDGE-CHAOS Predictions", hybrid_count)
             
             with col3:
-                avg_margin = sum(p.get("margin", 0) for p in predictions) / len(predictions)
-                st.metric("📊 Avg Narrative Margin", f"{avg_margin:.1f}")
+                shootout_count = sum(1 for p in predictions if p["dominant_narrative"] == "SHOOTOUT")
+                st.metric("🔥 SHOOTOUT Predictions", shootout_count)
             
             with col4:
-                tier1_count = sum(1 for p in predictions if p["tier"] == "TIER 1 (STRONG)")
-                st.metric("🏆 Tier 1 Predictions", tier1_count)
+                suppressed = sum(1 for p in predictions if p["ground_truth_flags"]["shootout_suppressed"])
+                st.metric("🛡️ SHOOTOUT Suppressed", suppressed)
             
-            # Individual predictions
+            # Individual predictions with ground truth explanation
             for pred in predictions:
-                # Determine card styling
-                if pred["is_hybrid"]:
-                    card_style = f"""
-                    <style>
-                    .hybrid-card-{pred['match'].replace(' ', '-').replace('vs', '-')} {{
-                        --primary-color: {pred['narrative_color']};
-                        --secondary-color: {pred.get('secondary_color', '#6c757d')};
-                    }}
-                    </style>
-                    """
-                    st.markdown(card_style, unsafe_allow_html=True)
-                    
-                    st.markdown(f'<div class="prediction-card hybrid-card hybrid-card-{pred["match"].replace(" ", "-").replace("vs", "-")}">', unsafe_allow_html=True)
-                else:
-                    st.markdown(f'<div class="prediction-card" style="border-left: 5px solid {pred["narrative_color"]};">', unsafe_allow_html=True)
+                # Card styling
+                narrative_color = pred["narrative_color"]
+                st.markdown(f'<div class="prediction-card" style="border-left: 5px solid {narrative_color};">', unsafe_allow_html=True)
                 
-                # Header
-                col_h1, col_h2, col_h3 = st.columns([3, 1, 1])
+                # Header with ground truth flags
+                col_h1, col_h2 = st.columns([3, 1])
                 
                 with col_h1:
                     st.markdown(f"### {pred['match']}")
                     st.markdown(f"**Date:** {pred['date']} | **Tier:** {pred['tier']}")
                     
-                    if pred["is_hybrid"]:
-                        st.markdown(f'<div class="hybrid-badge" style="--primary-color: {pred["narrative_color"]}; --secondary-color: {pred.get("secondary_color", "#6c757d")};">{pred["hybrid_type"]}</div>', unsafe_allow_html=True)
+                    # Narrative badge
+                    if pred["dominant_narrative"] == "EDGE-CHAOS":
+                        st.markdown(f'<div style="background: linear-gradient(90deg, {pred["narrative_color"]}, {pred.get("secondary_color", "#FF5722")}); color: white; padding: 8px 16px; border-radius: 20px; display: inline-block; margin: 10px 0;">'
+                                  f'<strong>{pred["dominant_narrative"]}</strong>'
+                                  f'</div>', unsafe_allow_html=True)
                         
                         # Show parent narratives
-                        st.markdown(f'<span class="hybrid-tag primary-tag">{pred["primary_narrative"]}</span> + <span class="hybrid-tag secondary-tag">{pred["secondary_narrative"]}</span>', unsafe_allow_html=True)
+                        st.markdown('<div class="hybrid-parent">', unsafe_allow_html=True)
+                        st.markdown("**Hybrid Parents:** CONTROLLED_EDGE + SHOOTOUT")
+                        st.markdown('</div>', unsafe_allow_html=True)
                     else:
-                        color = pred["narrative_color"]
-                        st.markdown(f'<div style="background-color: {color}20; padding: 8px 16px; border-radius: 20px; border: 2px solid {color}; display: inline-block; margin-bottom: 10px;">'
-                                  f'<strong style="color: {color};">{pred["dominant_narrative"]}</strong>'
+                        st.markdown(f'<div style="background-color: {pred["narrative_color"]}20; padding: 8px 16px; border-radius: 20px; border: 2px solid {pred["narrative_color"]}; display: inline-block; margin: 10px 0;">'
+                                  f'<strong style="color: {pred["narrative_color"]};">{pred["dominant_narrative"]}</strong>'
                                   f'</div>', unsafe_allow_html=True)
                 
                 with col_h2:
-                    # Score display
-                    if pred["is_hybrid"]:
-                        st.markdown(f"**Primary Score:** {pred['hybrid_info']['primary_score']:.1f}")
-                        st.markdown(f"**Secondary Score:** {pred['hybrid_info']['secondary_score']:.1f}")
-                        st.markdown(f"**Margin:** {pred['margin']:.1f}")
-                    else:
-                        st.markdown(f"**Score:** {pred['dominant_score']:.1f}/100")
-                
-                with col_h3:
-                    # Stake and confidence
-                    stake_class = "stake-high" if "2-3" in pred["stake_recommendation"] or "1.5-2.5" in pred["stake_recommendation"] else \
-                                 "stake-medium" if "1-2" in pred["stake_recommendation"] or "0.75-1.5" in pred["stake_recommendation"] else \
-                                 "stake-low"
-                    
-                    st.markdown(f'<div class="stake-badge {stake_class}">{pred["stake_recommendation"]}</div>', unsafe_allow_html=True)
+                    # Score and stake
+                    st.markdown(f"**Score:** {pred['dominant_score']:.1f}/100")
                     st.markdown(f"**Confidence:** {pred['confidence']}")
+                    st.markdown(f'<div class="stake-badge">{pred["stake_recommendation"]}</div>', unsafe_allow_html=True)
+                
+                # Ground truth flags
+                if show_ground_truth:
+                    flags = pred["ground_truth_flags"]
+                    if any([flags["siege_detected"], flags["shootout_suppressed"], flags["hybrid_conditions"]]):
+                        st.markdown("#### 🎯 Ground Truth Rules Applied")
+                        
+                        col_f1, col_f2, col_f3 = st.columns(3)
+                        
+                        with col_f1:
+                            if flags["siege_detected"]:
+                                st.markdown('<div class="ground-truth-flag">⚔️ SIEGE DETECTED</div>', unsafe_allow_html=True)
+                        
+                        with col_f2:
+                            if flags["shootout_suppressed"]:
+                                st.markdown('<div class="suppression-flag">🛡️ SHOOTOUT SUPPRESSED</div>', unsafe_allow_html=True)
+                        
+                        with col_f3:
+                            if flags["hybrid_conditions"]:
+                                st.markdown('<div class="ground-truth-flag">🔄 HYBRID CONDITIONS</div>', unsafe_allow_html=True)
+                                st.markdown(f"*{', '.join(flags['hybrid_conditions'])}*")
+                        
+                        if flags.get("force_reason"):
+                            st.info(f"**Decision Reason:** {flags['force_reason']}")
                 
                 # Main content
                 col_m1, col_m2 = st.columns(2)
                 
                 with col_m1:
-                    # Narrative scores visualization
-                    st.markdown("#### 📊 Narrative Scores")
+                    # Narrative scores
+                    st.markdown("#### 📊 Narrative Scores (with Suppression)")
                     
-                    if pred["is_hybrid"] and show_hybrid_details:
-                        # Show probability blend visualization
-                        st.markdown("**Probability Blend:**")
-                        weight = pred["hybrid_info"]["weight"]
-                        st.markdown(f'<div class="probability-blend" style="--primary-color: {pred["narrative_color"]}; --secondary-color: {pred.get("secondary_color", "#6c757d")};">'
-                                  f'<div class="blend-marker" style="left: {weight*100}%;"></div>'
-                                  f'</div>', unsafe_allow_html=True)
-                        
-                        col_w1, col_w2 = st.columns(2)
-                        with col_w1:
-                            st.markdown(f"**Primary Weight:** {weight:.2f}")
-                        with col_w2:
-                            st.markdown(f"**Secondary Weight:** {1-weight:.2f}")
-                    
-                    # Show all scores
                     for narrative, score in pred["scores"].items():
-                        if narrative in engine.narratives:
-                            color = engine.narratives[narrative]["color"]
-                            is_primary = pred.get("primary_narrative") == narrative
-                            is_secondary = pred.get("secondary_narrative") == narrative
-                            
+                        color = engine.narratives.get(narrative, {}).get("color", "#6c757d")
+                        
+                        # Highlight if suppressed
+                        if narrative == "SHOOTOUT" and pred["ground_truth_flags"]["shootout_suppressed"]:
+                            label = f"🛡️ {narrative} (Suppressed)"
+                        elif narrative == "SIEGE" and pred["ground_truth_flags"]["siege_detected"]:
+                            label = f"⚔️ {narrative} (Detected)"
+                        else:
                             label = narrative
-                            if is_primary:
-                                label = f"🏆 {narrative}"
-                            elif is_secondary:
-                                label = f"🥈 {narrative}"
-                            
-                            st.markdown(f"**{label}:** {score:.1f}")
-                            st.markdown(f'<div class="score-bar"><div style="width: {score}%; height: 100%; background-color: {color}; border-radius: 10px;"></div></div>', unsafe_allow_html=True)
+                        
+                        st.markdown(f"**{label}:** {score:.1f}")
+                        st.markdown(f'<div class="score-bar"><div style="width: {score}%; height: 100%; background-color: {color}; border-radius: 10px;"></div></div>', unsafe_allow_html=True)
                     
-                    # Key stats
-                    st.markdown("#### 📈 Key Statistics")
+                    # Key stats with scale visualization
+                    st.markdown("#### 📈 Dynamic Probabilities")
                     
                     col_s1, col_s2, col_s3 = st.columns(3)
                     with col_s1:
                         st.metric("Expected Goals", f"{pred['expected_goals']:.1f}")
+                        # xG scale
+                        xg_position = ((pred['expected_goals'] - 1.8) / (4.0 - 1.8)) * 100
+                        st.markdown(f'<div class="probability-scale"><div class="probability-marker" style="left: {xg_position}%;"></div></div>', unsafe_allow_html=True)
+                    
                     with col_s2:
                         st.metric("BTTS %", f"{pred['btts_probability']}%")
+                        # BTTS scale
+                        btts_position = ((pred['btts_probability'] - 20) / (85 - 20)) * 100
+                        st.markdown(f'<div class="probability-scale"><div class="probability-marker" style="left: {btts_position}%;"></div></div>', unsafe_allow_html=True)
+                    
                     with col_s3:
                         st.metric("Over 2.5 %", f"{pred['over_25_probability']}%")
+                        # Over 2.5 scale
+                        over_position = ((pred['over_25_probability'] - 25) / (90 - 25)) * 100
+                        st.markdown(f'<div class="probability-scale"><div class="probability-marker" style="left: {over_position}%;"></div></div>', unsafe_allow_html=True)
                 
                 with col_m2:
-                    # Insights and flow
+                    # Insights
                     st.markdown("#### 💡 Insights")
                     st.info(pred["description"])
                     
@@ -1185,159 +1065,167 @@ def main():
                     for market in pred["betting_markets"]:
                         st.markdown(f"• {market}")
                     
-                    # Hybrid explanation
-                    if pred["is_hybrid"] and show_hybrid_details:
-                        with st.expander("🔄 Hybrid Analysis", expanded=False):
-                            st.markdown(f"""
-                            **Why Hybrid?**
-                            - Primary narrative: **{pred['primary_narrative']}** ({pred['hybrid_info']['primary_score']:.1f})
-                            - Secondary narrative: **{pred['secondary_narrative']}** ({pred['hybrid_info']['secondary_score']:.1f})
-                            - Margin: **{pred['margin']:.1f}** points (< 8, so hybrid triggered)
+                    # Ground truth explanation
+                    if show_ground_truth:
+                        with st.expander("🔍 Ground Truth Explanation", expanded=False):
+                            flags = pred["ground_truth_flags"]
                             
-                            **Probability Blend:**
-                            - BTTS: {pred['btts_probability']}% (between {pred['primary_narrative']} and {pred['secondary_narrative']})
-                            - Over 2.5: {pred['over_25_probability']}% (weighted average)
-                            - xG: {pred['expected_goals']:.1f} (blended expectation)
-                            """)
-                
-                # Debug info
-                if debug_mode:
-                    with st.expander("🔍 Debug Info", expanded=False):
-                        st.json(pred.get("probabilities", {}))
-                        if pred["is_hybrid"]:
-                            st.json(pred.get("hybrid_info", {}))
+                            if flags["siege_detected"]:
+                                st.markdown("""
+                                **⚔️ SIEGE DETECTED:**
+                                - Attacker attack ≥ 8
+                                - Defender defense ≥ 8  
+                                - Defender pragmatic ≥ 7
+                                - Favorite probability ≥ 60%
+                                """)
+                            
+                            if flags["shootout_suppressed"]:
+                                st.markdown("""
+                                **🛡️ SHOOTOUT SUPPRESSED:**
+                                - Defense ≥ 8 AND Pragmatic ≥ 7 in at least one team
+                                - Halves SHOOTOUT narrative score
+                                """)
+                            
+                            if flags["hybrid_conditions"]:
+                                st.markdown(f"""
+                                **🔄 HYBRID CONDITIONS:**
+                                - {', '.join(flags['hybrid_conditions'])}
+                                - Forces EDGE-CHAOS consideration
+                                """)
+                            
+                            if flags["ce_subtype"]:
+                                st.markdown(f"""
+                                **🎯 CONTROLLED_EDGE Subtype:**
+                                - **{flags['ce_subtype']}**
+                                - Affects probability ranges
+                                """)
                 
                 st.markdown('</div>', unsafe_allow_html=True)
             
             # Overall analysis
             if len(predictions) > 1:
-                st.markdown("### 📊 Overall Analysis")
+                st.markdown("### 📊 Ground Truth Analysis")
                 
-                # Create narrative distribution chart
+                # Narrative distribution
                 narrative_counts = {}
-                hybrid_counts = {}
-                
                 for pred in predictions:
-                    if pred["is_hybrid"]:
-                        hybrid_counts[pred["hybrid_type"]] = hybrid_counts.get(pred["hybrid_type"], 0) + 1
-                    else:
-                        narrative_counts[pred["dominant_narrative"]] = narrative_counts.get(pred["dominant_narrative"], 0) + 1
+                    narrative = pred["dominant_narrative"]
+                    narrative_counts[narrative] = narrative_counts.get(narrative, 0) + 1
                 
-                # Combine for display
-                all_counts = {**narrative_counts, **hybrid_counts}
-                
-                if all_counts:
-                    fig = go.Figure(data=[
-                        go.Pie(
-                            labels=list(all_counts.keys()),
-                            values=list(all_counts.values()),
-                            hole=0.3,
-                            marker_colors=[pred["narrative_color"] if not pred["is_hybrid"] else engine.hybrid_narratives.get(pred["hybrid_type"], {}).get("color", "#6c757d") 
-                                          for pred in predictions for _ in range(all_counts.get(pred["dominant_narrative"] if not pred["is_hybrid"] else pred["hybrid_type"], 0))]
-                        )
-                    ])
-                    
-                    fig.update_layout(
-                        title="Narrative Distribution",
-                        height=400,
-                        showlegend=True
+                fig = go.Figure(data=[
+                    go.Bar(
+                        x=list(narrative_counts.keys()),
+                        y=list(narrative_counts.values()),
+                        marker_color=[pred["narrative_color"] for pred in predictions for _ in range(narrative_counts.get(pred["dominant_narrative"], 0))]
                     )
-                    
-                    st.plotly_chart(fig, use_container_width=True)
+                ])
+                
+                fig.update_layout(
+                    title="Narrative Distribution (v2.3 Ground Truth)",
+                    xaxis_title="Narrative",
+                    yaxis_title="Count",
+                    height=400
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
         
-        elif page == "Hybrid Guide":
-            # Hybrid narrative guide
-            st.markdown("## 🔄 Hybrid Narrative Guide")
+        elif page == "Ground Truth Rules":
+            # Rules explanation
+            st.markdown("## 🎯 Ground Truth Rules v2.3")
             
             st.markdown("""
-            ### What are Hybrid Narratives?
+            ### Rule 1: SIEGE Detection (First Priority)
+            **Conditions (ALL must be true):**
+            1. Attacker attack ≥ 8
+            2. Defender defense ≥ 8  
+            3. Defender pragmatic ≥ 7
+            4. Favorite probability ≥ 60%
             
-            Hybrid narratives are triggered when:
-            1. **Margin < 8 points** between top two narratives
-            2. **Tier ≥ 2** (Medium or High confidence)
-            3. **Valid combination** of parent narratives
-            
-            This prevents overconfidence in close-call matches and creates more nuanced predictions.
+            **Effect:** Forces SIEGE narrative, overrides other calculations
+            **Example:** Manchester City vs West Ham
             """)
             
-            # Show hybrid types
-            for hybrid_name, hybrid_data in engine.hybrid_narratives.items():
-                col_g1, col_g2 = st.columns([1, 2])
-                
-                with col_g1:
-                    st.markdown(
-                        f'<div style="background: linear-gradient(135deg, {hybrid_data["color"]}20, {hybrid_data.get("secondary_color", "#6c757d")}20); padding: 20px; border-radius: 10px; border-left: 5px solid {hybrid_data["color"]}; border-right: 5px solid {hybrid_data.get("secondary_color", "#6c757d")};">'
-                        f'<h3 style="color: {hybrid_data["color"]}; margin-top: 0;">{hybrid_name}</h3>'
-                        f'<p><strong>{hybrid_data["description"]}</strong></p>'
-                        f'<p>Parents: {hybrid_data["parent_narratives"][0]} + {hybrid_data["parent_narratives"][1]}</p>'
-                        f'</div>',
-                        unsafe_allow_html=True
-                    )
-                
-                with col_g2:
-                    with st.expander(f"Detailed Analysis", expanded=False):
-                        st.markdown("**Expected Match Flow:**")
-                        st.write(hybrid_data["flow"])
-                        
-                        st.markdown("**Typical Characteristics:**")
-                        
-                        if hybrid_name == "EDGE-CHAOS":
-                            st.write("""
-                            - Close match with explosive potential
-                            - Both teams capable of attacking
-                            - Could remain tight or open up
-                            - Higher variance than pure CONTROLLED_EDGE
-                            - Expected BTTS: 45-65%
-                            - Expected xG: 2.8-3.4
-                            """)
-                        
-                        elif hybrid_name == "EDGE-DOMINATION":
-                            st.write("""
-                            - Controlled favorite vs organized defense
-                            - Patient buildup rather than early pressure
-                            - Breakthrough likely mid-game
-                            - Low-scoring but controlled
-                            - Expected BTTS: 30-50%
-                            - Expected xG: 2.2-2.8
-                            """)
-                        
-                        elif hybrid_name == "HIGH-TEMPO":
-                            st.write("""
-                            - Fast start from both teams
-                            - Early goals likely
-                            - Game could become one-sided or remain chaotic
-                            - High scoring potential
-                            - Expected BTTS: 60-75%
-                            - Expected xG: 3.2-3.8
-                            """)
-                        
-                        st.markdown("**Recommended Markets:**")
-                        for market in hybrid_data["hybrid_markets"]:
-                            st.write(f"• {market}")
-                
-                st.markdown("---")
+            st.markdown("""
+            ### Rule 2: SHOOTOUT Suppression
+            **Condition:** Either team has defense ≥ 8 AND pragmatic ≥ 7
+            
+            **Effect:** Halves SHOOTOUT narrative score
+            **Purpose:** Prevents chaos predictions against organized defenses
+            **Example:** Any match with a pragmatic, defensively strong team
+            """)
+            
+            st.markdown("""
+            ### Rule 3: Hybrid Volatility Override
+            **Conditions (any triggers hybrid):**
+            
+            **A. HIGH_PRESS_HIGH_ATTACK:**
+            - Both teams press ≥ 7 AND attack ≥ 7
+            
+            **B. STYLE_CLASH:**
+            - Press difference ≥ 3 AND possession difference ≥ 3
+            
+            **C. ATTACK_HEAVY:**
+            - Both attacks ≥ 8 AND both defenses ≤ 7
+            
+            **Effect:** Forces EDGE-CHAOS hybrid consideration
+            **Example:** Tottenham vs Liverpool, Newcastle vs Chelsea
+            """)
+            
+            st.markdown("""
+            ### Rule 4: CONTROLLED_EDGE Subclassification
+            **Subtypes:**
+            
+            **HIGH_QUALITY:**
+            - Average attack ≥ 7.5 AND average press ≥ 7
+            - Example: Aston Villa vs Manchester United
+            
+            **LOW_TEMPO:**
+            - Average attack ≤ 6 AND average press ≤ 6  
+            - Example: Wolves vs Brentford
+            
+            **STANDARD:**
+            - Everything else
+            
+            **Effect:** Adjusts probability ranges based on subtype
+            """)
+            
+            st.markdown("""
+            ### Probability Scaling Matrix
+            """)
+            
+            # Probability matrix
+            matrix_data = {
+                "Narrative": ["SIEGE", "CONTROLLED_EDGE (Low)", "CONTROLLED_EDGE (High)", 
+                             "EDGE-CHAOS", "SHOOTOUT"],
+                "xG Range": ["2.4-3.0", "2.2-2.6", "2.8-3.2", "2.9-3.4", "3.2-3.8"],
+                "BTTS Range": ["30-45%", "35-50%", "45-60%", "50-70%", "65-80%"],
+                "Over 2.5": ["40-60%", "35-55%", "45-65%", "55-75%", "70-85%"]
+            }
+            
+            matrix_df = pd.DataFrame(matrix_data)
+            st.dataframe(matrix_df, use_container_width=True)
         
         elif page == "Export":
-            # Export functionality
-            st.markdown("## 📊 Export Predictions")
+            # Export with ground truth data
+            st.markdown("## 📊 Export Ground Truth Predictions")
             
             export_data = []
             for pred in predictions:
                 export_row = {
                     "Match": pred["match"],
                     "Date": pred["date"],
-                    "Narrative_Type": "Hybrid" if pred["is_hybrid"] else "Single",
-                    "Prediction": pred["hybrid_type"] if pred["is_hybrid"] else pred["dominant_narrative"],
-                    "Primary_Narrative": pred.get("primary_narrative", ""),
-                    "Secondary_Narrative": pred.get("secondary_narrative", ""),
-                    "Narrative_Score": pred["dominant_score"],
+                    "Narrative": pred["dominant_narrative"],
+                    "Score": pred["dominant_score"],
                     "Tier": pred["tier"],
                     "Confidence": pred["confidence"],
                     "Expected_Goals": pred["expected_goals"],
                     "BTTS_Probability": pred["btts_probability"],
                     "Over_25_Probability": pred["over_25_probability"],
                     "Stake_Recommendation": pred["stake_recommendation"],
-                    "Margin": pred.get("margin", 0)
+                    "Siege_Detected": pred["ground_truth_flags"]["siege_detected"],
+                    "Shootout_Suppressed": pred["ground_truth_flags"]["shootout_suppressed"],
+                    "Hybrid_Conditions": ", ".join(pred["ground_truth_flags"]["hybrid_conditions"]),
+                    "CE_Subtype": pred["ground_truth_flags"]["ce_subtype"]
                 }
                 export_data.append(export_row)
             
@@ -1349,33 +1237,59 @@ def main():
             # Download
             csv = export_df.to_csv(index=False)
             b64 = base64.b64encode(csv.encode()).decode()
-            href = f'<a href="data:file/csv;base64,{b64}" download="hybrid_predictions_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv">📥 Download CSV</a>'
+            href = f'<a href="data:file/csv;base64,{b64}" download="ground_truth_predictions_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv">📥 Download CSV</a>'
             st.markdown(href, unsafe_allow_html=True)
+            
+            # Summary statistics
+            st.markdown("### 📈 Export Summary")
+            col_e1, col_e2, col_e3 = st.columns(3)
+            
+            with col_e1:
+                avg_xg = export_df["Expected_Goals"].mean()
+                st.metric("Average xG", f"{avg_xg:.2f}")
+            
+            with col_e2:
+                siege_rate = (export_df["Siege_Detected"].sum() / len(export_df)) * 100
+                st.metric("SIEGE Detection Rate", f"{siege_rate:.1f}%")
+            
+            with col_e3:
+                hybrid_rate = (export_df["Hybrid_Conditions"].str.len() > 0).sum() / len(export_df) * 100
+                st.metric("Hybrid Trigger Rate", f"{hybrid_rate:.1f}%")
     
     else:
         # Initial state
         st.info("👈 **Upload a CSV file or use sample data to get started**")
         
-        # Show what's new
-        with st.expander("🎯 What's New in v2.2", expanded=True):
+        # What's new
+        with st.expander("🎯 What's New in v2.3 - Ground Truth Edition", expanded=True):
             st.markdown("""
-            ### 🔄 Hybrid Narrative System
+            ### 🔥 Ground Truth Rules Implemented
             
-            **8-Point Margin Rule:**
-            - If top narrative leads by < 8 points → Hybrid triggered
-            - Prevents overconfidence in close-call matches
-            - Creates more nuanced probability estimates
+            **1. SIEGE Detection (First Priority)**
+            - Attack ≥ 8 vs Defense ≥ 8 + Pragmatic ≥ 7
+            - Favorite probability ≥ 60%
+            - **Fixes:** Manchester City vs West Ham
             
-            **Three Hybrid Types:**
-            1. **EDGE-CHAOS** - Tight but explosive (CONTROLLED_EDGE + SHOOTOUT)
-            2. **EDGE-DOMINATION** - Patient pressure (CONTROLLED_EDGE + SIEGE)  
-            3. **HIGH-TEMPO** - Fast start, high scoring (SHOOTOUT + BLITZKRIEG)
+            **2. SHOOTOUT Suppression**
+            - Defense ≥ 8 AND Pragmatic ≥ 7 halves SHOOTOUT score
+            - Prevents chaos predictions against organized defenses
             
-            **Key Benefits:**
-            - More realistic EPL variance
-            - Better probability calibration
-            - Maintains stress-test discipline
-            - Truthful uncertainty communication
+            **3. Hybrid Volatility Override**
+            - **HIGH_PRESS_HIGH_ATTACK:** Both press ≥ 7 AND attack ≥ 7
+            - **STYLE_CLASH:** Press diff ≥ 3 AND possession diff ≥ 3
+            - **ATTACK_HEAVY:** Both attacks ≥ 8, defenses ≤ 7
+            - **Fixes:** Tottenham vs Liverpool, Newcastle vs Chelsea
+            
+            **4. CONTROLLED_EDGE Subclassification**
+            - **HIGH_QUALITY:** Avg attack ≥ 7.5, press ≥ 7
+            - **LOW_TEMPO:** Avg attack ≤ 6, press ≤ 6
+            - **STANDARD:** Everything else
+            - Dynamic probability scaling based on subtype
+            
+            **5. Dynamic Probability Ranges**
+            - Probabilities scale with actual team ratings
+            - No more fixed percentages
+            - Realistic EPL variance restored
             """)
 
 if __name__ == "__main__":
