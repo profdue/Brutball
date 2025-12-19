@@ -7,6 +7,7 @@ from datetime import datetime
 import json
 import math
 import io
+import requests
 
 # Page config - Beautiful UI/UX
 st.set_page_config(
@@ -452,41 +453,6 @@ class ProfessionalPredictionEngine:
         self.binary_predictions = {}
         self.league_stats = None
         
-    def detect_league(self, df, home_team, away_team):
-        """Detect which league the match belongs to"""
-        league_indicators = {
-            'Premier League': ['Arsenal', 'Manchester', 'Chelsea', 'Liverpool', 'Tottenham', 
-                              'Aston Villa', 'Newcastle', 'West Ham', 'Brighton', 'Brentford',
-                              'Crystal Palace', 'Fulham', 'Wolves', 'Everton', 'Nottingham'],
-            'La Liga': ['Real Madrid', 'Barcelona', 'Atletico', 'Sevilla', 'Valencia', 
-                       'Athletic', 'Villarreal', 'Real Sociedad', 'Real Betis', 'Osasuna',
-                       'Getafe', 'Celta Vigo', 'Mallorca', 'Cadiz', 'Alaves'],
-            'Bundesliga': ['Bayern', 'Dortmund', 'Leverkusen', 'Leipzig', 'Frankfurt', 
-                          'Wolfsburg', 'Mönchengladbach', 'Stuttgart', 'Hoffenheim',
-                          'Freiburg', 'Augsburg', 'Bochum', 'Mainz', 'Darmstadt', 'Köln'],
-            'Serie A': ['Juventus', 'Inter', 'Milan', 'Napoli', 'Roma', 'Lazio', 
-                       'Atalanta', 'Fiorentina', 'Bologna', 'Torino',
-                       'Genoa', 'Monza', 'Lecce', 'Empoli', 'Sassuolo'],
-            'Ligue 1': ['PSG', 'Marseille', 'Lyon', 'Monaco', 'Lille', 'Nice', 
-                       'Rennes', 'Lens', 'Reims', 'Montpellier',
-                       'Toulouse', 'Nantes', 'Brest', 'Le Havre', 'Metz'],
-            'Eredivisie': ['Ajax', 'PSV', 'Feyenoord', 'AZ Alkmaar', 'Twente', 
-                          'Utrecht', 'Heerenveen', 'Vitesse', 'Groningen',
-                          'Go Ahead', 'NEC', 'Fortuna', 'RKC', 'Excelsior', 'Almere'],
-            'Liga Portugal': ['Benfica', 'Porto', 'Sporting', 'Braga', 'Guimarães', 
-                             'Estoril', 'Famalicão', 'Rio Ave', 'Marítimo',
-                             'Casa Pia', 'Boavista', 'Portimonense', 'Arouca', 'Chaves'],
-            'Super League (Swiss)': ['Young Boys', 'Basel', 'Zürich', 'Lugano', 'St. Gallen', 
-                                    'Lausanne', 'Servette', 'Luzern', 'Winterthur',
-                                    'Yverdon', 'Grasshopper']
-        }
-        
-        for league, teams in league_indicators.items():
-            if any(team in home_team for team in teams) or any(team in away_team for team in teams):
-                return league
-        
-        return 'Premier League'
-    
     def calculate_injury_level(self, defenders_out):
         """Calculate injury level (0-10 scale)"""
         return min(10, defenders_out * 2)
@@ -513,15 +479,30 @@ class ProfessionalPredictionEngine:
     
     def calculate_base_expected_goals(self, home_data, away_data, league_stats):
         """Calculate base expected goals with LEAGUE-SPECIFIC adjustments"""
-        home_xg_per_game = home_data['xg'] / home_data['games_played']
-        away_xg_per_game = away_data['xg'] / away_data['games_played']
+        # FIX: Treat xg as SEASON TOTAL, calculate per game
+        home_xg_total = home_data['xg']
+        away_xg_total = away_data['xg']
         
+        # Divide by games played to get xG per game
+        home_xg_per_game = home_xg_total / home_data['games_played']
+        away_xg_per_game = away_xg_total / away_data['games_played']
+        
+        # Apply correction factor for inflated xG values
+        # Based on your data, xG values appear to be ~2x too high
+        correction_factor = 0.5  # Adjust based on your data
+        
+        home_xg_per_game *= correction_factor
+        away_xg_per_game *= correction_factor
+        
+        # Apply league scoring factor
         home_xg_per_game *= league_stats['scoring_factor']
         away_xg_per_game *= league_stats['scoring_factor']
         
-        home_lambda_base = home_xg_per_game * (away_data['shots_allowed_pg'] / league_stats['shots_allowed_avg']) * 0.5
-        away_lambda_base = away_xg_per_game * (home_data['shots_allowed_pg'] / league_stats['shots_allowed_avg']) * 0.5
+        # Base formula with league-specific averages
+        home_lambda_base = home_xg_per_game * (away_data['shots_allowed_pg'] / league_stats['shots_allowed_avg']) * 0.85
+        away_lambda_base = away_xg_per_game * (home_data['shots_allowed_pg'] / league_stats['shots_allowed_avg']) * 0.85
         
+        # Cap at reasonable values
         home_lambda_base = min(home_lambda_base, 4.0)
         away_lambda_base = min(away_lambda_base, 4.0)
         
@@ -937,14 +918,73 @@ class ProfessionalPredictionEngine:
         return result
 
 # ============================================================================
-# UI FUNCTIONS
+# GITHUB INTEGRATION
 # ============================================================================
 
-SAMPLE_CSV = """team,venue,goals,games_played,shots_allowed_pg,xg,home_ppg_diff,defenders_out,form_last_5,goals_scored_last_5,goals_conceded_last_5,motivation,open_play_pct,set_piece_pct,counter_attack_pct,form
+def load_league_from_github(league_name):
+    """Load league data directly from GitHub"""
+    github_base_url = "https://raw.githubusercontent.com/profdue/Brutball/main/leagues/"
+    
+    league_files = {
+        'Premier League': 'epl.csv',
+        'La Liga': 'la_liga.csv',
+        'Bundesliga': 'bundesliga.csv',
+        'Serie A': 'serie_a.csv',
+        'Ligue 1': 'ligue_1.csv',
+        'Eredivisie': 'eredivisie.csv',
+        'Liga Portugal': 'liga_portugal.csv',
+        'Super League (Swiss)': 'super_league_swiss.csv'
+    }
+    
+    if league_name not in league_files:
+        st.error(f"League '{league_name}' not found in available files")
+        return None
+    
+    filename = league_files[league_name]
+    url = f"{github_base_url}{filename}"
+    
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            df = pd.read_csv(io.StringIO(response.text))
+            st.success(f"✅ Successfully loaded {league_name} data from GitHub")
+            return df
+        else:
+            # Try with .csv extension if not already present
+            if not filename.endswith('.csv'):
+                url = f"{github_base_url}{filename}.csv"
+                response = requests.get(url)
+                if response.status_code == 200:
+                    df = pd.read_csv(io.StringIO(response.text))
+                    st.success(f"✅ Successfully loaded {league_name} data from GitHub")
+                    return df
+            
+            st.warning(f"⚠️ Could not load {league_name} from GitHub. Using sample data.")
+            return load_sample_data(league_name)
+    except Exception as e:
+        st.error(f"Error loading data from GitHub: {e}")
+        return load_sample_data(league_name)
+
+def load_sample_data(league_name):
+    """Load sample data for demonstration"""
+    if league_name == 'Premier League':
+        sample_csv = """team,venue,goals,games_played,shots_allowed_pg,xg,home_ppg_diff,defenders_out,form_last_5,goals_scored_last_5,goals_conceded_last_5,motivation,open_play_pct,set_piece_pct,counter_attack_pct,form
+Manchester City,home,22,5,8.8,18.16,1.50,3,15,14,3,5,0.70,0.15,0.15,WWWWW
+Arsenal,home,20,5,4.5,16.76,2.00,3,15,11,2,5,0.50,0.25,0.05,WWWWW
+Everton,home,11,5,10.5,12.95,0.40,1,9,8,8,4,0.50,0.50,0.13,WLLWW
+Liverpool,away,13,5,11.4,16.23,-0.60,4,4,8,11,3,0.77,0.08,0.08,DWLLL"""
+    else:  # La Liga
+        sample_csv = """team,venue,goals,games_played,shots_allowed_pg,xg,home_ppg_diff,defenders_out,form_last_5,goals_scored_last_5,goals_conceded_last_5,motivation,open_play_pct,set_piece_pct,counter_attack_pct,form
 Real Madrid,home,14,7,7.7,17.6,0.47,0,12,11,4,5,0.57,0.14,0.07,LWWWW
 Barcelona,away,21,8,11.1,19.32,-1.00,1,9,14,12,5,0.55,0.30,0.00,WWLLW
 Atletico Madrid,home,22,9,8.8,22.7,1.65,2,15,11,2,4,0.64,0.18,0.05,WWWWW
 Sevilla,away,10,8,12.4,6.74,0.00,2,4,4,8,3,0.50,0.10,0.20,DLLLW"""
+    
+    return pd.read_csv(io.StringIO(sample_csv))
+
+# ============================================================================
+# UI FUNCTIONS
+# ============================================================================
 
 def display_league_stats(league_name):
     """Display league statistics"""
@@ -957,7 +997,7 @@ def display_league_stats(league_name):
         <div class='league-card'>
             <h5>📊 League Stats</h5>
             <h3>{league_name}</h3>
-            <small>{league_stats['matches']} matches</small>
+            <small>{league_stats['matches']} matches analyzed</small>
         </div>
         """, unsafe_allow_html=True)
     
@@ -1114,9 +1154,10 @@ def display_team_comparison(home_data, away_data, result=None):
         """, unsafe_allow_html=True)
         
         metrics_home = [
-            ("Total xG", f"{home_data['xg']:.2f}"),
-            ("xG per Game", f"{result['xg_per_game_home']:.2f}" if result else f"{home_data['xg']/home_data['games_played']:.2f}"),
+            ("Total Goals", f"{home_data['goals']}"),
             ("Games Played", f"{home_data['games_played']}"),
+            ("xG Total", f"{home_data['xg']:.1f}"),
+            ("xG per Game", f"{result['xg_per_game_home']:.2f}" if result else f"{home_data['xg']/home_data['games_played']:.2f}"),
             ("Shots Allowed pg", f"{home_data['shots_allowed_pg']:.1f}"),
             ("Form (Last 5)", f"{home_data['form_last_5']}/15"),
             ("Weighted Form", f"{result['home_form_weighted']:.1f}/15" if result and 'home_form_weighted' in result else "N/A"),
@@ -1138,9 +1179,10 @@ def display_team_comparison(home_data, away_data, result=None):
         """, unsafe_allow_html=True)
         
         metrics_away = [
-            ("Total xG", f"{away_data['xg']:.2f}"),
-            ("xG per Game", f"{result['xg_per_game_away']:.2f}" if result else f"{away_data['xg']/away_data['games_played']:.2f}"),
+            ("Total Goals", f"{away_data['goals']}"),
             ("Games Played", f"{away_data['games_played']}"),
+            ("xG Total", f"{away_data['xg']:.1f}"),
+            ("xG per Game", f"{result['xg_per_game_away']:.2f}" if result else f"{away_data['xg']/away_data['games_played']:.2f}"),
             ("Shots Allowed pg", f"{away_data['shots_allowed_pg']:.1f}"),
             ("Form (Last 5)", f"{away_data['form_last_5']}/15"),
             ("Weighted Form", f"{result['away_form_weighted']:.1f}/15" if result and 'away_form_weighted' in result else "N/A"),
@@ -1564,43 +1606,36 @@ def display_export_options(result):
                 **Confidence:** {result['confidence']*100:.1f}%
                 """)
 
-def load_data():
-    """Load data from CSV file or use sample data"""
-    tab1, tab2 = st.sidebar.tabs(["📁 Upload CSV", "📊 Sample Data"])
-    
-    with tab1:
-        uploaded_file = st.file_uploader("Upload your team data CSV", type=['csv'])
-        if uploaded_file is not None:
-            try:
-                df = pd.read_csv(uploaded_file)
-                st.success(f"Successfully loaded {len(df)} teams")
-                return df
-            except Exception as e:
-                st.error(f"Error loading file: {e}")
-                return None
-    
-    with tab2:
-        st.info("Using sample La Liga data")
-        if st.button("Load Sample Data", use_container_width=True):
-            sample_df = pd.read_csv(io.StringIO(SAMPLE_CSV))
-            return sample_df
-    
-    return None
-
-def display_team_selector(df):
+def display_team_selector(df, league_name):
     """Display team selection interface"""
     st.sidebar.markdown("## 🏆 Match Selection")
     
     if df is not None:
         home_teams = sorted(df[df['venue'] == 'home']['team'].unique())
         
-        default_home_idx = home_teams.index("Real Madrid") if "Real Madrid" in home_teams else 0
+        # Set default home team based on league
+        if league_name == 'Premier League':
+            default_home = "Everton" if "Everton" in home_teams else home_teams[0]
+        elif league_name == 'La Liga':
+            default_home = "Real Madrid" if "Real Madrid" in home_teams else home_teams[0]
+        else:
+            default_home = home_teams[0]
+        
+        default_home_idx = home_teams.index(default_home) if default_home in home_teams else 0
         home_team = st.sidebar.selectbox("Select Home Team", home_teams, index=default_home_idx)
         
         away_teams = sorted(df[df['venue'] == 'away']['team'].unique())
         away_teams = [team for team in away_teams if team != home_team]
         
-        default_away_idx = away_teams.index("Barcelona") if "Barcelona" in away_teams else 0
+        # Set default away team based on league
+        if league_name == 'Premier League':
+            default_away = "Arsenal" if "Arsenal" in away_teams else away_teams[0]
+        elif league_name == 'La Liga':
+            default_away = "Barcelona" if "Barcelona" in away_teams else away_teams[0]
+        else:
+            default_away = away_teams[0]
+        
+        default_away_idx = away_teams.index(default_away) if default_away in away_teams else 0
         away_team = st.sidebar.selectbox("Select Away Team", away_teams, index=default_away_idx)
         
         home_data = df[(df['team'] == home_team) & (df['venue'] == 'home')].iloc[0]
@@ -1609,25 +1644,25 @@ def display_team_selector(df):
         col1, col2 = st.sidebar.columns(2)
         with col1:
             st.markdown(f"**🏠 {home_team}**")
-            st.caption(f"Home Games: {home_data['games_played']}")
+            st.caption(f"Games: {home_data['games_played']}")
             st.caption(f"Form: {home_data['form_last_5']}/15")
             if 'form' in home_data:
                 st.caption(f"Recent: {home_data['form']}")
-            st.caption(f"Injuries: {home_data['defenders_out']} defenders out")
-            st.caption(f"xG per game: {home_data['xg']/home_data['games_played']:.2f}")
+            st.caption(f"Injuries: {home_data['defenders_out']} defenders")
+            st.caption(f"Total xG: {home_data['xg']:.1f}")
         
         with col2:
             st.markdown(f"**🏃 {away_team}**")
-            st.caption(f"Away Games: {away_data['games_played']}")
+            st.caption(f"Games: {away_data['games_played']}")
             st.caption(f"Form: {away_data['form_last_5']}/15")
             if 'form' in away_data:
                 st.caption(f"Recent: {away_data['form']}")
-            st.caption(f"Injuries: {away_data['defenders_out']} defenders out")
-            st.caption(f"xG per game: {away_data['xg']/away_data['games_played']:.2f}")
+            st.caption(f"Injuries: {away_data['defenders_out']} defenders")
+            st.caption(f"Total xG: {away_data['xg']:.1f}")
         
         return home_data, away_data
     else:
-        st.sidebar.warning("No data loaded. Please upload CSV or use sample data.")
+        st.sidebar.warning("No data loaded. Please select a league.")
         return None, None
 
 def display_market_odds():
@@ -1636,11 +1671,11 @@ def display_market_odds():
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        home_win_odds = st.number_input("Home Win", min_value=1.1, max_value=20.0, value=1.79, step=0.01, key="home_odds")
+        home_win_odds = st.number_input("Home Win", min_value=1.1, max_value=20.0, value=6.17, step=0.01, key="home_odds")
     with col2:
-        over_25_odds = st.number_input("Over 2.5", min_value=1.1, max_value=20.0, value=2.30, step=0.01, key="over_odds")
+        over_25_odds = st.number_input("Over 2.5", min_value=1.1, max_value=20.0, value=2.10, step=0.01, key="over_odds")
     with col3:
-        btts_yes_odds = st.number_input("BTTS Yes", min_value=1.1, max_value=20.0, value=2.10, step=0.01, key="btts_odds")
+        btts_yes_odds = st.number_input("BTTS Yes", min_value=1.1, max_value=20.0, value=2.15, step=0.01, key="btts_odds")
     
     return {
         'home_win': home_win_odds,
@@ -1660,18 +1695,31 @@ def main():
     if 'last_result' not in st.session_state:
         st.session_state.last_result = None
     
-    df = load_data()
+    # League selection in sidebar
+    st.sidebar.markdown("## 🌍 League Selection")
+    
+    available_leagues = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 
+                         'Ligue 1', 'Eredivisie', 'Liga Portugal', 'Super League (Swiss)']
+    
+    selected_league = st.sidebar.selectbox("Select League", available_leagues)
+    
+    # Load data from GitHub
+    df = load_league_from_github(selected_league)
     
     if df is not None:
-        home_data, away_data = display_team_selector(df)
+        home_data, away_data = display_team_selector(df, selected_league)
         market_odds = display_market_odds()
         
-        if home_data is not None and away_data is not None:
-            league_name = st.session_state.engine.detect_league(df, home_data['team'], away_data['team'])
-            st.sidebar.markdown(f"**📍 Detected League:** {league_name}")
-        
-        with st.sidebar.expander("📊 View Data Preview"):
-            st.dataframe(df.head(), use_container_width=True)
+        # Display data info
+        with st.sidebar.expander("📊 Data Information"):
+            st.write(f"**Teams loaded:** {len(df['team'].unique())}")
+            st.write(f"**Home records:** {len(df[df['venue'] == 'home'])}")
+            st.write(f"**Away records:** {len(df[df['venue'] == 'away'])}")
+            st.write(f"**Data source:** GitHub - {selected_league}")
+            
+            # Show data preview
+            if st.checkbox("Show data preview"):
+                st.dataframe(df.head(10), use_container_width=True)
         
         st.sidebar.markdown("---")
         if st.sidebar.button("🚀 Run Professional Prediction", type="primary", use_container_width=True):
@@ -1681,11 +1729,10 @@ def main():
                     status_text = st.empty()
                     
                     steps = [
-                        "Loading professional data...",
-                        "Detecting league context...",
+                        f"Loading {selected_league} data from GitHub...",
                         "Applying league-specific adjustments...",
-                        "Calculating weighted form...",
-                        "Applying team-specific adjustments...",
+                        "Calculating weighted form analysis...",
+                        "Applying team-specific factors...",
                         "Analyzing style matchups...",
                         "Running Poisson simulation...",
                         "Calculating league-relative predictions...",
@@ -1698,72 +1745,73 @@ def main():
                         time.sleep(0.2)
                     
                     result = st.session_state.engine.run_prediction_from_data(
-                        home_data, away_data, market_odds, league_name
+                        home_data, away_data, market_odds, selected_league
                     )
                     st.session_state.last_result = result
                     
                     progress_bar.progress(100)
                     status_text.text("✅ Professional prediction complete!")
                     time.sleep(0.5)
-                    st.success("Professional engine complete! Results displayed below.")
+                    st.success(f"✅ {selected_league} prediction complete! Results displayed below.")
         
         if st.session_state.last_result:
             result = st.session_state.last_result
             
-            display_prediction_summary(result)
-            st.markdown("---")
-            display_binary_predictions(result)
-            st.markdown("---")
-            display_team_comparison(result['home_data'], result['away_data'], result)
-            st.markdown("---")
-            display_probability_visualizations(result)
-            st.markdown("---")
-            display_expected_value_analysis(result)
-            st.markdown("---")
-            
-            tab1, tab2, tab3, tab4 = st.tabs(["💰 Betting", "🔑 Key Factors", "🔮 Simulation", "📤 Export"])
-            
-            with tab1:
-                display_betting_recommendations(result)
-            
-            with tab2:
-                display_key_factors(result)
-            
-            with tab3:
-                display_simulation_results(result)
-            
-            with tab4:
-                display_export_options(result)
+            # Only show if it's the same league
+            if result['league'] == selected_league:
+                display_prediction_summary(result)
+                st.markdown("---")
+                display_binary_predictions(result)
+                st.markdown("---")
+                display_team_comparison(result['home_data'], result['away_data'], result)
+                st.markdown("---")
+                display_probability_visualizations(result)
+                st.markdown("---")
+                display_expected_value_analysis(result)
+                st.markdown("---")
+                
+                tab1, tab2, tab3, tab4 = st.tabs(["💰 Betting", "🔑 Key Factors", "🔮 Simulation", "📤 Export"])
+                
+                with tab1:
+                    display_betting_recommendations(result)
+                
+                with tab2:
+                    display_key_factors(result)
+                
+                with tab3:
+                    display_simulation_results(result)
+                
+                with tab4:
+                    display_export_options(result)
+            else:
+                st.info(f"Please run prediction for {selected_league} to see results.")
     else:
         st.info("""
         ## 📋 Getting Started
         
-        1. **Upload your CSV data** or **use sample data**
+        1. **Select a league** from the dropdown
         2. **Select home and away teams**
-        3. **Enter market odds**
+        3. **Enter market odds** (optional)
         4. **Click "Run Professional Prediction"** for league-adjusted predictions
         
-        ### 📁 CSV Format Required:
-        ```
-        team,venue,goals,games_played,shots_allowed_pg,xg,home_ppg_diff,defenders_out,
-        form_last_5,goals_scored_last_5,goals_conceded_last_5,motivation,
-        open_play_pct,set_piece_pct,counter_attack_pct,form
-        ```
-        
-        ### 🎯 Professional Features:
-        - ✅ **League-specific analytics**: Bundesliga vs Serie A vs EPL etc.
-        - ✅ **League-relative predictions**: Compare to league averages
+        ### 🎯 Features:
+        - ✅ **Direct GitHub Integration**: No manual uploads needed
+        - ✅ **League-Specific Analytics**: Bundesliga vs Serie A vs EPL etc.
         - ✅ **Professional xG-based approach**: Modern football analytics
-        - ✅ **Multiple adjustment layers**: Injuries, motivation, style matchups
-        - ✅ **Binary predictions**: Clear YES/NO, OVER/UNDER decisions
+        - ✅ **League-relative predictions**: Compare to league averages
         - ✅ **Expected Value calculations**: Professional betting analysis
+        
+        ### 📁 GitHub Structure:
+        ```
+        https://github.com/profdue/Brutball/tree/main/leagues/
+        ├── epl.csv (Premier League)
+        ├── la_liga.csv (La Liga) 
+        ├── bundesliga.csv (Bundesliga) - Coming soon!
+        └── ... other leagues
+        ```
         """)
         
-        with st.expander("📋 View Sample Data Structure"):
-            sample_df = pd.read_csv(io.StringIO(SAMPLE_CSV))
-            st.dataframe(sample_df, use_container_width=True)
-        
-        with st.expander("📊 View League Statistics"):
+        with st.expander("📊 View Available League Statistics"):
             league_tab1, league_tab2, league_tab3, league_tab4 = st.tabs(
                 ["Premier League", "La Liga", "Bundesliga", "Serie A"]
             )
@@ -1776,6 +1824,7 @@ def main():
                     st.metric("Home Win %", f"{stats['home_win_pct']*100:.0f}%")
                     st.metric("Over 2.5 %", f"{stats['over_25_pct']*100:.0f}%")
                     st.metric("BTTS %", f"{stats['btts_pct']*100:.0f}%")
+                    st.metric("Scoring Factor", f"{stats['scoring_factor']:.2f}")
     
     st.markdown("""
     <div class='footer'>
@@ -1783,9 +1832,9 @@ def main():
             ⚠️ <strong>Disclaimer:</strong> This is a simulation tool for educational purposes only. 
             Sports betting involves risk. Always gamble responsibly.<br><br>
             
-            <strong>Professional Football Prediction Engine v4.0</strong><br>
-            League-Specific Analytics • Professional-Grade • Ready for Production<br>
-            Built with Streamlit • Incorporating Official League Statistics
+            <strong>Professional Football Prediction Engine v4.1</strong><br>
+            GitHub Integration • League-Specific Analytics • Professional-Grade<br>
+            Built with Streamlit • Direct data loading from GitHub
         </small>
     </div>
     """, unsafe_allow_html=True)
