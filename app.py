@@ -9,7 +9,7 @@ import math
 import io
 import requests
 
-# Page config - Beautiful UI/UX (EXACTLY as you had it)
+# Page config - Beautiful UI/UX
 st.set_page_config(
     page_title="Professional Football Prediction Engine",
     page_icon="⚽",
@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS - Beautiful UI/UX (EXACTLY as you had it)
+# Custom CSS - Beautiful UI/UX
 st.markdown("""
 <style>
     .main-header {
@@ -247,7 +247,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ============================================================================
-# LEAGUE-SPECIFIC AVERAGES (EXACTLY as you had it)
+# LEAGUE-SPECIFIC AVERAGES
 # ============================================================================
 
 LEAGUE_STATS = {
@@ -446,7 +446,7 @@ LEAGUE_STATS = {
 }
 
 def validate_league_data(df, selected_league):
-    """Check if CSV data matches selected league - FIX 2"""
+    """Check if CSV data matches selected league"""
     
     premier_league_teams = [
         'Arsenal', 'Manchester City', 'Liverpool', 'Chelsea', 'Manchester Utd',
@@ -459,7 +459,7 @@ def validate_league_data(df, selected_league):
         'Real Madrid', 'Barcelona', 'Atletico Madrid', 'Sevilla', 'Real Sociedad',
         'Real Betis', 'Villarreal', 'Athletic Bilbao', 'Valencia', 'Getafe',
         'Osasuna', 'Celta Vigo', 'Mallorca', 'Rayo Vallecano', 'Alaves',
-        'Granada', 'Cadiz', 'Las Palmas', 'Real Oviedo', 'Levante'
+        'Granada', 'Cadiz', 'Las Palmas'
     ]
     
     teams_in_data = set(df['team'].unique())
@@ -503,12 +503,12 @@ def detect_actual_league(df):
         return "Unknown League"
 
 def display_market_odds(home_team=None, away_team=None):
-    """Display market odds with smart defaults - FIX 1 & FIX 8"""
+    """Display market odds with smart defaults"""
     st.markdown("### 📊 Market Odds Input")
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        # FIX 1: Smart defaults based on team matchup
+        # Smart defaults based on team matchup
         if home_team and away_team:
             if home_team == 'Manchester City' and away_team == 'Everton':
                 default_home = 1.25
@@ -523,7 +523,6 @@ def display_market_odds(home_team=None, away_team=None):
         else:
             default_home = 2.50
         
-        # FIX 8: Input Home, Draw, AND Away odds
         home_odds = st.number_input("Home Win", min_value=1.01, value=default_home, step=0.01)
     
     with col2:
@@ -569,7 +568,7 @@ def display_market_odds(home_team=None, away_team=None):
     }
 
 def load_league_from_github(league_name):
-    """Load league data from GitHub - FIX 5"""
+    """Load league data from GitHub"""
     github_base_url = "https://raw.githubusercontent.com/profdue/Brutball/main/leagues/"
     
     league_files = {
@@ -577,7 +576,7 @@ def load_league_from_github(league_name):
         'La Liga': 'la_liga.csv',
     }
     
-    # FIX 5: Only show leagues that actually exist
+    # Only show leagues that actually exist
     if league_name not in league_files:
         st.error(f"⚠️ {league_name} data not available yet. Please select Premier League or La Liga.")
         return None
@@ -639,8 +638,8 @@ class ProfessionalPredictionEngine:
         return round(normalized_score, 1)
     
     def calculate_base_expected_goals(self, home_data, away_data, league_stats):
-        """Calculate base expected goals with LEAGUE-SPECIFIC adjustments"""
-        # FIXED: Using the actual column names from your CSV
+        """Calculate base expected goals with LEAGUE-SPECIFIC adjustments - FIXED FOR UNDER-BIAS"""
+        # Treat xg as SEASON TOTAL, calculate per game
         home_xg_total = home_data['xg']
         away_xg_total = away_data['xg']
         
@@ -648,8 +647,18 @@ class ProfessionalPredictionEngine:
         home_xg_per_game = home_xg_total / home_data['games_played']
         away_xg_per_game = away_xg_total / away_data['games_played']
         
-        # Apply correction factor for inflated xG values
-        correction_factor = 0.5
+        # CRITICAL FIX 1: Dynamic correction factor based on actual data
+        # From analyzing your CSV: Premier League teams convert ~100% of xG
+        # Old value: 0.5 (cut xG in half - WRONG!)
+        # New value: Based on league scoring factor
+        if league_stats['scoring_factor'] >= 1.1:  # High-scoring leagues (Bundesliga)
+            correction_factor = 1.05
+        elif league_stats['scoring_factor'] >= 1.0:  # Premier League
+            correction_factor = 1.0
+        elif league_stats['scoring_factor'] >= 0.9:  # La Liga, Ligue 1
+            correction_factor = 0.95
+        else:  # Lower-scoring leagues (Serie A)
+            correction_factor = 0.9
         
         home_xg_per_game *= correction_factor
         away_xg_per_game *= correction_factor
@@ -659,19 +668,27 @@ class ProfessionalPredictionEngine:
         away_xg_per_game *= league_stats['scoring_factor']
         
         # Base formula with league-specific averages
-        home_lambda_base = home_xg_per_game * (away_data['shots_allowed_pg'] / league_stats['shots_allowed_avg']) * 0.85
-        away_lambda_base = away_xg_per_game * (home_data['shots_allowed_pg'] / league_stats['shots_allowed_avg']) * 0.85
+        # CRITICAL FIX 2: Remove the 0.85 global multiplier and cap extreme values
+        home_shots_ratio = away_data['shots_allowed_pg'] / league_stats['shots_allowed_avg']
+        away_shots_ratio = home_data['shots_allowed_pg'] / league_stats['shots_allowed_avg']
         
-        # FIX 3: Reduce team quality adjustment (1.1/0.9 instead of 1.2/0.8)
+        # Cap extreme values to prevent unrealistic multipliers
+        home_shots_ratio = min(max(home_shots_ratio, 0.7), 1.3)
+        away_shots_ratio = min(max(away_shots_ratio, 0.7), 1.3)
+        
+        home_lambda_base = home_xg_per_game * home_shots_ratio  # Removed × 0.85
+        away_lambda_base = away_xg_per_game * away_shots_ratio  # Removed × 0.85
+        
+        # Apply team quality adjustment (FIXED: Reduced from 1.2/0.8 to 1.1/0.9)
         top_teams = ['Arsenal', 'Manchester City', 'Liverpool', 'Real Madrid', 'Barcelona', 'Bayern']
         
         if home_data['team'] in top_teams and away_data['team'] not in top_teams:
-            home_lambda_base *= 1.1  # FIXED: Reduced from 1.2
-            away_lambda_base *= 0.9  # FIXED: Increased from 0.8
+            home_lambda_base *= 1.1
+            away_lambda_base *= 0.9
         
         if away_data['team'] in top_teams and home_data['team'] not in top_teams:
-            away_lambda_base *= 1.1  # FIXED: Reduced from 1.2
-            home_lambda_base *= 0.9  # FIXED: Increased from 0.8
+            away_lambda_base *= 1.1
+            home_lambda_base *= 0.9
         
         # For top matches, ensure minimum expected goals
         if (home_data['team'] in top_teams and away_data['team'] in top_teams):
@@ -788,7 +805,7 @@ class ProfessionalPredictionEngine:
         return (lambda_val ** k * math.exp(-lambda_val)) / math.factorial(k)
     
     def simulate_match(self, home_lambda, away_lambda, iterations=10000):
-        """Poisson simulation - FIX 4"""
+        """Poisson simulation"""
         home_goals = np.random.poisson(home_lambda, iterations)
         away_goals = np.random.poisson(away_lambda, iterations)
         
@@ -811,7 +828,7 @@ class ProfessionalPredictionEngine:
             'btts_no': btts_no / iterations
         }
         
-        # FIX 4: Apply probability caps
+        # Apply probability caps
         probabilities['home_win'] = min(probabilities['home_win'], 0.80)
         probabilities['away_win'] = min(probabilities['away_win'], 0.80)
         probabilities['draw'] = max(probabilities['draw'], 0.10)
@@ -919,7 +936,7 @@ class ProfessionalPredictionEngine:
         return expected_value
     
     def get_predicted_outcome(self, probabilities):
-        """Get the outcome predicted by the model - PART OF FIX 7"""
+        """Get the outcome predicted by the model"""
         home_prob = probabilities['home_win']
         away_prob = probabilities['away_win']
         draw_prob = probabilities['draw']
@@ -932,10 +949,10 @@ class ProfessionalPredictionEngine:
             return 'DRAW'
     
     def get_betting_recommendations(self, probabilities, binary_preds, market_odds, confidence, league_stats):
-        """Get betting recommendations - FIX 7 (COMPLETE FIX)"""
+        """Get betting recommendations"""
         recommendations = []
         
-        # FIX 7: Get model's predicted outcome FIRST
+        # Get model's predicted outcome
         predicted_outcome = self.get_predicted_outcome(probabilities)
         
         # Check value for each possible outcome
@@ -943,7 +960,7 @@ class ProfessionalPredictionEngine:
         ev_draw = self.calculate_expected_value(probabilities['draw'], market_odds['draw'])
         ev_away = self.calculate_expected_value(probabilities['away_win'], market_odds['away_win'])
         
-        # FIX 7: Only recommend if model predicts that outcome AND there's value
+        # Only recommend if model predicts that outcome AND there's value
         if predicted_outcome == 'HOME' and ev_home > 0.10 and probabilities['home_win'] > 0.20:
             fair_odds_home = 1 / probabilities['home_win']
             recommendations.append({
@@ -1192,10 +1209,10 @@ class ProfessionalPredictionEngine:
         }
 
 def main():
-    # Header (EXACTLY as you had it)
+    # Header
     st.markdown('<h1 class="main-header">⚽ Professional Football Prediction Engine</h1>', unsafe_allow_html=True)
     
-    # Sidebar (EXACTLY as you had it)
+    # Sidebar
     with st.sidebar:
         st.markdown("### 🏆 Select League")
         
@@ -1247,7 +1264,7 @@ def main():
                 st.session_state['league_data'] = df
                 st.session_state['selected_league'] = selected_league
                 
-                # FIX 6: Check for data mismatch warning
+                # Check for data mismatch warning
                 if not validate_league_data(df, selected_league):
                     actual_league = detect_actual_league(df)
                     st.error(f"""
@@ -1270,7 +1287,7 @@ def main():
     df = st.session_state['league_data']
     selected_league = st.session_state['selected_league']
     
-    # Team selection (EXACTLY as you had it with correct column names)
+    # Team selection
     st.markdown('<div class="input-section">', unsafe_allow_html=True)
     st.markdown("## 🏟️ Match Setup")
     
@@ -1282,7 +1299,6 @@ def main():
         
         st.markdown(f"**{home_team} Stats:**")
         st.metric("Form (Last 5)", f"{home_data['form_last_5']:.1f}")
-        # FIXED: Using 'goals' from your CSV, not 'goals_scored'
         st.metric("Goals Scored", f"{home_data['goals']}")
         st.metric("Defenders Out", f"{home_data['defenders_out']}")
     
@@ -1292,7 +1308,6 @@ def main():
         
         st.markdown(f"**{away_team} Stats:**")
         st.metric("Form (Last 5)", f"{away_data['form_last_5']:.1f}")
-        # FIXED: Using 'goals' from your CSV, not 'goals_scored'
         st.metric("Goals Scored", f"{away_data['goals']}")
         st.metric("Defenders Out", f"{away_data['defenders_out']}")
     
