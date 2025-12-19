@@ -1,3 +1,3 @@
-team,venue,goals,goals_conceded,shots_pg,shots_on_target_pg,shots_allowed_pg,xg,xg_per_shot,possession_percent,pass_percent,aerials_won,tackles_pg,interceptions_pg,fouls_pg,discipline_points,shots_ot_pg,dribbles_pg,fouled_pg,home_ppg_diff,expected_goals_for,expected_goals_against
-Athletic Bilbao,home,9,9,13.7,4.2,7.3,12.87,0.14,49.7,80.9,16.3,14.0,8.9,13.8,141,3.5,5.4,12.0,0.90,3.05,0.50
-Espanyol,away,7,6,12.2,4.9,12.9,8.47,0.09,43.3,80.4,15.3,13.7,7.4,13.4,202,3.9,6.6,12.3,-0.54,0.50,3.05
+team,venue,goals,shots_on_target_pg,shots_allowed_pg,xg,home_ppg_diff,defenders_out,injury_level,form_last_5_overall,goals_scored_last_5,goals_conceded_last_5,motivation,expected_goals_for,expected_goals_against
+Athletic Bilbao,home,9,4.2,7.3,12.87,0.90,4,8,9,4,5,2,2.5,1.6
+Espanyol,away,7,4.9,12.9,8.47,-0.54,1,2,10,5,2,4,1.6,2.5
