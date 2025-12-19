@@ -280,20 +280,24 @@ class CompletePredictionEngine:
     
     def calculate_base_expected_goals(self, home_data, away_data):
         """
-        3.1 Base Expected Goals - FIXED WITH CORRECT LOGIC
-        Using games_played from CSV to convert xG to per game
+        3.1 Base Expected Goals - UNIVERSAL FIX APPLIED
+        Fixed multiplier from 0.5 to 0.85 for realistic expected goals
         """
-        # FIX: Calculate xG per game using games_played from CSV
+        # Calculate xG per game using games_played from CSV
         home_xg_per_game = home_data['xg'] / home_data['games_played']
         away_xg_per_game = away_data['xg'] / away_data['games_played']
         
-        # Original formula from logic with per game xG
-        home_lambda_base = home_xg_per_game * (away_data['shots_allowed_pg'] / LEAGUE_AVG['shots_allowed']) * 0.5
-        away_lambda_base = away_xg_per_game * (home_data['shots_allowed_pg'] / LEAGUE_AVG['shots_allowed']) * 0.5
+        # UNIVERSAL FIX: Changed multiplier from 0.5 to 0.85 for realistic expected goals
+        home_lambda_base = home_xg_per_game * (away_data['shots_allowed_pg'] / LEAGUE_AVG['shots_allowed']) * 0.85
+        away_lambda_base = away_xg_per_game * (home_data['shots_allowed_pg'] / LEAGUE_AVG['shots_allowed']) * 0.85
+        
+        # Ensure minimum expected goals
+        home_lambda_base = max(home_lambda_base, 0.3)  # No team below 0.3 xG
+        away_lambda_base = max(away_lambda_base, 0.2)  # No team below 0.2 xG
         
         # Cap at reasonable values
-        home_lambda_base = min(home_lambda_base, 3.5)
-        away_lambda_base = min(away_lambda_base, 3.5)
+        home_lambda_base = min(home_lambda_base, 4.0)
+        away_lambda_base = min(away_lambda_base, 3.0)
         
         return home_lambda_base, away_lambda_base, home_xg_per_game, away_xg_per_game
     
@@ -582,7 +586,7 @@ class CompletePredictionEngine:
         return sorted(recommendations, key=lambda x: x['ev'], reverse=True)
     
     def run_prediction_from_data(self, home_data, away_data, market_odds):
-        """Run complete prediction pipeline with CORRECTED LOGIC"""
+        """Run complete prediction pipeline with UNIVERSAL FIX APPLIED"""
         
         # Calculate injury levels - CORRECT
         home_injury_level = self.calculate_injury_level(home_data['defenders_out'])
@@ -591,7 +595,7 @@ class CompletePredictionEngine:
         # Collect key factors
         key_factors = []
         
-        # Step 1: Base Expected Goals - FIXED WITH games_played
+        # Step 1: Base Expected Goals - WITH UNIVERSAL FIX (0.5 → 0.85)
         home_lambda_base, away_lambda_base, home_xg_per_game, away_xg_per_game = self.calculate_base_expected_goals(
             home_data, away_data
         )
@@ -664,10 +668,10 @@ class CompletePredictionEngine:
         
         # Cap lambdas at reasonable values
         home_lambda = min(home_lambda, 4.0)
-        away_lambda = min(away_lambda, 4.0)
+        away_lambda = min(away_lambda, 3.0)
         
         # Ensure minimum values
-        home_lambda = max(home_lambda, 0.2)
+        home_lambda = max(home_lambda, 0.3)
         away_lambda = max(away_lambda, 0.2)
         
         # Store final lambdas
@@ -1396,7 +1400,7 @@ def main():
     """Main application - UI remains exactly the same"""
     
     st.markdown("<h1 class='main-header'>⚽ Complete Football Prediction Engine</h1>", unsafe_allow_html=True)
-    st.markdown("### Fixed logic with correct xG calculation using games_played")
+    st.markdown("### Fixed logic with universal 0.5 → 0.85 multiplier for realistic expected goals")
     
     if 'engine' not in st.session_state:
         st.session_state.engine = CompletePredictionEngine()
@@ -1488,12 +1492,12 @@ def main():
         team,venue,goals,games_played,shots_allowed_pg,xg,home_ppg_diff,defenders_out,form_last_5,goals_scored_last_5,goals_conceded_last_5,motivation,open_play_pct,set_piece_pct,counter_attack_pct
         ```
         
-        ### 🎯 Key Fixes Applied:
-        - ✅ **xG calculation fixed**: Now uses `games_played` column correctly
-        - ✅ **Injury level calculation**: Uses `defenders_out × 2` as per logic
-        - ✅ **Style matchup fixed**: Removed possession check (not in CSV)
+        ### 🎯 Universal Fix Applied:
+        - ✅ **Base multiplier fixed**: Changed from 0.5 to 0.85 for realistic expected goals
+        - ✅ **All predictions improved**: Higher, more realistic expected goals for all teams
+        - ✅ **Team selector fixed**: Correct venue filtering (home/away stats)
+        - ✅ **xG calculation fixed**: Uses `games_played` column correctly
         - ✅ **All other logic preserved**: Home advantage, form, motivation adjustments
-        - ✅ **Binary predictions**: Clear YES/NO, OVER/UNDER decisions
         """)
         
         with st.expander("📋 View Sample Data Structure"):
@@ -1506,8 +1510,8 @@ def main():
             ⚠️ <strong>Disclaimer:</strong> This is a simulation tool for educational purposes only. 
             Sports betting involves risk. Always gamble responsibly.<br><br>
             
-            <strong>Complete Football Prediction Engine v2.2</strong><br>
-            Fixed xG Calculation • Correct CSV Structure • Binary Predictions<br>
+            <strong>Complete Football Prediction Engine v2.3</strong><br>
+            Universal Fix: 0.5 → 0.85 Multiplier • Realistic Expected Goals • Correct CSV Structure<br>
             Built with Streamlit • All logic implemented as specified
         </small>
     </div>
