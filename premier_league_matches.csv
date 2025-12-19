@@ -1,11 +1,3 @@
-match_id,league,date,home_team,away_team,home_position,away_position,home_odds,away_odds,home_form,away_form,home_manager,away_manager,last_h2h_goals,last_h2h_btts,home_manager_style,away_manager_style,home_attack_rating,away_attack_rating,home_defense_rating,away_defense_rating,home_press_rating,away_press_rating,home_possession_rating,away_possession_rating,home_pragmatic_rating,away_pragmatic_rating
-EPL_2025-12-20_NEW_CHE,Premier League,2025-12-20,Newcastle United,Chelsea,12,4,2.68,2.57,WWWWL,DWWWD,Eddie Howe,Enzo Maresca,2,No,High press & transition,Possession-based & control,7,8,7,7,8,7,7,9,6,6
-EPL_2025-12-20_BOU_BUR,Premier League,2025-12-20,Bournemouth,Burnley,13,19,1.49,6.58,WWDDL,WDLLL,Andoni Iraola,Scott Parker,2,Yes,Progressive/Developing,Pragmatic/Defensive,7,5,7,6,6,5,7,5,6,8
-EPL_2025-12-20_BRI_SUN,Premier League,2025-12-20,Brighton,Sunderland,10,8,1.68,5.19,WWLDD,WWDDW,Fabian Hürzeler,Régis Le Bris,0,No,Progressive/Developing,Progressive/Developing,7,6,7,6,6,5,7,5,6,8
-EPL_2025-12-20_MCI_WHU,Premier League,2025-12-20,Manchester City,West Ham,2,18,1.22,11.94,WWWWW,WDLLW,Pep Guardiola,Nuno Espírito Santo,5,Yes,Possession-based & control,Balanced/Adaptive,10,6,8,7,9,6,9,6,5,7
-EPL_2025-12-20_WOL_BRE,Premier League,2025-12-20,Wolverhampton,Brentford,20,15,3.65,2.06,WDLLL,WWDLL,Vítor Pereira,Keith Andrews,2,No,Pragmatic/Defensive,Balanced/Adaptive,5,6,6,7,6,6,6,5,8,7
-EPL_2025-12-20_TOT_LIV,Premier League,2025-12-20,Tottenham,Liverpool,11,7,3.44,2.06,WLWDL,WDLLW,Thomas Frank,Arne Slot,6,Yes,Balanced/Adaptive,High press & transition,7,8,7,7,7,9,7,9,6,5
-EPL_2025-12-20_EVE_ARS,Premier League,2025-12-20,Everton,Arsenal,9,1,5.72,1.64,WWWLL,WWDDW,David Moyes,Mikel Arteta,2,Yes,Pragmatic/Defensive,Possession-based & control,6,9,7,8,6,8,6,9,7,6
-EPL_2025-12-20_LEE_CRY,Premier League,2025-12-20,Leeds United,Crystal Palace,17,5,2.64,2.77,WWDLL,WWWDD,Daniel Farke,Oliver Glasner,6,Yes,Progressive/Developing,Balanced/Adaptive,7,6,7,7,6,6,6,6,6,7
-EPL_2025-12-21_AVL_MUN,Premier League,2025-12-21,Aston Villa,Manchester United,3,6,2.15,3.24,WWWWW,WWWWD,Unai Emery,Ruben Amorim,2,No,Balanced/Adaptive,High press & transition,7,8,7,6,7,9,6,7,6,5
-EPL_2025-12-22_FUL_NFO,Premier League,2025-12-22,Fulham,Nottingham Forest,14,16,2.31,3.16,WLLWW,WWLLL,Marco Silva,Ange Postecoglou,3,Yes,Balanced/Adaptive,High press & transition,7,6,7,7,6,6,6,7,6,7
+team,venue,goals,goals_conceded,shots_pg,shots_on_target_pg,shots_allowed_pg,xg,xg_per_shot,possession_percent,pass_percent,aerials_won,tackles_pg,interceptions_pg,fouls_pg,discipline_points,shots_ot_pg,dribbles_pg,fouled_pg,home_ppg_diff,expected_goals_for,expected_goals_against
+Athletic Bilbao,home,9,NA,13.7,4.2,7.3,12.87,0.14,49.7,80.9,16.3,14.0,8.9,13.8,141,3.5,5.4,12.0,0.90,3.05,0.50
+Espanyol,away,6,NA,12.2,4.9,12.9,8.47,0.09,43.3,80.4,15.3,13.7,7.4,13.4,202,3.9,6.6,12.3,-0.54,0.50,3.05
