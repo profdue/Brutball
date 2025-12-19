@@ -738,7 +738,7 @@ class CompletePredictionEngine:
         return result
 
 # ============================================================================
-# UI FUNCTIONS - ALL REMAIN EXACTLY THE SAME
+# UI FUNCTIONS - WITH CORRECTED TEAM SELECTOR
 # ============================================================================
 
 def display_binary_predictions(result):
@@ -1043,11 +1043,6 @@ def display_probability_visualizations(result):
         </div>
         """, unsafe_allow_html=True)
 
-# ============================================================================
-# REST OF THE UI FUNCTIONS REMAIN EXACTLY THE SAME
-# (display_betting_recommendations, display_expected_value_analysis, etc.)
-# ============================================================================
-
 def display_betting_recommendations(result):
     """Display betting recommendations"""
     st.markdown("<h2 class='section-header'>💰 Betting Recommendations</h2>", unsafe_allow_html=True)
@@ -1333,30 +1328,46 @@ def load_data():
     return None
 
 def display_team_selector(df):
-    """Display team selection interface"""
+    """Display team selection interface - FIXED VERSION WITH CORRECT VENUE FILTERING"""
     st.sidebar.markdown("## 🏆 Match Selection")
     
     if df is not None:
-        teams = sorted(df['team'].unique())
-        home_team = st.sidebar.selectbox("Select Home Team", teams, index=0 if "Athletic Bilbao" in teams else 0)
-        away_teams = [team for team in teams if team != home_team]
-        away_team = st.sidebar.selectbox("Select Away Team", away_teams, index=0 if "Espanyol" in away_teams else 0)
+        # Get unique home teams (teams with 'home' venue in CSV)
+        home_teams = sorted(df[df['venue'] == 'home']['team'].unique())
         
-        home_data = df[df['team'] == home_team].iloc[0]
-        away_data = df[df['team'] == away_team].iloc[0]
+        # Home team selection
+        default_home_idx = home_teams.index("Real Madrid") if "Real Madrid" in home_teams else 0
+        home_team = st.sidebar.selectbox("Select Home Team", home_teams, index=default_home_idx)
         
+        # Get unique away teams (teams with 'away' venue in CSV)
+        away_teams = sorted(df[df['venue'] == 'away']['team'].unique())
+        
+        # Filter out the home team from away teams (can't play against themselves)
+        away_teams = [team for team in away_teams if team != home_team]
+        
+        # Away team selection
+        default_away_idx = away_teams.index("Sevilla") if "Sevilla" in away_teams else 0
+        away_team = st.sidebar.selectbox("Select Away Team", away_teams, index=default_away_idx)
+        
+        # Get team data with CORRECT venue filtering
+        home_data = df[(df['team'] == home_team) & (df['venue'] == 'home')].iloc[0]
+        away_data = df[(df['team'] == away_team) & (df['venue'] == 'away')].iloc[0]
+        
+        # Display team info in columns
         col1, col2 = st.sidebar.columns(2)
         with col1:
             st.markdown(f"**🏠 {home_team}**")
-            st.caption(f"Games: {home_data['games_played']}")
+            st.caption(f"Home Games: {home_data['games_played']}")
             st.caption(f"Form: {home_data['form_last_5']}/15")
             st.caption(f"Injuries: {home_data['defenders_out']} defenders out")
+            st.caption(f"xG per game: {home_data['xg']/home_data['games_played']:.2f}")
         
         with col2:
             st.markdown(f"**🏃 {away_team}**")
-            st.caption(f"Games: {away_data['games_played']}")
+            st.caption(f"Away Games: {away_data['games_played']}")
             st.caption(f"Form: {away_data['form_last_5']}/15")
             st.caption(f"Injuries: {away_data['defenders_out']} defenders out")
+            st.caption(f"xG per game: {away_data['xg']/away_data['games_played']:.2f}")
         
         return home_data, away_data
     else:
