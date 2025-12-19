@@ -9,7 +9,7 @@ import math
 import io
 import requests
 
-# Page config - Beautiful UI/UX
+# Page config - Beautiful UI/UX (EXACTLY as you had it)
 st.set_page_config(
     page_title="Professional Football Prediction Engine",
     page_icon="⚽",
@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS - Beautiful UI/UX
+# Custom CSS - Beautiful UI/UX (EXACTLY as you had it)
 st.markdown("""
 <style>
     .main-header {
@@ -247,7 +247,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ============================================================================
-# LEAGUE-SPECIFIC AVERAGES (From your statistics)
+# LEAGUE-SPECIFIC AVERAGES (EXACTLY as you had it)
 # ============================================================================
 
 LEAGUE_STATS = {
@@ -448,7 +448,6 @@ LEAGUE_STATS = {
 def validate_league_data(df, selected_league):
     """Check if CSV data matches selected league - FIX 2"""
     
-    # Define league team lists
     premier_league_teams = [
         'Arsenal', 'Manchester City', 'Liverpool', 'Chelsea', 'Manchester Utd',
         'Tottenham', 'Newcastle', 'Aston Villa', 'Brighton', 'West Ham',
@@ -463,7 +462,6 @@ def validate_league_data(df, selected_league):
         'Granada', 'Cadiz', 'Las Palmas'
     ]
     
-    # Check which teams are in the data
     teams_in_data = set(df['team'].unique())
     
     if selected_league == 'Premier League':
@@ -474,14 +472,12 @@ def validate_league_data(df, selected_league):
         la_liga_count = sum(1 for team in teams_in_data if team in la_liga_teams)
         return la_liga_count >= 15
     
-    # For other leagues, we need to check when we add them
     return True
 
 def detect_actual_league(df):
     """Detect which league the data belongs to"""
     teams_in_data = set(df['team'].unique())
     
-    # Check for Premier League teams
     premier_league_teams = [
         'Arsenal', 'Manchester City', 'Liverpool', 'Chelsea', 'Manchester Utd',
         'Tottenham', 'Newcastle', 'Aston Villa', 'Brighton', 'West Ham',
@@ -507,12 +503,12 @@ def detect_actual_league(df):
         return "Unknown League"
 
 def display_market_odds(home_team=None, away_team=None):
-    """Display market odds with smart defaults - FIX 1 & 8"""
+    """Display market odds with smart defaults - FIX 1 & FIX 8"""
     st.markdown("### 📊 Market Odds Input")
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        # Smart defaults based on team matchup
+        # FIX 1: Smart defaults based on team matchup
         if home_team and away_team:
             if home_team == 'Manchester City' and away_team == 'Everton':
                 default_home = 1.25
@@ -523,17 +519,18 @@ def display_market_odds(home_team=None, away_team=None):
             elif home_team == 'Real Madrid' and away_team == 'Barcelona':
                 default_home = 2.30
             else:
-                default_home = 2.50  # Reasonable default
+                default_home = 2.50
         else:
             default_home = 2.50
         
+        # FIX 8: Input Home, Draw, AND Away odds
         home_odds = st.number_input("Home Win", min_value=1.01, value=default_home, step=0.01)
     
     with col2:
         draw_odds = st.number_input("Draw", min_value=1.01, value=3.40, step=0.01)
     
     with col3:
-        # Calculate default away odds from home odds
+        # Smart defaults for away odds
         if home_team and away_team:
             if home_team == 'Manchester City' and away_team == 'Everton':
                 default_away = 13.00
@@ -578,10 +575,9 @@ def load_league_from_github(league_name):
     league_files = {
         'Premier League': 'epl.csv',
         'La Liga': 'la_liga.csv',
-        # Other leagues will be added when files exist
     }
     
-    # Only show leagues that actually exist
+    # FIX 5: Only show leagues that actually exist
     if league_name not in league_files:
         st.error(f"⚠️ {league_name} data not available yet. Please select Premier League or La Liga.")
         return None
@@ -643,8 +639,8 @@ class ProfessionalPredictionEngine:
         return round(normalized_score, 1)
     
     def calculate_base_expected_goals(self, home_data, away_data, league_stats):
-        """Calculate base expected goals with LEAGUE-SPECIFIC adjustments - FIX 3"""
-        # Treat xg as SEASON TOTAL, calculate per game
+        """Calculate base expected goals with LEAGUE-SPECIFIC adjustments"""
+        # FIXED: Using the actual column names from your CSV
         home_xg_total = home_data['xg']
         away_xg_total = away_data['xg']
         
@@ -666,7 +662,7 @@ class ProfessionalPredictionEngine:
         home_lambda_base = home_xg_per_game * (away_data['shots_allowed_pg'] / league_stats['shots_allowed_avg']) * 0.85
         away_lambda_base = away_xg_per_game * (home_data['shots_allowed_pg'] / league_stats['shots_allowed_avg']) * 0.85
         
-        # Apply team quality adjustment (FIXED: Reduced from 1.2/0.8 to 1.1/0.9)
+        # FIX 3: Reduce team quality adjustment (1.1/0.9 instead of 1.2/0.8)
         top_teams = ['Arsenal', 'Manchester City', 'Liverpool', 'Real Madrid', 'Barcelona', 'Bayern']
         
         if home_data['team'] in top_teams and away_data['team'] not in top_teams:
@@ -822,9 +818,10 @@ class ProfessionalPredictionEngine:
         
         # Re-normalize
         total = probabilities['home_win'] + probabilities['draw'] + probabilities['away_win']
-        probabilities['home_win'] /= total
-        probabilities['draw'] /= total
-        probabilities['away_win'] /= total
+        if total > 0:
+            probabilities['home_win'] /= total
+            probabilities['draw'] /= total
+            probabilities['away_win'] /= total
         
         return probabilities, home_goals, away_goals
     
@@ -915,14 +912,14 @@ class ProfessionalPredictionEngine:
     
     def calculate_expected_value(self, probability, market_odds):
         """Calculate expected value"""
-        if probability == 0:
+        if probability == 0 or market_odds == 0:
             return -1
         fair_odds = 1 / probability
         expected_value = (market_odds / fair_odds) - 1
         return expected_value
     
     def get_predicted_outcome(self, probabilities):
-        """Get the outcome predicted by the model - FIX 7"""
+        """Get the outcome predicted by the model - PART OF FIX 7"""
         home_prob = probabilities['home_win']
         away_prob = probabilities['away_win']
         draw_prob = probabilities['draw']
@@ -935,10 +932,10 @@ class ProfessionalPredictionEngine:
             return 'DRAW'
     
     def get_betting_recommendations(self, probabilities, binary_preds, market_odds, confidence, league_stats):
-        """Get betting recommendations - FIX 7"""
+        """Get betting recommendations - FIX 7 (COMPLETE FIX)"""
         recommendations = []
         
-        # Get model's predicted outcome
+        # FIX 7: Get model's predicted outcome FIRST
         predicted_outcome = self.get_predicted_outcome(probabilities)
         
         # Check value for each possible outcome
@@ -946,7 +943,7 @@ class ProfessionalPredictionEngine:
         ev_draw = self.calculate_expected_value(probabilities['draw'], market_odds['draw'])
         ev_away = self.calculate_expected_value(probabilities['away_win'], market_odds['away_win'])
         
-        # Only recommend if model predicts that outcome AND there's value
+        # FIX 7: Only recommend if model predicts that outcome AND there's value
         if predicted_outcome == 'HOME' and ev_home > 0.10 and probabilities['home_win'] > 0.20:
             fair_odds_home = 1 / probabilities['home_win']
             recommendations.append({
@@ -1055,18 +1052,15 @@ class ProfessionalPredictionEngine:
         return recommendations
     
     def display_odds_comparison(self, probabilities, market_odds):
-        """Show model vs market comparison - FIX 8"""
-        # Model probabilities
+        """Show model vs market comparison"""
         model_home = probabilities['home_win'] * 100
         model_draw = probabilities['draw'] * 100
         model_away = probabilities['away_win'] * 100
         
-        # Market implied probabilities
         market_home = (1 / market_odds['home_win']) * 100 if market_odds['home_win'] > 0 else 0
         market_draw = (1 / market_odds['draw']) * 100 if market_odds['draw'] > 0 else 0
         market_away = (1 / market_odds['away_win']) * 100 if market_odds['away_win'] > 0 else 0
         
-        # Create comparison chart
         fig = go.Figure(data=[
             go.Bar(name='Model Probability', x=['Home', 'Draw', 'Away'], 
                    y=[model_home, model_draw, model_away], marker_color='#4ECDC4'),
@@ -1107,8 +1101,8 @@ class ProfessionalPredictionEngine:
             self.apply_injury_adjustment(home_lambda, away_lambda, home_injury_level, away_injury_level)
         
         # 4. Apply form adjustment
-        home_form_string = home_data.get('form_string', '')
-        away_form_string = away_data.get('form_string', '')
+        home_form_string = home_data.get('form', '')
+        away_form_string = away_data.get('form', '')
         
         home_lambda, away_lambda, home_form_factor, away_form_factor = \
             self.apply_form_adjustment(home_lambda, away_lambda, 
@@ -1122,11 +1116,11 @@ class ProfessionalPredictionEngine:
         
         # 6. Apply style matchup
         style_adjustments = []
-        if all(key in home_data for key in ['set_piece_pct', 'counter_pct', 'open_play_pct']):
+        if all(key in home_data for key in ['set_piece_pct', 'counter_attack_pct', 'open_play_pct']):
             home_lambda, away_lambda, style_adj = \
                 self.apply_style_matchup(home_lambda, away_lambda,
                                        home_data['set_piece_pct'], away_data['set_piece_pct'],
-                                       home_data['counter_pct'], away_data['counter_pct'],
+                                       home_data['counter_attack_pct'], away_data['counter_attack_pct'],
                                        home_data['open_play_pct'], away_data['open_play_pct'],
                                        home_injury_level, away_injury_level,
                                        away_data['shots_allowed_pg'], home_data['shots_allowed_pg'],
@@ -1198,14 +1192,13 @@ class ProfessionalPredictionEngine:
         }
 
 def main():
-    # Header
+    # Header (EXACTLY as you had it)
     st.markdown('<h1 class="main-header">⚽ Professional Football Prediction Engine</h1>', unsafe_allow_html=True)
     
-    # Sidebar
+    # Sidebar (EXACTLY as you had it)
     with st.sidebar:
         st.markdown("### 🏆 Select League")
         
-        # League selection - Only show available leagues
         available_leagues = ['Premier League', 'La Liga']
         selected_league = st.selectbox("Choose League:", available_leagues)
         
@@ -1254,7 +1247,7 @@ def main():
                 st.session_state['league_data'] = df
                 st.session_state['selected_league'] = selected_league
                 
-                # FIX 6: Check for data mismatch
+                # FIX 6: Check for data mismatch warning
                 if not validate_league_data(df, selected_league):
                     actual_league = detect_actual_league(df)
                     st.error(f"""
@@ -1277,7 +1270,7 @@ def main():
     df = st.session_state['league_data']
     selected_league = st.session_state['selected_league']
     
-    # Team selection
+    # Team selection (EXACTLY as you had it with correct column names)
     st.markdown('<div class="input-section">', unsafe_allow_html=True)
     st.markdown("## 🏟️ Match Setup")
     
@@ -1289,7 +1282,8 @@ def main():
         
         st.markdown(f"**{home_team} Stats:**")
         st.metric("Form (Last 5)", f"{home_data['form_last_5']:.1f}")
-        st.metric("Goals Scored", f"{home_data['goals_scored']}")
+        # FIXED: Using 'goals' from your CSV, not 'goals_scored'
+        st.metric("Goals Scored", f"{home_data['goals']}")
         st.metric("Defenders Out", f"{home_data['defenders_out']}")
     
     with col2:
@@ -1298,12 +1292,13 @@ def main():
         
         st.markdown(f"**{away_team} Stats:**")
         st.metric("Form (Last 5)", f"{away_data['form_last_5']:.1f}")
-        st.metric("Goals Scored", f"{away_data['goals_scored']}")
+        # FIXED: Using 'goals' from your CSV, not 'goals_scored'
+        st.metric("Goals Scored", f"{away_data['goals']}")
         st.metric("Defenders Out", f"{away_data['defenders_out']}")
     
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # Market odds input - FIX 1 & 8
+    # Market odds input
     market_odds = display_market_odds(home_team, away_team)
     
     # Run prediction button
@@ -1361,7 +1356,7 @@ def main():
         with col3:
             st.markdown(f"<h2 style='text-align: center;'>✈️ {away_team}</h2>", unsafe_allow_html=True)
         
-        # Model vs Market Comparison - FIX 8
+        # Model vs Market Comparison
         st.markdown("---")
         st.markdown("### 📈 Model vs Market View")
         
