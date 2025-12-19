@@ -76,6 +76,13 @@ st.markdown("""
         background: rgba(255, 107, 107, 0.2);
         border: 1px solid #FF6B6B;
     }
+    .input-section {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        padding: 15px;
+        margin: 10px 0;
+        border-left: 4px solid #4ECDC4;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -313,43 +320,74 @@ def create_input_interface():
     """Create the input interface with team information"""
     st.sidebar.markdown("## ⚙️ Match Configuration")
     
+    # Pre-filled data based on corrected input
+    default_home_name = "Home Team"
+    default_away_name = "Away Team"
+    
+    # Home Team Section
+    st.sidebar.markdown("### 🏠 Home Team")
+    home_name = st.sidebar.text_input("Home Team Name", default_home_name, key="home_name")
+    
     col1, col2 = st.sidebar.columns(2)
-    
     with col1:
-        st.markdown("### 🏠 Home Team")
-        home_name = st.text_input("Home Team Name", "Barcelona")
-        home_xg = st.number_input("Home xG", min_value=0.0, max_value=5.0, value=2.1, step=0.1)
-        home_shots_allowed = st.number_input("Home Shots Allowed", min_value=0.0, max_value=30.0, value=10.5, step=0.5)
-        home_shots_on_target = st.number_input("Home Shots on Target", min_value=0.0, max_value=20.0, value=6.2, step=0.5)
-        home_ppg = st.number_input("Home PPG", min_value=0.0, max_value=3.0, value=2.3, step=0.1)
-        home_form_last_5 = st.slider("Home Form (Last 5)", min_value=0, max_value=15, value=11, help="Points from last 5 matches")
-        home_injury_level = st.slider("Home Injury Level", min_value=0, max_value=10, value=2, help="0 = No injuries, 10 = Critical")
-        home_motivation = st.slider("Home Motivation", min_value=1, max_value=10, value=8, help="1 = Low, 10 = High")
-    
+        home_xg = st.number_input("xG (per game)", min_value=0.0, max_value=5.0, value=1.43, step=0.01, key="home_xg")
+        home_shots_allowed = st.number_input("Shots Allowed", min_value=0.0, max_value=30.0, value=7.3, step=0.1, key="home_shots_allowed")
+        home_shots_on_target = st.number_input("Shots on Target", min_value=0.0, max_value=20.0, value=4.2, step=0.1, key="home_shots_on_target")
     with col2:
-        st.markdown("### 🏃 Away Team")
-        away_name = st.text_input("Away Team Name", "Real Madrid")
-        away_xg = st.number_input("Away xG", min_value=0.0, max_value=5.0, value=1.9, step=0.1)
-        away_shots_allowed = st.number_input("Away Shots Allowed", min_value=0.0, max_value=30.0, value=9.8, step=0.5)
-        away_shots_on_target = st.number_input("Away Shots on Target", min_value=0.0, max_value=20.0, value=5.8, step=0.5)
-        away_ppg = st.number_input("Away PPG", min_value=0.0, max_value=3.0, value=2.1, step=0.1)
-        away_form_last_5 = st.slider("Away Form (Last 5)", min_value=0, max_value=15, value=9, help="Points from last 5 matches")
-        away_injury_level = st.slider("Away Injury Level", min_value=0, max_value=10, value=4, help="0 = No injuries, 10 = Critical")
-        away_motivation = st.slider("Away Motivation", min_value=1, max_value=10, value=7, help="1 = Low, 10 = High")
+        home_ppg = st.number_input("PPG", min_value=0.0, max_value=3.0, value=1.78, step=0.01, key="home_ppg")
+        home_form_last_5 = st.slider("Form Last 5", min_value=0, max_value=15, value=9, key="home_form", help="Points from last 5 matches")
+    
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        home_injury_level = st.slider("Injury Level", min_value=0, max_value=10, value=8, key="home_injury", help="0 = No injuries, 10 = Critical")
+    with col2:
+        home_motivation = st.slider("Motivation", min_value=1, max_value=10, value=2, key="home_motivation", help="1 = Low, 10 = High")
     
     st.sidebar.markdown("---")
     
+    # Away Team Section
+    st.sidebar.markdown("### 🏃 Away Team")
+    away_name = st.sidebar.text_input("Away Team Name", default_away_name, key="away_name")
+    
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        away_xg = st.number_input("xG (per game)", min_value=0.0, max_value=5.0, value=0.94, step=0.01, key="away_xg")
+        away_shots_allowed = st.number_input("Shots Allowed", min_value=0.0, max_value=30.0, value=12.9, step=0.1, key="away_shots_allowed")
+        away_shots_on_target = st.number_input("Shots on Target", min_value=0.0, max_value=20.0, value=4.9, step=0.1, key="away_shots_on_target")
+    with col2:
+        away_ppg = st.number_input("PPG", min_value=0.0, max_value=3.0, value=1.57, step=0.01, key="away_ppg")
+        away_form_last_5 = st.slider("Form Last 5", min_value=0, max_value=15, value=10, key="away_form", help="Points from last 5 matches")
+    
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        away_injury_level = st.slider("Injury Level", min_value=0, max_value=10, value=2, key="away_injury", help="0 = No injuries, 10 = Critical")
+    with col2:
+        away_motivation = st.slider("Motivation", min_value=1, max_value=10, value=4, key="away_motivation", help="1 = Low, 10 = High")
+    
+    st.sidebar.markdown("---")
+    
+    # League & Market Section
     st.sidebar.markdown("### 📊 League & Market")
-    league_avg_ppg = st.sidebar.number_input("League Average PPG", min_value=0.5, max_value=2.5, value=1.5, step=0.1)
+    
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        league_avg_ppg = st.number_input("League Avg PPG", min_value=0.5, max_value=2.5, value=1.5, step=0.01, key="league_ppg")
+    with col2:
+        st.markdown("###")
+        st.info(f"Shots Allowed Avg: {LEAGUE_AVG_SHOTS_ALLOWED}")
     
     st.sidebar.markdown("### 💰 Market Odds")
+    
     col1, col2, col3 = st.sidebar.columns(3)
     with col1:
-        home_odds = st.number_input("Home Win Odds", min_value=1.1, max_value=20.0, value=2.1, step=0.1)
+        home_odds = st.number_input("Home Win", min_value=1.1, max_value=20.0, value=1.79, step=0.01, key="home_odds")
+        st.caption("Market: 1.79")
     with col2:
-        over_odds = st.number_input("Over 2.5 Odds", min_value=1.1, max_value=20.0, value=1.8, step=0.1)
+        over_odds = st.number_input("Over 2.5", min_value=1.1, max_value=20.0, value=2.30, step=0.01, key="over_odds")
+        st.caption("Market: 2.30")
     with col3:
-        btts_odds = st.number_input("BTTS Yes Odds", min_value=1.1, max_value=20.0, value=1.6, step=0.1)
+        btts_odds = st.number_input("BTTS Yes", min_value=1.1, max_value=20.0, value=2.10, step=0.01, key="btts_odds")
+        st.caption("Market: ~2.10")
     
     market_odds = {
         'home_win': home_odds,
@@ -385,11 +423,12 @@ def display_team_comparison(home_name, away_name, inputs):
     st.markdown("## 📊 Team Comparison")
     
     metrics = [
-        ("xG", inputs['home_xg'], inputs['away_xg'], "Expected Goals"),
+        ("xG", inputs['home_xg'], inputs['away_xg'], "Expected Goals per game"),
         ("PPG", inputs['home_ppg'], inputs['away_ppg'], "Points Per Game"),
         ("Form", inputs['home_form_last_5'], inputs['away_form_last_5'], "Last 5 Games"),
-        ("Injuries", inputs['home_injury_level'], inputs['away_injury_level'], "Injury Level"),
-        ("Motivation", inputs['home_motivation'], inputs['away_motivation'], "Motivation Level")
+        ("Injuries", inputs['home_injury_level'], inputs['away_injury_level'], "Injury Level (0-10)"),
+        ("Motivation", inputs['home_motivation'], inputs['away_motivation'], "Motivation Level (1-10)"),
+        ("Shots Allowed", inputs['home_shots_allowed'], inputs['away_shots_allowed'], "Avg shots allowed per game")
     ]
     
     cols = st.columns(len(metrics))
@@ -540,23 +579,27 @@ def display_confidence_meter(confidence, key_factors):
         factors_html = ""
         
         # Home advantage
-        if abs(key_factors.get('home_advantage', 0)) > 0.5:
-            direction = "Positive" if key_factors['home_advantage'] > 0 else "Negative"
-            factors_html += f"<span class='factor-badge'>🏠 Home Advantage: {direction}</span>"
+        home_adv = key_factors.get('home_advantage', 0)
+        if abs(home_adv) > 0.5:
+            direction = "Positive" if home_adv > 0 else "Negative"
+            factors_html += f"<span class='factor-badge'>🏠 Home Advantage: {direction} ({home_adv:.2f})</span>"
         
         # Injury mismatch
-        if abs(key_factors.get('injury_mismatch', 0)) > 4:
-            direction = "Home Favored" if key_factors['injury_mismatch'] < 0 else "Away Favored"
-            factors_html += f"<span class='factor-badge'>🏥 Injury Mismatch: {direction}</span>"
+        injury_diff = key_factors.get('injury_mismatch', 0)
+        if abs(injury_diff) > 4:
+            direction = "Home Favored" if injury_diff < 0 else "Away Favored"
+            factors_html += f"<span class='factor-badge'>🏥 Injury Mismatch: {direction} ({abs(injury_diff)})</span>"
         
         # Form difference
-        if abs(key_factors.get('form_difference', 0)) > 4:
-            direction = "Home Better" if key_factors['form_difference'] > 0 else "Away Better"
-            factors_html += f"<span class='factor-badge'>📈 Form Difference: {direction}</span>"
+        form_diff = key_factors.get('form_difference', 0)
+        if abs(form_diff) > 4:
+            direction = "Home Better" if form_diff > 0 else "Away Better"
+            factors_html += f"<span class='factor-badge'>📈 Form Difference: {direction} ({abs(form_diff)} pts)</span>"
         
         # Lambda difference
-        if key_factors.get('lambda_difference', 0) > 1.0:
-            factors_html += f"<span class='factor-badge'>⚡ Expected Goals Gap</span>"
+        lambda_diff = key_factors.get('lambda_difference', 0)
+        if lambda_diff > 1.0:
+            factors_html += f"<span class='factor-badge'>⚡ Expected Goals Gap: {lambda_diff:.2f}</span>"
         
         if factors_html:
             st.markdown(factors_html, unsafe_allow_html=True)
@@ -613,8 +656,8 @@ def display_simulation_results(result, home_name, away_name):
             clean_sheet_away = np.sum(home_goals_sim == 0) / len(home_goals_sim)
             
             metrics = [
-                ("Avg Goals (Home)", f"{avg_home:.2f}"),
-                ("Avg Goals (Away)", f"{avg_away:.2f}"),
+                (f"Avg Goals ({home_name})", f"{avg_home:.2f}"),
+                (f"Avg Goals ({away_name})", f"{avg_away:.2f}"),
                 (f"{home_name} Clean Sheet", f"{clean_sheet_home:.1%}"),
                 (f"{away_name} Clean Sheet", f"{clean_sheet_away:.1%}"),
                 ("Total Goals > 2.5", f"{np.mean(home_goals_sim + away_goals_sim > 2.5):.1%}")
@@ -629,6 +672,14 @@ def main():
     # Header
     st.markdown("<h1 class='main-header'>⚽ Football Prediction Engine</h1>", unsafe_allow_html=True)
     st.markdown("### Advanced match prediction using Poisson distribution and machine learning")
+    
+    # Display current input configuration
+    st.info("""
+    **Current Configuration:**
+    - Home Team: Higher xG (1.43) but high injury level (8) and low motivation (2)
+    - Away Team: Lower xG (0.94) but better defense (12.9 shots allowed) and low injury level (2)
+    - Market Odds: Home Win (1.79), Over 2.5 (2.30), BTTS Yes (2.10)
+    """)
     
     # Initialize engine
     if 'engine' not in st.session_state:
