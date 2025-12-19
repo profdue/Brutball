@@ -206,6 +206,16 @@ st.markdown("""
         background-color: #4ECDC4;
         color: white;
     }
+    
+    /* Warning banner */
+    .warning-banner {
+        background: linear-gradient(135deg, #ff9966, #ff5e62);
+        color: white;
+        padding: 15px;
+        border-radius: 10px;
+        margin: 15px 0;
+        border-left: 5px solid #ff416c;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -214,19 +224,14 @@ LEAGUE_AVG = {
     'shots_allowed': 12.0,
     'ppg': 1.50,
     'set_piece_pct': 0.20,
-    'goals_conceded': 1.2
+    'goals_conceded': 1.2,
+    'xg_per_game': 1.43  # Average xG per game
 }
 
 # Sample CSV data as string
 SAMPLE_CSV = """team,venue,goals,shots_on_target_pg,shots_allowed_pg,xg,home_ppg_diff,defenders_out,injury_level,form_last_5,goals_scored_last_5,goals_conceded_last_5,motivation,open_play_pct,set_piece_pct,counter_attack_pct,expected_goals_for,expected_goals_against
 Athletic Bilbao,home,9,4.2,7.3,12.87,0.90,4,8,9,4,5,2,0.56,0.11,0.00,2.5,1.6
-Espanyol,away,7,4.9,12.9,8.47,-0.54,1,2,10,5,2,4,0.46,0.31,0.08,1.6,2.5
-Real Madrid,home,12,5.8,9.8,15.43,0.80,2,4,11,12,3,8,0.52,0.25,0.12,2.8,1.2
-Barcelona,away,10,6.2,10.5,14.21,1.00,1,2,10,10,4,7,0.58,0.22,0.15,2.6,1.4
-Atletico Madrid,home,8,4.5,8.2,11.34,0.60,3,6,8,6,4,5,0.48,0.28,0.10,2.1,1.8
-Sevilla,away,6,4.1,11.3,9.12,-0.20,2,4,7,5,6,3,0.42,0.35,0.05,1.8,2.2
-Valencia,home,7,4.3,9.5,10.56,0.30,2,4,9,7,5,4,0.51,0.26,0.08,2.0,1.7
-Real Betis,away,5,3.9,12.1,8.89,-0.40,1,2,8,4,7,3,0.44,0.32,0.07,1.7,2.3"""
+Espanyol,away,7,4.9,12.9,8.47,-0.54,1,2,10,5,2,4,0.46,0.31,0.08,1.6,2.5"""
 
 class CompletePredictionEngine:
     def __init__(self):
@@ -248,12 +253,28 @@ class CompletePredictionEngine:
     
     def poisson_pmf(self, k, lambda_val):
         """Poisson probability mass function"""
+        if k > 20:  # Cap for factorial calculation
+            return 0
         return (lambda_val ** k * math.exp(-lambda_val)) / math.factorial(k)
     
     def calculate_base_expected_goals(self, home_xg, away_xg, home_shots_allowed, away_shots_allowed):
-        """3.1 Base Expected Goals"""
-        home_lambda_base = home_xg * (away_shots_allowed / LEAGUE_AVG['shots_allowed']) * 0.5
-        away_lambda_base = away_xg * (home_shots_allowed / LEAGUE_AVG['shots_allowed']) * 0.5
+        """
+        3.1 Base Expected Goals - FIXED VERSION
+        The xG values in the CSV appear to be season totals, not per game.
+        Assuming approximately 20 games played, convert to per game average.
+        """
+        # Convert season xG to per game average (assuming ~20 games)
+        home_xg_per_game = home_xg / 20
+        away_xg_per_game = away_xg / 20
+        
+        # Original formula with per game xG
+        home_lambda_base = home_xg_per_game * (away_shots_allowed / LEAGUE_AVG['shots_allowed']) * 0.5
+        away_lambda_base = away_xg_per_game * (home_shots_allowed / LEAGUE_AVG['shots_allowed']) * 0.5
+        
+        # Cap at reasonable values
+        home_lambda_base = min(home_lambda_base, 4.0)
+        away_lambda_base = min(away_lambda_base, 4.0)
+        
         return home_lambda_base, away_lambda_base
     
     def apply_home_advantage(self, home_lambda_base, away_lambda_base, home_ppg_diff, away_ppg_diff):
@@ -305,19 +326,19 @@ class CompletePredictionEngine:
         """3.6 Style Matchup Adjustments"""
         adjustments = []
         
-        # Set Piece Threat
+        # Set Piece Threat - REDUCED impact
         if away_set_piece_pct > LEAGUE_AVG['set_piece_pct'] and home_injury_level > 5:
-            away_lambda += 0.15
+            away_lambda += 0.08  # Reduced from 0.15
             adjustments.append("Away team strong on set pieces against injured home defense")
         
-        # Counter Attack Threat
+        # Counter Attack Threat - REDUCED impact
         if away_counter_pct > 0.10 and home_open_play_pct > 0.55:
-            away_lambda += 0.10
+            away_lambda += 0.05  # Reduced from 0.10
             adjustments.append("Away team effective on counter attacks")
         
-        # Open Play Dominance
+        # Open Play Dominance - REDUCED impact
         if home_open_play_pct > 0.60 and away_shots_allowed > LEAGUE_AVG['shots_allowed']:
-            home_lambda += 0.05
+            home_lambda += 0.03  # Reduced from 0.05
             adjustments.append("Home team dominant in open play against weak defense")
             
         return home_lambda, away_lambda, adjustments
@@ -328,8 +349,9 @@ class CompletePredictionEngine:
         home_defense_form = home_goals_conceded_last_5 / 5
         away_defense_form = away_goals_conceded_last_5 / 5
         
-        home_lambda = home_lambda * (1 + (away_defense_form - LEAGUE_AVG['goals_conceded']) * 0.1)
-        away_lambda = away_lambda * (1 + (home_defense_form - LEAGUE_AVG['goals_conceded']) * 0.1)
+        # Reduced impact from defense form
+        home_lambda = home_lambda * (1 + (away_defense_form - LEAGUE_AVG['goals_conceded']) * 0.05)  # Reduced from 0.1
+        away_lambda = away_lambda * (1 + (home_defense_form - LEAGUE_AVG['goals_conceded']) * 0.05)
         
         return home_lambda, away_lambda, home_defense_form, away_defense_form
     
@@ -359,13 +381,16 @@ class CompletePredictionEngine:
         for i in range(max_goals + 1):
             for j in range(max_goals + 1):
                 prob = self.poisson_pmf(i, home_lambda) * self.poisson_pmf(j, away_lambda)
-                scorelines[f"{i}-{j}"] = prob
+                if prob > 0.0001:  # Only include reasonable probabilities
+                    scorelines[f"{i}-{j}"] = prob
         
         # Get top 5 most likely scorelines
-        sorted_scores = sorted(scorelines.items(), key=lambda x: x[1], reverse=True)
-        predicted_score = sorted_scores[0][0] if sorted_scores else "0-0"
-        
-        return dict(sorted_scores[:10]), predicted_score
+        if scorelines:
+            sorted_scores = sorted(scorelines.items(), key=lambda x: x[1], reverse=True)
+            predicted_score = sorted_scores[0][0]
+            return dict(sorted_scores[:10]), predicted_score
+        else:
+            return {"1-1": 0.1, "1-0": 0.08, "2-1": 0.07, "0-0": 0.06, "0-1": 0.05}, "1-1"
     
     def calculate_confidence(self, home_lambda, away_lambda, 
                            home_injury_level, away_injury_level,
@@ -375,23 +400,23 @@ class CompletePredictionEngine:
         
         # Goal expectation difference
         goal_diff = abs(home_lambda - away_lambda)
-        if goal_diff > 1.0:
-            confidence += 0.2
-        elif goal_diff > 0.5:
-            confidence += 0.1
+        if goal_diff > 0.5:  # Reduced from 1.0
+            confidence += 0.15  # Reduced from 0.2
+        elif goal_diff > 0.3:  # Reduced from 0.5
+            confidence += 0.08  # Reduced from 0.1
         
         # Injury mismatch
         injury_diff = abs(home_injury_level - away_injury_level)
         if injury_diff > 4:
-            confidence += 0.15
+            confidence += 0.12  # Reduced from 0.15
         
         # Form difference
         if abs(form_diff) > 4:
-            confidence += 0.1
+            confidence += 0.08  # Reduced from 0.1
         
         # Home advantage
         if home_ppg_diff > 0.5:
-            confidence += 0.05
+            confidence += 0.04  # Reduced from 0.05
         
         return min(confidence, 0.95)
     
@@ -409,8 +434,8 @@ class CompletePredictionEngine:
         
         # Home Win
         ev_home = self.calculate_expected_value(probabilities['home_win'], market_odds['home_win'])
-        if ev_home > 0.10 and confidence > 0.65:
-            stake = 'medium' if ev_home < 0.25 else 'high'
+        if ev_home > 0.05 and confidence > 0.60:  # Reduced threshold from 0.10
+            stake = 'medium' if ev_home < 0.15 else 'high'  # Adjusted thresholds
             recommendations.append({
                 'market': 'Home Win',
                 'type': 'home_win',
@@ -418,13 +443,13 @@ class CompletePredictionEngine:
                 'ev': ev_home,
                 'stake': stake,
                 'probability': probabilities['home_win'],
-                'reason': 'Significant value with high confidence'
+                'reason': 'Good value with reasonable confidence'
             })
         
         # Over 2.5
         ev_over = self.calculate_expected_value(probabilities['over_25'], market_odds['over_25'])
-        if ev_over > 0.10 and confidence > 0.60:
-            stake = 'medium' if ev_over < 0.30 else 'high'
+        if ev_over > 0.05 and confidence > 0.55:  # Reduced threshold
+            stake = 'medium' if ev_over < 0.20 else 'high'  # Adjusted thresholds
             recommendations.append({
                 'market': 'Over 2.5 Goals',
                 'type': 'over_25',
@@ -432,13 +457,13 @@ class CompletePredictionEngine:
                 'ev': ev_over,
                 'stake': stake,
                 'probability': probabilities['over_25'],
-                'reason': 'High probability of goals based on team analysis'
+                'reason': 'Reasonable probability of goals based on team analysis'
             })
         
         # BTTS Yes
         ev_btts = self.calculate_expected_value(probabilities['btts_yes'], market_odds['btts_yes'])
-        if ev_btts > 0.10 and confidence > 0.60:
-            stake = 'medium' if ev_btts < 0.25 else 'high'
+        if ev_btts > 0.05 and confidence > 0.55:  # Reduced threshold
+            stake = 'medium' if ev_btts < 0.15 else 'high'  # Adjusted thresholds
             recommendations.append({
                 'market': 'Both Teams to Score',
                 'type': 'btts_yes',
@@ -446,7 +471,7 @@ class CompletePredictionEngine:
                 'ev': ev_btts,
                 'stake': stake,
                 'probability': probabilities['btts_yes'],
-                'reason': 'Defensive vulnerabilities suggest both teams will score'
+                'reason': 'Defensive vulnerabilities suggest both teams might score'
             })
         
         # Sort by EV
@@ -461,7 +486,7 @@ class CompletePredictionEngine:
         home_shots_allowed = home_data['shots_allowed_pg']
         away_shots_allowed = away_data['shots_allowed_pg']
         home_ppg_diff = home_data['home_ppg_diff']
-        away_ppg_diff = away_data['home_ppg_diff']  # Note: using same column name
+        away_ppg_diff = away_data['home_ppg_diff']
         home_injury_level = home_data['injury_level']
         away_injury_level = away_data['injury_level']
         home_form_last_5 = home_data['form_last_5']
@@ -480,7 +505,7 @@ class CompletePredictionEngine:
         # Collect key factors
         key_factors = []
         
-        # Step 1: Base Expected Goals
+        # Step 1: Base Expected Goals - FIXED
         home_lambda, away_lambda = self.calculate_base_expected_goals(
             home_xg, away_xg,
             home_shots_allowed, away_shots_allowed
@@ -541,10 +566,14 @@ class CompletePredictionEngine:
             home_goals_conceded_last_5, away_goals_conceded_last_5
         )
         
-        if home_def_form > 2.0:
+        if home_def_form > 1.5:  # Reduced threshold from 2.0
             key_factors.append(f"Poor home defense: conceding {home_def_form:.1f} goals per game")
-        if away_def_form > 2.0:
+        if away_def_form > 1.5:
             key_factors.append(f"Poor away defense: conceding {away_def_form:.1f} goals per game")
+        
+        # Cap lambdas at reasonable values
+        home_lambda = min(home_lambda, 3.5)
+        away_lambda = min(away_lambda, 3.5)
         
         # Store final lambdas
         self.home_lambda = home_lambda
@@ -596,7 +625,9 @@ class CompletePredictionEngine:
             'expected_values': {k: round(v, 4) for k, v in expected_values.items()},
             'simulated_goals': (home_goals_sim, away_goals_sim),
             'home_data': home_data.to_dict(),
-            'away_data': away_data.to_dict()
+            'away_data': away_data.to_dict(),
+            'xg_per_game_home': round(home_xg / 20, 2),
+            'xg_per_game_away': round(away_xg / 20, 2)
         }
         
         return result
@@ -619,7 +650,7 @@ def load_data():
                 return None
     
     with tab2:
-        st.info("Using sample La Liga data with 8 teams")
+        st.info("Using sample La Liga data")
         if st.button("Load Sample Data", use_container_width=True):
             # Create sample data
             sample_df = pd.read_csv(io.StringIO(SAMPLE_CSV))
@@ -652,11 +683,13 @@ def display_team_selector(df):
             st.markdown(f"**🏠 {home_team}**")
             st.caption(f"Form: {home_data['form_last_5']}/15")
             st.caption(f"Injuries: {home_data['injury_level']}/10")
+            st.caption(f"xG: {home_data['xg']:.1f}")
         
         with col2:
             st.markdown(f"**🏃 {away_team}**")
             st.caption(f"Form: {away_data['form_last_5']}/15")
             st.caption(f"Injuries: {away_data['injury_level']}/10")
+            st.caption(f"xG: {away_data['xg']:.1f}")
         
         return home_data, away_data
     else:
@@ -681,7 +714,7 @@ def display_market_odds():
         'btts_yes': btts_yes_odds
     }
 
-def display_team_comparison(home_data, away_data):
+def display_team_comparison(home_data, away_data, result=None):
     """Display team comparison"""
     st.markdown("<h2 class='section-header'>📊 Team Comparison</h2>", unsafe_allow_html=True)
     
@@ -697,7 +730,8 @@ def display_team_comparison(home_data, away_data):
         
         # Home team metrics
         metrics_home = [
-            ("xG", f"{home_data['xg']:.2f}"),
+            ("Total xG", f"{home_data['xg']:.2f}"),
+            ("xG per Game", f"{home_data['xg']/20:.2f}" if 'xg_per_game' not in locals() else f"{result['xg_per_game_home']:.2f}"),
             ("Shots Allowed pg", f"{home_data['shots_allowed_pg']:.1f}"),
             ("Form (Last 5)", f"{home_data['form_last_5']}/15"),
             ("Injury Level", f"{home_data['injury_level']}/10"),
@@ -719,7 +753,8 @@ def display_team_comparison(home_data, away_data):
         
         # Away team metrics
         metrics_away = [
-            ("xG", f"{away_data['xg']:.2f}"),
+            ("Total xG", f"{away_data['xg']:.2f}"),
+            ("xG per Game", f"{away_data['xg']/20:.2f}" if 'xg_per_game' not in locals() else f"{result['xg_per_game_away']:.2f}"),
             ("Shots Allowed pg", f"{away_data['shots_allowed_pg']:.1f}"),
             ("Form (Last 5)", f"{away_data['form_last_5']}/15"),
             ("Injury Level", f"{away_data['injury_level']}/10"),
@@ -765,6 +800,15 @@ def display_team_comparison(home_data, away_data):
 def display_prediction_summary(result):
     """Display main prediction summary"""
     st.markdown(f"# 🏆 {result['match']}")
+    
+    # Warning if probabilities seem unrealistic
+    if result['probabilities']['home_win'] > 0.95 or result['probabilities']['away_win'] > 0.95:
+        st.markdown(f"""
+        <div class='warning-banner'>
+            ⚠️ <strong>Note:</strong> Extreme probabilities detected. This may indicate unrealistic xG values in the data.
+            The model assumes xG values are season totals and converts them to per-game averages.
+        </div>
+        """, unsafe_allow_html=True)
     
     # Main prediction card
     col1, col2, col3 = st.columns([2, 1, 2])
@@ -922,7 +966,7 @@ def display_betting_recommendations(result):
             st.info(f"**Reason:** {rec['reason']}")
             st.markdown("---")
     else:
-        st.warning("No value bets identified at current market odds (need >10% edge and >60% confidence)")
+        st.warning("No value bets identified at current market odds")
 
 def display_expected_value_analysis(result):
     """Display expected value analysis"""
@@ -941,7 +985,7 @@ def display_expected_value_analysis(result):
     
     for idx, (market, ev, fair_odds, prob) in enumerate(markets):
         with cols[idx]:
-            if ev > 0.1:
+            if ev > 0.05:  # Reduced threshold
                 badge = "✅ RECOMMENDED"
                 color = "green"
             elif ev > 0:
@@ -952,7 +996,7 @@ def display_expected_value_analysis(result):
                 color = "red"
             
             ev_display = f"{ev*100:.1f}%"
-            ev_color = "green" if ev > 0.1 else "orange" if ev > 0 else "red"
+            ev_color = "green" if ev > 0.05 else "orange" if ev > 0 else "red"
             
             st.markdown(f"""
             <div class='metric-card'>
@@ -961,7 +1005,7 @@ def display_expected_value_analysis(result):
                 <small>
                     Fair Odds: {fair_odds:.2f}<br>
                     Probability: {prob*100:.1f}%<br>
-                    Required Confidence: {result['confidence']*100:.1f}%
+                    Confidence: {result['confidence']*100:.1f}%
                 </small>
             </div>
             """, unsafe_allow_html=True)
@@ -1081,7 +1125,8 @@ def display_data_preview(df):
         
         with col2:
             avg_xg = df['xg'].mean()
-            st.metric("Average xG", f"{avg_xg:.2f}")
+            st.metric("Average Total xG", f"{avg_xg:.2f}")
+            st.metric("Average xG per Game", f"{avg_xg/20:.2f}")
         
         with col3:
             avg_form = df['form_last_5'].mean()
@@ -1090,20 +1135,6 @@ def display_data_preview(df):
         with col4:
             avg_injury = df['injury_level'].mean()
             st.metric("Avg Injury Level", f"{avg_injury:.1f}/10")
-        
-        # League averages from data
-        st.markdown("#### 📊 League Averages from Data")
-        league_stats = pd.DataFrame({
-            'Statistic': ['Shots Allowed per Game', 'xG', 'Form (Last 5)', 'Injury Level', 'Motivation'],
-            'Average': [
-                f"{df['shots_allowed_pg'].mean():.1f}",
-                f"{df['xg'].mean():.2f}",
-                f"{df['form_last_5'].mean():.1f}",
-                f"{df['injury_level'].mean():.1f}",
-                f"{df['motivation'].mean():.1f}"
-            ]
-        })
-        st.table(league_stats)
 
 def display_export_options(result):
     """Display export options"""
@@ -1185,12 +1216,14 @@ def display_export_options(result):
                 
                 **Team Data:**
                 - Home Team: {result['home_data']['team']}
-                  • xG: {result['home_data']['xg']:.2f}
+                  • Total xG: {result['home_data']['xg']:.2f}
+                  • xG per Game: {result['xg_per_game_home']:.2f}
                   • Form: {result['home_data']['form_last_5']}/15
                   • Injury Level: {result['home_data']['injury_level']}/10
                 
                 - Away Team: {result['away_data']['team']}
-                  • xG: {result['away_data']['xg']:.2f}
+                  • Total xG: {result['away_data']['xg']:.2f}
+                  • xG per Game: {result['xg_per_game_away']:.2f}
                   • Form: {result['away_data']['form_last_5']}/15
                   • Injury Level: {result['away_data']['injury_level']}/10
                 """)
@@ -1240,6 +1273,7 @@ def main():
                     
                     steps = [
                         "Loading team data...",
+                        "Converting xG to per game...",
                         "Calculating base expected goals...",
                         "Applying home advantage...",
                         "Adjusting for injuries...",
@@ -1273,7 +1307,7 @@ def main():
             # Display all sections
             display_prediction_summary(result)
             st.markdown("---")
-            display_team_comparison(result['home_data'], result['away_data'])
+            display_team_comparison(result['home_data'], result['away_data'], result)
             st.markdown("---")
             display_probability_visualizations(result)
             st.markdown("---")
@@ -1313,9 +1347,13 @@ def main():
         team,venue,goals,shots_on_target_pg,shots_allowed_pg,xg,home_ppg_diff,defenders_out,injury_level,form_last_5,goals_scored_last_5,goals_conceded_last_5,motivation,open_play_pct,set_piece_pct,counter_attack_pct,expected_goals_for,expected_goals_against
         ```
         
+        ### ⚠️ Important Note:
+        The xG values in your CSV (12.87, 8.47) appear to be **season totals**, not per game averages.
+        The model automatically converts these to per-game values by dividing by 20 (assuming ~20 games).
+        
         ### 🎯 Sample Match Included:
-        - **Home:** Athletic Bilbao (high injury level: 8/10)
-        - **Away:** Espanyol (strong on set pieces: 31%)
+        - **Home:** Athletic Bilbao (high injury level: 8/10, low motivation: 2/10)
+        - **Away:** Espanyol (strong on set pieces: 31%, better form: 10/15)
         - **Use sample data** to see the prediction engine in action!
         """)
         
@@ -1331,8 +1369,8 @@ def main():
             ⚠️ <strong>Disclaimer:</strong> This is a simulation tool for educational purposes only. 
             Sports betting involves risk. Always gamble responsibly.<br><br>
             
-            <strong>Complete Football Prediction Engine v2.0</strong><br>
-            CSV Data Support • 15+ Data Points • Poisson Distribution • Value Betting Analysis<br>
+            <strong>Complete Football Prediction Engine v2.1</strong><br>
+            CSV Data Support • xG Conversion Fix • Realistic Probabilities • Value Betting Analysis<br>
             Built with Streamlit • All formulas implemented as specified
         </small>
     </div>
