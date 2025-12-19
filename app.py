@@ -699,7 +699,7 @@ class ProfessionalPredictionEngine:
         away_xg_per_game = away_xg_total / away_data['games_played']
         
         # Apply correction factor for inflated xG values
-        correction_factor = 0.5
+        correction_factor = 0.75
         
         home_xg_per_game *= correction_factor
         away_xg_per_game *= correction_factor
