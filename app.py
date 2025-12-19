@@ -3,22 +3,20 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import time
-from datetime import datetime
-import json
 import math
 import io
 import requests
 from scipy import stats
 
-# Page config - Beautiful UI/UX
+# Page config
 st.set_page_config(
-    page_title="Professional Football Prediction Engine v3.0",
+    page_title="Professional Football Prediction Engine v4.0",
     page_icon="⚽",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS - Beautiful UI/UX with bigger cards
+# Custom CSS
 st.markdown("""
 <style>
     .main-header {
@@ -30,17 +28,6 @@ st.markdown("""
         margin-bottom: 1rem;
         font-weight: 800;
         text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    .section-header {
-        font-size: 1.8rem;
-        background: linear-gradient(45deg, #667eea, #764ba2);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin: 1.5rem 0 1rem 0;
-        font-weight: 700;
-        border-left: 5px solid #667eea;
-        padding-left: 15px;
     }
     
     .metric-card {
@@ -56,11 +43,6 @@ st.markdown("""
         display: flex;
         flex-direction: column;
         justify-content: center;
-    }
-    
-    .metric-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 15px 30px rgba(0,0,0,0.2);
     }
     
     .prediction-card {
@@ -129,15 +111,6 @@ st.markdown("""
         text-align: center;
     }
     
-    .team-box {
-        border: 2px solid #4ECDC4;
-        border-radius: 12px;
-        padding: 25px;
-        margin: 15px 0;
-        background: rgba(78, 205, 196, 0.08);
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    }
-    
     .factor-badge {
         display: inline-block;
         padding: 10px 20px;
@@ -156,10 +129,6 @@ st.markdown("""
         transform: scale(1.05);
     }
     
-    .stProgress > div > div > div > div {
-        background: linear-gradient(45deg, #FF6B6B, #4ECDC4, #45B7D1);
-    }
-    
     .input-section {
         background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
         border-radius: 12px;
@@ -167,73 +136,6 @@ st.markdown("""
         margin: 15px 0;
         border-left: 5px solid #4ECDC4;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    }
-    
-    .value-positive {
-        color: #00b09b;
-        font-weight: bold;
-        font-size: 1.2em;
-    }
-    
-    .value-negative {
-        color: #ff416c;
-        font-weight: bold;
-        font-size: 1.2em;
-    }
-    
-    .prediction-badge {
-        display: inline-block;
-        padding: 12px 28px;
-        border-radius: 30px;
-        font-size: 1.3em;
-        font-weight: 800;
-        margin: 10px;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-    
-    .prediction-yes {
-        background: linear-gradient(135deg, #00b09b, #96c93d);
-        color: white;
-        border: 3px solid #00b09b;
-    }
-    
-    .prediction-no {
-        background: linear-gradient(135deg, #ff416c, #ff4b2b);
-        color: white;
-        border: 3px solid #ff416c;
-    }
-    
-    .prediction-over {
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
-        border: 3px solid #667eea;
-    }
-    
-    .prediction-under {
-        background: linear-gradient(135deg, #f093fb, #f5576c);
-        color: white;
-        border: 3px solid #f093fb;
-    }
-    
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        white-space: pre-wrap;
-        background-color: #f0f2f6;
-        border-radius: 10px 10px 0px 0px;
-        gap: 1px;
-        padding-top: 10px;
-        padding-bottom: 10px;
-        font-weight: 600;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background-color: #4ECDC4;
-        color: white;
     }
     
     .prediction-box {
@@ -257,11 +159,16 @@ st.markdown("""
         text-align: center;
         opacity: 0.9;
     }
+    
+    .stTabs [aria-selected="true"] {
+        background-color: #4ECDC4;
+        color: white;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # ============================================================================
-# DATA VALIDATION & PROCESSING FUNCTIONS
+# DATA PROCESSING
 # ============================================================================
 
 def validate_and_clean_data(df, league_name):
@@ -319,7 +226,7 @@ def calculate_per_game_metrics(df):
     return df
 
 # ============================================================================
-# EMPIRICALLY CALIBRATED CONSTANTS
+# EMPIRICALLY CALIBRATED CONSTANTS (UPDATED)
 # ============================================================================
 
 CONSTANTS = {
@@ -332,8 +239,13 @@ CONSTANTS = {
     'COUNTER_ATTACK_BOOST': 0.03,
     'POISSON_SIMULATIONS': 20000,
     'MAX_GOALS_CONSIDERED': 8,
-    'XG_TO_GOALS_RATIO': 0.85,
+    'XG_TO_GOALS_RATIO': 0.90,  # Increased from 0.85
     'DEFENSE_QUALITY_FACTOR': 0.15,
+    'MIN_AWAY_LAMBDA': 0.4,  # Minimum away expected goals
+    'MIN_HOME_LAMBDA': 0.5,  # Minimum home expected goals
+    'MAX_WIN_PROBABILITY': 0.88,  # Cap at 88% max
+    'MIN_DRAW_PROBABILITY': 0.08,  # Minimum draw probability
+    'MIN_AWAY_WIN_PROBABILITY': 0.03,  # Minimum away win probability
 }
 
 # ============================================================================
@@ -390,7 +302,7 @@ LEAGUE_STATS = {
 }
 
 # ============================================================================
-# PROFESSIONAL PREDICTION ENGINE (FIXED DEFENSE CALCULATION)
+# PROFESSIONAL PREDICTION ENGINE (COMPLETE FIXED VERSION)
 # ============================================================================
 
 class ProfessionalPredictionEngine:
@@ -430,6 +342,17 @@ class ProfessionalPredictionEngine:
         
         return validation['home_data_valid'] and validation['away_data_valid']
     
+    def get_team_specific_xg_conversion(self, xg_per_game):
+        """Better teams convert xG more efficiently."""
+        if xg_per_game > 2.5:  # Elite attack (Man City, Real Madrid, etc.)
+            return 0.95
+        elif xg_per_game > 1.8:  # Good attack
+            return 0.90
+        elif xg_per_game > 1.3:  # Average attack
+            return 0.85
+        else:  # Poor attack
+            return 0.80
+    
     def calculate_injury_impact(self, defenders_out, is_goalkeeper_out=False):
         """Calculate injury impact with realistic diminishing returns."""
         base_impact = defenders_out * CONSTANTS['DEFENDER_INJURY_IMPACT']
@@ -468,26 +391,27 @@ class ProfessionalPredictionEngine:
     
     def calculate_base_expected_goals(self, home_data, away_data, league_stats):
         """
-        FIXED VERSION: Proper defense calculation.
+        FIXED VERSION with team-specific xG conversion.
         More shots allowed by opponent = easier to score = HIGHER expected goals
         """
         home_games = home_data['games_played']
         away_games = away_data['games_played']
         
-        # Calculate per-game xG (FIXED: xg is cumulative in CSV)
+        # Calculate per-game xG
         home_xg_per_game = home_data['xg'] / home_games if home_games > 0 else 0
         away_xg_per_game = away_data['xg'] / away_games if away_games > 0 else 0
         
-        # Apply xG to goals conversion rate
-        home_xg_effective = home_xg_per_game * CONSTANTS['XG_TO_GOALS_RATIO']
-        away_xg_effective = away_xg_per_game * CONSTANTS['XG_TO_GOALS_RATIO']
+        # Apply TEAM-SPECIFIC xG to goals conversion rate
+        home_conversion = self.get_team_specific_xg_conversion(home_xg_per_game)
+        away_conversion = self.get_team_specific_xg_conversion(away_xg_per_game)
+        
+        home_xg_effective = home_xg_per_game * home_conversion
+        away_xg_effective = away_xg_per_game * away_conversion
         
         # FIXED DEFENSE CALCULATION:
-        # More shots allowed = worse defense = opponent scores more
         league_shots_avg = league_stats['shots_allowed_avg']
         
         # Home team's expected goals against away team's defense
-        # If away allows many shots, home scores more (NOT less!)
         away_defense_factor = away_data['shots_allowed_pg'] / league_shots_avg
         
         # Away team's expected goals against home team's defense  
@@ -501,10 +425,6 @@ class ProfessionalPredictionEngine:
         home_lambda_base *= league_stats['scoring_factor']
         away_lambda_base *= league_stats['scoring_factor']
         
-        # Ensure realistic ranges with minimums
-        home_lambda_base = max(0.3, min(home_lambda_base, 4.0))
-        away_lambda_base = max(0.3, min(away_lambda_base, 4.0))
-        
         return home_lambda_base, away_lambda_base
     
     def apply_empirical_adjustments(self, home_lambda, away_lambda, home_data, away_data, league_stats):
@@ -514,7 +434,7 @@ class ProfessionalPredictionEngine:
         # 1. Home Advantage (empirically: 12-15%)
         home_boost = CONSTANTS['HOME_ADVANTAGE_BASE']
         home_lambda *= home_boost
-        away_lambda *= (2 - home_boost)  # Complementary adjustment
+        away_lambda *= (2 - home_boost)
         adjustments_log.append(f"Home advantage: {home_boost:.2f}x")
         
         # 2. Form Adjustment (weighted recent performance)
@@ -522,8 +442,6 @@ class ProfessionalPredictionEngine:
         away_form_score = self.calculate_weighted_form(away_data.get('form', ''))
         
         form_diff = (home_form_score - away_form_score) / 10
-        form_factor = 1 + (form_diff * 0.1)
-        
         home_lambda *= (1 + form_diff * 0.05)
         away_lambda *= (1 - form_diff * 0.05)
         
@@ -560,11 +478,55 @@ class ProfessionalPredictionEngine:
                 away_lambda += CONSTANTS['SET_PIECE_ADVANTAGE']
                 adjustments_log.append(f"Set piece advantage: Away ({abs(set_piece_diff)*100:.0f}%)")
         
-        # Ensure realistic bounds with reasonable minimums
-        home_lambda = max(0.3, min(home_lambda, 5.0))
-        away_lambda = max(0.3, min(away_lambda, 5.0))
+        # 6. APPLY REALISTIC BOUNDS
+        home_lambda = max(CONSTANTS['MIN_HOME_LAMBDA'], min(home_lambda, 5.0))
+        away_lambda = max(CONSTANTS['MIN_AWAY_LAMBDA'], min(away_lambda, 4.0))
         
         return home_lambda, away_lambda, adjustments_log
+    
+    def apply_football_variance_adjustment(self, probabilities, home_lambda, away_lambda):
+        """
+        Apply football-specific variance adjustments.
+        Even the best teams can have off days, underdogs can surprise.
+        """
+        adjusted_probs = probabilities.copy()
+        
+        # 1. Cap maximum win probability
+        max_win_prob = CONSTANTS['MAX_WIN_PROBABILITY']
+        
+        if adjusted_probs['home_win'] > max_win_prob:
+            excess = adjusted_probs['home_win'] - max_win_prob
+            adjusted_probs['home_win'] = max_win_prob
+            # Redistribute excess: 70% to draw, 30% to away
+            adjusted_probs['draw'] += excess * 0.7
+            adjusted_probs['away_win'] += excess * 0.3
+        
+        if adjusted_probs['away_win'] > max_win_prob:
+            excess = adjusted_probs['away_win'] - max_win_prob
+            adjusted_probs['away_win'] = max_win_prob
+            adjusted_probs['draw'] += excess * 0.7
+            adjusted_probs['home_win'] += excess * 0.3
+        
+        # 2. Apply minimum probabilities (football always has uncertainty)
+        adjusted_probs['draw'] = max(adjusted_probs['draw'], CONSTANTS['MIN_DRAW_PROBABILITY'])
+        adjusted_probs['away_win'] = max(adjusted_probs['away_win'], CONSTANTS['MIN_AWAY_WIN_PROBABILITY'])
+        
+        # For extreme mismatches, ensure some minimum away chance
+        if home_lambda > away_lambda * 3:  # Very one-sided
+            min_away_extra = 0.02
+            if adjusted_probs['away_win'] < min_away_extra:
+                needed = min_away_extra - adjusted_probs['away_win']
+                adjusted_probs['away_win'] += needed
+                adjusted_probs['home_win'] -= needed * 0.8
+                adjusted_probs['draw'] -= needed * 0.2
+        
+        # 3. Normalize to ensure sum = 1
+        total = adjusted_probs['home_win'] + adjusted_probs['draw'] + adjusted_probs['away_win']
+        adjusted_probs['home_win'] /= total
+        adjusted_probs['draw'] /= total
+        adjusted_probs['away_win'] /= total
+        
+        return adjusted_probs
     
     def calculate_probability_distributions(self, home_lambda, away_lambda):
         """Calculate probability distributions using Poisson model."""
@@ -594,6 +556,9 @@ class ProfessionalPredictionEngine:
             'btts_yes': btts_yes / simulations,
             'btts_no': btts_no / simulations
         }
+        
+        # Apply football variance adjustment
+        probabilities = self.apply_football_variance_adjustment(probabilities, home_lambda, away_lambda)
         
         # Calculate confidence intervals
         n = simulations
@@ -631,31 +596,33 @@ class ProfessionalPredictionEngine:
         confidence = 0.5
         
         goal_diff = abs(home_lambda - away_lambda)
-        if goal_diff > 1.0:
-            confidence += 0.3
-        elif goal_diff > 0.5:
+        if goal_diff > 1.5:
+            confidence += 0.25
+        elif goal_diff > 1.0:
             confidence += 0.15
-        elif goal_diff > 0.2:
+        elif goal_diff > 0.5:
             confidence += 0.05
         
         max_prob = max(probabilities['home_win'], probabilities['away_win'], probabilities['draw'])
-        if max_prob > 0.6:
+        if max_prob > 0.7:
             confidence += 0.2
-        elif max_prob > 0.45:
+        elif max_prob > 0.6:
             confidence += 0.1
         
         # Apply league variance
         confidence *= league_stats.get('variance', 1.0)
         
-        # REALISTIC CONFIDENCE CAPS (no model should be 95% certain)
-        if max_prob > 0.7:
-            confidence = min(confidence, 0.85)  # Cap at 85% for strong favorites
-        elif max_prob > 0.6:
+        # REALISTIC CONFIDENCE CAPS
+        if max_prob > 0.75:
+            confidence = min(confidence, 0.82)  # Cap at 82% for strong favorites
+        elif max_prob > 0.65:
             confidence = min(confidence, 0.75)  # Cap at 75% for moderate favorites
+        elif max_prob > 0.55:
+            confidence = min(confidence, 0.68)  # Cap at 68% for slight favorites
         else:
-            confidence = min(confidence, 0.65)  # Cap at 65% for close matches
+            confidence = min(confidence, 0.60)  # Cap at 60% for close matches
         
-        confidence = max(0.3, min(confidence, 0.85))  # Ensure within 30-85% range
+        confidence = max(0.35, min(confidence, 0.82))  # Ensure within 35-82% range
         
         return confidence
     
@@ -678,7 +645,7 @@ class ProfessionalPredictionEngine:
         
         MIN_CONFIDENCE = 0.55
         MIN_EV = 0.05
-        MAX_EV_WARNING = 0.30  # Warn if EV > 30% (likely model error)
+        MAX_EV_WARNING = 0.25  # Warn if EV > 25%
         
         markets = [
             ('home_win', 'Home Win', market_odds.get('home_win', 2.0)),
@@ -693,17 +660,17 @@ class ProfessionalPredictionEngine:
                 
                 if ev_adjusted >= MIN_EV and confidence >= MIN_CONFIDENCE:
                     if ev_adjusted > MAX_EV_WARNING:
-                        risk_level = 'Very High'
-                        rationale_suffix = "⚠️ Very high EV - verify model assumptions"
-                    elif ev_adjusted > 0.15:
                         risk_level = 'High'
-                        rationale_suffix = "High EV detected"
+                        rationale_suffix = "⚠️ High EV - verify carefully"
+                    elif ev_adjusted > 0.12:
+                        risk_level = 'Medium-High'
+                        rationale_suffix = "Good value opportunity"
                     elif ev_adjusted > 0.08:
                         risk_level = 'Medium'
-                        rationale_suffix = "Moderate EV opportunity"
+                        rationale_suffix = "Moderate value"
                     else:
                         risk_level = 'Low'
-                        rationale_suffix = "Small edge detected"
+                        rationale_suffix = "Small edge"
                     
                     recommendation = {
                         'market': 'Match Result',
@@ -780,7 +747,7 @@ class ProfessionalPredictionEngine:
             st.error("Input data validation failed. Please check your data.")
             return None
         
-        # FIXED: Proper defense calculation
+        # FIXED: Proper defense calculation with team-specific conversion
         home_lambda_base, away_lambda_base = self.calculate_base_expected_goals(
             home_data, away_data, league_stats
         )
@@ -823,7 +790,7 @@ class ProfessionalPredictionEngine:
         return results
 
 # ============================================================================
-# UI HELPER FUNCTIONS WITH PREDICTION BOXES
+# UI HELPER FUNCTIONS
 # ============================================================================
 
 def display_prediction_box(title, value, subtitle=""):
@@ -835,44 +802,6 @@ def display_prediction_box(title, value, subtitle=""):
         <div class="prediction-label">{subtitle}</div>
     </div>
     """, unsafe_allow_html=True)
-
-def display_data_quality_report(report):
-    """Display data quality report."""
-    with st.expander("📋 Data Quality Report", expanded=False):
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Data Quality Score", f"{report['data_quality_score']}/100")
-            st.metric("Total Teams", report['total_teams'])
-        with col2:
-            st.metric("Total Rows", report['total_rows'])
-            if report['issues_found']:
-                st.metric("Issues Found", len(report['issues_found']))
-        
-        if report['issues_found']:
-            st.warning("Data Quality Issues:")
-            for issue in report['issues_found']:
-                st.write(f"• {issue}")
-
-def display_calibration_details(calibration_data):
-    """Show calibration details for transparency."""
-    with st.expander("🔧 Model Calibration Details", expanded=False):
-        st.markdown("#### Base Expected Goals (Before Adjustments)")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Home λ (base)", f"{calibration_data['home_lambda_base']:.3f}")
-        with col2:
-            st.metric("Away λ (base)", f"{calibration_data['away_lambda_base']:.3f}")
-        
-        st.markdown("#### Final Expected Goals (After Adjustments)")
-        col1, col2 = st.columns(2)
-        with col1:
-            delta = calibration_data['home_lambda_final'] - calibration_data['home_lambda_base']
-            st.metric("Home λ (final)", f"{calibration_data['home_lambda_final']:.3f}", 
-                     f"{delta:+.3f}")
-        with col2:
-            delta = calibration_data['away_lambda_final'] - calibration_data['away_lambda_base']
-            st.metric("Away λ (final)", f"{calibration_data['away_lambda_final']:.3f}",
-                     f"{delta:+.3f}")
 
 def display_market_odds_interface():
     """Display market odds input with validation."""
@@ -916,8 +845,8 @@ def display_market_odds_interface():
 
 def main():
     # Header
-    st.markdown('<h1 class="main-header">⚽ Professional Football Prediction Engine v3.0</h1>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; color: #666;">Fixed Defense Logic • Realistic Confidence • Professional</p>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">⚽ Professional Football Prediction Engine v4.0</h1>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align: center; color: #666;">Complete Fix • Realistic Probabilities • Professional</p>', unsafe_allow_html=True)
     
     # Sidebar
     with st.sidebar:
@@ -979,6 +908,8 @@ def main():
                                                         1000, 100000, 20000, 1000)
             CONSTANTS['HOME_ADVANTAGE_BASE'] = st.slider("Home Advantage", 
                                                         1.00, 1.25, 1.12, 0.01)
+            CONSTANTS['MAX_WIN_PROBABILITY'] = st.slider("Max Win Probability", 
+                                                       0.80, 0.95, 0.88, 0.01)
         
         st.markdown("---")
         st.markdown("### 📊 How It Works")
@@ -997,7 +928,6 @@ def main():
     
     df = st.session_state['league_data']
     selected_league = st.session_state['selected_league']
-    validation_report = st.session_state.get('validation_report', {})
     
     # Match setup
     st.markdown('<div class="input-section">', unsafe_allow_html=True)
@@ -1151,9 +1081,6 @@ def main():
                 "λ (Poisson mean)"
             )
         
-        # Display calibration details
-        display_calibration_details(result['calibration'])
-        
         # Model confidence with realistic caps
         confidence_pct = result['confidence'] * 100
         if confidence_pct >= 70:
@@ -1201,8 +1128,8 @@ def main():
                     
                     st.markdown(f"**Rationale:** {rec['rationale']}")
                     
-                    if rec['risk_level'] in ['High', 'Very High']:
-                        st.warning(f"{rec['risk_level']} risk recommendation - verify model assumptions")
+                    if rec['risk_level'] in ['High', 'Medium-High']:
+                        st.warning(f"{rec['risk_level']} risk - verify carefully")
         
         else:
             st.info("No strong betting recommendations based on current market odds.")
