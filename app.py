@@ -8,18 +8,17 @@ import json
 import math
 import io
 
-# Page config - Keep UI/UX exactly the same
+# Page config - Beautiful UI/UX
 st.set_page_config(
-    page_title="Precision Football Prediction Engine",
+    page_title="Professional Football Prediction Engine",
     page_icon="⚽",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS with enhanced styling - Keep exactly the same
+# Custom CSS - Beautiful UI/UX
 st.markdown("""
 <style>
-    /* All CSS remains exactly the same */
     .main-header {
         font-size: 3.5rem;
         background: linear-gradient(45deg, #FF6B6B, #4ECDC4, #45B7D1);
@@ -107,6 +106,16 @@ st.markdown("""
         border-radius: 15px;
         padding: 15px;
         color: white;
+    }
+    
+    .league-card {
+        background: linear-gradient(135deg, rgba(69,183,209,0.9), rgba(78,205,196,0.9));
+        border-radius: 15px;
+        padding: 20px;
+        color: white;
+        margin: 10px 0;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        text-align: center;
     }
     
     .team-box {
@@ -236,22 +245,198 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# League averages (La Liga 2023-24 season)
-LEAGUE_AVG = {
-    'shots_allowed': 12.0,
-    'ppg': 1.50,
-    'set_piece_pct': 0.20,
-    'goals_conceded': 1.2
+# ============================================================================
+# LEAGUE-SPECIFIC AVERAGES (From your statistics)
+# ============================================================================
+
+LEAGUE_STATS = {
+    'Premier League': {
+        'matches': 160,
+        'goals_total': 457,
+        'goals_per_match': 2.86,
+        'home_goals_per_match': 1.62,
+        'away_goals_per_match': 1.24,
+        'home_win_pct': 0.49,
+        'draw_pct': 0.21,
+        'away_win_pct': 0.30,
+        'over_15_pct': 0.81,
+        'over_25_pct': 0.57,
+        'over_35_pct': 0.29,
+        'btts_pct': 0.53,
+        'shots_allowed_avg': 11.2,
+        'set_piece_pct': 0.25,
+        'avg_goals_conceded': 1.43,
+        'home_ppg': 1.68,
+        'scoring_factor': 1.0,
+        'lead_defending_home': 0.64,
+        'lead_defending_away': 0.55,
+        'equalizing_home': 0.45,
+        'equalizing_away': 0.36
+    },
+    'La Liga': {
+        'matches': 161,
+        'goals_total': 412,
+        'goals_per_match': 2.56,
+        'home_goals_per_match': 1.47,
+        'away_goals_per_match': 1.09,
+        'home_win_pct': 0.48,
+        'draw_pct': 0.25,
+        'away_win_pct': 0.27,
+        'over_15_pct': 0.76,
+        'over_25_pct': 0.47,
+        'over_35_pct': 0.24,
+        'btts_pct': 0.52,
+        'shots_allowed_avg': 12.0,
+        'set_piece_pct': 0.20,
+        'avg_goals_conceded': 1.28,
+        'home_ppg': 1.69,
+        'scoring_factor': 0.9,
+        'lead_defending_home': 0.65,
+        'lead_defending_away': 0.53,
+        'equalizing_home': 0.47,
+        'equalizing_away': 0.35
+    },
+    'Bundesliga': {
+        'matches': 126,
+        'goals_total': 406,
+        'goals_per_match': 3.22,
+        'home_goals_per_match': 1.77,
+        'away_goals_per_match': 1.45,
+        'home_win_pct': 0.47,
+        'draw_pct': 0.21,
+        'away_win_pct': 0.33,
+        'over_15_pct': 0.83,
+        'over_25_pct': 0.63,
+        'over_35_pct': 0.42,
+        'btts_pct': 0.56,
+        'shots_allowed_avg': 13.5,
+        'set_piece_pct': 0.22,
+        'avg_goals_conceded': 1.61,
+        'home_ppg': 1.62,
+        'scoring_factor': 1.13,
+        'lead_defending_home': 0.70,
+        'lead_defending_away': 0.59,
+        'equalizing_home': 0.41,
+        'equalizing_away': 0.30
+    },
+    'Serie A': {
+        'matches': 150,
+        'goals_total': 350,
+        'goals_per_match': 2.33,
+        'home_goals_per_match': 1.26,
+        'away_goals_per_match': 1.07,
+        'home_win_pct': 0.40,
+        'draw_pct': 0.29,
+        'away_win_pct': 0.31,
+        'over_15_pct': 0.67,
+        'over_25_pct': 0.44,
+        'over_35_pct': 0.23,
+        'btts_pct': 0.47,
+        'shots_allowed_avg': 10.8,
+        'set_piece_pct': 0.18,
+        'avg_goals_conceded': 1.165,
+        'home_ppg': 1.49,
+        'scoring_factor': 0.81,
+        'lead_defending_home': 0.67,
+        'lead_defending_away': 0.57,
+        'equalizing_home': 0.43,
+        'equalizing_away': 0.33
+    },
+    'Ligue 1': {
+        'matches': 144,
+        'goals_total': 411,
+        'goals_per_match': 2.85,
+        'home_goals_per_match': 1.72,
+        'away_goals_per_match': 1.14,
+        'home_win_pct': 0.51,
+        'draw_pct': 0.22,
+        'away_win_pct': 0.27,
+        'over_15_pct': 0.68,
+        'over_25_pct': 0.51,
+        'over_35_pct': 0.33,
+        'btts_pct': 0.49,
+        'shots_allowed_avg': 11.8,
+        'set_piece_pct': 0.23,
+        'avg_goals_conceded': 1.425,
+        'home_ppg': 1.75,
+        'scoring_factor': 1.0,
+        'lead_defending_home': 0.76,
+        'lead_defending_away': 0.46,
+        'equalizing_home': 0.54,
+        'equalizing_away': 0.24
+    },
+    'Eredivisie': {
+        'matches': 143,
+        'goals_total': 469,
+        'goals_per_match': 3.28,
+        'home_goals_per_match': 1.83,
+        'away_goals_per_match': 1.45,
+        'home_win_pct': 0.48,
+        'draw_pct': 0.23,
+        'away_win_pct': 0.29,
+        'over_15_pct': 0.85,
+        'over_25_pct': 0.63,
+        'over_35_pct': 0.40,
+        'btts_pct': 0.62,
+        'shots_allowed_avg': 14.0,
+        'set_piece_pct': 0.21,
+        'avg_goals_conceded': 1.64,
+        'home_ppg': 1.67,
+        'scoring_factor': 1.15,
+        'lead_defending_home': 0.57,
+        'lead_defending_away': 0.53,
+        'equalizing_home': 0.47,
+        'equalizing_away': 0.42
+    },
+    'Liga Portugal': {
+        'matches': 126,
+        'goals_total': 338,
+        'goals_per_match': 2.68,
+        'home_goals_per_match': 1.41,
+        'away_goals_per_match': 1.27,
+        'home_win_pct': 0.37,
+        'draw_pct': 0.25,
+        'away_win_pct': 0.37,
+        'over_15_pct': 0.79,
+        'over_25_pct': 0.52,
+        'over_35_pct': 0.28,
+        'btts_pct': 0.44,
+        'shots_allowed_avg': 11.5,
+        'set_piece_pct': 0.19,
+        'avg_goals_conceded': 1.34,
+        'home_ppg': 1.36,
+        'scoring_factor': 0.94,
+        'lead_defending_home': 0.59,
+        'lead_defending_away': 0.61,
+        'equalizing_home': 0.39,
+        'equalizing_away': 0.41
+    },
+    'Super League (Swiss)': {
+        'matches': 107,
+        'goals_total': 349,
+        'goals_per_match': 3.26,
+        'home_goals_per_match': 1.79,
+        'away_goals_per_match': 1.47,
+        'home_win_pct': 0.40,
+        'draw_pct': 0.22,
+        'away_win_pct': 0.37,
+        'over_15_pct': 0.80,
+        'over_25_pct': 0.68,
+        'over_35_pct': 0.46,
+        'btts_pct': 0.64,
+        'shots_allowed_avg': 13.8,
+        'set_piece_pct': 0.20,
+        'avg_goals_conceded': 1.63,
+        'home_ppg': 1.42,
+        'scoring_factor': 1.14,
+        'lead_defending_home': 0.60,
+        'lead_defending_away': 0.53,
+        'equalizing_home': 0.47,
+        'equalizing_away': 0.40
+    }
 }
 
-# Sample CSV structure
-SAMPLE_CSV = """team,venue,goals,games_played,shots_allowed_pg,xg,home_ppg_diff,defenders_out,form_last_5,goals_scored_last_5,goals_conceded_last_5,motivation,open_play_pct,set_piece_pct,counter_attack_pct,form
-Real Madrid,home,14,7,7.7,17.6,0.47,0,12,11,4,5,0.57,0.14,0.07,LWWWW
-Barcelona,away,21,8,11.1,19.32,-1.00,1,9,14,12,5,0.55,0.30,0.00,WWLLW
-Atletico Madrid,home,22,9,8.8,22.7,1.65,2,15,11,2,4,0.64,0.18,0.05,WWWWW
-Sevilla,away,10,8,12.4,6.74,0.00,2,4,4,8,3,0.50,0.10,0.20,DLLLW"""
-
-class PrecisionPredictionEngine:
+class ProfessionalPredictionEngine:
     def __init__(self):
         self.reset_calculations()
         
@@ -265,103 +450,107 @@ class PrecisionPredictionEngine:
         self.betting_recommendations = []
         self.scoreline_probabilities = {}
         self.binary_predictions = {}
+        self.league_stats = None
         
+    def detect_league(self, df, home_team, away_team):
+        """Detect which league the match belongs to"""
+        league_indicators = {
+            'Premier League': ['Arsenal', 'Manchester', 'Chelsea', 'Liverpool', 'Tottenham', 
+                              'Aston Villa', 'Newcastle', 'West Ham', 'Brighton', 'Brentford',
+                              'Crystal Palace', 'Fulham', 'Wolves', 'Everton', 'Nottingham'],
+            'La Liga': ['Real Madrid', 'Barcelona', 'Atletico', 'Sevilla', 'Valencia', 
+                       'Athletic', 'Villarreal', 'Real Sociedad', 'Real Betis', 'Osasuna',
+                       'Getafe', 'Celta Vigo', 'Mallorca', 'Cadiz', 'Alaves'],
+            'Bundesliga': ['Bayern', 'Dortmund', 'Leverkusen', 'Leipzig', 'Frankfurt', 
+                          'Wolfsburg', 'Mönchengladbach', 'Stuttgart', 'Hoffenheim',
+                          'Freiburg', 'Augsburg', 'Bochum', 'Mainz', 'Darmstadt', 'Köln'],
+            'Serie A': ['Juventus', 'Inter', 'Milan', 'Napoli', 'Roma', 'Lazio', 
+                       'Atalanta', 'Fiorentina', 'Bologna', 'Torino',
+                       'Genoa', 'Monza', 'Lecce', 'Empoli', 'Sassuolo'],
+            'Ligue 1': ['PSG', 'Marseille', 'Lyon', 'Monaco', 'Lille', 'Nice', 
+                       'Rennes', 'Lens', 'Reims', 'Montpellier',
+                       'Toulouse', 'Nantes', 'Brest', 'Le Havre', 'Metz'],
+            'Eredivisie': ['Ajax', 'PSV', 'Feyenoord', 'AZ Alkmaar', 'Twente', 
+                          'Utrecht', 'Heerenveen', 'Vitesse', 'Groningen',
+                          'Go Ahead', 'NEC', 'Fortuna', 'RKC', 'Excelsior', 'Almere'],
+            'Liga Portugal': ['Benfica', 'Porto', 'Sporting', 'Braga', 'Guimarães', 
+                             'Estoril', 'Famalicão', 'Rio Ave', 'Marítimo',
+                             'Casa Pia', 'Boavista', 'Portimonense', 'Arouca', 'Chaves'],
+            'Super League (Swiss)': ['Young Boys', 'Basel', 'Zürich', 'Lugano', 'St. Gallen', 
+                                    'Lausanne', 'Servette', 'Luzern', 'Winterthur',
+                                    'Yverdon', 'Grasshopper']
+        }
+        
+        for league, teams in league_indicators.items():
+            if any(team in home_team for team in teams) or any(team in away_team for team in teams):
+                return league
+        
+        return 'Premier League'
+    
     def calculate_injury_level(self, defenders_out):
-        """Precision: Convert defenders_out to 0-10 injury severity scale"""
+        """Calculate injury level (0-10 scale)"""
         return min(10, defenders_out * 2)
     
-    def poisson_pmf(self, k, lambda_val):
-        """Poisson probability mass function"""
-        if k > 20:  # Cap for factorial calculation
-            return 0
-        return (lambda_val ** k * math.exp(-lambda_val)) / math.factorial(k)
-    
     def calculate_weighted_form(self, form_string):
-        """
-        PRECISION: Convert "WWLLW" to weighted form score
-        Recent games weighted more heavily (exponential decay)
-        """
-        if not form_string or len(form_string) < 5:
-            return 9.0  # Default average
+        """Convert form string to weighted score"""
+        if not form_string or len(form_string) < 3:
+            return 9.0
         
-        weights = [1.0, 0.8, 0.64, 0.51, 0.41]  # Exponential decay: 0.8^0, 0.8^1, 0.8^2, 0.8^3, 0.8^4
+        weights = [1.0, 0.8, 0.64, 0.51, 0.41]
         points = {'W': 3, 'D': 1, 'L': 0}
         
-        # Get last 5 results (most recent first)
         last_5 = form_string[-5:] if len(form_string) >= 5 else form_string
-        last_5 = last_5[::-1]  # Reverse so most recent is first
+        last_5 = last_5[::-1]
         
         weighted_score = 0
-        for i, result in enumerate(last_5[:5]):  # Take up to 5 results
+        for i, result in enumerate(last_5[:5]):
             weighted_score += points.get(result, 0) * weights[i]
         
-        # Normalize to 0-15 scale (3 points per game max)
         max_possible = sum(weights[:len(last_5)]) * 3
         normalized_score = (weighted_score / max_possible) * 15 if max_possible > 0 else 9.0
         
         return round(normalized_score, 1)
     
-    def calculate_base_expected_goals(self, home_data, away_data):
-        """
-        PRECISION: Base expected goals calculation
-        xG per game × opponent defensive weakness × calibrated multiplier
-        """
-        # Calculate xG per game using games_played
+    def calculate_base_expected_goals(self, home_data, away_data, league_stats):
+        """Calculate base expected goals with LEAGUE-SPECIFIC adjustments"""
         home_xg_per_game = home_data['xg'] / home_data['games_played']
         away_xg_per_game = away_data['xg'] / away_data['games_played']
         
-        # PRECISION: 0.85 multiplier calibrated for realistic expected goals
-        # Home attack vs Away defense
-        home_lambda_base = home_xg_per_game * (away_data['shots_allowed_pg'] / LEAGUE_AVG['shots_allowed']) * 0.85
+        home_xg_per_game *= league_stats['scoring_factor']
+        away_xg_per_game *= league_stats['scoring_factor']
         
-        # Away attack vs Home defense  
-        away_lambda_base = away_xg_per_game * (home_data['shots_allowed_pg'] / LEAGUE_AVG['shots_allowed']) * 0.85
+        home_lambda_base = home_xg_per_game * (away_data['shots_allowed_pg'] / league_stats['shots_allowed_avg']) * 0.5
+        away_lambda_base = away_xg_per_game * (home_data['shots_allowed_pg'] / league_stats['shots_allowed_avg']) * 0.5
         
-        # Ensure realistic bounds
-        home_lambda_base = max(min(home_lambda_base, 4.0), 0.3)
-        away_lambda_base = max(min(away_lambda_base, 3.5), 0.2)
+        home_lambda_base = min(home_lambda_base, 4.0)
+        away_lambda_base = min(away_lambda_base, 4.0)
         
         return home_lambda_base, away_lambda_base, home_xg_per_game, away_xg_per_game
     
-    def apply_home_advantage(self, home_lambda_base, away_lambda_base, home_ppg_diff, away_ppg_diff):
-        """
-        PRECISION: Team-specific home/away performance adjustment
-        Uses SoccerSTAT home_ppg_diff (positive = good at home/away, negative = poor)
-        """
-        # Home team boost: +30% per +1.0 home_ppg_diff
-        home_boost = 1 + (home_ppg_diff * 0.30)
+    def apply_home_advantage(self, home_lambda_base, away_lambda_base, home_ppg_diff, away_ppg_diff, league_stats):
+        """Apply home advantage with LEAGUE-SPECIFIC strength"""
+        home_adv_strength = league_stats['home_win_pct'] / 0.49
         
-        # PRECISION LOGIC: Good away teams get boost, poor away teams get penalty
-        if away_ppg_diff > 0:
-            # Good away team gets 10% boost per +1.0 away_ppg_diff
-            away_adjustment = 1 + (away_ppg_diff * 0.10)
-        else:
-            # Poor away team gets 25% penalty per -1.0 away_ppg_diff
-            away_adjustment = 1 - (abs(away_ppg_diff) * 0.25)
+        home_boost = 1 + (home_ppg_diff * 0.3 * home_adv_strength)
+        away_penalty = 1 - (abs(away_ppg_diff) * 0.25 * home_adv_strength)
         
         home_lambda = home_lambda_base * home_boost
-        away_lambda = away_lambda_base * away_adjustment
+        away_lambda = away_lambda_base * away_penalty
         
-        return home_lambda, away_lambda, home_boost, away_adjustment
+        return home_lambda, away_lambda, home_boost, away_penalty
     
     def apply_injury_adjustment(self, home_lambda, away_lambda, home_injury_level, away_injury_level):
-        """PRECISION: Injury reduces defensive strength (0-50% reduction)"""
-        home_defense_strength = 1 - (home_injury_level / 20)  # 0.5 to 1.0 range
+        """Apply injury adjustment"""
+        home_defense_strength = 1 - (home_injury_level / 20)
         away_defense_strength = 1 - (away_injury_level / 20)
         
-        # Attack vs opponent's weakened defense
         home_lambda = home_lambda * away_defense_strength
         away_lambda = away_lambda * home_defense_strength
         
         return home_lambda, away_lambda, home_defense_strength, away_defense_strength
     
-    def apply_form_adjustment(self, home_lambda, away_lambda, home_form_last_5, away_form_last_5, 
-                            home_form_string=None, away_form_string=None):
-        """
-        PRECISION: Form adjustment with weighted recent performance
-        Optionally uses weighted form from actual results if provided
-        """
-        # Use weighted form if form strings are provided
+    def apply_form_adjustment(self, home_lambda, away_lambda, home_form_last_5, away_form_last_5, home_form_string=None, away_form_string=None):
+        """Apply form adjustment"""
         if home_form_string:
             home_weighted_form = self.calculate_weighted_form(home_form_string)
         else:
@@ -372,7 +561,6 @@ class PrecisionPredictionEngine:
         else:
             away_weighted_form = away_form_last_5
         
-        # ±2% adjustment per point above/below 9 (average)
         home_form_factor = 1 + ((home_weighted_form - 9) * 0.02)
         away_form_factor = 1 + ((away_weighted_form - 9) * 0.02)
         
@@ -382,8 +570,7 @@ class PrecisionPredictionEngine:
         return home_lambda, away_lambda, home_form_factor, away_form_factor
     
     def apply_motivation_adjustment(self, home_lambda, away_lambda, home_motivation, away_motivation):
-        """PRECISION: Motivation adjustment (1-5 scale)"""
-        # Scale 1-5 to 0-1 for calculation
+        """Apply motivation adjustment"""
         home_motivation_norm = home_motivation / 5.0
         away_motivation_norm = away_motivation / 5.0
         
@@ -400,41 +587,47 @@ class PrecisionPredictionEngine:
                            home_counter_pct, away_counter_pct,
                            home_open_play_pct, away_open_play_pct,
                            home_injury_level, away_injury_level,
-                           home_shots_allowed, away_shots_allowed):
-        """PRECISION: Style matchup adjustments"""
+                           home_shots_allowed, away_shots_allowed,
+                           league_stats):
+        """Apply style matchup adjustments"""
         adjustments = []
         
-        # Set Piece Threat vs Injured Defense
-        if away_set_piece_pct > LEAGUE_AVG['set_piece_pct'] and home_injury_level > 5:
+        if away_set_piece_pct > league_stats['set_piece_pct'] and home_injury_level > 5:
             away_lambda += 0.15
-            adjustments.append("Away team strong on set pieces against injured home defense")
+            adjustments.append(f"Away strong on set pieces ({away_set_piece_pct*100:.0f}% vs league {league_stats['set_piece_pct']*100:.0f}%)")
         
-        # Counter Attack Threat
         if away_counter_pct > 0.10:
             away_lambda += 0.10
-            adjustments.append("Away team effective on counter attacks")
+            adjustments.append(f"Away effective on counter ({away_counter_pct*100:.0f}% of goals)")
         
-        # Open Play Dominance vs Weak Defense
-        if home_open_play_pct > 0.60 and away_shots_allowed > LEAGUE_AVG['shots_allowed']:
+        if home_open_play_pct > 0.60 and away_shots_allowed > league_stats['shots_allowed_avg']:
             home_lambda += 0.05
-            adjustments.append("Home team dominant in open play against weak defense")
+            adjustments.append(f"Home dominant in open play ({home_open_play_pct*100:.0f}% of goals)")
             
         return home_lambda, away_lambda, adjustments
     
     def apply_defense_form(self, home_lambda, away_lambda, 
-                          home_goals_conceded_last_5, away_goals_conceded_last_5):
-        """PRECISION: Recent defensive form adjustment"""
-        home_defense_form = home_goals_conceded_last_5 / 5  # goals per game last 5
+                          home_goals_conceded_last_5, away_goals_conceded_last_5,
+                          league_stats):
+        """Apply defense form adjustment"""
+        home_defense_form = home_goals_conceded_last_5 / 5
         away_defense_form = away_goals_conceded_last_5 / 5
         
-        # ±10% adjustment per 0.1 goals above/below league average
-        home_lambda = home_lambda * (1 + (away_defense_form - LEAGUE_AVG['goals_conceded']) * 0.1)
-        away_lambda = away_lambda * (1 + (home_defense_form - LEAGUE_AVG['goals_conceded']) * 0.1)
+        league_avg_goals_conceded = league_stats['avg_goals_conceded']
+        
+        home_lambda = home_lambda * (1 + (away_defense_form - league_avg_goals_conceded) * 0.1)
+        away_lambda = away_lambda * (1 + (home_defense_form - league_avg_goals_conceded) * 0.1)
         
         return home_lambda, away_lambda, home_defense_form, away_defense_form
     
+    def poisson_pmf(self, k, lambda_val):
+        """Poisson probability mass function"""
+        if k > 20:
+            return 0
+        return (lambda_val ** k * math.exp(-lambda_val)) / math.factorial(k)
+    
     def simulate_match(self, home_lambda, away_lambda, iterations=10000):
-        """PRECISION: Poisson simulation for match outcomes"""
+        """Poisson simulation"""
         home_goals = np.random.poisson(home_lambda, iterations)
         away_goals = np.random.poisson(away_lambda, iterations)
         
@@ -457,52 +650,54 @@ class PrecisionPredictionEngine:
             'btts_no': btts_no / iterations
         }, home_goals, away_goals
     
-    def calculate_binary_predictions(self, probabilities):
-        """PRECISION: Clear binary predictions with confidence scores"""
+    def calculate_binary_predictions(self, probabilities, league_stats):
+        """Make binary predictions with LEAGUE-SPECIFIC benchmarks"""
         binary_preds = {}
         
-        # BTTS Prediction
         btts_yes_prob = probabilities['btts_yes']
-        btts_no_prob = probabilities['btts_no']
+        league_btts_avg = league_stats['btts_pct']
         
-        if btts_yes_prob > 0.5:
+        if btts_yes_prob > league_btts_avg:
             binary_preds['btts'] = {
                 'prediction': 'YES',
                 'probability': btts_yes_prob,
-                'confidence': (btts_yes_prob - 0.5) * 200,
-                'opposite_prob': btts_no_prob
+                'confidence': (btts_yes_prob - league_btts_avg) * 100,
+                'opposite_prob': probabilities['btts_no'],
+                'league_avg': league_btts_avg
             }
         else:
             binary_preds['btts'] = {
                 'prediction': 'NO',
-                'probability': btts_no_prob,
-                'confidence': (btts_no_prob - 0.5) * 200,
-                'opposite_prob': btts_yes_prob
+                'probability': probabilities['btts_no'],
+                'confidence': (probabilities['btts_no'] - (1 - league_btts_avg)) * 100,
+                'opposite_prob': btts_yes_prob,
+                'league_avg': league_btts_avg
             }
         
-        # Over/Under 2.5 Prediction
         over_prob = probabilities['over_25']
-        under_prob = probabilities['under_25']
+        league_over_avg = league_stats['over_25_pct']
         
-        if over_prob > 0.5:
+        if over_prob > league_over_avg:
             binary_preds['over_under'] = {
                 'prediction': 'OVER',
                 'probability': over_prob,
-                'confidence': (over_prob - 0.5) * 200,
-                'opposite_prob': under_prob
+                'confidence': (over_prob - league_over_avg) * 100,
+                'opposite_prob': probabilities['under_25'],
+                'league_avg': league_over_avg
             }
         else:
             binary_preds['over_under'] = {
                 'prediction': 'UNDER',
-                'probability': under_prob,
-                'confidence': (under_prob - 0.5) * 200,
-                'opposite_prob': over_prob
+                'probability': probabilities['under_25'],
+                'confidence': (probabilities['under_25'] - (1 - league_over_avg)) * 100,
+                'opposite_prob': over_prob,
+                'league_avg': league_over_avg
             }
         
         return binary_preds
     
     def calculate_scoreline_probabilities(self, home_lambda, away_lambda, max_goals=6):
-        """PRECISION: Scoreline probabilities from Poisson distribution"""
+        """Calculate scoreline probabilities"""
         scorelines = {}
         for i in range(max_goals + 1):
             for j in range(max_goals + 1):
@@ -519,45 +714,42 @@ class PrecisionPredictionEngine:
     
     def calculate_confidence(self, home_lambda, away_lambda, 
                            home_injury_level, away_injury_level,
-                           home_ppg_diff, form_diff):
-        """PRECISION: Model confidence scoring"""
-        confidence = 0.5  # Base confidence
+                           home_ppg_diff, form_diff, league_stats):
+        """Calculate confidence with LEAGUE context"""
+        confidence = 0.5
         
-        # Goal expectation difference
         goal_diff = abs(home_lambda - away_lambda)
-        if goal_diff > 1.0:
+        league_avg_diff = league_stats['home_goals_per_match'] - league_stats['away_goals_per_match']
+        
+        if goal_diff > league_avg_diff * 2:
             confidence += 0.2
-        elif goal_diff > 0.5:
+        elif goal_diff > league_avg_diff:
             confidence += 0.1
         
-        # Injury mismatch
         injury_diff = abs(home_injury_level - away_injury_level)
         if injury_diff > 4:
             confidence += 0.15
         
-        # Form difference
         if abs(form_diff) > 4:
             confidence += 0.1
         
-        # Home advantage
-        if home_ppg_diff > 0.5:
+        if home_ppg_diff > league_stats['home_ppg'] * 0.5:
             confidence += 0.05
         
         return min(confidence, 0.95)
     
     def calculate_expected_value(self, probability, market_odds):
-        """PRECISION: Expected Value calculation for betting"""
+        """Calculate expected value"""
         if probability == 0:
             return -1
         fair_odds = 1 / probability
         expected_value = (market_odds / fair_odds) - 1
         return expected_value
     
-    def get_betting_recommendations(self, probabilities, binary_preds, market_odds, confidence):
-        """PRECISION: Betting recommendations with stake sizing"""
+    def get_betting_recommendations(self, probabilities, binary_preds, market_odds, confidence, league_stats):
+        """Get betting recommendations"""
         recommendations = []
         
-        # Home Win recommendation
         ev_home = self.calculate_expected_value(probabilities['home_win'], market_odds['home_win'])
         if ev_home > 0.10 and confidence > 0.65:
             stake = 'medium' if ev_home < 0.25 else 'high'
@@ -568,14 +760,13 @@ class PrecisionPredictionEngine:
                 'ev': ev_home,
                 'probability': probabilities['home_win'],
                 'stake': stake,
-                'reason': 'Significant value with high confidence'
+                'reason': f'Significant value ({ev_home*100:.1f}%) with {confidence*100:.1f}% confidence'
             })
         
-        # Over/Under recommendation
         if binary_preds['over_under']['prediction'] == 'OVER':
             ev_over = self.calculate_expected_value(probabilities['over_25'], market_odds['over_25'])
-            if ev_over > 0.10 and binary_preds['over_under']['confidence'] > 10:
-                stake = 'medium' if ev_over < 0.30 else 'high'
+            if ev_over > 0.05 and binary_preds['over_under']['confidence'] > 5:
+                stake = 'medium' if ev_over < 0.20 else 'high'
                 recommendations.append({
                     'market': 'Over 2.5 Goals',
                     'prediction': 'OVER',
@@ -583,29 +774,13 @@ class PrecisionPredictionEngine:
                     'ev': ev_over,
                     'probability': probabilities['over_25'],
                     'stake': stake,
-                    'reason': f'Model predicts OVER with {binary_preds["over_under"]["confidence"]:.1f}% confidence'
+                    'reason': f'Model predicts OVER ({binary_preds["over_under"]["confidence"]:.1f}% above league avg {league_stats["over_25_pct"]*100:.0f}%)'
                 })
-        else:
-            if market_odds['over_25'] > 1:
-                under_odds = 1 / (1 - 1/market_odds['over_25'])
-                ev_under = self.calculate_expected_value(probabilities['under_25'], under_odds)
-                if ev_under > 0.10 and binary_preds['over_under']['confidence'] > 10:
-                    stake = 'medium' if ev_under < 0.30 else 'high'
-                    recommendations.append({
-                        'market': 'Under 2.5 Goals',
-                        'prediction': 'UNDER',
-                        'odds': f"~{under_odds:.2f}",
-                        'ev': ev_under,
-                        'probability': probabilities['under_25'],
-                        'stake': stake,
-                        'reason': f'Model predicts UNDER with {binary_preds["over_under"]["confidence"]:.1f}% confidence'
-                    })
         
-        # BTTS recommendation
         if binary_preds['btts']['prediction'] == 'YES':
             ev_btts = self.calculate_expected_value(probabilities['btts_yes'], market_odds['btts_yes'])
-            if ev_btts > 0.10 and binary_preds['btts']['confidence'] > 10:
-                stake = 'medium' if ev_btts < 0.25 else 'high'
+            if ev_btts > 0.05 and binary_preds['btts']['confidence'] > 5:
+                stake = 'medium' if ev_btts < 0.15 else 'high'
                 recommendations.append({
                     'market': 'Both Teams to Score',
                     'prediction': 'YES',
@@ -613,61 +788,35 @@ class PrecisionPredictionEngine:
                     'ev': ev_btts,
                     'probability': probabilities['btts_yes'],
                     'stake': stake,
-                    'reason': f'Model predicts BTTS YES with {binary_preds["btts"]["confidence"]:.1f}% confidence'
+                    'reason': f'Model predicts BTTS YES ({binary_preds["btts"]["confidence"]:.1f}% above league avg {league_stats["btts_pct"]*100:.0f}%)'
                 })
-        else:
-            if market_odds['btts_yes'] > 1:
-                btts_no_odds = 1 / (1 - 1/market_odds['btts_yes'])
-                ev_btts_no = self.calculate_expected_value(probabilities['btts_no'], btts_no_odds)
-                if ev_btts_no > 0.10 and binary_preds['btts']['confidence'] > 10:
-                    stake = 'medium' if ev_btts_no < 0.25 else 'high'
-                    recommendations.append({
-                        'market': 'Both Teams to Score',
-                        'prediction': 'NO',
-                        'odds': f"~{btts_no_odds:.2f}",
-                        'ev': ev_btts_no,
-                        'probability': probabilities['btts_no'],
-                        'stake': stake,
-                        'reason': f'Model predicts BTTS NO with {binary_preds["btts"]["confidence"]:.1f}% confidence'
-                    })
         
         return sorted(recommendations, key=lambda x: x['ev'], reverse=True)
     
-    def run_prediction_from_data(self, home_data, away_data, market_odds):
-        """PRECISION: Complete prediction pipeline with all adjustments"""
+    def run_prediction_from_data(self, home_data, away_data, market_odds, league_name):
+        """Run complete prediction with LEAGUE-SPECIFIC adjustments"""
+        league_stats = LEAGUE_STATS.get(league_name, LEAGUE_STATS['Premier League'])
+        self.league_stats = league_stats
         
-        # Calculate injury levels
         home_injury_level = self.calculate_injury_level(home_data['defenders_out'])
         away_injury_level = self.calculate_injury_level(away_data['defenders_out'])
         
-        # Collect key factors
         key_factors = []
+        key_factors.append(f"League: {league_name} ({league_stats['goals_per_match']:.2f} goals/game avg)")
         
-        # Step 1: Base Expected Goals
         home_lambda_base, away_lambda_base, home_xg_per_game, away_xg_per_game = self.calculate_base_expected_goals(
-            home_data, away_data
+            home_data, away_data, league_stats
         )
         
-        # Add key factors
-        if home_xg_per_game > 1.5:
-            key_factors.append(f"Home xG per game: {home_xg_per_game:.2f} (strong attack)")
-        if away_xg_per_game > 1.5:
-            key_factors.append(f"Away xG per game: {away_xg_per_game:.2f} (strong attack)")
-        
-        # Step 2: Home Advantage (Team-specific from SoccerSTAT)
-        home_lambda, away_lambda, home_boost, away_adjustment = self.apply_home_advantage(
+        home_lambda, away_lambda, home_boost, away_penalty = self.apply_home_advantage(
             home_lambda_base, away_lambda_base,
-            home_data['home_ppg_diff'], away_data['home_ppg_diff']
+            home_data['home_ppg_diff'], away_data['home_ppg_diff'],
+            league_stats
         )
         
         if home_boost > 1.1:
-            key_factors.append(f"Home advantage: +{home_data['home_ppg_diff']:.2f} PPG")
-        if away_adjustment > 1.05 and away_data['home_ppg_diff'] > 0:
-            key_factors.append(f"Away team strong on road: +{away_data['home_ppg_diff']:.2f} PPG")
-        elif away_adjustment < 0.95 and away_data['home_ppg_diff'] < 0:
-            key_factors.append(f"Away team poor on road: {away_data['home_ppg_diff']:.2f} PPG")
+            key_factors.append(f"Home advantage: +{home_data['home_ppg_diff']:.2f} PPG (league avg home win: {league_stats['home_win_pct']*100:.0f}%)")
         
-        # Step 3: Injury Adjustment
         home_lambda, away_lambda, home_defense_str, away_defense_str = self.apply_injury_adjustment(
             home_lambda, away_lambda,
             home_injury_level, away_injury_level
@@ -678,7 +827,6 @@ class PrecisionPredictionEngine:
         if away_injury_level > 5:
             key_factors.append(f"Away injury crisis: {away_injury_level}/10 severity")
         
-        # Step 4: Form Adjustment (using weighted form if available)
         form_string_home = home_data.get('form', None)
         form_string_away = away_data.get('form', None)
         
@@ -693,13 +841,11 @@ class PrecisionPredictionEngine:
             direction = "better" if form_diff > 0 else "worse"
             key_factors.append(f"Form difference: Home {direction} by {abs(form_diff)} points")
         
-        # Step 5: Motivation Adjustment
         home_lambda, away_lambda, home_motivation_factor, away_motivation_factor = self.apply_motivation_adjustment(
             home_lambda, away_lambda,
             home_data['motivation'], away_data['motivation']
         )
         
-        # Step 6: Style Matchup
         style_adjustments = []
         home_lambda, away_lambda, style_adj = self.apply_style_matchup(
             home_lambda, away_lambda,
@@ -707,14 +853,15 @@ class PrecisionPredictionEngine:
             home_data['counter_attack_pct'], away_data['counter_attack_pct'],
             home_data['open_play_pct'], away_data['open_play_pct'],
             home_injury_level, away_injury_level,
-            home_data['shots_allowed_pg'], away_data['shots_allowed_pg']
+            home_data['shots_allowed_pg'], away_data['shots_allowed_pg'],
+            league_stats
         )
         key_factors.extend(style_adj)
         
-        # Step 7: Defense Form
         home_lambda, away_lambda, home_def_form, away_def_form = self.apply_defense_form(
             home_lambda, away_lambda,
-            home_data['goals_conceded_last_5'], away_data['goals_conceded_last_5']
+            home_data['goals_conceded_last_5'], away_data['goals_conceded_last_5'],
+            league_stats
         )
         
         if home_def_form > 1.5:
@@ -722,35 +869,29 @@ class PrecisionPredictionEngine:
         if away_def_form > 1.5:
             key_factors.append(f"Poor away defense: conceding {away_def_form:.1f} goals per game recently")
         
-        # Final adjustments and bounds
         home_lambda = max(min(home_lambda, 4.0), 0.3)
         away_lambda = max(min(away_lambda, 3.5), 0.2)
         
         self.home_lambda = home_lambda
         self.away_lambda = away_lambda
         
-        # Step 8: Simulation
         probabilities, home_goals_sim, away_goals_sim = self.simulate_match(home_lambda, away_lambda)
         
-        # Step 9: Binary predictions
-        binary_predictions = self.calculate_binary_predictions(probabilities)
+        binary_predictions = self.calculate_binary_predictions(probabilities, league_stats)
         
-        # Step 10: Scoreline probabilities
         scoreline_probs, predicted_score = self.calculate_scoreline_probabilities(home_lambda, away_lambda)
         
-        # Step 11: Confidence
         confidence = self.calculate_confidence(
             home_lambda, away_lambda,
             home_injury_level, away_injury_level,
-            home_data['home_ppg_diff'], form_diff
+            home_data['home_ppg_diff'], form_diff,
+            league_stats
         )
         
-        # Step 12: Betting Recommendations
         betting_recommendations = self.get_betting_recommendations(
-            probabilities, binary_predictions, market_odds, confidence
+            probabilities, binary_predictions, market_odds, confidence, league_stats
         )
         
-        # Fair odds calculation
         fair_odds = {
             'home_win': 1 / probabilities['home_win'] if probabilities['home_win'] > 0 else 0,
             'over_25': 1 / probabilities['over_25'] if probabilities['over_25'] > 0 else 0,
@@ -759,7 +900,6 @@ class PrecisionPredictionEngine:
             'btts_no': 1 / probabilities['btts_no'] if probabilities['btts_no'] > 0 else 0
         }
         
-        # Expected values for display
         expected_values = {
             'home_win': self.calculate_expected_value(probabilities['home_win'], market_odds['home_win']),
             'over_25': self.calculate_expected_value(probabilities['over_25'], market_odds['over_25']),
@@ -768,6 +908,7 @@ class PrecisionPredictionEngine:
         
         result = {
             'match': f"{home_data['team']} vs {away_data['team']}",
+            'league': league_name,
             'predicted_score': predicted_score,
             'expected_goals': {
                 'home': round(home_lambda, 2),
@@ -789,14 +930,65 @@ class PrecisionPredictionEngine:
             'home_injury_level': home_injury_level,
             'away_injury_level': away_injury_level,
             'home_form_weighted': self.calculate_weighted_form(form_string_home) if form_string_home else home_data['form_last_5'],
-            'away_form_weighted': self.calculate_weighted_form(form_string_away) if form_string_away else away_data['form_last_5']
+            'away_form_weighted': self.calculate_weighted_form(form_string_away) if form_string_away else away_data['form_last_5'],
+            'league_stats': league_stats
         }
         
         return result
 
 # ============================================================================
-# UI FUNCTIONS - WITH SWEET UI/UX
+# UI FUNCTIONS
 # ============================================================================
+
+SAMPLE_CSV = """team,venue,goals,games_played,shots_allowed_pg,xg,home_ppg_diff,defenders_out,form_last_5,goals_scored_last_5,goals_conceded_last_5,motivation,open_play_pct,set_piece_pct,counter_attack_pct,form
+Real Madrid,home,14,7,7.7,17.6,0.47,0,12,11,4,5,0.57,0.14,0.07,LWWWW
+Barcelona,away,21,8,11.1,19.32,-1.00,1,9,14,12,5,0.55,0.30,0.00,WWLLW
+Atletico Madrid,home,22,9,8.8,22.7,1.65,2,15,11,2,4,0.64,0.18,0.05,WWWWW
+Sevilla,away,10,8,12.4,6.74,0.00,2,4,4,8,3,0.50,0.10,0.20,DLLLW"""
+
+def display_league_stats(league_name):
+    """Display league statistics"""
+    league_stats = LEAGUE_STATS[league_name]
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown(f"""
+        <div class='league-card'>
+            <h5>📊 League Stats</h5>
+            <h3>{league_name}</h3>
+            <small>{league_stats['matches']} matches</small>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+        <div class='metric-card'>
+            <h5>⚽ Goals/GM</h5>
+            <h3>{league_stats['goals_per_match']}</h3>
+            <small>Home: {league_stats['home_goals_per_match']} | Away: {league_stats['away_goals_per_match']}</small>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        home_win_pct = league_stats['home_win_pct'] * 100
+        st.markdown(f"""
+        <div class='metric-card'>
+            <h5>🏠 Home Win %</h5>
+            <h3>{home_win_pct:.0f}%</h3>
+            <small>Draw: {league_stats['draw_pct']*100:.0f}% | Away: {league_stats['away_win_pct']*100:.0f}%</small>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        over_25 = league_stats['over_25_pct'] * 100
+        st.markdown(f"""
+        <div class='metric-card'>
+            <h5>📈 Over 2.5 %</h5>
+            <h3>{over_25:.0f}%</h3>
+            <small>BTTS: {league_stats['btts_pct']*100:.0f}% | Over 3.5: {league_stats['over_35_pct']*100:.0f}%</small>
+        </div>
+        """, unsafe_allow_html=True)
 
 def display_binary_predictions(result):
     """Display clear binary predictions"""
@@ -808,7 +1000,7 @@ def display_binary_predictions(result):
         btts_pred = result['binary_predictions']['btts']
         btts_prob = btts_pred['probability'] * 100
         btts_conf = btts_pred['confidence']
-        opposite_prob = btts_pred['opposite_prob'] * 100
+        league_avg = result['league_stats']['btts_pct'] * 100
         
         if btts_pred['prediction'] == 'YES':
             card_class = "yes-card"
@@ -822,7 +1014,7 @@ def display_binary_predictions(result):
             <h4>⚽ Both Teams to Score</h4>
             <div class='prediction-badge {badge_class}'>{btts_pred['prediction']}</div>
             <h2>{btts_prob:.1f}%</h2>
-            <p>Confidence: <b>{btts_conf:.1f}%</b> | Alternative: {opposite_prob:.1f}%</p>
+            <p>vs League Avg: {league_avg:.0f}% | Confidence: <b>{btts_conf:.1f}%</b></p>
             <small>Model predicts <b>BTTS {btts_pred['prediction']}</b></small>
         </div>
         """, unsafe_allow_html=True)
@@ -831,7 +1023,7 @@ def display_binary_predictions(result):
         ou_pred = result['binary_predictions']['over_under']
         ou_prob = ou_pred['probability'] * 100
         ou_conf = ou_pred['confidence']
-        opposite_ou_prob = ou_pred['opposite_prob'] * 100
+        league_avg = result['league_stats']['over_25_pct'] * 100
         
         if ou_pred['prediction'] == 'OVER':
             card_class = "yes-card"
@@ -845,7 +1037,7 @@ def display_binary_predictions(result):
             <h4>📈 Total Goals 2.5</h4>
             <div class='prediction-badge {badge_class}'>{ou_pred['prediction']}</div>
             <h2>{ou_prob:.1f}%</h2>
-            <p>Confidence: <b>{ou_conf:.1f}%</b> | Alternative: {opposite_ou_prob:.1f}%</p>
+            <p>vs League Avg: {league_avg:.0f}% | Confidence: <b>{ou_conf:.1f}%</b></p>
             <small>Model predicts <b>{ou_pred['prediction']} 2.5</b> goals</small>
         </div>
         """, unsafe_allow_html=True)
@@ -853,6 +1045,9 @@ def display_binary_predictions(result):
 def display_prediction_summary(result):
     """Display main prediction summary"""
     st.markdown(f"# 🏆 {result['match']}")
+    st.markdown(f"### 📍 {result['league']}")
+    
+    display_league_stats(result['league'])
     
     if result['probabilities']['home_win'] > 0.95 or result['probabilities']['away_win'] > 0.95:
         st.markdown(f"""
@@ -865,6 +1060,16 @@ def display_prediction_summary(result):
     
     with col1:
         home_win_prob = result['probabilities']['home_win'] * 100
+        st.markdown(f"""
+        <div class='team-box'>
+            <h3>🏠 {result['home_data']['team']}</h3>
+            <h2>Expected Goals: {result['expected_goals']['home']:.2f}</h2>
+            <p>Win Probability: <span class='value-positive'>{home_win_prob:.1f}%</span></p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        home_win_prob = result['probabilities']['home_win'] * 100
         away_win_prob = result['probabilities']['away_win'] * 100
         draw_prob = result['probabilities']['draw'] * 100
         
@@ -876,15 +1081,6 @@ def display_prediction_summary(result):
             win_prediction = "DRAW"
         
         st.markdown(f"""
-        <div class='team-box'>
-            <h3>🏠 {result['home_data']['team']}</h3>
-            <h2>Expected Goals: {result['expected_goals']['home']:.2f}</h2>
-            <p>Win Probability: <span class='value-positive'>{home_win_prob:.1f}%</span></p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown(f"""
         <div class='prediction-card'>
             <h4>🎯 Predicted Score</h4>
             <h1 style='font-size: 3.5rem; margin: 10px 0;'>{result['predicted_score']}</h1>
@@ -894,6 +1090,7 @@ def display_prediction_summary(result):
         """, unsafe_allow_html=True)
     
     with col3:
+        away_win_prob = result['probabilities']['away_win'] * 100
         st.markdown(f"""
         <div class='team-box'>
             <h3>🏃 {result['away_data']['team']}</h3>
@@ -1196,15 +1393,17 @@ def display_key_factors(result):
         ou_pred = result['binary_predictions']['over_under']['prediction']
         
         rationale = []
+        rationale.append(f"• **League Context**: {result['league']} averages {result['league_stats']['goals_per_match']:.2f} goals per game")
+        
         if btts_pred == 'YES':
-            rationale.append(f"• **BTTS YES**: Model predicts both teams will score")
+            rationale.append(f"• **BTTS YES**: Model predicts both teams will score ({result['probabilities']['btts_yes']*100:.1f}% probability)")
         else:
-            rationale.append(f"• **BTTS NO**: Model predicts at least one team won't score")
+            rationale.append(f"• **BTTS NO**: Model predicts at least one team won't score ({result['probabilities']['btts_no']*100:.1f}% probability)")
         
         if ou_pred == 'OVER':
-            rationale.append(f"• **OVER 2.5**: Model predicts high-scoring game")
+            rationale.append(f"• **OVER 2.5**: Model predicts high-scoring game ({result['probabilities']['over_25']*100:.1f}% probability)")
         else:
-            rationale.append(f"• **UNDER 2.5**: Model predicts low-scoring game")
+            rationale.append(f"• **UNDER 2.5**: Model predicts low-scoring game ({result['probabilities']['under_25']*100:.1f}% probability)")
         
         for factor in result['key_factors'][:3]:
             rationale.append(f"• {factor}")
@@ -1307,10 +1506,11 @@ def display_export_options(result):
     
     with col2:
         summary_data = {
-            'Metric': ['Match', 'Predicted Score', 'Home xG', 'Away xG', 'Home Win %', 'Draw %', 'Away Win %', 
+            'Metric': ['Match', 'League', 'Predicted Score', 'Home xG', 'Away xG', 'Home Win %', 'Draw %', 'Away Win %', 
                       'Over 2.5 %', 'BTTS %', 'Confidence'],
             'Value': [
                 result['match'],
+                result['league'],
                 result['predicted_score'],
                 f"{result['expected_goals']['home']:.2f}",
                 f"{result['expected_goals']['away']:.2f}",
@@ -1342,6 +1542,7 @@ def display_export_options(result):
                 st.markdown(f"""
                 ### 📊 Complete Prediction Report
                 **Match:** {result['match']}
+                **League:** {result['league']}
                 
                 **Predicted Score:** {result['predicted_score']}
                 
@@ -1387,32 +1588,24 @@ def load_data():
     return None
 
 def display_team_selector(df):
-    """Display team selection interface - FIXED VERSION WITH CORRECT VENUE FILTERING"""
+    """Display team selection interface"""
     st.sidebar.markdown("## 🏆 Match Selection")
     
     if df is not None:
-        # Get unique home teams (teams with 'home' venue in CSV)
         home_teams = sorted(df[df['venue'] == 'home']['team'].unique())
         
-        # Home team selection
         default_home_idx = home_teams.index("Real Madrid") if "Real Madrid" in home_teams else 0
         home_team = st.sidebar.selectbox("Select Home Team", home_teams, index=default_home_idx)
         
-        # Get unique away teams (teams with 'away' venue in CSV)
         away_teams = sorted(df[df['venue'] == 'away']['team'].unique())
-        
-        # Filter out the home team from away teams (can't play against themselves)
         away_teams = [team for team in away_teams if team != home_team]
         
-        # Away team selection
         default_away_idx = away_teams.index("Barcelona") if "Barcelona" in away_teams else 0
         away_team = st.sidebar.selectbox("Select Away Team", away_teams, index=default_away_idx)
         
-        # Get team data with CORRECT venue filtering
         home_data = df[(df['team'] == home_team) & (df['venue'] == 'home')].iloc[0]
         away_data = df[(df['team'] == away_team) & (df['venue'] == 'away')].iloc[0]
         
-        # Display team info in columns
         col1, col2 = st.sidebar.columns(2)
         with col1:
             st.markdown(f"**🏠 {home_team}**")
@@ -1456,13 +1649,13 @@ def display_market_odds():
     }
 
 def main():
-    """Main application - ALL FIXES APPLIED WITH PRECISION ENGINEERING"""
+    """Main application"""
     
-    st.markdown("<h1 class='main-header'>⚽ Precision Football Prediction Engine</h1>", unsafe_allow_html=True)
-    st.markdown("### Professional-grade predictions with weighted form analysis")
+    st.markdown("<h1 class='main-header'>⚽ Professional Football Prediction Engine</h1>", unsafe_allow_html=True)
+    st.markdown("### League-specific analytics with professional-grade predictions")
     
     if 'engine' not in st.session_state:
-        st.session_state.engine = PrecisionPredictionEngine()
+        st.session_state.engine = ProfessionalPredictionEngine()
     
     if 'last_result' not in st.session_state:
         st.session_state.last_result = None
@@ -1473,24 +1666,29 @@ def main():
         home_data, away_data = display_team_selector(df)
         market_odds = display_market_odds()
         
+        if home_data is not None and away_data is not None:
+            league_name = st.session_state.engine.detect_league(df, home_data['team'], away_data['team'])
+            st.sidebar.markdown(f"**📍 Detected League:** {league_name}")
+        
         with st.sidebar.expander("📊 View Data Preview"):
             st.dataframe(df.head(), use_container_width=True)
         
         st.sidebar.markdown("---")
-        if st.sidebar.button("🚀 Run Precision Prediction", type="primary", use_container_width=True):
+        if st.sidebar.button("🚀 Run Professional Prediction", type="primary", use_container_width=True):
             if home_data is not None and away_data is not None:
-                with st.spinner("Running precision prediction pipeline..."):
+                with st.spinner("Running professional prediction pipeline..."):
                     progress_bar = st.progress(0)
                     status_text = st.empty()
                     
                     steps = [
                         "Loading professional data...",
+                        "Detecting league context...",
+                        "Applying league-specific adjustments...",
                         "Calculating weighted form...",
-                        "Applying team-specific home advantage...",
-                        "Adjusting for injuries and defense...",
+                        "Applying team-specific adjustments...",
                         "Analyzing style matchups...",
                         "Running Poisson simulation...",
-                        "Calculating binary predictions...",
+                        "Calculating league-relative predictions...",
                         "Generating betting recommendations..."
                     ]
                     
@@ -1500,14 +1698,14 @@ def main():
                         time.sleep(0.2)
                     
                     result = st.session_state.engine.run_prediction_from_data(
-                        home_data, away_data, market_odds
+                        home_data, away_data, market_odds, league_name
                     )
                     st.session_state.last_result = result
                     
                     progress_bar.progress(100)
-                    status_text.text("✅ Precision prediction complete!")
+                    status_text.text("✅ Professional prediction complete!")
                     time.sleep(0.5)
-                    st.success("Precision engine complete! Results displayed below.")
+                    st.success("Professional engine complete! Results displayed below.")
         
         if st.session_state.last_result:
             result = st.session_state.last_result
@@ -1543,7 +1741,7 @@ def main():
         1. **Upload your CSV data** or **use sample data**
         2. **Select home and away teams**
         3. **Enter market odds**
-        4. **Click "Run Precision Prediction"** for professional-grade predictions
+        4. **Click "Run Professional Prediction"** for league-adjusted predictions
         
         ### 📁 CSV Format Required:
         ```
@@ -1552,17 +1750,32 @@ def main():
         open_play_pct,set_piece_pct,counter_attack_pct,form
         ```
         
-        ### 🎯 Precision Features:
-        - ✅ **Weighted form analysis**: Recent games weighted more heavily
-        - ✅ **Team-specific home advantage**: From SoccerSTAT data
-        - ✅ **Multiple adjustment layers**: Injuries, motivation, style matchups
+        ### 🎯 Professional Features:
+        - ✅ **League-specific analytics**: Bundesliga vs Serie A vs EPL etc.
+        - ✅ **League-relative predictions**: Compare to league averages
         - ✅ **Professional xG-based approach**: Modern football analytics
+        - ✅ **Multiple adjustment layers**: Injuries, motivation, style matchups
         - ✅ **Binary predictions**: Clear YES/NO, OVER/UNDER decisions
+        - ✅ **Expected Value calculations**: Professional betting analysis
         """)
         
         with st.expander("📋 View Sample Data Structure"):
             sample_df = pd.read_csv(io.StringIO(SAMPLE_CSV))
             st.dataframe(sample_df, use_container_width=True)
+        
+        with st.expander("📊 View League Statistics"):
+            league_tab1, league_tab2, league_tab3, league_tab4 = st.tabs(
+                ["Premier League", "La Liga", "Bundesliga", "Serie A"]
+            )
+            
+            for tab, league in zip([league_tab1, league_tab2, league_tab3, league_tab4], 
+                                 ['Premier League', 'La Liga', 'Bundesliga', 'Serie A']):
+                with tab:
+                    stats = LEAGUE_STATS[league]
+                    st.metric("Goals per Match", f"{stats['goals_per_match']:.2f}")
+                    st.metric("Home Win %", f"{stats['home_win_pct']*100:.0f}%")
+                    st.metric("Over 2.5 %", f"{stats['over_25_pct']*100:.0f}%")
+                    st.metric("BTTS %", f"{stats['btts_pct']*100:.0f}%")
     
     st.markdown("""
     <div class='footer'>
@@ -1570,9 +1783,9 @@ def main():
             ⚠️ <strong>Disclaimer:</strong> This is a simulation tool for educational purposes only. 
             Sports betting involves risk. Always gamble responsibly.<br><br>
             
-            <strong>Precision Football Prediction Engine v3.0</strong><br>
-            Professional-grade • Weighted Form Analysis • Team-Specific Adjustments<br>
-            Built with Streamlit • Ready for Production
+            <strong>Professional Football Prediction Engine v4.0</strong><br>
+            League-Specific Analytics • Professional-Grade • Ready for Production<br>
+            Built with Streamlit • Incorporating Official League Statistics
         </small>
     </div>
     """, unsafe_allow_html=True)
