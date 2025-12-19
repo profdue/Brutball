@@ -387,7 +387,7 @@ def validate_league_data(df, selected_league):
         'Real Madrid', 'Barcelona', 'Atletico Madrid', 'Sevilla', 'Real Sociedad',
         'Real Betis', 'Villarreal', 'Athletic Bilbao', 'Valencia', 'Getafe',
         'Osasuna', 'Celta Vigo', 'Mallorca', 'Rayo Vallecano', 'Alaves',
-        'Granada', 'Cadiz', 'Las Palmas'
+        'Granada', 'Cadiz', 'Las Palmas', 'Real Oviedo', 'Elche'
     ]
     
     teams_in_data = set(df['team'].unique())
