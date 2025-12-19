@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS - Beautiful UI/UX
+# Custom CSS - Beautiful UI/UX with bigger cards
 st.markdown("""
 <style>
     .main-header {
@@ -45,12 +45,16 @@ st.markdown("""
     .metric-card {
         background: linear-gradient(135deg, rgba(102,126,234,0.9), rgba(118,75,162,0.9));
         border-radius: 15px;
-        padding: 20px;
+        padding: 25px;
         color: white;
         margin: 10px 0;
         box-shadow: 0 10px 20px rgba(0,0,0,0.1);
         transition: transform 0.3s ease;
         border: 1px solid rgba(255,255,255,0.1);
+        min-height: 180px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
     }
     
     .metric-card:hover {
@@ -61,52 +65,67 @@ st.markdown("""
     .prediction-card {
         background: linear-gradient(135deg, rgba(240,147,251,0.9), rgba(245,87,108,0.9));
         border-radius: 15px;
-        padding: 25px;
+        padding: 30px;
         color: white;
         margin: 10px 0;
         box-shadow: 0 10px 20px rgba(0,0,0,0.1);
         text-align: center;
+        min-height: 160px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
     }
     
     .yes-card {
         background: linear-gradient(135deg, rgba(0,176,155,0.9), rgba(150,201,61,0.9));
         border-radius: 15px;
-        padding: 25px;
+        padding: 30px;
         color: white;
         margin: 10px 0;
         box-shadow: 0 10px 20px rgba(0,0,0,0.1);
         text-align: center;
+        min-height: 280px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
     }
     
     .no-card {
         background: linear-gradient(135deg, rgba(255,65,108,0.9), rgba(255,75,43,0.9));
         border-radius: 15px;
-        padding: 25px;
+        padding: 30px;
         color: white;
         margin: 10px 0;
         box-shadow: 0 10px 20px rgba(0,0,0,0.1);
         text-align: center;
+        min-height: 280px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
     }
     
     .confidence-high {
         background: linear-gradient(135deg, #00b09b, #96c93d);
         border-radius: 15px;
-        padding: 15px;
+        padding: 25px;
         color: white;
+        text-align: center;
     }
     
     .confidence-medium {
         background: linear-gradient(135deg, #f7971e, #ffd200);
         border-radius: 15px;
-        padding: 15px;
+        padding: 25px;
         color: white;
+        text-align: center;
     }
     
     .confidence-low {
         background: linear-gradient(135deg, #ff416c, #ff4b2b);
         border-radius: 15px;
-        padding: 15px;
+        padding: 25px;
         color: white;
+        text-align: center;
     }
     
     .league-card {
@@ -122,7 +141,7 @@ st.markdown("""
     .team-box {
         border: 2px solid #4ECDC4;
         border-radius: 12px;
-        padding: 20px;
+        padding: 25px;
         margin: 15px 0;
         background: rgba(78, 205, 196, 0.08);
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
@@ -130,10 +149,10 @@ st.markdown("""
     
     .factor-badge {
         display: inline-block;
-        padding: 8px 18px;
+        padding: 10px 20px;
         border-radius: 25px;
         margin: 8px 5px;
-        font-size: 0.85em;
+        font-size: 0.9em;
         background: rgba(255, 107, 107, 0.15);
         border: 1px solid #FF6B6B;
         color: #FF6B6B;
@@ -153,7 +172,7 @@ st.markdown("""
     .input-section {
         background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
         border-radius: 12px;
-        padding: 20px;
+        padding: 25px;
         margin: 15px 0;
         border-left: 5px solid #4ECDC4;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
@@ -171,20 +190,20 @@ st.markdown("""
     .value-positive {
         color: #00b09b;
         font-weight: bold;
-        font-size: 1.1em;
+        font-size: 1.2em;
     }
     
     .value-negative {
         color: #ff416c;
         font-weight: bold;
-        font-size: 1.1em;
+        font-size: 1.2em;
     }
     
     .prediction-badge {
         display: inline-block;
-        padding: 10px 25px;
+        padding: 12px 28px;
         border-radius: 30px;
-        font-size: 1.2em;
+        font-size: 1.3em;
         font-weight: 800;
         margin: 10px;
         text-transform: uppercase;
@@ -218,7 +237,7 @@ st.markdown("""
     .warning-banner {
         background: linear-gradient(135deg, #ff9966, #ff5e62);
         color: white;
-        padding: 15px;
+        padding: 20px;
         border-radius: 10px;
         margin: 15px 0;
         border-left: 5px solid #ff416c;
@@ -242,6 +261,26 @@ st.markdown("""
     .stTabs [aria-selected="true"] {
         background-color: #4ECDC4;
         color: white;
+    }
+    
+    /* Bigger text in cards */
+    .metric-card h3 {
+        font-size: 1.5em !important;
+        margin-bottom: 15px !important;
+    }
+    
+    .metric-card .stMetric {
+        font-size: 1.2em !important;
+    }
+    
+    .yes-card h4, .no-card h4 {
+        font-size: 1.8em !important;
+        margin-bottom: 20px !important;
+    }
+    
+    .prediction-card h3 {
+        font-size: 2em !important;
+        margin: 10px 0 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -288,7 +327,7 @@ LEAGUE_STATS = {
         'over_25_pct': 0.47,
         'over_35_pct': 0.24,
         'btts_pct': 0.52,
-        'shots_allowed_avg': 11.9,  # Fixed: Updated from 12.0 to 11.9
+        'shots_allowed_avg': 11.9,
         'set_piece_pct': 0.20,
         'avg_goals_conceded': 1.28,
         'home_ppg': 1.69,
@@ -387,7 +426,8 @@ def validate_league_data(df, selected_league):
         'Real Madrid', 'Barcelona', 'Atletico Madrid', 'Sevilla', 'Real Sociedad',
         'Real Betis', 'Villarreal', 'Athletic Bilbao', 'Valencia', 'Getafe',
         'Osasuna', 'Celta Vigo', 'Mallorca', 'Rayo Vallecano', 'Alaves',
-        'Granada', 'Cadiz', 'Las Palmas', 'Real Oviedo', 'Elche'
+        'Granada', 'Cadiz', 'Las Palmas', 'Real Oviedo', 'Elche', 'Athletic Club',
+        'Deportivo Alaves', 'Girona', 'Levante', 'Espanyol'
     ]
     
     teams_in_data = set(df['team'].unique())
@@ -417,7 +457,8 @@ def detect_actual_league(df):
         'Real Madrid', 'Barcelona', 'Atletico Madrid', 'Sevilla', 'Real Sociedad',
         'Real Betis', 'Villarreal', 'Athletic Bilbao', 'Valencia', 'Getafe',
         'Osasuna', 'Celta Vigo', 'Mallorca', 'Rayo Vallecano', 'Alaves',
-        'Granada', 'Cadiz', 'Las Palmas'
+        'Granada', 'Cadiz', 'Las Palmas', 'Real Oviedo', 'Elche', 'Athletic Club',
+        'Deportivo Alaves', 'Girona', 'Levante', 'Espanyol'
     ]
     
     premier_count = sum(1 for team in teams_in_data if team in premier_league_teams)
@@ -600,7 +641,8 @@ def display_data_transparency(home_data, away_data, home_team, away_team):
             # Form difference
             form_diff = home_data['form_last_5'] - away_data['form_last_5']
             if abs(form_diff) > 1:
-                impact = f"{'+' if form_diff > 0 else ''}{form_diff*2:.0f}%"
+                impact_sign = "+" if form_diff > 0 else ""
+                impact = f"{impact_sign}{form_diff*2:.0f}%"
                 factors.append(("Form Advantage", impact, f"{home_team if form_diff > 0 else away_team} in better form"))
             
             # Injuries
@@ -699,7 +741,7 @@ class ProfessionalPredictionEngine:
         away_xg_per_game = away_xg_total / away_data['games_played']
         
         # Apply correction factor for inflated xG values
-        correction_factor = 0.75
+        correction_factor = 0.75  # Changed from 0.5 to 0.75
         
         home_xg_per_game *= correction_factor
         away_xg_per_game *= correction_factor
@@ -708,20 +750,20 @@ class ProfessionalPredictionEngine:
         home_xg_per_game *= league_stats['scoring_factor']
         away_xg_per_game *= league_stats['scoring_factor']
         
-        # Base formula with league-specific averages - FIXED: Reduced 0.85 to 0.95
-        home_lambda_base = home_xg_per_game * (away_data['shots_allowed_pg'] / league_stats['shots_allowed_avg']) * 0.95  # Fixed
-        away_lambda_base = away_xg_per_game * (home_data['shots_allowed_pg'] / league_stats['shots_allowed_avg']) * 0.95  # Fixed
+        # Base formula with league-specific averages
+        home_lambda_base = home_xg_per_game * (away_data['shots_allowed_pg'] / league_stats['shots_allowed_avg']) * 1.0  # Changed from 0.95 to 1.0
+        away_lambda_base = away_xg_per_game * (home_data['shots_allowed_pg'] / league_stats['shots_allowed_avg']) * 1.0  # Changed from 0.95 to 1.0
         
-        # Apply team quality adjustment (1.1/0.9 instead of 1.2/0.8)
+        # Apply team quality adjustment
         top_teams = ['Arsenal', 'Manchester City', 'Liverpool', 'Real Madrid', 'Barcelona', 'Bayern']
         
         if home_data['team'] in top_teams and away_data['team'] not in top_teams:
-            home_lambda_base *= 1.1  # Reduced from 1.2
-            away_lambda_base *= 0.9  # Increased from 0.8
+            home_lambda_base *= 1.1
+            away_lambda_base *= 0.9
         
         if away_data['team'] in top_teams and home_data['team'] not in top_teams:
-            away_lambda_base *= 1.1  # Reduced from 1.2
-            home_lambda_base *= 0.9  # Increased from 0.8
+            away_lambda_base *= 1.1
+            home_lambda_base *= 0.9
         
         # For top matches, ensure minimum expected goals
         if (home_data['team'] in top_teams and away_data['team'] in top_teams):
@@ -1191,12 +1233,36 @@ def main():
     # Header
     st.markdown('<h1 class="main-header">⚽ Professional Football Prediction Engine</h1>', unsafe_allow_html=True)
     
-    # Sidebar
+    # Sidebar - MOVED LOADING HERE
     with st.sidebar:
         st.markdown("### 🏆 Select League")
         
         available_leagues = ['Premier League', 'La Liga']
         selected_league = st.selectbox("Choose League:", available_leagues)
+        
+        # MOVED LOAD BUTTON HERE
+        st.markdown("---")
+        st.markdown("### 📥 Load Data")
+        if st.button(f"📂 Load {selected_league} Data", type="primary", use_container_width=True):
+            with st.spinner(f"Loading {selected_league} data from GitHub..."):
+                df = load_league_from_github(selected_league)
+                
+                if df is not None:
+                    st.session_state['league_data'] = df
+                    st.session_state['selected_league'] = selected_league
+                    
+                    if not validate_league_data(df, selected_league):
+                        actual_league = detect_actual_league(df)
+                        st.error(f"""
+                        ⚠️ **DATA MISMATCH WARNING**
+                        
+                        Selected league: **{selected_league}**
+                        But data contains teams from: **{actual_league}**
+                        
+                        This will affect prediction accuracy!
+                        """)
+                    else:
+                        st.success(f"✅ Loaded {len(df)} teams")
         
         st.markdown("---")
         st.markdown("### 📈 League Stats Preview")
@@ -1230,47 +1296,24 @@ def main():
         5. **Check Recommendations** for betting value
         """)
     
-    # Main content area
+    # Main content area - NO LOAD BUTTON HERE
     st.markdown('<div class="input-section">', unsafe_allow_html=True)
-    st.markdown("## 📥 Load League Data")
+    st.markdown("## 🏟️ Match Setup")
     
-    if st.button(f"📂 Load {selected_league} Data", type="primary"):
-        with st.spinner(f"Loading {selected_league} data from GitHub..."):
-            df = load_league_from_github(selected_league)
-            
-            if df is not None:
-                st.session_state['league_data'] = df
-                st.session_state['selected_league'] = selected_league
-                
-                if not validate_league_data(df, selected_league):
-                    actual_league = detect_actual_league(df)
-                    st.error(f"""
-                    ⚠️ **DATA MISMATCH WARNING**
-                    
-                    Selected league: **{selected_league}**
-                    But data contains teams from: **{actual_league}**
-                    
-                    This will affect prediction accuracy!
-                    """)
-                else:
-                    st.success(f"✅ Successfully loaded {selected_league} data with {len(df)} teams!")
-    st.markdown('</div>', unsafe_allow_html=True)
-    
+    # Check if data is loaded
     if 'league_data' not in st.session_state:
-        st.warning("Please load league data first using the button above.")
+        st.warning("Please load league data first from the sidebar ⬅️")
         return
     
     df = st.session_state['league_data']
     selected_league = st.session_state['selected_league']
     
-    # Team selection
-    st.markdown('<div class="input-section">', unsafe_allow_html=True)
-    st.markdown("## 🏟️ Match Setup")
-    
     col1, col2 = st.columns(2)
     
     with col1:
-        home_team = st.selectbox("🏠 Home Team:", sorted(df['team'].unique()))
+        # Get ALL teams including Real Oviedo, Elche
+        all_teams = sorted(df['team'].unique())
+        home_team = st.selectbox("🏠 Home Team:", all_teams)
         home_data = df[df['team'] == home_team].iloc[0].to_dict()
         
         st.markdown(f"**{home_team} Stats:**")
@@ -1279,7 +1322,7 @@ def main():
         st.metric("Defenders Out", f"{home_data['defenders_out']}")
     
     with col2:
-        away_team = st.selectbox("✈️ Away Team:", sorted(df['team'].unique()))
+        away_team = st.selectbox("✈️ Away Team:", all_teams)
         away_data = df[df['team'] == away_team].iloc[0].to_dict()
         
         st.markdown(f"**{away_team} Stats:**")
