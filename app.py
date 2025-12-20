@@ -8,9 +8,6 @@ import io
 import requests
 from scipy import stats
 
-# Page configuration
-st.set_page_config(page_title="Advanced Football Predictor", page_icon="⚽", layout="wide")
-
 # ============================================================================
 # LEAGUE-SPECIFIC PARAMETERS & CONSTANTS
 # ============================================================================
@@ -19,13 +16,13 @@ LEAGUE_PARAMS = {
     'LA LIGA': {
         'league_avg_goals_conceded': 1.26,
         'league_avg_shots_allowed': 12.3,
-        'home_advantage_base': 1.12,
+        'home_advantage_base': 1.15,  # Increased from 1.12
         'variance_factor': 0.95,
     },
     'PREMIER LEAGUE': {
         'league_avg_goals_conceded': 1.42,
         'league_avg_shots_allowed': 12.7,
-        'home_advantage_base': 1.15,
+        'home_advantage_base': 1.18,  # Increased from 1.15
         'variance_factor': 1.05,
     }
 }
@@ -33,15 +30,16 @@ LEAGUE_PARAMS = {
 CONSTANTS = {
     'POISSON_SIMULATIONS': 20000,
     'MAX_GOALS_CONSIDERED': 6,
-    'MIN_LAMBDA': 0.3,
+    'MIN_HOME_LAMBDA': 0.8,   # Increased minimums
+    'MIN_AWAY_LAMBDA': 0.6,
     'MAX_LAMBDA': 4.0,
     'SET_PIECE_THRESHOLD': 0.15,
     'COUNTER_ATTACK_THRESHOLD': 0.15,
-    'DEFENDER_INJURY_IMPACT': 0.08,
+    'DEFENDER_INJURY_IMPACT': 0.06,  # Reduced from 0.08
 }
 
 # ============================================================================
-# PREDICTION ENGINE CORE
+# PREDICTION ENGINE CORE (WITH ALL FIXES)
 # ============================================================================
 
 class FootballPredictionEngine:
@@ -59,102 +57,124 @@ class FootballPredictionEngine:
         self.recommendations = []
     
     def _calculate_position_factor(self, position, is_attack=True):
-        """Calculate position-based multiplier for attack/defense."""
+        """More realistic position multipliers."""
         if position <= 4:          # Top 4
-            return 1.2 if is_attack else 0.8
-        elif position <= 10:       # Upper mid-table
-            return 1.1 if is_attack else 0.9
+            return 1.15 if is_attack else 0.85
+        elif position <= 8:        # European spots
+            return 1.08 if is_attack else 0.92
+        elif position <= 12:       # Mid-table
+            return 1.0 if is_attack else 1.0
         elif position <= 16:       # Lower mid-table
-            return 0.9 if is_attack else 1.1
-        else:                      # Relegation zone
-            return 0.8 if is_attack else 1.2
+            return 0.92 if is_attack else 1.08
+        else:                      # Relegation battle
+            return 0.85 if is_attack else 1.15
     
     def _calculate_recent_attack(self, team_data):
-        """Calculate attack strength based on recent performance and position."""
-        # Use recent goals as primary indicator
+        """Calculate attack strength with better balance of recent vs season stats."""
+        # Use weighted average of recent and season performance
         recent_goals_pg = team_data['goals_scored_last_5'] / 5
+        season_xg_pg = team_data['xg_for'] / team_data['matches_played']
+        
+        # 70% weight to recent, 30% to season
+        base_attack = (recent_goals_pg * 0.7) + (season_xg_pg * 0.3)
+        
+        # Minimum floor for attack
+        base_attack = max(0.7, base_attack)
         
         # Position-based attack boost
         pos_boost = self._calculate_position_factor(team_data['overall_position'], is_attack=True)
         
-        # Finishing efficiency adjustment
+        # Finishing efficiency (wider bounds)
         if team_data['xg_for'] > 0:
             finishing_ratio = team_data['goals'] / team_data['xg_for']
-            finishing_adj = max(0.7, min(1.3, finishing_ratio))
+            finishing_adj = max(0.8, min(1.2, finishing_ratio))
         else:
             finishing_adj = 1.0
         
-        # Form momentum (from form_last_5)
-        form_score = min(team_data['form_last_5'] / 15, 1.0)
-        form_adj = 0.7 + (0.3 * form_score)
+        # Form momentum from last 3 games
+        form_string = team_data.get('form', '')
+        form_momentum = 1.0
+        if form_string:
+            last_3 = form_string[-3:] if len(form_string) >= 3 else form_string
+            wins = last_3.count('W')
+            draws = last_3.count('D')
+            form_momentum = 0.95 + (wins * 0.05) + (draws * 0.025)
         
-        # Motivation adjustment
-        motivation_adj = 1.0 + (team_data['motivation'] - 3) * 0.02
+        # Stronger motivation adjustment
+        motivation_adj = 1.0 + (team_data['motivation'] - 3) * 0.03
         
-        return recent_goals_pg * pos_boost * finishing_adj * form_adj * motivation_adj
+        return base_attack * pos_boost * finishing_adj * form_momentum * motivation_adj
     
     def _calculate_recent_defense(self, team_data, is_home):
-        """Calculate defensive quality based on recent performance and position."""
-        # Use recent goals conceded as primary indicator
+        """Calculate defensive quality with better balance."""
+        # Use weighted average
         recent_conceded_pg = team_data['goals_conceded_last_5'] / 5
+        
+        if is_home:
+            season_xga_pg = team_data['home_xga'] / team_data['matches_played']
+        else:
+            season_xga_pg = team_data['away_xga'] / team_data['matches_played']
+        
+        base_defense = (recent_conceded_pg * 0.6) + (season_xga_pg * 0.4)
         
         # Position-based defense factor
         pos_factor = self._calculate_position_factor(team_data['overall_position'], is_attack=False)
         
-        # Shot suppression factor
+        # Shot suppression (less extreme adjustments)
         shots_factor = team_data['shots_allowed_pg'] / self.league_params['league_avg_shots_allowed']
-        if shots_factor < 0.9:
-            shots_adj = 0.9
-        elif shots_factor > 1.1:
-            shots_adj = 1.1
+        if shots_factor < 0.85:
+            shots_adj = 0.85
+        elif shots_factor > 1.15:
+            shots_adj = 1.15
         else:
-            shots_adj = 1.0
+            shots_adj = shots_factor
         
-        # Injury impact
+        # Reduced injury impact
         injury_adj = 1.0 - (team_data['defenders_out'] * CONSTANTS['DEFENDER_INJURY_IMPACT'])
-        injury_adj = max(0.6, injury_adj)
+        injury_adj = max(0.7, injury_adj)
         
-        # Venue-specific adjustment
-        if is_home:
-            venue_adj = 1.0 + (team_data.get('home_ppg_diff', 0) * 0.1)
-        else:
-            venue_adj = 1.0
-        
-        return recent_conceded_pg * pos_factor * shots_adj * injury_adj * venue_adj
+        return base_defense * pos_factor * shots_adj * injury_adj
     
     def _calculate_style_adjustments(self, home_data, away_data):
         """Calculate style matchup adjustments."""
         adjustments = {'home': 0, 'away': 0}
+        factors = []
         
         # Set piece advantage
         set_piece_diff = home_data['set_piece_pct'] - away_data['set_piece_pct']
         if abs(set_piece_diff) > CONSTANTS['SET_PIECE_THRESHOLD']:
             if set_piece_diff > 0:
-                # Home advantage, but weighted by position difference
                 pos_diff = away_data['overall_position'] - home_data['overall_position']
-                if pos_diff > 3:  # Home is much stronger
+                if pos_diff > 3:
                     adjustments['home'] += 0.10
                 else:
                     adjustments['home'] += 0.05
-                self.key_factors.append(f"Home set piece advantage: {set_piece_diff:.0%}")
+                factors.append(f"Home set piece advantage: {set_piece_diff:.0%}")
             else:
                 pos_diff = home_data['overall_position'] - away_data['overall_position']
-                if pos_diff > 3:  # Away is much stronger
+                if pos_diff > 3:
                     adjustments['away'] += 0.10
                 else:
                     adjustments['away'] += 0.05
-                self.key_factors.append(f"Away set piece advantage: {-set_piece_diff:.0%}")
+                factors.append(f"Away set piece advantage: {-set_piece_diff:.0%}")
         
         # Counter attack threat
         if (away_data['counter_attack_pct'] > CONSTANTS['COUNTER_ATTACK_THRESHOLD'] and 
             home_data['shots_allowed_pg'] > self.league_params['league_avg_shots_allowed']):
             adjustments['away'] += 0.08
-            self.key_factors.append("Away counter attack threat")
+            factors.append("Away counter attack threat")
         
+        # Open play dominance
+        if (home_data['open_play_pct'] > 0.70 and 
+            away_data['shots_allowed_pg'] > self.league_params['league_avg_shots_allowed']):
+            adjustments['home'] += 0.05
+            factors.append("Home open play dominance")
+        
+        self.key_factors.extend(factors)
         return adjustments
     
     def calculate_expected_goals(self, home_data, away_data):
-        """Calculate expected goals for both teams."""
+        """Calculate expected goals with stronger home advantage."""
         # Home team expected goals
         home_attack = self._calculate_recent_attack(home_data)
         away_defense = self._calculate_recent_defense(away_data, is_home=False)
@@ -174,22 +194,22 @@ class FootballPredictionEngine:
         home_lambda += style_adjustments['home']
         away_lambda += style_adjustments['away']
         
-        # Apply venue adjustments
+        # STRONGER home advantage
         home_lambda *= self.league_params['home_advantage_base']
-        away_lambda *= (2.0 - self.league_params['home_advantage_base'])  # Complementary away factor
+        away_lambda *= (2.0 - self.league_params['home_advantage_base'])
         
-        # Apply bounds
-        home_lambda = max(CONSTANTS['MIN_LAMBDA'], min(CONSTANTS['MAX_LAMBDA'], home_lambda))
-        away_lambda = max(CONSTANTS['MIN_LAMBDA'], min(CONSTANTS['MAX_LAMBDA'], away_lambda))
+        # Apply bounds with higher minimums
+        home_lambda = max(CONSTANTS['MIN_HOME_LAMBDA'], min(CONSTANTS['MAX_LAMBDA'], home_lambda))
+        away_lambda = max(CONSTANTS['MIN_AWAY_LAMBDA'], min(CONSTANTS['MAX_LAMBDA'], away_lambda))
         
-        # Add position difference factor
+        # Position difference adjustment (less extreme)
         pos_diff = away_data['overall_position'] - home_data['overall_position']
-        if pos_diff >= 8:  # Home playing much weaker team
-            home_lambda *= 0.9
-            away_lambda *= 1.1
-        elif pos_diff <= -8:  # Home playing much stronger team
-            home_lambda *= 1.1
-            away_lambda *= 0.9
+        if pos_diff >= 6:
+            home_lambda *= 1.05
+            away_lambda *= 0.95
+        elif pos_diff <= -6:
+            home_lambda *= 0.95
+            away_lambda *= 1.05
         
         return round(home_lambda, 2), round(away_lambda, 2)
     
@@ -207,14 +227,18 @@ class FootballPredictionEngine:
         
         total_goals = home_goals + away_goals
         over_25 = np.sum(total_goals > 2.5)
+        under_25 = np.sum(total_goals < 2.5)
         btts_yes = np.sum((home_goals > 0) & (away_goals > 0))
+        btts_no = np.sum((home_goals == 0) | (away_goals == 0))
         
         probabilities = {
             'home_win': home_wins / simulations,
             'draw': draws / simulations,
             'away_win': away_wins / simulations,
             'over_25': over_25 / simulations,
+            'under_25': under_25 / simulations,
             'btts_yes': btts_yes / simulations,
+            'btts_no': btts_no / simulations,
         }
         
         # Calculate scoreline probabilities
@@ -276,9 +300,9 @@ class FootballPredictionEngine:
         # Position factors
         pos_diff = away_data['overall_position'] - home_data['overall_position']
         if pos_diff >= 5:
-            factors.append(f"Home position advantage: {home_data['overall_position']} vs {away_data['overall_position']}")
+            factors.append(f"Home position advantage: #{home_data['overall_position']} vs #{away_data['overall_position']}")
         elif pos_diff <= -5:
-            factors.append(f"Away position advantage: {away_data['overall_position']} vs {home_data['overall_position']}")
+            factors.append(f"Away position advantage: #{away_data['overall_position']} vs #{home_data['overall_position']}")
         
         # Form factors
         form_diff = home_data['form_last_5'] - away_data['form_last_5']
@@ -293,6 +317,12 @@ class FootballPredictionEngine:
         if away_data['shots_allowed_pg'] > self.league_params['league_avg_shots_allowed']:
             factors.append(f"Away defensive vulnerability: {away_data['shots_allowed_pg']:.1f} shots/game")
         
+        # Attack factors
+        if home_data['xg_for'] / home_data['matches_played'] > 1.5:
+            factors.append(f"Home attacking strength: {home_data['xg_for']/home_data['matches_played']:.2f} xG/game")
+        if away_data['xg_for'] / away_data['matches_played'] > 1.5:
+            factors.append(f"Away attacking strength: {away_data['xg_for']/away_data['matches_played']:.2f} xG/game")
+        
         # Injury factors
         if home_data['defenders_out'] > 0:
             factors.append(f"Home injuries: {home_data['defenders_out']} defenders out")
@@ -300,6 +330,56 @@ class FootballPredictionEngine:
             factors.append(f"Away injuries: {away_data['defenders_out']} defenders out")
         
         return factors
+    
+    def get_market_recommendations(self, probabilities, market_odds):
+        """Get clear market recommendations."""
+        recommendations = []
+        
+        # Over/Under 2.5 recommendation
+        if probabilities['over_25'] > probabilities['under_25']:
+            over_rec = {
+                'market': 'Total Goals',
+                'prediction': 'Over 2.5',
+                'probability': probabilities['over_25'],
+                'fair_odds': 1 / probabilities['over_25'],
+                'market_odds': market_odds.get('over_25', 1.85),
+                'strength': 'Strong' if probabilities['over_25'] > 0.65 else 'Moderate' if probabilities['over_25'] > 0.55 else 'Weak'
+            }
+            recommendations.append(over_rec)
+        else:
+            under_rec = {
+                'market': 'Total Goals',
+                'prediction': 'Under 2.5',
+                'probability': probabilities['under_25'],
+                'fair_odds': 1 / probabilities['under_25'],
+                'market_odds': 1 / (1 - 1/market_odds.get('over_25', 1.85)) if market_odds.get('over_25', 1.85) > 1 else 2.00,
+                'strength': 'Strong' if probabilities['under_25'] > 0.65 else 'Moderate' if probabilities['under_25'] > 0.55 else 'Weak'
+            }
+            recommendations.append(under_rec)
+        
+        # BTTS Yes/No recommendation
+        if probabilities['btts_yes'] > probabilities['btts_no']:
+            btts_rec = {
+                'market': 'Both Teams to Score',
+                'prediction': 'Yes',
+                'probability': probabilities['btts_yes'],
+                'fair_odds': 1 / probabilities['btts_yes'],
+                'market_odds': market_odds.get('btts_yes', 1.75),
+                'strength': 'Strong' if probabilities['btts_yes'] > 0.65 else 'Moderate' if probabilities['btts_yes'] > 0.55 else 'Weak'
+            }
+            recommendations.append(btts_rec)
+        else:
+            btts_rec = {
+                'market': 'Both Teams to Score',
+                'prediction': 'No',
+                'probability': probabilities['btts_no'],
+                'fair_odds': 1 / probabilities['btts_no'],
+                'market_odds': 1 / (1 - 1/market_odds.get('btts_yes', 1.75)) if market_odds.get('btts_yes', 1.75) > 1 else 2.00,
+                'strength': 'Strong' if probabilities['btts_no'] > 0.65 else 'Moderate' if probabilities['btts_no'] > 0.55 else 'Weak'
+            }
+            recommendations.append(btts_rec)
+        
+        return recommendations
     
     def predict(self, home_data, away_data):
         """Main prediction function."""
@@ -391,15 +471,58 @@ def prepare_team_data(df, team_name, venue):
 # STREAMLIT UI COMPONENTS
 # ============================================================================
 
-def display_prediction_box(title, value, subtitle=""):
+def display_prediction_box(title, value, subtitle="", color="#4ECDC4"):
     """Display prediction in styled box."""
     st.markdown(f"""
-    <div style="background: linear-gradient(135deg, rgba(69,183,209,0.9), rgba(78,205,196,0.9));
+    <div style="background: linear-gradient(135deg, {color}, rgba(78,205,196,0.9));
                 border-radius: 15px; padding: 20px; margin: 15px 0; color: white;
                 box-shadow: 0 10px 20px rgba(0,0,0,0.1);">
         <div style="font-size: 1.2em; text-align: center; opacity: 0.9;">{title}</div>
         <div style="font-size: 2.5em; font-weight: 800; margin: 10px 0; text-align: center;">{value}</div>
         <div style="font-size: 1.2em; text-align: center; opacity: 0.9;">{subtitle}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def display_market_recommendation(rec):
+    """Display market recommendation."""
+    if rec['prediction'] in ['Over 2.5', 'Yes']:
+        color = "#00b09b"  # Green for positive
+        icon = "📈"
+    else:
+        color = "#ff416c"  # Red for negative
+        icon = "📉"
+    
+    ev = (rec['market_odds'] / rec['fair_odds']) - 1
+    ev_color = "green" if ev > 0 else "red"
+    ev_text = f"+{ev:.1%}" if ev > 0 else f"{ev:.1%}"
+    
+    st.markdown(f"""
+    <div style="background: {color}; border-radius: 15px; padding: 20px; margin: 15px 0; color: white;
+                box-shadow: 0 10px 20px rgba(0,0,0,0.1);">
+        <div style="font-size: 1.5em; font-weight: 600; margin-bottom: 10px;">
+            {icon} {rec['market']}: {rec['prediction']}
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <div>
+                <div style="font-size: 0.9em; opacity: 0.8;">Probability</div>
+                <div style="font-size: 1.3em; font-weight: 600;">{rec['probability']:.1%}</div>
+            </div>
+            <div>
+                <div style="font-size: 0.9em; opacity: 0.8;">Fair Odds</div>
+                <div style="font-size: 1.3em; font-weight: 600;">{rec['fair_odds']:.2f}</div>
+            </div>
+            <div>
+                <div style="font-size: 0.9em; opacity: 0.8;">Market Odds</div>
+                <div style="font-size: 1.3em; font-weight: 600;">{rec['market_odds']:.2f}</div>
+            </div>
+            <div>
+                <div style="font-size: 0.9em; opacity: 0.8;">Expected Value</div>
+                <div style="font-size: 1.3em; font-weight: 600; color: {ev_color};">{ev_text}</div>
+            </div>
+        </div>
+        <div style="font-size: 1em; text-align: center; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2);">
+            Strength: {rec['strength']}
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -550,8 +673,12 @@ def main():
                 result = engine.predict(home_data, away_data)
                 
                 if result['success']:
+                    # Get market recommendations
+                    recommendations = engine.get_market_recommendations(result['probabilities'], market_odds)
+                    
                     st.session_state.prediction_result = result
                     st.session_state.prediction_engine = engine
+                    st.session_state.recommendations = recommendations
                     st.success("✅ Analysis complete!")
                 else:
                     st.error("Prediction failed")
@@ -562,6 +689,7 @@ def main():
     # Display results if available
     if st.session_state.prediction_result:
         result = st.session_state.prediction_result
+        recommendations = st.session_state.get('recommendations', [])
         
         st.markdown("---")
         st.markdown("# 📊 Prediction Results")
@@ -611,20 +739,47 @@ def main():
             f"Probability: {score_prob:.1f}%"
         )
         
-        # Additional markets
+        # Total Goals Market (Over/Under 2.5)
+        st.markdown("### 📊 Total Goals Market")
         col1, col2 = st.columns(2)
         with col1:
             display_prediction_box(
                 "Over 2.5 Goals",
                 f"{result['probabilities']['over_25']*100:.1f}%",
-                f"Fair odds: {1/result['probabilities']['over_25']:.2f}"
+                f"Fair odds: {1/result['probabilities']['over_25']:.2f}",
+                color="#00b09b" if result['probabilities']['over_25'] > 0.5 else "#4ECDC4"
             )
         with col2:
             display_prediction_box(
-                "Both Teams to Score",
-                f"{result['probabilities']['btts_yes']*100:.1f}%",
-                f"Fair odds: {1/result['probabilities']['btts_yes']:.2f}"
+                "Under 2.5 Goals",
+                f"{result['probabilities']['under_25']*100:.1f}%",
+                f"Fair odds: {1/result['probabilities']['under_25']:.2f}",
+                color="#ff416c" if result['probabilities']['under_25'] > 0.5 else "#4ECDC4"
             )
+        
+        # Both Teams to Score Market
+        st.markdown("### ⚽ Both Teams to Score")
+        col1, col2 = st.columns(2)
+        with col1:
+            display_prediction_box(
+                "BTTS - Yes",
+                f"{result['probabilities']['btts_yes']*100:.1f}%",
+                f"Fair odds: {1/result['probabilities']['btts_yes']:.2f}",
+                color="#00b09b" if result['probabilities']['btts_yes'] > 0.5 else "#4ECDC4"
+            )
+        with col2:
+            display_prediction_box(
+                "BTTS - No",
+                f"{result['probabilities']['btts_no']*100:.1f}%",
+                f"Fair odds: {1/result['probabilities']['btts_no']:.2f}",
+                color="#ff416c" if result['probabilities']['btts_no'] > 0.5 else "#4ECDC4"
+            )
+        
+        # Market Recommendations
+        if recommendations:
+            st.markdown("### 💰 Market Recommendations")
+            for rec in recommendations:
+                display_market_recommendation(rec)
         
         # Confidence
         confidence = result['confidence']
