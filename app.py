@@ -491,7 +491,7 @@ class FootballPredictionEngine:
             recommendations.append(over_rec)
         else:
             under_rec = {
-                'market": 'Total Goals',
+                'market': 'Total Goals',
                 'prediction': 'Under 2.5',
                 'probability': probabilities['under_25'],
                 'fair_odds': 1 / probabilities['under_25'],
