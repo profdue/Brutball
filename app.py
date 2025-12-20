@@ -40,13 +40,13 @@ CONSTANTS = {
 }
 
 # ============================================================================
-# VALIDATED PROFESSIONAL PREDICTION ENGINE (With Fixes)
+# REFINED PROFESSIONAL PREDICTION ENGINE (Base Class)
 # ============================================================================
 
-class ValidatedFootballPredictor:
+class RefinedFootballPredictor:
     """
-    Third-order refinements based on validation data
-    Fixes: Over probability inflation, draw underestimation, confidence calibration
+    Second-order refinement after calibration
+    Fixes: Mid-range scoring slumps, overconfidence, context-aware probabilities
     """
     
     def __init__(self, league_params):
@@ -61,8 +61,7 @@ class ValidatedFootballPredictor:
         self.explanations = {
             'over_under': [],
             'btts': [],
-            'confidence': [],
-            'recommendations': []
+            'confidence': []
         }
     
     # ==================== REFINED CORE LOGIC ====================
@@ -188,79 +187,38 @@ class ValidatedFootballPredictor:
         return max(1.02, min(1.35, final_advantage))
     
     def _calculate_btts_probability(self, home_data, away_data):
-        """REFINED: Better BTTS logic with explanations"""
+        """REFINED: Better BTTS logic"""
         home_recent = home_data.get('goals_scored_last_5', 0) / 5
         away_recent = away_data.get('goals_scored_last_5', 0) / 5
-        home_avg = home_data.get('goals', 0) / max(home_data.get('matches_played', 1), 1)
-        away_avg = away_data.get('goals', 0) / max(away_data.get('matches_played', 1), 1)
         
-        # Start with base probability
         base = 0.5
-        self.explanations['btts'].append(f"Base probability: 50% (neutral prior)")
         
-        # CALIBRATED: Recent scoring is CRITICAL
+        # Recent scoring critical
         if home_recent == 0:
             base -= 0.3
-            self.explanations['btts'].append(f"Home scoring crisis: 0 goals in last 5 → -30%")
+            self.calibration_notes.append("Home not scoring recently → BTTS unlikely")
         elif home_recent < 0.5:
             base -= 0.15
-            self.explanations['btts'].append(f"Home poor recent scoring: {home_recent:.1f} goals/game → -15%")
         
         if away_recent == 0:
             base -= 0.3
-            self.explanations['btts'].append(f"Away scoring crisis: 0 goals in last 5 → -30%")
+            self.calibration_notes.append("Away not scoring recently → BTTS unlikely")
         elif away_recent < 0.5:
             base -= 0.15
-            self.explanations['btts'].append(f"Away poor recent scoring: {away_recent:.1f} goals/game → -15%")
         
         # Position gap
         pos_diff = abs(home_data['overall_position'] - away_data['overall_position'])
         if pos_diff > 10:
             base -= 0.2
-            self.explanations['btts'].append(f"Big position gap (#{home_data['overall_position']} vs #{away_data['overall_position']}) → often one-sided → -20%")
+            self.calibration_notes.append(f"Big position gap (#{home_data['overall_position']} vs #{away_data['overall_position']}) → often one-sided")
         
         # Both teams scoring well recently → increase
         if home_recent > 1.5 and away_recent > 1.0:
             base += 0.2
-            self.explanations['btts'].append(f"Both teams scoring well recently → +20%")
-        
-        # Add openness factor based on expected goals
-        home_expected = home_data.get('home_xg_for', 0) / max(home_data.get('matches_played', 1), 1)
-        away_expected = away_data.get('away_xg_for', 0) / max(away_data.get('matches_played', 1), 1)
-        
-        if home_expected > 1.2 and away_expected > 1.2:
-            base += 0.05
-            self.explanations['btts'].append(f"Both teams create good chances (Home xG: {home_expected:.1f}, Away xG: {away_expected:.1f}) → +5%")
-        
-        # Add match total factor
-        total_expected = home_expected + away_expected
-        if total_expected > 3.0:
-            base += 0.05
-            self.explanations['btts'].append(f"High expected goal total ({total_expected:.1f}) → +5%")
-        
-        # Add finishing consistency factor (VALIDATION FIX)
-        home_ratio = home_recent / home_avg if home_avg > 0 else 1.0
-        away_ratio = away_recent / away_avg if away_avg > 0 else 1.0
-        
-        if home_ratio < 0.7 and away_ratio < 0.7:
-            # Both teams finishing poorly → reduce BTTS
-            base -= 0.1
-            self.explanations['btts'].append(f"Both teams finishing below 70% of historical → less likely both score → -10%")
+            self.calibration_notes.append("Both teams scoring well recently → BTTS likely")
         
         # Apply bounds
         btts_prob = max(0.1, min(0.9, base))
-        
-        # Add recommendation
-        if btts_prob > 0.55:
-            self.explanations['recommendations'].append(f"✅ **BTTS YES** ({btts_prob:.0%} probability)")
-        elif btts_prob < 0.45:
-            self.explanations['recommendations'].append(f"✅ **BTTS NO** ({1-btts_prob:.0%} probability)")
-        else:
-            self.explanations['recommendations'].append(f"⚖️ **BTTS NEUTRAL** (close to 50/50)")
-        
-        # Add final explanation if near neutral
-        if 0.45 <= btts_prob <= 0.55:
-            self.explanations['btts'].append("Insufficient strong signals → staying near neutral (50%)")
         
         self.debug_info.append(f"BTTS Probability: home_recent={home_recent:.1f}, away_recent={away_recent:.1f}, base={base:.2f}, final={btts_prob:.2f}")
         
@@ -270,30 +228,26 @@ class ValidatedFootballPredictor:
     
     def _calculate_confidence(self, home_lambda, away_lambda, home_data, away_data):
         """
-        REFINED: Better confidence scores with explanations
+        REFINED: Better confidence scores
         Reduce confidence when:
         1. Both teams poor recent scoring
         2. Bottom teams involved
         3. High variance situations
         """
         confidence = 50
-        self.explanations['confidence'].append(f"Base confidence: 50%")
         
         # Goal difference (still important)
         goal_diff = abs(home_lambda - away_lambda)
         confidence += goal_diff * 15
-        self.explanations['confidence'].append(f"Goal expectation difference: {goal_diff:.2f} → +{goal_diff * 15:.1f}%")
         
         # Position difference
         pos_diff = abs(home_data['overall_position'] - away_data['overall_position'])
         if pos_diff >= 10:
             confidence += 25
-            self.explanations['confidence'].append(f"Huge position gap (#{home_data['overall_position']} vs #{away_data['overall_position']}) → +25%")
         elif pos_diff >= 5:
             confidence += 15
-            self.explanations['confidence'].append(f"Significant position gap (#{home_data['overall_position']} vs #{away_data['overall_position']}) → +15%")
         
-        # REFINEMENT: Recent scoring consistency penalty (VALIDATION FIX - reduced)
+        # REFINEMENT: Recent scoring consistency penalty
         home_recent = home_data.get('goals_scored_last_5', 0) / 5
         home_avg = home_data.get('goals', 0) / max(home_data.get('matches_played', 1), 1)
         home_consistency = home_recent / home_avg if home_avg > 0 else 1.0
@@ -302,66 +256,42 @@ class ValidatedFootballPredictor:
         away_avg = away_data.get('goals', 0) / max(away_data.get('matches_played', 1), 1)
         away_consistency = away_recent / away_avg if away_avg > 0 else 1.0
         
-        # Penalty for teams severely underperforming (REDUCED from 10 to 8)
+        # Penalty for teams severely underperforming
         consistency_penalty = 0
-        if home_consistency < 0.7:  # Changed from 0.6 to 0.7
-            consistency_penalty += 8  # Reduced from 10
-            self.explanations['confidence'].append(f"Home underperforming: {home_consistency:.0%} of historical → -8% (was -10%)")
-        if away_consistency < 0.7:  # Changed from 0.6 to 0.7
-            consistency_penalty += 8  # Reduced from 10
-            self.explanations['confidence'].append(f"Away underperforming: {away_consistency:.0%} of historical → -8% (was -10%)")
+        if home_consistency < 0.6:
+            consistency_penalty += 10
+        if away_consistency < 0.6:
+            consistency_penalty += 10
         
         # Penalty for bottom teams (high variance)
         if home_data['overall_position'] >= 16 or away_data['overall_position'] >= 16:
             consistency_penalty += 5
-            self.explanations['confidence'].append(f"Bottom teams involved → higher variance → -5%")
         
         confidence -= consistency_penalty
-        
-        # Additional penalty for inconsistent teams (NEW VALIDATION FIX)
-        if home_consistency < 0.7 and away_consistency < 0.7:
-            confidence -= 5
-            self.explanations['confidence'].append(f"Both teams inconsistent → additional -5%")
-        
-        # Apply reasonable bounds with explanation
-        if confidence > 70:
-            self.explanations['confidence'].append(f"High confidence: Clear signals in match analysis")
-        elif confidence < 40:
-            self.explanations['confidence'].append(f"Low confidence: Many uncertainties in this matchup")
         
         return round(max(30, min(85, confidence)), 1)
     
     # ==================== REFINED SCORING PATTERN PREDICTION ====================
     
     def _predict_scoring_patterns(self, home_data, away_data, home_lambda, away_lambda):
-        """REFINED: Better Over/Under probabilities with explanations (VALIDATION FIXES)"""
+        """REFINED: Better Over/Under probabilities"""
         total_lambda = home_lambda + away_lambda
         
         # Get recent scoring context
         home_recent = home_data.get('goals_scored_last_5', 0) / 5
         away_recent = away_data.get('goals_scored_last_5', 0) / 5
-        home_avg = home_data.get('goals', 0) / max(home_data.get('matches_played', 1), 1)
-        away_avg = away_data.get('goals', 0) / max(away_data.get('matches_played', 1), 1)
         
-        # Base probability from Poisson (VALIDATION FIX - reduced high totals)
+        # Base probability from Poisson
         if total_lambda <= 1.8:
             base_over = 0.25
-            self.explanations['over_under'].append(f"Low total λ ({total_lambda:.2f}) → Base Over: 25%")
         elif total_lambda <= 2.2:
             base_over = 0.40
-            self.explanations['over_under'].append(f"Moderate total λ ({total_lambda:.2f}) → Base Over: 40%")
         elif total_lambda <= 2.6:
             base_over = 0.55
-            self.explanations['over_under'].append(f"Good total λ ({total_lambda:.2f}) → Base Over: 55%")
         elif total_lambda <= 3.0:
             base_over = 0.70
-            self.explanations['over_under'].append(f"High total λ ({total_lambda:.2f}) → Base Over: 70%")
-        elif total_lambda <= 3.5:
-            base_over = 0.80  # REDUCED from 0.85
-            self.explanations['over_under'].append(f"Very high total λ ({total_lambda:.2f}) → Base Over: 80% (was 85%)")
         else:
-            base_over = 0.85  # REDUCED from 0.90+
-            self.explanations['over_under'].append(f"Extreme total λ ({total_lambda:.2f}) → Base Over: 85% (capped)")
+            base_over = 0.85
         
         # REFINEMENT: Adjust for recent scoring context
         recent_adjustment = 1.0
@@ -369,45 +299,15 @@ class ValidatedFootballPredictor:
         # If both teams scoring poorly recently, reduce Over probability
         if home_recent < 1.0 and away_recent < 1.0:
             recent_adjustment *= 0.8  # -20% for poor scoring
-            self.explanations['over_under'].append(f"Both teams poor recent scoring (Home: {home_recent:.1f}, Away: {away_recent:.1f}) → -20%")
+            self.calibration_notes.append("Both teams poor recent scoring → Over less likely")
         
         # If both teams scoring well recently, increase Over probability
         if home_recent > 1.5 and away_recent > 1.5:
             recent_adjustment *= 1.2  # +20% for good scoring
-            self.explanations['over_under'].append(f"Both teams good recent scoring (Home: {home_recent:.1f}, Away: {away_recent:.1f}) → +20%")
-        
-        # Add joint finishing suppression (CRITICAL VALIDATION FIX)
-        home_ratio = home_recent / home_avg if home_avg > 0 else 1.0
-        away_ratio = away_recent / away_avg if away_avg > 0 else 1.0
-        
-        if home_ratio < 0.7 and away_ratio < 0.7:
-            # Both teams finishing poorly → STRONG Over reduction
-            recent_adjustment *= 0.70  # -30% (was 0.85) - AGGRESSIVE FIX
-            self.explanations['over_under'].append(f"⚠️ **CRITICAL**: Both teams finishing below 70% of historical (Home: {home_ratio:.0%}, Away: {away_ratio:.0%}) → Aggressive Over suppression (-30%)")
-        elif home_ratio < 0.7 or away_ratio < 0.7:
-            recent_adjustment *= 0.85  # -15% for one team
-            team = "Home" if home_ratio < 0.7 else "Away"
-            ratio = home_ratio if home_ratio < 0.7 else away_ratio
-            self.explanations['over_under'].append(f"{team} team finishing below 70% of historical ({ratio:.0%}) → -15%")
+            self.calibration_notes.append("Both teams good recent scoring → Over more likely")
         
         final_over = base_over * recent_adjustment
         final_over = max(0.15, min(0.90, final_over))  # Keep within bounds
-        
-        # Add explicit recommendation
-        if final_over > 0.65:
-            self.explanations['recommendations'].append(f"✅ **OVER 2.5 GOALS** ({final_over:.0%} probability)")
-        elif final_over < 0.35:
-            self.explanations['recommendations'].append(f"✅ **UNDER 2.5 GOALS** ({1-final_over:.0%} probability)")
-        else:
-            self.explanations['recommendations'].append(f"⚖️ **TOTAL GOALS NEUTRAL** (close to 50/50)")
-        
-        # Add final explanation
-        if final_over > 0.7:
-            self.explanations['over_under'].append(f"Strong Over expectation: High total goals expected")
-        elif final_over < 0.4:
-            self.explanations['over_under'].append(f"Strong Under expectation: Low total goals expected")
-        else:
-            self.explanations['over_under'].append(f"Balanced expectation: Moderate goal expectation")
         
         # BTTS probability (already refined)
         btts_prob = self._calculate_btts_probability(home_data, away_data)
@@ -507,8 +407,8 @@ class ValidatedFootballPredictor:
         
         return round(home_lambda, 2), round(away_lambda, 2)
     
-    def _calculate_probabilities(self, home_lambda, away_lambda, home_data, away_data):
-        """Calculate match outcome probabilities with draw boost (VALIDATION FIX)"""
+    def _calculate_probabilities(self, home_lambda, away_lambda):
+        """Calculate match outcome probabilities"""
         simulations = CONSTANTS['POISSON_SIMULATIONS']
         
         np.random.seed(42)
@@ -519,59 +419,10 @@ class ValidatedFootballPredictor:
         draws = np.sum(home_goals == away_goals)
         away_wins = np.sum(home_goals < away_goals)
         
-        # Base probabilities
-        home_win_prob = home_wins / simulations
-        draw_prob = draws / simulations
-        away_win_prob = away_wins / simulations
-        
-        # VALIDATION FIX: Draw boost for low-scoring/balanced matches
-        total_lambda = home_lambda + away_lambda
-        
-        # Get recent finishing ratios
-        home_recent = home_data.get('goals_scored_last_5', 0) / 5
-        away_recent = away_data.get('goals_scored_last_5', 0) / 5
-        home_avg = home_data.get('goals', 0) / max(home_data.get('matches_played', 1), 1)
-        away_avg = away_data.get('goals', 0) / max(away_data.get('matches_played', 1), 1)
-        home_ratio = home_recent / home_avg if home_avg > 0 else 1.0
-        away_ratio = away_recent / away_avg if away_avg > 0 else 1.0
-        
-        # Apply draw boost when:
-        # 1. Low total goals expected
-        # 2. Both teams finishing poorly
-        # 3. Balanced match (close λ values)
-        draw_boost = 1.0
-        draw_reason = []
-        
-        if total_lambda < 2.2:
-            draw_boost *= 1.15  # +15% for low-scoring matches
-            draw_reason.append(f"Low total goals ({total_lambda:.1f}) → +15% draw boost")
-        
-        if home_ratio < 0.7 and away_ratio < 0.7:
-            draw_boost *= 1.10  # +10% for poor finishers
-            draw_reason.append(f"Both teams finishing poorly → +10% draw boost")
-        
-        if abs(home_lambda - away_lambda) < 0.5:
-            draw_boost *= 1.05  # +5% for balanced matches
-            draw_reason.append(f"Balanced match (λ diff: {abs(home_lambda-away_lambda):.1f}) → +5% draw boost")
-        
-        # Apply boost if any conditions met
-        if draw_boost > 1.0:
-            new_draw_prob = draw_prob * draw_boost
-            # Reduce win probabilities proportionally
-            total_win_prob = home_win_prob + away_win_prob
-            if total_win_prob > 0:
-                home_win_prob *= (1 - (new_draw_prob - draw_prob)) / total_win_prob
-                away_win_prob *= (1 - (new_draw_prob - draw_prob)) / total_win_prob
-            draw_prob = new_draw_prob
-            
-            # Add explanation
-            for reason in draw_reason:
-                self.explanations['over_under'].append(f"Draw probability adjustment: {reason}")
-        
         return {
-            'home_win': home_win_prob,
-            'draw': draw_prob,
-            'away_win': away_win_prob
+            'home_win': home_wins / simulations,
+            'draw': draws / simulations,
+            'away_win': away_wins / simulations
         }
     
     def _generate_key_factors(self, home_data, away_data, home_lambda, away_lambda, scoring_prediction):
@@ -660,8 +511,8 @@ class ValidatedFootballPredictor:
         # REFINED SCORING PREDICTIONS
         scoring_prediction = self._predict_scoring_patterns(home_data, away_data, home_lambda, away_lambda)
         
-        # CALCULATE PROBABILITIES (with draw boost)
-        probabilities = self._calculate_probabilities(home_lambda, away_lambda, home_data, away_data)
+        # CALCULATE PROBABILITIES
+        probabilities = self._calculate_probabilities(home_lambda, away_lambda)
         
         # REFINED CONFIDENCE SCORE
         confidence = self._calculate_confidence(home_lambda, away_lambda, home_data, away_data)
@@ -683,7 +534,458 @@ class ValidatedFootballPredictor:
         }
 
 # ============================================================================
-# DATA LOADING & UI (UPDATED WITH RECOMMENDATIONS)
+# SURGICAL INTERVENTION: Type B High-xG Fix (FINAL VERSION)
+# ============================================================================
+
+class SurgicalFootballPredictor(RefinedFootballPredictor):
+    """
+    Surgical fix for Type B high-xG failures
+    Implements: finishing crisis detection, xG credibility, regime-aware confidence
+    """
+    
+    def __init__(self, league_params):
+        # Initialize parent class
+        super().__init__(league_params)
+        
+        # Ensure our surgical-specific lists are initialized
+        self.regime_notes = []
+        self.credibility_factors = {'home': 1.0, 'away': 1.0}
+    
+    def reset(self):
+        """Reset all tracking lists"""
+        super().reset()  # Call parent reset
+        self.regime_notes = []
+        self.credibility_factors = {'home': 1.0, 'away': 1.0}
+    
+    def _safe_divide(self, numerator, denominator, default=1.0):
+        """Safe division with zero handling"""
+        if denominator is None or denominator == 0:
+            return default
+        return numerator / denominator
+    
+    def _get_recent_xg(self, team_data, is_home):
+        """Safely get recent xG for last 5 games"""
+        try:
+            if is_home:
+                # Use home-specific xG if available, otherwise estimate
+                home_xg = team_data.get('home_xg_for', 0)
+                matches = max(team_data.get('matches_played', 1), 1)
+                avg_home_xg = home_xg / matches
+                return avg_home_xg * 5  # Estimate for last 5 games
+            else:
+                away_xg = team_data.get('away_xg_for', 0)
+                matches = max(team_data.get('matches_played', 1), 1)
+                avg_away_xg = away_xg / matches
+                return avg_away_xg * 5  # Estimate for last 5 games
+        except:
+            return 7.5  # Conservative default (1.5 xG/game × 5)
+    
+    def _assess_xg_credibility(self, team_data, is_home):
+        """
+        SURGICAL FIX 1: xG Credibility Score
+        How much should we trust this team's xG?
+        Returns: credibility factor (0.6-1.2)
+        """
+        position = team_data.get('overall_position', 20)
+        
+        # Get recent and historical data SAFELY
+        recent_goals = self._safe_divide(team_data.get('goals_scored_last_5', 0), 5, default=0.0)
+        historical_goals = self._safe_divide(
+            team_data.get('goals', 0), 
+            max(team_data.get('matches_played', 1), 1), 
+            default=1.0
+        )
+        historical_xg = self._safe_divide(
+            team_data.get('xg', 0), 
+            max(team_data.get('matches_played', 1), 1), 
+            default=1.0
+        )
+        
+        # Estimate recent xG
+        recent_xg_estimate = self._get_recent_xg(team_data, is_home) / 5
+        
+        # Calculate conversion rates SAFELY
+        historical_conversion = self._safe_divide(historical_goals, historical_xg, default=1.0)
+        recent_conversion = self._safe_divide(recent_goals, recent_xg_estimate, default=1.0)
+        
+        # BASE CREDIBILITY: Team class
+        if position <= 3:  # Elite teams
+            base_credibility = 1.15
+            self.regime_notes.append(f"Elite team (#{position}): xG credibility +15%")
+        elif position <= 6:  # Top teams
+            base_credibility = 1.05
+            self.regime_notes.append(f"Top team (#{position}): xG credibility +5%")
+        elif position <= 14:  # Mid-table
+            base_credibility = 0.95
+            self.regime_notes.append(f"Mid-table team (#{position}): xG credibility -5%")
+        else:  # Bottom teams
+            base_credibility = 0.85
+            self.regime_notes.append(f"Bottom team (#{position}): xG credibility -15%")
+        
+        # CONVERSION PENALTY: Recent finishing crisis
+        conversion_penalty = 1.0
+        
+        # CRITICAL: Detect finishing crisis (Type B regime)
+        # Only check if we have enough data
+        if (historical_goals > 0.5 and  # Enough historical data
+            recent_xg_estimate > 1.0 and  # Creating chances
+            position > 6):  # Not an elite team
+            
+            # Check for crisis conditions
+            scoring_crisis = recent_goals < (0.8 * historical_goals)
+            conversion_collapse = recent_conversion < 0.5
+            still_creating = recent_xg_estimate > 1.5
+            
+            if scoring_crisis and conversion_collapse and still_creating:
+                # This is a Type B high-xG team: creating but not finishing
+                conversion_penalty = 0.70  # -30% penalty (AGGRESSIVE)
+                self.regime_notes.append(
+                    f"⚠️ **TYPE B DETECTED**: {'Home' if is_home else 'Away'} creating chances " +
+                    f"(xG: {recent_xg_estimate:.1f}) but not finishing " +
+                    f"({recent_conversion:.0%} conversion) → xG credibility -30%"
+                )
+                self.calibration_notes.append(
+                    f"{'Home' if is_home else 'Away'} in finishing crisis: xG not predictive"
+                )
+        
+        # Moderate penalty for poor conversion without full crisis
+        elif recent_conversion < 0.7 and position > 6 and historical_goals > 0.5:
+            conversion_penalty = 0.85  # -15% penalty
+            self.regime_notes.append(
+                f"Poor recent conversion ({recent_conversion:.0%}) → xG credibility -15%"
+            )
+        
+        final_credibility = base_credibility * conversion_penalty
+        
+        # Ensure reasonable bounds
+        final_credibility = max(0.6, min(1.2, final_credibility))
+        
+        # Store for debugging
+        self.credibility_factors['home' if is_home else 'away'] = final_credibility
+        
+        self.debug_info.append(
+            f"xG Credibility ({'Home' if is_home else 'Away'}): " +
+            f"pos={position}, base={base_credibility:.2f}, " +
+            f"conv_penalty={conversion_penalty:.2f}, final={final_credibility:.2f}"
+        )
+        
+        return final_credibility
+    
+    def _calculate_true_strength(self, team_data, is_home):
+        """
+        OVERRIDE: Apply xG credibility to true strength calculation
+        """
+        try:
+            # Call parent method safely
+            base_strength = super()._calculate_true_strength(team_data, is_home)
+            
+            # Apply xG credibility
+            credibility = self._assess_xg_credibility(team_data, is_home)
+            
+            # Only apply credibility penalty for non-elite teams in crisis
+            position = team_data.get('overall_position', 20)
+            if credibility < 0.9 and position > 6:  # Only penalize non-elites
+                adjusted_strength = base_strength * credibility
+                self.debug_info.append(
+                    f"xG Credibility Applied ({'Home' if is_home else 'Away'}): " +
+                    f"{base_strength:.2f} × {credibility:.2f} = {adjusted_strength:.2f}"
+                )
+                return max(0.3, adjusted_strength)  # Ensure minimum
+            else:
+                return base_strength
+                
+        except Exception as e:
+            # Fallback to parent calculation if error
+            self.debug_info.append(f"Error in true strength calculation: {e}")
+            return super()._calculate_true_strength(team_data, is_home)
+    
+    def _predict_scoring_patterns(self, home_data, away_data, home_lambda, away_lambda):
+        """
+        OVERRIDE: Regime-aware Over/Under probabilities with proper bounds
+        """
+        try:
+            # Call parent method first
+            scoring_prediction = super()._predict_scoring_patterns(
+                home_data, away_data, home_lambda, away_lambda
+            )
+            
+            total_lambda = home_lambda + away_lambda
+            
+            # Get regime information
+            home_position = home_data.get('overall_position', 20)
+            away_position = away_data.get('overall_position', 20)
+            
+            # Get recent finishing data SAFELY
+            home_recent_goals = self._safe_divide(
+                home_data.get('goals_scored_last_5', 0), 5, default=1.0
+            )
+            away_recent_goals = self._safe_divide(
+                away_data.get('goals_scored_last_5', 0), 5, default=1.0
+            )
+            
+            # REGIME DETECTION: Is this a Type B high-total match?
+            is_type_b_high_total = False
+            
+            if total_lambda > 3.0 and total_lambda < 10.0:  # High but realistic total
+                # Check if it's the problematic Type B pattern
+                both_non_elite = home_position > 6 and away_position > 6
+                both_poor_scoring = home_recent_goals < 1.2 and away_recent_goals < 1.2
+                at_least_one_midtable = home_position <= 14 or away_position <= 14
+                
+                if both_non_elite and both_poor_scoring and at_least_one_midtable:
+                    is_type_b_high_total = True
+                    self.regime_notes.append(
+                        f"⚠️ **TYPE B HIGH TOTAL**: Non-elite teams with high expected goals " +
+                        f"({total_lambda:.1f}) but poor recent scoring → Over probability penalized"
+                    )
+            
+            # SURGICAL FIX: Apply Type B penalty to Over probability
+            if is_type_b_high_total:
+                original_over = scoring_prediction['over_25_prob']
+                
+                # AGGRESSIVE penalty for Type B matches
+                type_b_penalty = 0.65  # -35%
+                adjusted_over = original_over * type_b_penalty
+                
+                # Apply reasonable bounds (0.15 to 0.90)
+                adjusted_over = max(0.15, min(0.90, adjusted_over))
+                adjusted_under = 1 - adjusted_over
+                adjusted_under = max(0.10, min(0.85, adjusted_under))  # Also bound under
+                
+                # Update prediction
+                scoring_prediction['over_25_prob'] = round(adjusted_over, 3)
+                scoring_prediction['under_25_prob'] = round(adjusted_under, 3)
+                
+                self.regime_notes.append(
+                    f"Type B penalty applied: Over {original_over:.1%} → {adjusted_over:.1%} (-35%)"
+                )
+            
+            # Ensure probabilities sum to 1 (with rounding tolerance)
+            over = scoring_prediction['over_25_prob']
+            under = scoring_prediction['under_25_prob']
+            
+            if abs((over + under) - 1.0) > 0.01:  # More than 1% drift
+                # Normalize
+                total = over + under
+                scoring_prediction['over_25_prob'] = over / total
+                scoring_prediction['under_25_prob'] = under / total
+                self.debug_info.append(f"Normalized Over/Under probabilities (sum was {total:.3f})")
+            
+            # Final bounds check
+            scoring_prediction['over_25_prob'] = max(0.15, min(0.90, 
+                scoring_prediction['over_25_prob']))
+            scoring_prediction['under_25_prob'] = 1 - scoring_prediction['over_25_prob']
+            
+            # Add regime notes to explanations
+            if self.regime_notes:
+                if 'over_under' not in self.explanations:
+                    self.explanations['over_under'] = []
+                self.explanations['over_under'].extend(self.regime_notes)
+            
+            return scoring_prediction
+            
+        except Exception as e:
+            # Fallback to parent prediction if error
+            self.debug_info.append(f"Error in regime scoring prediction: {e}")
+            return super()._predict_scoring_patterns(home_data, away_data, home_lambda, away_lambda)
+    
+    def _calculate_confidence(self, home_lambda, away_lambda, home_data, away_data):
+        """
+        OVERRIDE: Regime-aware confidence with proper bounds
+        """
+        try:
+            # Original confidence
+            base_confidence = super()._calculate_confidence(
+                home_lambda, away_lambda, home_data, away_data
+            )
+            
+            total_lambda = home_lambda + away_lambda
+            home_position = home_data.get('overall_position', 20)
+            away_position = away_data.get('overall_position', 20)
+            
+            confidence_penalty = 1.0
+            
+            # Penalty for high-total non-elite matches (Type B risk)
+            if (total_lambda > 3.0 and total_lambda < 10.0 and  # Realistic high total
+                home_position > 6 and away_position > 6):  # Both non-elite
+                
+                confidence_penalty *= 0.8  # -20% confidence
+                if 'confidence' not in self.explanations:
+                    self.explanations['confidence'] = []
+                self.explanations['confidence'].append(
+                    f"High total ({total_lambda:.1f}) with non-elite teams → confidence -20% (Type B risk)"
+                )
+            
+            # Penalty for teams in finishing crisis
+            home_recent = self._safe_divide(
+                home_data.get('goals_scored_last_5', 0), 5, default=1.0
+            )
+            home_avg = self._safe_divide(
+                home_data.get('goals', 0), 
+                max(home_data.get('matches_played', 1), 1), 
+                default=1.0
+            )
+            away_recent = self._safe_divide(
+                away_data.get('goals_scored_last_5', 0), 5, default=1.0
+            )
+            away_avg = self._safe_divide(
+                away_data.get('goals', 0), 
+                max(away_data.get('matches_played', 1), 1), 
+                default=1.0
+            )
+            
+            if home_position > 6 and home_avg > 0.5 and home_recent < (0.7 * home_avg):
+                confidence_penalty *= 0.9  # -10% confidence
+                if 'confidence' not in self.explanations:
+                    self.explanations['confidence'] = []
+                self.explanations['confidence'].append(
+                    f"Home in finishing crisis ({home_recent:.1f} vs {home_avg:.1f} historical) → confidence -10%"
+                )
+            
+            if away_position > 6 and away_avg > 0.5 and away_recent < (0.7 * away_avg):
+                confidence_penalty *= 0.9  # -10% confidence
+                if 'confidence' not in self.explanations:
+                    self.explanations['confidence'] = []
+                self.explanations['confidence'].append(
+                    f"Away in finishing crisis ({away_recent:.1f} vs {away_avg:.1f} historical) → confidence -10%"
+                )
+            
+            # Apply penalty
+            adjusted_confidence = base_confidence * confidence_penalty
+            
+            # Ensure reasonable bounds (30-85%)
+            adjusted_confidence = max(30.0, min(85.0, adjusted_confidence))
+            
+            self.debug_info.append(
+                f"Regime-Aware Confidence: base={base_confidence:.1f}, " +
+                f"penalty={confidence_penalty:.2f}, final={adjusted_confidence:.1f}"
+            )
+            
+            return round(adjusted_confidence, 1)
+            
+        except Exception as e:
+            # Fallback to parent confidence if error
+            self.debug_info.append(f"Error in regime confidence calculation: {e}")
+            return super()._calculate_confidence(home_lambda, away_lambda, home_data, away_data)
+    
+    def _generate_recommendations(self, scoring_prediction, home_data, away_data):
+        """
+        OVERRIDE: Smarter recommendations with regime awareness
+        """
+        try:
+            recommendations = []
+            
+            over_prob = scoring_prediction.get('over_25_prob', 0.5)
+            btts_prob = scoring_prediction.get('btts_prob', 0.5)
+            
+            # Ensure probabilities are valid
+            over_prob = max(0.0, min(1.0, over_prob))
+            btts_prob = max(0.0, min(1.0, btts_prob))
+            
+            # Over/Under recommendation with regime awareness
+            if over_prob > 0.70:
+                recommendations.append(f"✅ **STRONG OVER 2.5** ({over_prob:.0%} probability)")
+            elif over_prob > 0.60:
+                recommendations.append(f"✅ **OVER 2.5** ({over_prob:.0%} probability)")
+            elif over_prob < 0.40:
+                recommendations.append(f"✅ **STRONG UNDER 2.5** ({1-over_prob:.0%} probability)")
+            elif over_prob < 0.50:
+                recommendations.append(f"✅ **UNDER 2.5** ({1-over_prob:.0%} probability)")
+            else:
+                # Check if this is a Type B match that should lean Under
+                home_pos = home_data.get('overall_position', 20)
+                away_pos = away_data.get('overall_position', 20)
+                total_lambda = (home_data.get('home_xg_for', 0) / max(home_data.get('matches_played', 1), 1) +
+                              away_data.get('away_xg_for', 0) / max(away_data.get('matches_played', 1), 1))
+                
+                if (home_pos > 6 and away_pos > 6 and  # Both non-elite
+                    total_lambda > 3.0 and  # High expected
+                    over_prob < 0.55):  # Already leaning under
+                    
+                    recommendations.append(f"⚖️ **LEAN UNDER 2.5** (Type B match - high xG but poor finishing)")
+                else:
+                    recommendations.append(f"⚖️ **TOTAL GOALS NEUTRAL** (close to 50/50)")
+            
+            # BTTS recommendation
+            if btts_prob > 0.60:
+                recommendations.append(f"✅ **BTTS YES** ({btts_prob:.0%} probability)")
+            elif btts_prob < 0.40:
+                recommendations.append(f"✅ **BTTS NO** ({1-btts_prob:.0%} probability)")
+            else:
+                recommendations.append(f"⚖️ **BTTS NEUTRAL** (close to 50/50)")
+            
+            return recommendations
+            
+        except Exception as e:
+            # Default recommendations if error
+            self.debug_info.append(f"Error generating recommendations: {e}")
+            return [
+                f"⚖️ **TOTAL GOALS NEUTRAL** (error in calculation)",
+                f"⚖️ **BTTS NEUTRAL** (error in calculation)"
+            ]
+    
+    def predict_match(self, home_data, away_data):
+        """
+        OVERRIDE: Main prediction with surgical fixes and error handling
+        """
+        try:
+            # Reset all tracking lists
+            self.reset()
+            
+            # Call parent prediction
+            result = super().predict_match(home_data, away_data)
+            
+            # Add surgical recommendations
+            recommendations = self._generate_recommendations(
+                result['scoring_analysis'], 
+                home_data, 
+                away_data
+            )
+            
+            # Ensure explanations dict exists
+            if 'explanations' not in result:
+                result['explanations'] = {}
+            
+            # Add recommendations
+            if 'recommendations' not in result['explanations']:
+                result['explanations']['recommendations'] = []
+            result['explanations']['recommendations'].extend(recommendations)
+            
+            # Add regime notes if not already added
+            if self.regime_notes and 'over_under' in result['explanations']:
+                result['explanations']['over_under'].extend(self.regime_notes)
+            
+            return result
+            
+        except Exception as e:
+            # Comprehensive error handling
+            self.debug_info.append(f"Error in surgical prediction: {str(e)}")
+            
+            # Fallback to parent prediction
+            try:
+                return super().predict_match(home_data, away_data)
+            except:
+                # Ultimate fallback
+                return {
+                    'expected_goals': {'home': 1.5, 'away': 1.0},
+                    'probabilities': {'home_win': 0.33, 'draw': 0.34, 'away_win': 0.33},
+                    'scoring_analysis': {
+                        'predicted_total': 2.5,
+                        'over_25_prob': 0.5,
+                        'under_25_prob': 0.5,
+                        'btts_prob': 0.5,
+                        'btts_no_prob': 0.5
+                    },
+                    'confidence': 50.0,
+                    'key_factors': ['Error in prediction - using fallback values'],
+                    'explanations': {
+                        'recommendations': ['⚠️ Model error - predictions may be inaccurate']
+                    },
+                    'success': False
+                }
+
+# ============================================================================
+# DATA LOADING & UI
 # ============================================================================
 
 def load_league_data(league_name):
@@ -761,7 +1063,7 @@ def prepare_team_data(df, team_name, venue):
     return team_data.iloc[0].to_dict()
 
 # ============================================================================
-# STREAMLIT UI COMPONENTS (UPDATED WITH RECOMMENDATIONS)
+# STREAMLIT UI COMPONENTS
 # ============================================================================
 
 def display_prediction_box(title, value, subtitle="", color="#4ECDC4"):
@@ -829,30 +1131,26 @@ def display_scoring_analysis(analysis, explanations=None):
         btts_recs = [r for r in explanations['recommendations'] if "BTTS" in r]
         
         if over_under_recs:
-            col1, col2 = st.columns(2)
-            with col1:
-                for rec in over_under_recs:
-                    if "✅" in rec:
-                        st.success(f"**{rec}**")
-                    elif "⚖️" in rec:
-                        st.info(f"**{rec}**")
+            for rec in over_under_recs:
+                if "✅" in rec:
+                    st.success(f"**{rec}**")
+                elif "⚖️" in rec:
+                    st.info(f"**{rec}**")
         
         if btts_recs:
-            col1, col2 = st.columns(2)
-            with col1:
-                for rec in btts_recs:
-                    if "✅" in rec:
-                        st.success(f"**{rec}**")
-                    elif "⚖️" in rec:
-                        st.info(f"**{rec}**")
+            for rec in btts_recs:
+                if "✅" in rec:
+                    st.success(f"**{rec}**")
+                elif "⚖️" in rec:
+                    st.info(f"**{rec}**")
     
     # Display explanations if available
     if explanations:
         with st.expander("🔍 Over/Under 2.5 Goals Logic"):
             if 'over_under' in explanations and explanations['over_under']:
                 for explanation in explanations['over_under']:
-                    if "CRITICAL" in explanation:
-                        st.warning(f"⚠️ {explanation}")
+                    if "⚠️" in explanation or "**TYPE B**" in explanation:
+                        st.warning(f"{explanation}")
                     else:
                         st.write(f"• {explanation}")
             else:
@@ -926,10 +1224,14 @@ def display_validation_metrics():
                         'btts_prob': result['scoring_analysis']['btts_prob'],
                         'btts_no_prob': result['scoring_analysis']['btts_no_prob'],
                         'confidence': result['confidence'],
-                        'over_recommendation': 'OVER' if result['scoring_analysis']['over_25_prob'] > 0.65 else 
-                                              'UNDER' if result['scoring_analysis']['over_25_prob'] < 0.35 else 'NEUTRAL',
-                        'btts_recommendation': 'YES' if result['scoring_analysis']['btts_prob'] > 0.55 else 
-                                              'NO' if result['scoring_analysis']['btts_prob'] < 0.45 else 'NEUTRAL'
+                        'over_recommendation': 'STRONG OVER' if result['scoring_analysis']['over_25_prob'] > 0.70 else 
+                                              'OVER' if result['scoring_analysis']['over_25_prob'] > 0.60 else
+                                              'STRONG UNDER' if result['scoring_analysis']['over_25_prob'] < 0.40 else
+                                              'UNDER' if result['scoring_analysis']['over_25_prob'] < 0.50 else
+                                              'NEUTRAL',
+                        'btts_recommendation': 'YES' if result['scoring_analysis']['btts_prob'] > 0.60 else 
+                                              'NO' if result['scoring_analysis']['btts_prob'] < 0.40 else 
+                                              'NEUTRAL'
                     }
                     st.session_state.performance_history.append(track_data)
                     st.success("✅ Prediction tracked!")
@@ -990,7 +1292,7 @@ def display_validation_metrics():
 
 def main():
     st.set_page_config(
-        page_title="Validated Football Predictor",
+        page_title="Surgical Football Predictor",
         page_icon="⚽",
         layout="wide"
     )
@@ -1014,9 +1316,9 @@ def main():
     </style>
     """, unsafe_allow_html=True)
     
-    st.markdown('<h1 style="text-align: center; color: #4ECDC4;">⚽ Validated Football Predictor</h1>', 
+    st.markdown('<h1 style="text-align: center; color: #4ECDC4;">⚽ Surgical Football Predictor</h1>', 
                 unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; color: #666;">With Validation-Based Fixes & Explicit Recommendations</p>', 
+    st.markdown('<p style="text-align: center; color: #666;">With Type B High-xG Fix & Regime Detection</p>', 
                 unsafe_allow_html=True)
     
     if 'league_data' not in st.session_state:
@@ -1040,14 +1342,14 @@ def main():
                     st.error(f"Failed to load {selected_league} data")
         
         st.markdown("---")
-        st.markdown("### 🔧 Validation-Based Fixes")
+        st.markdown("### 🔧 Surgical Fixes Applied")
         st.success("""
-        **Applied Fixes (Based on 5-match validation):**
-        1. **Over probability fixed**: Aggressive suppression for poor finishers
-        2. **Draw boost added**: +15-30% for low-scoring/balanced matches
-        3. **Confidence calibrated**: Reduced penalties, better uncertainty handling
-        4. **Explicit recommendations**: ✅ OVER/UNDER & BTTS YES/NO
-        5. **BTTS improved**: Finishing consistency factor added
+        **Type B High-xG Detection:**
+        1. **Finishing Crisis Detection**: -30% xG credibility
+        2. **Regime-Aware Over/Under**: -35% penalty for Type B matches
+        3. **xG Credibility Scoring**: Elite teams trusted more
+        4. **Confidence Calibration**: Reduced for fragile situations
+        5. **Safe Calculations**: Error handling & bounds checking
         """)
     
     if st.session_state.league_data is None:
@@ -1106,7 +1408,7 @@ def main():
                 else:
                     st.metric("Recent Goals/Game", f"{recent_goals:.1f}")
     
-    if st.button("🚀 Run Validated Analysis", type="primary", use_container_width=True):
+    if st.button("🚀 Run Surgical Analysis", type="primary", use_container_width=True):
         if home_team == away_team:
             st.error("Please select different teams.")
             return
@@ -1115,14 +1417,14 @@ def main():
             home_data = prepare_team_data(df, home_team, 'home')
             away_data = prepare_team_data(df, away_team, 'away')
             
-            predictor = ValidatedFootballPredictor(league_params)
+            predictor = SurgicalFootballPredictor(league_params)
             
-            with st.spinner("Running validated analysis..."):
+            with st.spinner("Running surgical analysis with Type B detection..."):
                 result = predictor.predict_match(home_data, away_data)
                 
                 if result['success']:
                     st.session_state.prediction_result = result
-                    st.success("✅ Validated analysis complete!")
+                    st.success("✅ Surgical analysis complete!")
         
         except Exception as e:
             st.error(f"Error: {str(e)}")
@@ -1131,9 +1433,9 @@ def main():
         result = st.session_state.prediction_result
         
         st.markdown("---")
-        st.markdown("# 📊 Validated Analysis Results")
+        st.markdown("# 📊 Surgical Analysis Results")
         
-        st.markdown("### 🎯 Expected Goals (Calibrated)")
+        st.markdown("### 🎯 Expected Goals (With Credibility Adjustment)")
         col1, col2 = st.columns(2)
         with col1:
             display_prediction_box(
@@ -1179,13 +1481,15 @@ def main():
         if result['key_factors']:
             st.markdown("### 🔑 Key Analytical Factors")
             for factor in result['key_factors']:
-                if "scoring crisis" in str(factor).lower() or "severe slump" in str(factor).lower():
+                if "TYPE B" in str(factor) or "CRITICAL" in str(factor):
                     st.error(f"⚡ {factor}")
+                elif "scoring crisis" in str(factor).lower() or "severe slump" in str(factor).lower():
+                    st.error(f"⚠️ {factor}")
                 elif "slump" in str(factor).lower() or "underperforming" in str(factor).lower():
                     st.warning(f"⚠️ {factor}")
                 elif "boost" in str(factor).lower() or "excellent" in str(factor).lower():
                     st.success(f"📈 {factor}")
-                elif "Calibration" in str(factor) or "confidence" in str(factor):
+                elif "credibility" in str(factor).lower():
                     st.info(f"🎯 {factor}")
                 elif "DEBUG" in str(factor):
                     continue  # Hide debug info now that we have explanations
