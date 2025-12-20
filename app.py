@@ -465,7 +465,15 @@ def load_league_data(league_name):
             1. Go to your GitHub repository: https://github.com/profdue/Brutball
             2. Navigate to the `leagues` folder
             3. Upload a CSV file named `{league_name.lower().replace(' ', '_')}.csv`
-            4. Ensure it has the same format as `la_liga.csv`
+            4. Ensure it has the EXACT same format as `la_liga.csv`:
+            
+            **Required columns (EXACTLY as shown):**
+            ```
+            overall_position,team,venue,matches_played,xg_for,goals,home_xga,away_xga,
+            goals_conceded,home_xgdiff_def,away_xgdiff_def,defenders_out,form_last_5,
+            motivation,open_play_pct,set_piece_pct,counter_attack_pct,form,
+            shots_allowed_pg,home_ppg_diff,goals_scored_last_5,goals_conceded_last_5
+            ```
             """)
             return None
         
@@ -473,6 +481,28 @@ def load_league_data(league_name):
         
         df = pd.read_csv(io.StringIO(response.content.decode('utf-8')))
         
+        # Standardize column names to lowercase with underscores
+        original_columns = df.columns.tolist()
+        df.columns = df.columns.str.lower().str.replace(' ', '_')
+        
+        # Check for column name variations
+        column_variations = {
+            'xg_for': ['xG_for', 'xgfor', 'expected_goals_for', 'xgf', 'xg', 'xgoals'],
+            'home_xga': ['home_xg_against', 'home_xga', 'home_xgagainst', 'home_expected_goals_against'],
+            'away_xga': ['away_xg_against', 'away_xga', 'away_xgagainst', 'away_expected_goals_against'],
+            'shots_allowed_pg': ['shots_allowed', 'shots_against', 'shots_conceded', 'shots_against_pg'],
+        }
+        
+        # Try to map variations to standard names
+        for standard_name, variations in column_variations.items():
+            if standard_name not in df.columns:
+                for variation in variations:
+                    if variation.lower() in df.columns:
+                        df[standard_name] = df[variation.lower()]
+                        st.info(f"Mapped '{variation}' to '{standard_name}'")
+                        break
+        
+        # Required columns EXACTLY as you specified
         required_cols = [
             'overall_position', 'team', 'venue', 'matches_played', 'xg_for', 'goals',
             'home_xga', 'away_xga', 'goals_conceded', 'home_xgdiff_def', 'away_xgdiff_def',
@@ -481,10 +511,55 @@ def load_league_data(league_name):
             'goals_scored_last_5', 'goals_conceded_last_5'
         ]
         
-        missing_cols = [col for col in required_cols if col not in df.columns]
+        # Check what columns we have
+        available_cols = list(df.columns)
+        missing_cols = [col for col in required_cols if col not in available_cols]
+        
         if missing_cols:
-            st.warning(f"Missing columns in {league_name} data: {', '.join(missing_cols)}")
-            st.warning("Some predictions may be less accurate")
+            st.warning(f"⚠️ Missing columns in {league_name} data: {', '.join(missing_cols)}")
+            st.info(f"Available columns: {', '.join(available_cols)}")
+            
+            # Try to use the first few rows to understand the data
+            with st.expander("🔍 View Raw Data Structure"):
+                st.write("**Original column names:**", original_columns)
+                st.write("**Standardized column names:**", available_cols)
+                st.write("**First 3 rows of data:**")
+                st.dataframe(df.head(3))
+            
+            # Check if it's just capitalization issues
+            for missing_col in missing_cols[:3]:  # Show first 3 issues
+                similar_cols = [col for col in available_cols if missing_col.lower() in col.lower()]
+                if similar_cols:
+                    st.info(f"Found similar columns for '{missing_col}': {similar_cols}")
+            
+            return None
+        
+        # Validate data types and fix if needed
+        numeric_cols = ['matches_played', 'xg_for', 'goals', 'home_xga', 'away_xga', 
+                       'goals_conceded', 'home_xgdiff_def', 'away_xgdiff_def', 'defenders_out',
+                       'form_last_5', 'motivation', 'open_play_pct', 'set_piece_pct', 
+                       'counter_attack_pct', 'shots_allowed_pg', 'home_ppg_diff',
+                       'goals_scored_last_5', 'goals_conceded_last_5']
+        
+        for col in numeric_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+                # Fill NaN with reasonable defaults
+                if df[col].isna().any():
+                    if col == 'xg_for':
+                        df[col].fillna(1.0, inplace=True)
+                    elif col in ['home_xga', 'away_xga', 'goals_conceded']:
+                        df[col].fillna(1.5, inplace=True)
+                    elif col == 'form_last_5':
+                        df[col].fillna(5.0, inplace=True)
+                    elif col == 'motivation':
+                        df[col].fillna(3.0, inplace=True)
+                    elif col == 'shots_allowed_pg':
+                        df[col].fillna(12.0, inplace=True)
+                    else:
+                        df[col].fillna(0, inplace=True)
+        
+        st.success(f"✅ Successfully loaded {league_name} data ({len(df)} records)")
         
         return df
         
