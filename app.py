@@ -39,17 +39,13 @@ CONSTANTS = {
 }
 
 # ============================================================================
-# CALIBRATED PROFESSIONAL PREDICTION ENGINE
+# REFINED PROFESSIONAL PREDICTION ENGINE (2nd Order Tuning)
 # ============================================================================
 
-class CalibratedFootballPredictor:
+class RefinedFootballPredictor:
     """
-    Calibrated version based on test results
-    Fixes identified issues:
-    1. Position factor overinflation
-    2. Recent goals underweighted
-    3. Home advantage miscalibrated
-    4. BTTS logic unrealistic
+    Second-order refinement after calibration
+    Fixes: Mid-range scoring slumps, overconfidence, context-aware probabilities
     """
     
     def __init__(self, league_params):
@@ -62,29 +58,20 @@ class CalibratedFootballPredictor:
         self.scoring_insights = []
         self.calibration_notes = []
     
-    # ==================== CALIBRATED CORE LOGIC ====================
+    # ==================== REFINED CORE LOGIC ====================
     
     def _calculate_position_factor(self, position):
-        """
-        FIX 1: Realistic position impact
-        Top teams: +20-30% boost, Bottom teams: 10-20% penalty
-        """
+        """Calibrated position factor"""
         if position <= 3:
-            factor = 1.25  # Elite teams: +25%
-            self.calibration_notes.append(f"Position #{position}: Elite team (+25% boost)")
+            return 1.25
         elif position <= 6:
-            factor = 1.15  # Top teams: +15%
-            self.calibration_notes.append(f"Position #{position}: Top team (+15% boost)")
+            return 1.15
         elif position <= 12:
-            factor = 1.05  # Mid-table: +5%
+            return 1.05
         elif position <= 16:
-            factor = 0.95  # Lower: -5%
-            self.calibration_notes.append(f"Position #{position}: Lower team (-5% penalty)")
+            return 0.95
         else:
-            factor = 0.85  # Bottom: -15%
-            self.calibration_notes.append(f"Position #{position}: Bottom team (-15% penalty)")
-        
-        return factor
+            return 0.85
     
     def _calculate_true_strength(self, team_data, is_home):
         """
@@ -115,79 +102,92 @@ class CalibratedFootballPredictor:
     
     def _adjust_for_recent_scoring(self, team_data, base_lambda, is_home):
         """
-        FIX 2: Recent goals override historical xG in extremes
+        REFINED: Proper penalties for mid-range scoring slumps
+        0.0 goals → ×0.50 (crisis)
+        0.1-0.4 → ×0.70 (very poor)
+        0.5-0.9 → ×0.85 (poor but not crisis) ← NEW
+        1.0-1.4 → ×0.95 (slightly below average)
+        1.5+ → ×1.05-1.30 (good to excellent)
         """
         recent_goals = team_data.get('goals_scored_last_5', 0) / 5
+        historical_avg = team_data.get('goals', 0) / max(team_data.get('matches_played', 1), 1)
         
-        # CRITICAL FIX: Recent scoring crisis overrides everything
-        if recent_goals == 0:
-            adjustment = 0.5  # HALF the expected goals
-            self.calibration_notes.append(f"{'Home' if is_home else 'Away'} scoring crisis: 0 goals in last 5 games (-50% penalty)")
-        elif recent_goals < 0.5:
-            adjustment = 0.7
-            self.calibration_notes.append(f"{'Home' if is_home else 'Away'} poor recent scoring: {recent_goals:.1f} goals/game (-30% penalty)")
-        elif recent_goals > 2.0:
-            adjustment = 1.3  # Hot scoring form
-            self.calibration_notes.append(f"{'Home' if is_home else 'Away'} excellent recent scoring: {recent_goals:.1f} goals/game (+30% boost)")
+        # Calculate performance ratio
+        if historical_avg > 0:
+            performance_ratio = recent_goals / historical_avg
         else:
-            adjustment = 1.0
+            performance_ratio = 1.0
+        
+        # REFINED ADJUSTMENT MATRIX
+        if recent_goals == 0:
+            adjustment = 0.50  # Scoring crisis
+            self.calibration_notes.append(f"{'Home' if is_home else 'Away'} scoring crisis: 0 goals in last 5 (-50% penalty)")
+        
+        elif recent_goals < 0.5:
+            adjustment = 0.70  # Very poor
+            self.calibration_notes.append(f"{'Home' if is_home else 'Away'} very poor scoring: {recent_goals:.1f} goals/game (-30% penalty)")
+        
+        elif recent_goals < 1.0:
+            # MID-RANGE SLUMP: 0.5-0.9 goals/game
+            if performance_ratio < 0.6:
+                adjustment = 0.80  # Severely underperforming vs historical
+                self.calibration_notes.append(f"{'Home' if is_home else 'Away'} severe slump: {recent_goals:.1f} goals/game ({performance_ratio:.0%} of historical, -20% penalty)")
+            elif performance_ratio < 0.8:
+                adjustment = 0.85  # Moderately underperforming
+                self.calibration_notes.append(f"{'Home' if is_home else 'Away'} scoring slump: {recent_goals:.1f} goals/game ({performance_ratio:.0%} of historical, -15% penalty)")
+            else:
+                adjustment = 0.90  # Slightly underperforming
+                self.calibration_notes.append(f"{'Home' if is_home else 'Away'} slight slump: {recent_goals:.1f} goals/game ({performance_ratio:.0%} of historical, -10% penalty)")
+        
+        elif recent_goals < 1.5:
+            adjustment = 0.95  # Slightly below average
+        
+        elif recent_goals < 2.0:
+            adjustment = 1.05  # Good form
+            self.calibration_notes.append(f"{'Home' if is_home else 'Away'} good scoring form: {recent_goals:.1f} goals/game (+5% boost)")
+        
+        elif recent_goals < 2.5:
+            adjustment = 1.15  # Very good form
+            self.calibration_notes.append(f"{'Home' if is_home else 'Away'} very good scoring form: {recent_goals:.1f} goals/game (+15% boost)")
+        
+        else:
+            adjustment = 1.30  # Excellent form
+            self.calibration_notes.append(f"{'Home' if is_home else 'Away'} excellent scoring: {recent_goals:.1f} goals/game (+30% boost)")
         
         adjusted_lambda = base_lambda * adjustment
         
-        self.debug_info.append(f"Recent Scoring Adjust ({'Home' if is_home else 'Away'}): recent={recent_goals:.1f}, adjustment={adjustment:.2f}, before={base_lambda:.2f}, after={adjusted_lambda:.2f}")
+        self.debug_info.append(f"Recent Scoring Adjust ({'Home' if is_home else 'Away'}): recent={recent_goals:.1f}, hist={historical_avg:.1f}, ratio={performance_ratio:.2f}, adjustment={adjustment:.2f}, before={base_lambda:.2f}, after={adjusted_lambda:.2f}")
         
         return adjusted_lambda
     
     def _calculate_home_advantage(self, home_data, away_data):
-        """
-        FIX 3: Realistic home advantage calibration
-        """
+        """Calibrated home advantage"""
         home_ppg_diff = home_data.get('home_ppg_diff', 0)
         home_position = home_data.get('overall_position', 10)
-        away_position = away_data.get('overall_position', 10)
         
-        # Base advantage from league
-        base = self.league_params['home_advantage']  # ~1.18
-        
-        # CALIBRATED: Weak home teams get LESS advantage
+        # Base advantage
+        base = self.league_params['home_advantage']
         if home_position >= 16:
-            base = 1.05  # Minimal advantage for bottom teams
-            self.calibration_notes.append(f"Bottom home team (#{home_position}): reduced home advantage (1.05)")
+            base = 1.05
         
         # Adjust by ppg_diff (capped)
         ppg_adjustment = 1.0 + (min(1.0, max(-0.5, home_ppg_diff)) * 0.1)
-        # +1.0 ppg → +10% boost, -0.5 ppg → -5% penalty
-        
-        if home_ppg_diff > 0.8:
-            self.calibration_notes.append(f"Strong home form: +{home_ppg_diff:.1f} PPG diff (+{((ppg_adjustment-1)*100):.0f}% boost)")
-        elif home_ppg_diff < -0.3:
-            self.calibration_notes.append(f"Weak home form: {home_ppg_diff:.1f} PPG diff ({((ppg_adjustment-1)*100):.0f}% penalty)")
-        
         final_advantage = base * ppg_adjustment
         
-        # CALIBRATED: Strong away teams reduce advantage
-        if away_position <= 6:
+        # Strong away teams reduce advantage
+        if away_data.get('overall_position', 10) <= 6:
             final_advantage *= 0.9
-            self.calibration_notes.append(f"Strong away team (#{away_position}): reduces home advantage (-10%)")
         
-        # Apply reasonable bounds
-        final_advantage = max(1.02, min(1.35, final_advantage))
-        
-        self.debug_info.append(f"Home Advantage: base={base:.2f}, ppg_diff={home_ppg_diff:.1f}, ppg_adj={ppg_adjustment:.2f}, final={final_advantage:.2f}")
-        
-        return final_advantage
+        return max(1.02, min(1.35, final_advantage))
     
     def _calculate_btts_probability(self, home_data, away_data):
-        """
-        FIX 4: Realistic BTTS logic based on recent performance
-        """
+        """REFINED: Better BTTS logic"""
         home_recent = home_data.get('goals_scored_last_5', 0) / 5
         away_recent = away_data.get('goals_scored_last_5', 0) / 5
         
-        # Start with base probability
         base = 0.5
         
-        # CALIBRATED: Recent scoring is CRITICAL
+        # Recent scoring critical
         if home_recent == 0:
             base -= 0.3
             self.calibration_notes.append("Home not scoring recently → BTTS unlikely")
@@ -218,7 +218,106 @@ class CalibratedFootballPredictor:
         
         return btts_prob
     
-    # ==================== OTHER CALIBRATED METHODS ====================
+    # ==================== REFINED CONFIDENCE CALCULATION ====================
+    
+    def _calculate_confidence(self, home_lambda, away_lambda, home_data, away_data):
+        """
+        REFINED: Better confidence scores
+        Reduce confidence when:
+        1. Both teams poor recent scoring
+        2. Bottom teams involved
+        3. High variance situations
+        """
+        confidence = 50
+        
+        # Goal difference (still important)
+        goal_diff = abs(home_lambda - away_lambda)
+        confidence += goal_diff * 15
+        
+        # Position difference
+        pos_diff = abs(home_data['overall_position'] - away_data['overall_position'])
+        if pos_diff >= 10:
+            confidence += 25
+        elif pos_diff >= 5:
+            confidence += 15
+        
+        # REFINEMENT: Recent scoring consistency penalty
+        home_recent = home_data.get('goals_scored_last_5', 0) / 5
+        home_avg = home_data.get('goals', 0) / max(home_data.get('matches_played', 1), 1)
+        home_consistency = home_recent / home_avg if home_avg > 0 else 1.0
+        
+        away_recent = away_data.get('goals_scored_last_5', 0) / 5
+        away_avg = away_data.get('goals', 0) / max(away_data.get('matches_played', 1), 1)
+        away_consistency = away_recent / away_avg if away_avg > 0 else 1.0
+        
+        # Penalty for teams severely underperforming
+        consistency_penalty = 0
+        if home_consistency < 0.6:
+            consistency_penalty += 10
+            self.calibration_notes.append(f"Home severely underperforming: {home_consistency:.0%} of historical average → confidence -10%")
+        if away_consistency < 0.6:
+            consistency_penalty += 10
+            self.calibration_notes.append(f"Away severely underperforming: {away_consistency:.0%} of historical average → confidence -10%")
+        
+        # Penalty for bottom teams (high variance)
+        if home_data['overall_position'] >= 16 or away_data['overall_position'] >= 16:
+            consistency_penalty += 5
+            self.calibration_notes.append("Bottom teams involved → higher variance → confidence -5%")
+        
+        confidence -= consistency_penalty
+        
+        return round(max(30, min(85, confidence)), 1)
+    
+    # ==================== REFINED SCORING PATTERN PREDICTION ====================
+    
+    def _predict_scoring_patterns(self, home_data, away_data, home_lambda, away_lambda):
+        """REFINED: Better Over/Under probabilities"""
+        total_lambda = home_lambda + away_lambda
+        
+        # Get recent scoring context
+        home_recent = home_data.get('goals_scored_last_5', 0) / 5
+        away_recent = away_data.get('goals_scored_last_5', 0) / 5
+        
+        # Base probability from Poisson
+        if total_lambda <= 1.8:
+            base_over = 0.25
+        elif total_lambda <= 2.2:
+            base_over = 0.40
+        elif total_lambda <= 2.6:
+            base_over = 0.55
+        elif total_lambda <= 3.0:
+            base_over = 0.70
+        else:
+            base_over = 0.85
+        
+        # REFINEMENT: Adjust for recent scoring context
+        recent_adjustment = 1.0
+        
+        # If both teams scoring poorly recently, reduce Over probability
+        if home_recent < 1.0 and away_recent < 1.0:
+            recent_adjustment *= 0.8  # -20% for poor scoring
+            self.calibration_notes.append("Both teams poor recent scoring → Over less likely (-20%)")
+        
+        # If both teams scoring well recently, increase Over probability
+        if home_recent > 1.5 and away_recent > 1.5:
+            recent_adjustment *= 1.2  # +20% for good scoring
+            self.calibration_notes.append("Both teams good recent scoring → Over more likely (+20%)")
+        
+        final_over = base_over * recent_adjustment
+        final_over = max(0.15, min(0.90, final_over))  # Keep within bounds
+        
+        # BTTS probability (already refined)
+        btts_prob = self._calculate_btts_probability(home_data, away_data)
+        
+        return {
+            'predicted_total': total_lambda,
+            'over_25_prob': final_over,
+            'under_25_prob': 1 - final_over,
+            'btts_prob': btts_prob,
+            'btts_no_prob': 1 - btts_prob,
+        }
+    
+    # ==================== SUPPORTING METHODS ====================
     
     def _assess_injury_impact(self, home_data, away_data):
         """Calibrated injury impact"""
@@ -285,94 +384,6 @@ class CalibratedFootballPredictor:
         
         return adjustments
     
-    # ==================== MAIN PREDICTION METHOD ====================
-    
-    def predict_match(self, home_data, away_data):
-        """Main prediction with all calibrations"""
-        self.reset()
-        
-        # 1. TRUE STRENGTH (with calibrated position factor)
-        home_strength = self._calculate_true_strength(home_data, is_home=True)
-        away_strength = self._calculate_true_strength(away_data, is_home=False)
-        
-        # 2. RECENT SCORING ADJUSTMENT (CRITICAL FIX)
-        home_strength = self._adjust_for_recent_scoring(home_data, home_strength, is_home=True)
-        away_strength = self._adjust_for_recent_scoring(away_data, away_strength, is_home=False)
-        
-        # 3. OTHER FACTORS
-        injury_impact = self._assess_injury_impact(home_data, away_data)
-        form_context = self._assess_form_with_context(home_data, away_data)
-        style_analysis = self._analyze_style_matchup(home_data, away_data)
-        home_advantage = self._calculate_home_advantage(home_data, away_data)
-        
-        # INTEGRATE ALL FACTORS
-        home_lambda = home_strength
-        away_lambda = away_strength
-        
-        # Apply adjustments
-        adjustments = [
-            ('Injury', injury_impact['home'], injury_impact['away']),
-            ('Form', form_context['home'], form_context['away']),
-            ('Style', style_analysis['home'], style_analysis['away']),
-            ('Home/away', home_advantage, 2.0 - home_advantage),
-        ]
-        
-        for name, home_adj, away_adj in adjustments:
-            home_lambda *= home_adj
-            away_lambda *= away_adj
-            self.debug_info.append(f"{name}: Home ×{home_adj:.2f}, Away ×{away_adj:.2f}")
-        
-        # FINAL CALIBRATION
-        home_lambda, away_lambda = self._final_calibration(home_lambda, away_lambda, home_data, away_data)
-        
-        # SCORING PREDICTIONS
-        scoring_prediction = self._predict_scoring_patterns(home_data, away_data, home_lambda, away_lambda)
-        
-        # CALCULATE PROBABILITIES
-        probabilities = self._calculate_probabilities(home_lambda, away_lambda)
-        
-        # GENERATE KEY FACTORS
-        key_factors = self._generate_key_factors(home_data, away_data, home_lambda, away_lambda, scoring_prediction)
-        
-        # COMBINE ALL DEBUG INFO
-        all_info = self.calibration_notes + self.debug_info + [f"Final: Home λ={home_lambda:.2f}, Away λ={away_lambda:.2f}, Total={home_lambda+away_lambda:.2f}"]
-        
-        return {
-            'expected_goals': {'home': home_lambda, 'away': away_lambda},
-            'probabilities': probabilities,
-            'scoring_analysis': scoring_prediction,
-            'confidence': self._calculate_confidence(home_lambda, away_lambda, home_data, away_data),
-            'key_factors': key_factors + all_info,
-            'success': True
-        }
-    
-    def _predict_scoring_patterns(self, home_data, away_data, home_lambda, away_lambda):
-        """Predict total goals and BTTS"""
-        total_lambda = home_lambda + away_lambda
-        
-        # Simple over/under probability based on total
-        if total_lambda <= 1.8:
-            over_prob = 0.25
-        elif total_lambda <= 2.2:
-            over_prob = 0.40
-        elif total_lambda <= 2.6:
-            over_prob = 0.55
-        elif total_lambda <= 3.0:
-            over_prob = 0.70
-        else:
-            over_prob = 0.85
-        
-        # BTTS probability (using calibrated method)
-        btts_prob = self._calculate_btts_probability(home_data, away_data)
-        
-        return {
-            'predicted_total': total_lambda,
-            'over_25_prob': over_prob,
-            'under_25_prob': 1 - over_prob,
-            'btts_prob': btts_prob,
-            'btts_no_prob': 1 - btts_prob,
-        }
-    
     def _final_calibration(self, home_lambda, away_lambda, home_data, away_data):
         """Final calibration with realistic constraints"""
         # Minimum values
@@ -411,23 +422,6 @@ class CalibratedFootballPredictor:
             'away_win': away_wins / simulations
         }
     
-    def _calculate_confidence(self, home_lambda, away_lambda, home_data, away_data):
-        """Calculate model confidence"""
-        confidence = 50
-        
-        # Goal difference
-        goal_diff = abs(home_lambda - away_lambda)
-        confidence += goal_diff * 15
-        
-        # Position difference
-        pos_diff = abs(home_data['overall_position'] - away_data['overall_position'])
-        if pos_diff >= 10:
-            confidence += 25
-        elif pos_diff >= 5:
-            confidence += 15
-        
-        return round(max(30, min(85, confidence)), 1)
-    
     def _generate_key_factors(self, home_data, away_data, home_lambda, away_lambda, scoring_prediction):
         """Generate key factors"""
         factors = []
@@ -444,16 +438,24 @@ class CalibratedFootballPredictor:
         # Recent scoring factors
         home_recent = home_data.get('goals_scored_last_5', 0) / 5
         away_recent = away_data.get('goals_scored_last_5', 0) / 5
+        home_avg = home_data.get('goals', 0) / max(home_data.get('matches_played', 1), 1)
+        away_avg = away_data.get('goals', 0) / max(away_data.get('matches_played', 1), 1)
         
         if home_recent == 0:
             factors.append("Home not scoring recently (0 goals in last 5)")
         elif home_recent < 0.5:
-            factors.append(f"Home poor recent scoring: {home_recent:.1f} goals/game")
+            factors.append(f"Home very poor recent scoring: {home_recent:.1f} goals/game")
+        elif home_recent < 1.0 and home_avg > 0:
+            ratio = home_recent / home_avg
+            factors.append(f"Home scoring slump: {home_recent:.1f} goals/game ({ratio:.0%} of historical average)")
         
         if away_recent == 0:
             factors.append("Away not scoring recently (0 goals in last 5)")
         elif away_recent < 0.5:
-            factors.append(f"Away poor recent scoring: {away_recent:.1f} goals/game")
+            factors.append(f"Away very poor recent scoring: {away_recent:.1f} goals/game")
+        elif away_recent < 1.0 and away_avg > 0:
+            ratio = away_recent / away_avg
+            factors.append(f"Away scoring slump: {away_recent:.1f} goals/game ({ratio:.0%} of historical average)")
         
         # Expected goals factors
         if home_lambda > 2.0:
@@ -462,6 +464,70 @@ class CalibratedFootballPredictor:
             factors.append(f"High away expected goals: {away_lambda:.2f}")
         
         return factors
+    
+    # ==================== MAIN PREDICTION METHOD ====================
+    
+    def predict_match(self, home_data, away_data):
+        """Main prediction with all refinements"""
+        self.reset()
+        
+        # 1. TRUE STRENGTH (with calibrated position factor)
+        home_strength = self._calculate_true_strength(home_data, is_home=True)
+        away_strength = self._calculate_true_strength(away_data, is_home=False)
+        
+        # 2. REFINED RECENT SCORING ADJUSTMENT
+        home_strength = self._adjust_for_recent_scoring(home_data, home_strength, is_home=True)
+        away_strength = self._adjust_for_recent_scoring(away_data, away_strength, is_home=False)
+        
+        # 3. OTHER FACTORS
+        injury_impact = self._assess_injury_impact(home_data, away_data)
+        form_context = self._assess_form_with_context(home_data, away_data)
+        style_analysis = self._analyze_style_matchup(home_data, away_data)
+        home_advantage = self._calculate_home_advantage(home_data, away_data)
+        
+        # INTEGRATE ALL FACTORS
+        home_lambda = home_strength
+        away_lambda = away_strength
+        
+        # Apply adjustments
+        adjustments = [
+            ('Injury', injury_impact['home'], injury_impact['away']),
+            ('Form', form_context['home'], form_context['away']),
+            ('Style', style_analysis['home'], style_analysis['away']),
+            ('Home/away', home_advantage, 2.0 - home_advantage),
+        ]
+        
+        for name, home_adj, away_adj in adjustments:
+            home_lambda *= home_adj
+            away_lambda *= away_adj
+            self.debug_info.append(f"{name}: Home ×{home_adj:.2f}, Away ×{away_adj:.2f}")
+        
+        # FINAL CALIBRATION
+        home_lambda, away_lambda = self._final_calibration(home_lambda, away_lambda, home_data, away_data)
+        
+        # REFINED SCORING PREDICTIONS
+        scoring_prediction = self._predict_scoring_patterns(home_data, away_data, home_lambda, away_lambda)
+        
+        # CALCULATE PROBABILITIES
+        probabilities = self._calculate_probabilities(home_lambda, away_lambda)
+        
+        # REFINED CONFIDENCE SCORE
+        confidence = self._calculate_confidence(home_lambda, away_lambda, home_data, away_data)
+        
+        # GENERATE KEY FACTORS
+        key_factors = self._generate_key_factors(home_data, away_data, home_lambda, away_lambda, scoring_prediction)
+        
+        # COMBINE ALL INFO
+        all_info = self.calibration_notes + self.debug_info + [f"Final: Home λ={home_lambda:.2f}, Away λ={away_lambda:.2f}, Total={home_lambda+away_lambda:.2f}"]
+        
+        return {
+            'expected_goals': {'home': home_lambda, 'away': away_lambda},
+            'probabilities': probabilities,
+            'scoring_analysis': scoring_prediction,
+            'confidence': confidence,
+            'key_factors': key_factors + all_info,
+            'success': True
+        }
 
 # ============================================================================
 # DATA LOADING & UI (UNCHANGED)
@@ -542,7 +608,7 @@ def prepare_team_data(df, team_name, venue):
     return team_data.iloc[0].to_dict()
 
 # ============================================================================
-# STREAMLIT UI COMPONENTS (UNCHANGED)
+# STREAMLIT UI COMPONENTS (UPDATED FOR REFINED MODEL)
 # ============================================================================
 
 def display_prediction_box(title, value, subtitle="", color="#4ECDC4"):
@@ -603,7 +669,7 @@ def display_scoring_analysis(analysis):
 
 def main():
     st.set_page_config(
-        page_title="Calibrated Football Predictor",
+        page_title="Refined Football Predictor",
         page_icon="⚽",
         layout="wide"
     )
@@ -621,9 +687,9 @@ def main():
     </style>
     """, unsafe_allow_html=True)
     
-    st.markdown('<h1 style="text-align: center; color: #4ECDC4;">⚽ Calibrated Football Predictor</h1>', 
+    st.markdown('<h1 style="text-align: center; color: #4ECDC4;">⚽ Refined Football Predictor</h1>', 
                 unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; color: #666;">CALIBRATION UPDATE: Fixed Position Factor, Recent Scoring, Home Advantage, BTTS Logic</p>', 
+    st.markdown('<p style="text-align: center; color: #666;">2nd ORDER REFINEMENT: Fixed mid-range scoring slumps, overconfidence, context-aware probabilities</p>', 
                 unsafe_allow_html=True)
     
     if 'league_data' not in st.session_state:
@@ -647,13 +713,14 @@ def main():
                     st.error(f"Failed to load {selected_league} data")
         
         st.markdown("---")
-        st.markdown("### 🔧 Calibration Updates")
+        st.markdown("### 🔧 Refinement Updates")
         st.success("""
-        **Critical Fixes:**
-        1. **Position Factor**: Realistic caps (not 2x!)
-        2. **Recent Scoring**: 0 goals = -50% penalty
-        3. **Home Advantage**: Bottom teams get less
-        4. **BTTS Logic**: Recent goals > historical xG
+        **2nd Order Improvements:**
+        1. **Mid-range scoring slumps**: 0.5-0.9 goals now penalized
+        2. **Performance ratio**: Scoring 43% vs 80% of historical treated differently
+        3. **Over probabilities**: Context-aware (poor scoring reduces Over probability)
+        4. **Confidence scores**: Penalties for poor form and bottom teams
+        5. **Scoring crisis detection**: Teams severely underperforming get proper penalties
         """)
     
     if st.session_state.league_data is None:
@@ -681,7 +748,12 @@ def main():
                 st.metric("Home xG/Game", f"{home_xg:.2f}")
             with col2a:
                 recent_goals = home_row['goals_scored_last_5']/5
-                st.metric("Recent Goals/Game", f"{recent_goals:.1f}")
+                hist_avg = home_row['goals']/home_row['matches_played'] if home_row['matches_played'] > 0 else 0
+                if hist_avg > 0:
+                    ratio = recent_goals / hist_avg
+                    st.metric("Recent Goals/Game", f"{recent_goals:.1f}", f"{ratio:.0%} of historical")
+                else:
+                    st.metric("Recent Goals/Game", f"{recent_goals:.1f}")
     
     with col2:
         away_options = [t for t in available_teams if t != home_team]
@@ -697,9 +769,14 @@ def main():
                 st.metric("Away xG/Game", f"{away_xg:.2f}")
             with col2b:
                 recent_goals = away_row['goals_scored_last_5']/5
-                st.metric("Recent Goals/Game", f"{recent_goals:.1f}")
+                hist_avg = away_row['goals']/away_row['matches_played'] if away_row['matches_played'] > 0 else 0
+                if hist_avg > 0:
+                    ratio = recent_goals / hist_avg
+                    st.metric("Recent Goals/Game", f"{recent_goals:.1f}", f"{ratio:.0%} of historical")
+                else:
+                    st.metric("Recent Goals/Game", f"{recent_goals:.1f}")
     
-    if st.button("🚀 Run Calibrated Prediction", type="primary", use_container_width=True):
+    if st.button("🚀 Run Refined Prediction", type="primary", use_container_width=True):
         if home_team == away_team:
             st.error("Please select different teams.")
             return
@@ -708,14 +785,14 @@ def main():
             home_data = prepare_team_data(df, home_team, 'home')
             away_data = prepare_team_data(df, away_team, 'away')
             
-            predictor = CalibratedFootballPredictor(league_params)
+            predictor = RefinedFootballPredictor(league_params)
             
-            with st.spinner("Running calibrated analysis..."):
+            with st.spinner("Running refined analysis..."):
                 result = predictor.predict_match(home_data, away_data)
                 
                 if result['success']:
                     st.session_state.prediction_result = result
-                    st.success("✅ Calibrated analysis complete!")
+                    st.success("✅ Refined analysis complete!")
         
         except Exception as e:
             st.error(f"Error: {str(e)}")
@@ -724,9 +801,9 @@ def main():
         result = st.session_state.prediction_result
         
         st.markdown("---")
-        st.markdown("# 📊 Calibrated Analysis Results")
+        st.markdown("# 📊 Refined Analysis Results")
         
-        st.markdown("### 🎯 Expected Goals (Calibrated)")
+        st.markdown("### 🎯 Expected Goals (Refined)")
         col1, col2 = st.columns(2)
         with col1:
             display_prediction_box(
@@ -767,17 +844,23 @@ def main():
         confidence = result['confidence']
         st.markdown(f"""
         <div style="background: #4ECDC4; border-radius: 15px; padding: 20px; margin: 15px 0; color: white;">
-            <h3 style="text-align: center; margin: 0;">🤖 Model Confidence: {confidence:.1f}%</h3>
+            <h3 style="text-align: center; margin: 0;">🤖 Refined Model Confidence: {confidence:.1f}%</h3>
         </div>
         """, unsafe_allow_html=True)
         
         if result['key_factors']:
-            st.markdown("### 🔑 Calibration Notes & Key Factors")
+            st.markdown("### 🔑 Refinement Notes & Key Factors")
             for factor in result['key_factors']:
-                if "Calibration" in str(factor) or "scoring" in str(factor).lower() or "position" in str(factor).lower():
-                    st.info(f"• {factor}")
+                if "scoring crisis" in str(factor).lower() or "severe slump" in str(factor).lower():
+                    st.error(f"⚡ {factor}")
+                elif "slump" in str(factor).lower() or "underperforming" in str(factor).lower():
+                    st.warning(f"⚠️ {factor}")
+                elif "boost" in str(factor).lower() or "excellent" in str(factor).lower():
+                    st.success(f"📈 {factor}")
+                elif "Calibration" in str(factor) or "confidence" in str(factor):
+                    st.info(f"🎯 {factor}")
                 elif "DEBUG" in str(factor):
-                    st.warning(f"• {factor}")
+                    st.code(f"{factor}", language=None)
                 else:
                     st.success(f"• {factor}")
 
