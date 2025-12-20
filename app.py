@@ -58,15 +58,15 @@ class FootballPredictionEngine:
         self.confidence = 0
         self.key_factors = []
         self.recommendations = []
-        self.debug_info = []  # Add debug info storage
+        self.debug_info = []
     
     def _get_tier_based_max_lambda(self, position, is_home):
         """Get tier-based maximum λ based on team position."""
         if position <= 3:  # Elite team
             if is_home:
-                return 3.0  # Elite home teams can score more
+                return 3.0
             else:
-                return 2.5  # Elite away teams
+                return 2.5
         elif position <= 6:  # Top team
             if is_home:
                 return 2.7
@@ -120,23 +120,17 @@ class FootballPredictionEngine:
         raw_ratio = opp_defense / self.league_params['avg_goals']
         
         # CALIBRATED PIECEWISE DAMPENING
-        if raw_ratio > 1.8:  # Opponent is 80%+ worse than average (EXTREME)
-            # Very strong dampening: only 25% of the excess
+        if raw_ratio > 1.8:
             dampened_factor = 1.0 + (raw_ratio - 1.0) * 0.25
-        elif raw_ratio > 1.4:  # Opponent is 40%+ worse than average (HIGH)
-            # Strong dampening: 50% of the excess
+        elif raw_ratio > 1.4:
             dampened_factor = 1.0 + (raw_ratio - 1.0) * 0.5
-        elif raw_ratio < 0.6:  # Opponent is 40%+ better than average (EXTREME)
-            # Very strong dampening for excellent defenses
+        elif raw_ratio < 0.6:
             dampened_factor = 1.0 - (1.0 - raw_ratio) * 0.4
-        elif raw_ratio < 0.8:  # Opponent is 20%+ better than average (HIGH)
-            # Strong dampening
+        elif raw_ratio < 0.8:
             dampened_factor = 1.0 - (1.0 - raw_ratio) * 0.6
         else:
-            # Normal range: moderate dampening
             dampened_factor = raw_ratio ** 0.8
         
-        # Additional caps based on reality
         dampened_factor = max(0.6, min(1.8, dampened_factor))
         
         self.debug_info.append(f"Step 2 {'Home' if is_home else 'Away'}: opp_defense={opp_defense:.2f}, raw_ratio={raw_ratio:.2f}, dampened_factor={dampened_factor:.2f}")
@@ -144,13 +138,10 @@ class FootballPredictionEngine:
     
     def _step3_recent_form_override(self, team_data, is_home):
         """STEP 3: Apply recent form trends with venue-aware calculation."""
-        # Calculate recent averages (actual goals)
         recent_goals_pg = team_data.get('goals_scored_last_5', 0) / 5
         
-        # Calculate season averages
         matches_played = max(team_data.get('matches_played', 1), 1)
         
-        # For form calculation, use venue-specific xG as proxy for venue-specific scoring
         if is_home:
             venue_xg = team_data.get('home_xg_for', 0)
         else:
@@ -161,27 +152,24 @@ class FootballPredictionEngine:
         else:
             venue_xg_pg = self.league_params['avg_goals']
         
-        # Calculate attack trend - compare recent ACTUAL goals to venue-specific xG
         if venue_xg_pg > 0:
             attack_trend = recent_goals_pg / venue_xg_pg
         else:
             attack_trend = 1.0
         
-        # Get team position for tier-based caps
         position = team_data.get('overall_position', 10)
         
         # TIER-BASED FORM CAPS
-        if position <= 3:  # Elite teams
-            trend_min = 0.8  # Less harsh for elite teams
+        if position <= 3:
+            trend_min = 0.8
             trend_max = 1.4
-        elif position <= 6:  # Top teams
+        elif position <= 6:
             trend_min = 0.75
             trend_max = 1.3
-        else:  # Other teams
+        else:
             trend_min = 0.7
             trend_max = 1.3
         
-        # Apply tier-based caps
         attack_trend = max(trend_min, min(trend_max, attack_trend))
         
         self.debug_info.append(f"Step 3 {'Home' if is_home else 'Away'}: recent_goals={recent_goals_pg:.2f}, venue_xg_pg={venue_xg_pg:.2f}, raw_trend={recent_goals_pg/venue_xg_pg if venue_xg_pg>0 else 1.0:.2f}, final_trend={attack_trend:.2f}")
@@ -191,7 +179,6 @@ class FootballPredictionEngine:
         """STEP 4: Apply calibrated key factor adjustments."""
         adjustments = {'home': 1.0, 'away': 1.0}
         
-        # 1. Injuries - calibrated impact
         home_injury_impact = 1.0 - (home_data.get('defenders_out', 0) * 
                                    CONSTANTS['DEFENDER_INJURY_IMPACT'])
         away_injury_impact = 1.0 - (away_data.get('defenders_out', 0) * 
@@ -200,7 +187,6 @@ class FootballPredictionEngine:
         adjustments['home'] *= max(0.85, home_injury_impact)
         adjustments['away'] *= max(0.85, away_injury_impact)
         
-        # 2. Motivation
         home_motivation = home_data.get('motivation', 3)
         away_motivation = away_data.get('motivation', 3)
         
@@ -210,16 +196,14 @@ class FootballPredictionEngine:
         adjustments['home'] *= home_motivation_impact
         adjustments['away'] *= away_motivation_impact
         
-        # 3. Home/Away Strength - calibrated
         home_advantage = self.league_params['home_advantage'] * (
-            1 + home_data.get('home_ppg_diff', 0) * 0.03  # Reduced impact
+            1 + home_data.get('home_ppg_diff', 0) * 0.03
         )
         away_disadvantage = 2.0 - home_advantage
         
         adjustments['home'] *= home_advantage
         adjustments['away'] *= away_disadvantage
         
-        # 4. Playing Style Matchups - reduced impact
         style_adjustments = {'home': 0, 'away': 0}
         
         set_piece_diff = home_data.get('set_piece_pct', 0) - away_data.get('set_piece_pct', 0)
@@ -236,7 +220,6 @@ class FootballPredictionEngine:
         adjustments['home'] += style_adjustments['home']
         adjustments['away'] += style_adjustments['away']
         
-        # 5. Defensive Performance - minor impact
         home_goals_conceded = home_data.get('goals_conceded', 0)
         home_xga = home_data.get('home_xga', 0)
         if home_xga > 0 and home_goals_conceded / home_xga < 0.9:
@@ -251,15 +234,13 @@ class FootballPredictionEngine:
         return adjustments
     
     def _step5_final_calibration(self, home_lambda, away_lambda, home_data, away_data):
-        """STEP 5: Tier-based final calibration."""
-        # Get tier-based maximum λ values
+        """STEP 5: Tier-based final calibration with tier-based diff ratio caps."""
         home_position = home_data.get('overall_position', 10)
         away_position = away_data.get('overall_position', 10)
         
         max_home_lambda = self._get_tier_based_max_lambda(home_position, is_home=True)
         max_away_lambda = self._get_tier_based_max_lambda(away_position, is_home=False)
         
-        # Apply tier-based caps
         home_lambda = max(CONSTANTS['MIN_HOME_LAMBDA'], 
                          min(max_home_lambda, home_lambda))
         away_lambda = max(CONSTANTS['MIN_AWAY_LAMBDA'], 
@@ -268,16 +249,13 @@ class FootballPredictionEngine:
         self.debug_info.append(f"Step 5a: Home pos={home_position}, max_λ={max_home_lambda}, pre-cap_λ={home_lambda:.2f}")
         self.debug_info.append(f"Step 5a: Away pos={away_position}, max_λ={max_away_lambda}, pre-cap_λ={away_lambda:.2f}")
         
-        # Ensure sum is realistic for football
         total_lambda = home_lambda + away_lambda
         
-        # Adjust based on team tiers
-        if home_position <= 3 and away_position >= 16:  # Elite vs weak
-            # Allow higher total for dominant matchups
+        if home_position <= 3 and away_position >= 16:
             max_total = 5.0
-        elif home_position <= 6 and away_position >= 14:  # Strong vs weak
+        elif home_position <= 6 and away_position >= 14:
             max_total = 4.5
-        else:  # Normal matchups
+        else:
             max_total = 4.0
         
         if total_lambda > max_total:
@@ -285,54 +263,58 @@ class FootballPredictionEngine:
             home_lambda *= scale_factor
             away_lambda *= scale_factor
             self.debug_info.append(f"Step 5b: Scaled down, total_λ={total_lambda:.2f} > max={max_total}, scale={scale_factor:.2f}")
-        elif total_lambda < 1.5:  # Minimum for competitive matches
+        elif total_lambda < 1.5:
             scale_factor = 1.5 / total_lambda
             home_lambda *= scale_factor
             away_lambda *= scale_factor
             self.debug_info.append(f"Step 5b: Scaled up, total_λ={total_lambda:.2f} < min=1.5, scale={scale_factor:.2f}")
         
-        # Ensure reasonable difference
-        diff_ratio = home_lambda / away_lambda if away_lambda > 0.1 else 4.0
-        if diff_ratio > 4.0:  # Cap extreme differences
-            target_ratio = 4.0
-            home_lambda = (home_lambda + away_lambda * target_ratio) / (1 + target_ratio)
-            away_lambda = home_lambda / target_ratio
-            self.debug_info.append(f"Step 5c: Capped diff ratio, was {diff_ratio:.2f}, now {home_lambda/away_lambda if away_lambda>0.1 else 'N/A':.2f}")
+        # TIER-BASED DIFF RATIO CAPS - FIXED VERSION
+        diff_ratio = home_lambda / away_lambda if away_lambda > 0.1 else 6.0
+        
+        # Determine max diff ratio based on team tiers
+        if home_position <= 3 and away_position >= 14:  # Elite vs weak
+            max_diff_ratio = 6.0
+        elif home_position <= 3 or away_position >= 16:  # Elite team or very weak opponent
+            max_diff_ratio = 5.0
+        elif home_position <= 6 and away_position >= 12:  # Strong vs weak
+            max_diff_ratio = 4.5
+        else:  # Normal matchups
+            max_diff_ratio = 4.0
+        
+        if diff_ratio > max_diff_ratio:
+            home_lambda = (home_lambda + away_lambda * max_diff_ratio) / (1 + max_diff_ratio)
+            away_lambda = home_lambda / max_diff_ratio
+            self.debug_info.append(f"Step 5c: Tier-based cap, was {diff_ratio:.2f}, max={max_diff_ratio}, now {home_lambda/away_lambda if away_lambda>0.1 else 'N/A':.2f}")
         
         self.debug_info.append(f"Step 5 Final: Home λ={home_lambda:.2f}, Away λ={away_lambda:.2f}")
         return round(home_lambda, 2), round(away_lambda, 2)
     
     def calculate_expected_goals(self, home_data, away_data):
         """Calculate expected goals with tier-based calibration."""
-        self.debug_info = []  # Reset debug info
+        self.debug_info = []
         
-        # STEP 1: Base expected goals
         home_base = self._step1_base_expected_goals(home_data, is_home=True)
         away_base = self._step1_base_expected_goals(away_data, is_home=False)
         
-        # STEP 2: Calibrated opponent defense adjustment
         home_opp_factor = self._step2_opponent_adjustment(home_data, away_data, is_home=True)
         away_opp_factor = self._step2_opponent_adjustment(away_data, home_data, is_home=False)
         
         home_lambda = home_base * home_opp_factor
         away_lambda = away_base * away_opp_factor
         
-        # STEP 3: Recent form override
         home_trend = self._step3_recent_form_override(home_data, is_home=True)
         away_trend = self._step3_recent_form_override(away_data, is_home=False)
         
         home_lambda *= home_trend
         away_lambda *= away_trend
         
-        # STEP 4: Key factor adjustments
         key_factors = self._step4_key_factor_adjustments(home_data, away_data)
         home_lambda *= key_factors['home']
         away_lambda *= key_factors['away']
         
-        # STEP 5: Tier-based final calibration
         home_lambda, away_lambda = self._step5_final_calibration(home_lambda, away_lambda, home_data, away_data)
         
-        # Add debug info to key factors for display
         for debug_line in self.debug_info:
             self.key_factors.append(f"DEBUG: {debug_line}")
         
@@ -366,7 +348,6 @@ class FootballPredictionEngine:
             'btts_no': btts_no / simulations,
         }
         
-        # Calculate exact scoreline probabilities
         scoreline_probs = {}
         max_goals = CONSTANTS['MAX_GOALS_CONSIDERED']
         for i in range(max_goals + 1):
@@ -376,7 +357,6 @@ class FootballPredictionEngine:
                 if prob > 0.001:
                     scoreline_probs[f"{i}-{j}"] = prob
         
-        # Normalize scoreline probabilities
         total_score_prob = sum(scoreline_probs.values())
         if total_score_prob > 0:
             scoreline_probs = {k: v/total_score_prob for k, v in scoreline_probs.items()}
@@ -389,39 +369,32 @@ class FootballPredictionEngine:
         """Calculate model confidence with tier consideration."""
         confidence = 50
         
-        # Goal difference factor
         goal_diff = abs(home_lambda - away_lambda)
         confidence += goal_diff * 15
         
-        # Position gap factor - enhanced for tier differences
         pos_diff = abs(home_data['overall_position'] - away_data['overall_position'])
-        if pos_diff >= 10:  # Large gap
+        if pos_diff >= 10:
             confidence += 25
-        elif pos_diff >= 5:  # Medium gap
+        elif pos_diff >= 5:
             confidence += 15
-        else:  # Small gap
+        else:
             confidence += pos_diff * 1.5
         
-        # Form gap factor
         form_diff = abs(home_data['form_last_5'] - away_data['form_last_5'])
         confidence += min(15, form_diff * 0.8)
         
-        # Uncertainty from injuries
         total_injuries = home_data.get('defenders_out', 0) + away_data.get('defenders_out', 0)
         confidence -= total_injuries * 2
         
-        # Apply league variance
         if self.league_params['goal_variance'] == 'high':
             confidence *= 0.97
         
-        # Clamp to reasonable range
         return round(max(30, min(85, confidence)), 1)
     
     def generate_key_factors(self, home_data, away_data, home_lambda, away_lambda):
         """Generate key factors for the prediction."""
         factors = []
         
-        # Position and tier analysis
         home_position = home_data['overall_position']
         away_position = away_data['overall_position']
         pos_diff = away_position - home_position
@@ -431,13 +404,11 @@ class FootballPredictionEngine:
         elif abs(pos_diff) >= 5:
             factors.append(f"Significant position difference: #{home_position} vs #{away_position}")
         
-        # Tier-based insights
         if home_position <= 3:
             factors.append(f"Elite home team: #{home_position} position")
         if away_position >= 16:
             factors.append(f"Struggling away team: #{away_position} position")
         
-        # Expected goals insight
         if home_lambda > 2.5:
             factors.append(f"Extremely high home expected goals: {home_lambda:.2f}")
         elif home_lambda > 2.0:
@@ -448,7 +419,6 @@ class FootballPredictionEngine:
         elif away_lambda > 1.5:
             factors.append(f"High away expected goals: {away_lambda:.2f}")
         
-        # Defensive quality
         home_xga_pg = home_data.get('home_xga', 0) / max(home_data.get('matches_played', 1), 1)
         away_xga_pg = away_data.get('away_xga', 0) / max(away_data.get('matches_played', 1), 1)
         
@@ -457,7 +427,6 @@ class FootballPredictionEngine:
         if away_xga_pg > self.league_params['avg_goals'] * 1.5:
             factors.append(f"Weak away defense: {away_xga_pg:.2f} xGA/game")
         
-        # Recent scoring form
         home_recent = home_data.get('goals_scored_last_5', 0) / 5
         away_recent = away_data.get('goals_scored_last_5', 0) / 5
         
@@ -466,7 +435,6 @@ class FootballPredictionEngine:
         if away_recent < self.league_params['avg_goals'] * 0.5:
             factors.append(f"Away poor recent scoring: {away_recent:.2f} goals/game")
         
-        # Injuries
         if home_data.get('defenders_out', 0) >= 3:
             factors.append(f"Home defensive crisis: {home_data['defenders_out']} defenders out")
         if away_data.get('defenders_out', 0) >= 3:
@@ -478,7 +446,6 @@ class FootballPredictionEngine:
         """Get market recommendations."""
         recommendations = []
         
-        # Total goals recommendation
         if probabilities['over_25'] > probabilities['under_25']:
             over_rec = {
                 'market': 'Total Goals',
@@ -500,7 +467,6 @@ class FootballPredictionEngine:
             }
             recommendations.append(under_rec)
         
-        # BTTS recommendation
         if probabilities['btts_yes'] > probabilities['btts_no']:
             btts_rec = {
                 'market': 'Both Teams to Score',
@@ -538,7 +504,6 @@ class FootballPredictionEngine:
         self.most_likely_score = most_likely
         
         self.confidence = self.calculate_confidence(home_lambda, away_lambda, home_data, away_data)
-        # Combine debug info with regular key factors
         regular_factors = self.generate_key_factors(home_data, away_data, home_lambda, away_lambda)
         self.key_factors = self.key_factors + regular_factors
         
@@ -555,7 +520,7 @@ class FootballPredictionEngine:
         }
 
 # ============================================================================
-# DATA LOADING & VALIDATION (No changes needed)
+# DATA LOADING & VALIDATION
 # ============================================================================
 
 def load_league_data(league_name):
@@ -598,19 +563,14 @@ def load_league_data(league_name):
         
         df = pd.read_csv(io.StringIO(response.content.decode('utf-8')))
         
-        # Standardize column names to lowercase with underscores
         original_columns = df.columns.tolist()
         df.columns = df.columns.str.lower().str.replace(' ', '_')
         
-        # Check for column name variations and data structure
         available_cols = list(df.columns)
         
-        # Handle different data structures
         if 'xg_for' in df.columns and 'home_xg_for' not in df.columns:
-            # La Liga old format - create estimated columns
             st.info("⚠️ Using estimated home/away xG splits for La Liga data")
             
-            # Estimate home/away splits based on venue
             for idx, row in df.iterrows():
                 venue = row['venue']
                 if venue == 'home':
@@ -618,13 +578,12 @@ def load_league_data(league_name):
                     df.at[idx, 'away_xg_for'] = 0
                     df.at[idx, 'home_xga'] = row.get('home_xga', row['xg_for'] * 0.8)
                     df.at[idx, 'away_xga'] = 0
-                else:  # away
+                else:
                     df.at[idx, 'home_xg_for'] = 0
                     df.at[idx, 'away_xg_for'] = row['xg_for'] * 0.45
                     df.at[idx, 'home_xga'] = 0
                     df.at[idx, 'away_xga'] = row.get('away_xga', row['xg_for'] * 0.8)
         
-        # Required columns
         required_cols = [
             'overall_position', 'team', 'venue', 'matches_played', 'home_xg_for', 
             'away_xg_for', 'goals', 'home_xga', 'away_xga', 'goals_conceded',
@@ -633,7 +592,6 @@ def load_league_data(league_name):
             'home_ppg_diff', 'goals_scored_last_5', 'goals_conceded_last_5'
         ]
         
-        # Check for missing columns
         missing_cols = [col for col in required_cols if col not in df.columns]
         
         if missing_cols:
@@ -645,12 +603,10 @@ def load_league_data(league_name):
                 st.write("**First 3 rows of data:**")
                 st.dataframe(df.head(3))
             
-            # Try to continue with available data
             for col in missing_cols:
                 if col not in df.columns:
-                    df[col] = 0  # Default value
+                    df[col] = 0
             
-        # Convert numeric columns
         numeric_cols = ['matches_played', 'home_xg_for', 'away_xg_for', 'goals', 
                        'home_xga', 'away_xga', 'goals_conceded', 'defenders_out',
                        'form_last_5', 'motivation', 'open_play_pct', 'set_piece_pct', 
@@ -660,7 +616,6 @@ def load_league_data(league_name):
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
-                # Fill NaN with reasonable defaults
                 if df[col].isna().any():
                     if col in ['home_xg_for', 'away_xg_for']:
                         df[col].fillna(1.0, inplace=True)
@@ -691,7 +646,6 @@ def prepare_team_data(df, team_name, venue):
     team_data = df[(df['team'] == team_name) & (df['venue'] == venue.lower())]
     
     if team_data.empty:
-        # Try case-insensitive match
         team_data = df[(df['team'].str.lower() == team_name.lower()) & 
                       (df['venue'] == venue.lower())]
     
@@ -701,7 +655,7 @@ def prepare_team_data(df, team_name, venue):
     return team_data.iloc[0].to_dict()
 
 # ============================================================================
-# STREAMLIT UI COMPONENTS (No changes needed)
+# STREAMLIT UI COMPONENTS
 # ============================================================================
 
 def display_prediction_box(title, value, subtitle="", color="#4ECDC4"):
@@ -820,7 +774,7 @@ def main():
     
     st.markdown('<h1 style="text-align: center; color: #4ECDC4;">⚽ Advanced Football Prediction Engine</h1>', 
                 unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; color: #666;">TIER-BASED CALIBRATION • DEBUG MODE</p>', 
+    st.markdown('<p style="text-align: center; color: #666;">FIXED TIER-BASED CALIBRATION</p>', 
                 unsafe_allow_html=True)
     
     if 'league_data' not in st.session_state:
@@ -861,27 +815,27 @@ def main():
                 st.metric("Home Advantage", f"{params['home_advantage']:.2f}")
         
         st.markdown("---")
-        st.markdown("### 🔧 DEBUG MODE ACTIVE")
-        st.warning("""
-        **Debug features enabled:**
-        • Step-by-step calculation tracking
-        • Tier-based λ caps
-        • Detailed factor breakdown
+        st.markdown("### 🔧 FIXED CALIBRATION")
+        st.success("""
+        **Tier-based improvements:**
+        • Tier-based diff ratio caps
+        • Elite teams: max ratio 6.0
+        • Strong teams: max ratio 5.0
+        • Better elite team handling
         """)
     
     if st.session_state.league_data is None:
         st.info("👈 Please load league data from the sidebar to begin.")
         st.markdown("""
-        ### 🚀 DEBUGGING MODE:
+        ### 🚀 FIXED CALIBRATION:
         
-        **Step-by-step tracking:**
-        1. Base xG calculation
-        2. Opponent adjustment factors
-        3. Recent form trends
-        4. Key factor multipliers
-        5. Tier-based final calibration
+        **Improved tier-based diff caps:**
+        - Elite vs weak: ratio ≤ 6.0
+        - Elite team or very weak: ratio ≤ 5.0
+        - Strong vs weak: ratio ≤ 4.5
+        - Normal: ratio ≤ 4.0
         
-        **Will show exact calculations in Key Factors**
+        **Fixes Real Madrid λ issue**
         """)
         return
     
@@ -939,10 +893,9 @@ def main():
                 
                 engine = FootballPredictionEngine(league_params)
                 
-                with st.spinner("Running debug analysis..."):
+                with st.spinner("Running fixed analysis..."):
                     progress_bar = st.progress(0)
                     
-                    # Simulate processing steps
                     for i in range(100):
                         time.sleep(0.01)
                         progress_bar.progress(i + 1)
@@ -955,7 +908,7 @@ def main():
                         st.session_state.prediction_result = result
                         st.session_state.prediction_engine = engine
                         st.session_state.recommendations = recommendations
-                        st.success("✅ Debug analysis complete!")
+                        st.success("✅ Fixed analysis complete!")
                     else:
                         st.error("Prediction failed")
             
@@ -1070,7 +1023,6 @@ def main():
             cols = st.columns(2)
             for idx, factor in enumerate(result['key_factors']):
                 with cols[idx % 2]:
-                    # Color code debug lines
                     if factor.startswith("DEBUG:"):
                         bg_color = "rgba(255,255,0,0.1)"
                         border_color = "#FFD700"
