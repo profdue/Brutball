@@ -39,13 +39,14 @@ CONSTANTS = {
 }
 
 # ============================================================================
-# REFINED PROFESSIONAL PREDICTION ENGINE (2nd Order Tuning)
+# REFINED PROFESSIONAL PREDICTION ENGINE (With Explainability)
 # ============================================================================
 
 class RefinedFootballPredictor:
     """
     Second-order refinement after calibration
     Fixes: Mid-range scoring slumps, overconfidence, context-aware probabilities
+    Now with: Explainability layer for decisions
     """
     
     def __init__(self, league_params):
@@ -57,6 +58,11 @@ class RefinedFootballPredictor:
         self.key_factors = []
         self.scoring_insights = []
         self.calibration_notes = []
+        self.explanations = {
+            'over_under': [],
+            'btts': [],
+            'confidence': []
+        }
     
     # ==================== REFINED CORE LOGIC ====================
     
@@ -181,38 +187,60 @@ class RefinedFootballPredictor:
         return max(1.02, min(1.35, final_advantage))
     
     def _calculate_btts_probability(self, home_data, away_data):
-        """REFINED: Better BTTS logic"""
+        """REFINED: Better BTTS logic with explanations"""
         home_recent = home_data.get('goals_scored_last_5', 0) / 5
         away_recent = away_data.get('goals_scored_last_5', 0) / 5
         
+        # Start with base probability
         base = 0.5
+        self.explanations['btts'].append(f"Base probability: 50% (neutral prior)")
         
-        # Recent scoring critical
+        # CALIBRATED: Recent scoring is CRITICAL
         if home_recent == 0:
             base -= 0.3
-            self.calibration_notes.append("Home not scoring recently → BTTS unlikely")
+            self.explanations['btts'].append(f"Home scoring crisis: 0 goals in last 5 → -30%")
         elif home_recent < 0.5:
             base -= 0.15
+            self.explanations['btts'].append(f"Home poor recent scoring: {home_recent:.1f} goals/game → -15%")
         
         if away_recent == 0:
             base -= 0.3
-            self.calibration_notes.append("Away not scoring recently → BTTS unlikely")
+            self.explanations['btts'].append(f"Away scoring crisis: 0 goals in last 5 → -30%")
         elif away_recent < 0.5:
             base -= 0.15
+            self.explanations['btts'].append(f"Away poor recent scoring: {away_recent:.1f} goals/game → -15%")
         
         # Position gap
         pos_diff = abs(home_data['overall_position'] - away_data['overall_position'])
         if pos_diff > 10:
             base -= 0.2
-            self.calibration_notes.append(f"Big position gap (#{home_data['overall_position']} vs #{away_data['overall_position']}) → often one-sided")
+            self.explanations['btts'].append(f"Big position gap (#{home_data['overall_position']} vs #{away_data['overall_position']}) → often one-sided → -20%")
         
         # Both teams scoring well recently → increase
         if home_recent > 1.5 and away_recent > 1.0:
             base += 0.2
-            self.calibration_notes.append("Both teams scoring well recently → BTTS likely")
+            self.explanations['btts'].append(f"Both teams scoring well recently → +20%")
+        
+        # Add openness factor based on expected goals
+        home_expected = home_data.get('home_xg_for', 0) / max(home_data.get('matches_played', 1), 1)
+        away_expected = away_data.get('away_xg_for', 0) / max(away_data.get('matches_played', 1), 1)
+        
+        if home_expected > 1.2 and away_expected > 1.2:
+            base += 0.05
+            self.explanations['btts'].append(f"Both teams create good chances (Home xG: {home_expected:.1f}, Away xG: {away_expected:.1f}) → +5%")
+        
+        # Add match total factor
+        total_expected = home_expected + away_expected
+        if total_expected > 3.0:
+            base += 0.05
+            self.explanations['btts'].append(f"High expected goal total ({total_expected:.1f}) → +5%")
         
         # Apply bounds
         btts_prob = max(0.1, min(0.9, base))
+        
+        # Add final explanation if near neutral
+        if 0.45 <= btts_prob <= 0.55:
+            self.explanations['btts'].append("Insufficient strong signals → staying near neutral (50%)")
         
         self.debug_info.append(f"BTTS Probability: home_recent={home_recent:.1f}, away_recent={away_recent:.1f}, base={base:.2f}, final={btts_prob:.2f}")
         
@@ -222,24 +250,28 @@ class RefinedFootballPredictor:
     
     def _calculate_confidence(self, home_lambda, away_lambda, home_data, away_data):
         """
-        REFINED: Better confidence scores
+        REFINED: Better confidence scores with explanations
         Reduce confidence when:
         1. Both teams poor recent scoring
         2. Bottom teams involved
         3. High variance situations
         """
         confidence = 50
+        self.explanations['confidence'].append(f"Base confidence: 50%")
         
         # Goal difference (still important)
         goal_diff = abs(home_lambda - away_lambda)
         confidence += goal_diff * 15
+        self.explanations['confidence'].append(f"Goal expectation difference: {goal_diff:.2f} → +{goal_diff * 15:.1f}%")
         
         # Position difference
         pos_diff = abs(home_data['overall_position'] - away_data['overall_position'])
         if pos_diff >= 10:
             confidence += 25
+            self.explanations['confidence'].append(f"Huge position gap (#{home_data['overall_position']} vs #{away_data['overall_position']}) → +25%")
         elif pos_diff >= 5:
             confidence += 15
+            self.explanations['confidence'].append(f"Significant position gap (#{home_data['overall_position']} vs #{away_data['overall_position']}) → +15%")
         
         # REFINEMENT: Recent scoring consistency penalty
         home_recent = home_data.get('goals_scored_last_5', 0) / 5
@@ -254,41 +286,54 @@ class RefinedFootballPredictor:
         consistency_penalty = 0
         if home_consistency < 0.6:
             consistency_penalty += 10
-            self.calibration_notes.append(f"Home severely underperforming: {home_consistency:.0%} of historical average → confidence -10%")
+            self.explanations['confidence'].append(f"Home severely underperforming: {home_consistency:.0%} of historical → -10%")
         if away_consistency < 0.6:
             consistency_penalty += 10
-            self.calibration_notes.append(f"Away severely underperforming: {away_consistency:.0%} of historical average → confidence -10%")
+            self.explanations['confidence'].append(f"Away severely underperforming: {away_consistency:.0%} of historical → -10%")
         
         # Penalty for bottom teams (high variance)
         if home_data['overall_position'] >= 16 or away_data['overall_position'] >= 16:
             consistency_penalty += 5
-            self.calibration_notes.append("Bottom teams involved → higher variance → confidence -5%")
+            self.explanations['confidence'].append(f"Bottom teams involved → higher variance → -5%")
         
         confidence -= consistency_penalty
+        
+        # Apply reasonable bounds with explanation
+        if confidence > 70:
+            self.explanations['confidence'].append(f"High confidence: Clear signals in match analysis")
+        elif confidence < 40:
+            self.explanations['confidence'].append(f"Low confidence: Many uncertainties in this matchup")
         
         return round(max(30, min(85, confidence)), 1)
     
     # ==================== REFINED SCORING PATTERN PREDICTION ====================
     
     def _predict_scoring_patterns(self, home_data, away_data, home_lambda, away_lambda):
-        """REFINED: Better Over/Under probabilities"""
+        """REFINED: Better Over/Under probabilities with explanations"""
         total_lambda = home_lambda + away_lambda
         
         # Get recent scoring context
         home_recent = home_data.get('goals_scored_last_5', 0) / 5
         away_recent = away_data.get('goals_scored_last_5', 0) / 5
+        home_avg = home_data.get('goals', 0) / max(home_data.get('matches_played', 1), 1)
+        away_avg = away_data.get('goals', 0) / max(away_data.get('matches_played', 1), 1)
         
         # Base probability from Poisson
         if total_lambda <= 1.8:
             base_over = 0.25
+            self.explanations['over_under'].append(f"Low total λ ({total_lambda:.2f}) → Base Over: 25%")
         elif total_lambda <= 2.2:
             base_over = 0.40
+            self.explanations['over_under'].append(f"Moderate total λ ({total_lambda:.2f}) → Base Over: 40%")
         elif total_lambda <= 2.6:
             base_over = 0.55
+            self.explanations['over_under'].append(f"Good total λ ({total_lambda:.2f}) → Base Over: 55%")
         elif total_lambda <= 3.0:
             base_over = 0.70
+            self.explanations['over_under'].append(f"High total λ ({total_lambda:.2f}) → Base Over: 70%")
         else:
             base_over = 0.85
+            self.explanations['over_under'].append(f"Very high total λ ({total_lambda:.2f}) → Base Over: 85%")
         
         # REFINEMENT: Adjust for recent scoring context
         recent_adjustment = 1.0
@@ -296,15 +341,36 @@ class RefinedFootballPredictor:
         # If both teams scoring poorly recently, reduce Over probability
         if home_recent < 1.0 and away_recent < 1.0:
             recent_adjustment *= 0.8  # -20% for poor scoring
-            self.calibration_notes.append("Both teams poor recent scoring → Over less likely (-20%)")
+            self.explanations['over_under'].append(f"Both teams poor recent scoring (Home: {home_recent:.1f}, Away: {away_recent:.1f}) → -20%")
         
         # If both teams scoring well recently, increase Over probability
         if home_recent > 1.5 and away_recent > 1.5:
             recent_adjustment *= 1.2  # +20% for good scoring
-            self.calibration_notes.append("Both teams good recent scoring → Over more likely (+20%)")
+            self.explanations['over_under'].append(f"Both teams good recent scoring (Home: {home_recent:.1f}, Away: {away_recent:.1f}) → +20%")
+        
+        # Add joint finishing suppression (your insight)
+        home_ratio = home_recent / home_avg if home_avg > 0 else 1.0
+        away_ratio = away_recent / away_avg if away_avg > 0 else 1.0
+        
+        if home_ratio < 0.7 and away_ratio < 0.7:
+            recent_adjustment *= 0.85  # Both teams finishing poorly
+            self.explanations['over_under'].append(f"Both teams finishing below 70% of historical (Home: {home_ratio:.0%}, Away: {away_ratio:.0%}) → -15%")
+        elif home_ratio < 0.7 or away_ratio < 0.7:
+            recent_adjustment *= 0.92  # One team finishing poorly
+            team = "Home" if home_ratio < 0.7 else "Away"
+            ratio = home_ratio if home_ratio < 0.7 else away_ratio
+            self.explanations['over_under'].append(f"{team} team finishing below 70% of historical ({ratio:.0%}) → -8%")
         
         final_over = base_over * recent_adjustment
         final_over = max(0.15, min(0.90, final_over))  # Keep within bounds
+        
+        # Add final explanation
+        if final_over > 0.7:
+            self.explanations['over_under'].append(f"Strong Over expectation: High total goals expected")
+        elif final_over < 0.4:
+            self.explanations['over_under'].append(f"Strong Under expectation: Low total goals expected")
+        else:
+            self.explanations['over_under'].append(f"Balanced expectation: Moderate goal expectation")
         
         # BTTS probability (already refined)
         btts_prob = self._calculate_btts_probability(home_data, away_data)
@@ -526,11 +592,12 @@ class RefinedFootballPredictor:
             'scoring_analysis': scoring_prediction,
             'confidence': confidence,
             'key_factors': key_factors + all_info,
+            'explanations': self.explanations,
             'success': True
         }
 
 # ============================================================================
-# DATA LOADING & UI (UNCHANGED)
+# DATA LOADING & UI (UPDATED WITH EXPLANATIONS)
 # ============================================================================
 
 def load_league_data(league_name):
@@ -608,7 +675,7 @@ def prepare_team_data(df, team_name, venue):
     return team_data.iloc[0].to_dict()
 
 # ============================================================================
-# STREAMLIT UI COMPONENTS (UPDATED FOR REFINED MODEL)
+# STREAMLIT UI COMPONENTS (UPDATED WITH EXPLANATIONS)
 # ============================================================================
 
 def display_prediction_box(title, value, subtitle="", color="#4ECDC4"):
@@ -623,8 +690,8 @@ def display_prediction_box(title, value, subtitle="", color="#4ECDC4"):
     </div>
     """, unsafe_allow_html=True)
 
-def display_scoring_analysis(analysis):
-    """Display scoring pattern analysis."""
+def display_scoring_analysis(analysis, explanations=None):
+    """Display scoring pattern analysis with explanations."""
     st.markdown("### ⚽ Scoring Pattern Analysis")
     
     col1, col2 = st.columns(2)
@@ -666,10 +733,111 @@ def display_scoring_analysis(analysis):
             f"Fair odds: {1/analysis['btts_no_prob']:.2f}" if analysis['btts_no_prob'] > 0 else "N/A",
             btts_no_color
         )
+    
+    # Display explanations if available
+    if explanations:
+        st.markdown("#### 📝 Analysis Reasoning")
+        
+        with st.expander("🔍 Over/Under 2.5 Goals Logic"):
+            if 'over_under' in explanations and explanations['over_under']:
+                for explanation in explanations['over_under']:
+                    st.write(f"• {explanation}")
+            else:
+                st.info("No specific over/under reasoning available.")
+        
+        with st.expander("🔍 Both Teams to Score (BTTS) Logic"):
+            if 'btts' in explanations and explanations['btts']:
+                for explanation in explanations['btts']:
+                    st.write(f"• {explanation}")
+            else:
+                st.info("No specific BTTS reasoning available.")
+
+def display_confidence_breakdown(confidence, explanations=None):
+    """Display confidence score with breakdown."""
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #4ECDC4, #44A08D);
+                border-radius: 15px; padding: 20px; margin: 15px 0; color: white;
+                box-shadow: 0 10px 20px rgba(0,0,0,0.1);">
+        <h3 style="text-align: center; margin: 0;">🤖 Model Confidence: {confidence:.1f}%</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    if explanations and 'confidence' in explanations:
+        with st.expander("🔍 Confidence Breakdown"):
+            for explanation in explanations['confidence']:
+                st.write(f"• {explanation}")
+
+def display_validation_metrics():
+    """Display validation tracking metrics."""
+    st.markdown("---")
+    st.markdown("## 📊 Model Performance Tracking")
+    
+    # Initialize session state for tracking
+    if 'performance_history' not in st.session_state:
+        st.session_state.performance_history = []
+    
+    if 'validation_mode' not in st.session_state:
+        st.session_state.validation_mode = False
+    
+    # Toggle validation mode
+    st.session_state.validation_mode = st.checkbox("📝 Enable Prediction Tracking", value=st.session_state.validation_mode)
+    
+    if st.session_state.validation_mode:
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✅ Track This Prediction", use_container_width=True):
+                if 'prediction_result' in st.session_state:
+                    # Store prediction with timestamp
+                    result = st.session_state.prediction_result
+                    track_data = {
+                        'timestamp': pd.Timestamp.now(),
+                        'home_team': home_team,
+                        'away_team': away_team,
+                        'home_xg': result['expected_goals']['home'],
+                        'away_xg': result['expected_goals']['away'],
+                        'home_win_prob': result['probabilities']['home_win'],
+                        'draw_prob': result['probabilities']['draw'],
+                        'away_win_prob': result['probabilities']['away_win'],
+                        'over_prob': result['scoring_analysis']['over_25_prob'],
+                        'confidence': result['confidence']
+                    }
+                    st.session_state.performance_history.append(track_data)
+                    st.success("✅ Prediction tracked!")
+        
+        with col2:
+            if st.button("🗑️ Clear History", type="secondary", use_container_width=True):
+                st.session_state.performance_history = []
+                st.success("History cleared!")
+        
+        # Show history if exists
+        if st.session_state.performance_history:
+            df_history = pd.DataFrame(st.session_state.performance_history)
+            
+            # Calculate some metrics
+            avg_confidence = df_history['confidence'].mean()
+            avg_total_goals = (df_history['home_xg'] + df_history['away_xg']).mean()
+            avg_over_prob = df_history['over_prob'].mean()
+            
+            st.markdown("### 📈 Tracking Summary")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Predictions", len(df_history))
+            with col2:
+                st.metric("Avg Confidence", f"{avg_confidence:.1f}%")
+            with col3:
+                st.metric("Avg Expected Total", f"{avg_total_goals:.2f}")
+            with col4:
+                st.metric("Avg Over Probability", f"{avg_over_prob:.1%}")
+            
+            # Show recent predictions
+            st.markdown("### 📋 Recent Predictions")
+            st.dataframe(df_history.tail(5))
+    else:
+        st.info("Enable prediction tracking to monitor model performance over time.")
 
 def main():
     st.set_page_config(
-        page_title="Refined Football Predictor",
+        page_title="Professional Football Predictor",
         page_icon="⚽",
         layout="wide"
     )
@@ -684,12 +852,18 @@ def main():
         border-radius: 10px;
         font-weight: 600;
     }
+    
+    .stExpander {
+        border: 1px solid #4ECDC4;
+        border-radius: 10px;
+        padding: 10px;
+    }
     </style>
     """, unsafe_allow_html=True)
     
-    st.markdown('<h1 style="text-align: center; color: #4ECDC4;">⚽ Refined Football Predictor</h1>', 
+    st.markdown('<h1 style="text-align: center; color: #4ECDC4;">⚽ Professional Football Predictor</h1>', 
                 unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; color: #666;">2nd ORDER REFINEMENT: Fixed mid-range scoring slumps, overconfidence, context-aware probabilities</p>', 
+    st.markdown('<p style="text-align: center; color: #666;">With Explainable AI & Performance Tracking</p>', 
                 unsafe_allow_html=True)
     
     if 'league_data' not in st.session_state:
@@ -713,14 +887,14 @@ def main():
                     st.error(f"Failed to load {selected_league} data")
         
         st.markdown("---")
-        st.markdown("### 🔧 Refinement Updates")
+        st.markdown("### 🔧 Model Features")
         st.success("""
-        **2nd Order Improvements:**
-        1. **Mid-range scoring slumps**: 0.5-0.9 goals now penalized
-        2. **Performance ratio**: Scoring 43% vs 80% of historical treated differently
-        3. **Over probabilities**: Context-aware (poor scoring reduces Over probability)
-        4. **Confidence scores**: Penalties for poor form and bottom teams
-        5. **Scoring crisis detection**: Teams severely underperforming get proper penalties
+        **Professional Features:**
+        1. **Explainable AI** - Full reasoning chain
+        2. **Confidence Breakdown** - Why 50% vs 80%?
+        3. **Performance Tracking** - Monitor predictions
+        4. **Edge Case Handling** - Crises, slumps, elite teams
+        5. **Market-Ready Outputs** - Fair odds & probabilities
         """)
     
     if st.session_state.league_data is None:
@@ -730,6 +904,9 @@ def main():
     df = st.session_state.league_data
     selected_league = st.session_state.selected_league
     league_params = LEAGUE_PARAMS[selected_league]
+    
+    # Make home_team and away_team available globally
+    global home_team, away_team
     
     st.markdown("## 🏟️ Match Setup")
     available_teams = sorted(df['team'].unique())
@@ -776,7 +953,7 @@ def main():
                 else:
                     st.metric("Recent Goals/Game", f"{recent_goals:.1f}")
     
-    if st.button("🚀 Run Refined Prediction", type="primary", use_container_width=True):
+    if st.button("🚀 Run Professional Analysis", type="primary", use_container_width=True):
         if home_team == away_team:
             st.error("Please select different teams.")
             return
@@ -787,12 +964,12 @@ def main():
             
             predictor = RefinedFootballPredictor(league_params)
             
-            with st.spinner("Running refined analysis..."):
+            with st.spinner("Running professional analysis..."):
                 result = predictor.predict_match(home_data, away_data)
                 
                 if result['success']:
                     st.session_state.prediction_result = result
-                    st.success("✅ Refined analysis complete!")
+                    st.success("✅ Professional analysis complete!")
         
         except Exception as e:
             st.error(f"Error: {str(e)}")
@@ -801,9 +978,9 @@ def main():
         result = st.session_state.prediction_result
         
         st.markdown("---")
-        st.markdown("# 📊 Refined Analysis Results")
+        st.markdown("# 📊 Professional Analysis Results")
         
-        st.markdown("### 🎯 Expected Goals (Refined)")
+        st.markdown("### 🎯 Expected Goals (Calibrated)")
         col1, col2 = st.columns(2)
         with col1:
             display_prediction_box(
@@ -839,17 +1016,15 @@ def main():
                 f"Fair odds: {1/result['probabilities']['away_win']:.2f}"
             )
         
-        display_scoring_analysis(result['scoring_analysis'])
+        # Display scoring analysis with explanations
+        display_scoring_analysis(result['scoring_analysis'], result.get('explanations', {}))
         
-        confidence = result['confidence']
-        st.markdown(f"""
-        <div style="background: #4ECDC4; border-radius: 15px; padding: 20px; margin: 15px 0; color: white;">
-            <h3 style="text-align: center; margin: 0;">🤖 Refined Model Confidence: {confidence:.1f}%</h3>
-        </div>
-        """, unsafe_allow_html=True)
+        # Display confidence breakdown
+        display_confidence_breakdown(result['confidence'], result.get('explanations', {}))
         
+        # Display key factors
         if result['key_factors']:
-            st.markdown("### 🔑 Refinement Notes & Key Factors")
+            st.markdown("### 🔑 Key Analytical Factors")
             for factor in result['key_factors']:
                 if "scoring crisis" in str(factor).lower() or "severe slump" in str(factor).lower():
                     st.error(f"⚡ {factor}")
@@ -860,9 +1035,12 @@ def main():
                 elif "Calibration" in str(factor) or "confidence" in str(factor):
                     st.info(f"🎯 {factor}")
                 elif "DEBUG" in str(factor):
-                    st.code(f"{factor}", language=None)
+                    continue  # Hide debug info now that we have explanations
                 else:
                     st.success(f"• {factor}")
+        
+        # Display validation metrics
+        display_validation_metrics()
 
 if __name__ == "__main__":
     main()
