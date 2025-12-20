@@ -841,7 +841,7 @@ def main():
                     if df is not None:
                         # Rename columns to match expected format (handle variations)
                         column_mapping = {
-                            'venue': 'Venue',
+                            'venue': 'venue',
                             'team': 'Team',
                             'matches_played': 'Matches_Played',
                             'xg_for': 'xG_For',
@@ -941,15 +941,15 @@ def main():
     st.markdown("## 🏟️ Match Setup")
     
     # Get available teams based on venue
-    home_teams = sorted(df[df['Venue'].str.lower() == 'home']['Team'].unique())
-    away_teams = sorted(df[df['Venue'].str.lower() == 'away']['Team'].unique())
+    home_teams = sorted(df[df['venue'].str.lower() == 'home']['Team'].unique())
+    away_teams = sorted(df[df['venue'].str.lower() == 'away']['Team'].unique())
     
     col1, col2 = st.columns(2)
     
     with col1:
         home_team = st.selectbox("🏠 Home Team:", home_teams, key="home_select")
         if home_team:
-            home_data_raw = df[(df['Team'] == home_team) & (df['Venue'].str.lower() == 'home')]
+            home_data_raw = df[(df['Team'] == home_team) & (df['venue'].str.lower() == 'home')]
             if not home_data_raw.empty:
                 home_row = home_data_raw.iloc[0]
                 
@@ -970,7 +970,7 @@ def main():
         away_options = [t for t in away_teams if t != home_team]
         away_team = st.selectbox("✈️ Away Team:", away_options, key="away_select")
         if away_team:
-            away_data_raw = df[(df['Team'] == away_team) & (df['Venue'].str.lower() == 'away')]
+            away_data_raw = df[(df['Team'] == away_team) & (df['venue'].str.lower() == 'away')]
             if not away_data_raw.empty:
                 away_row = away_data_raw.iloc[0]
                 
@@ -1225,7 +1225,7 @@ def main():
             7. ✅ **STEP 7**: Market Comparison - Complete
             8. ✅ **STEP 8**: Key Factors Identification - Complete
             
-            **Core Principle Maintained:** Expected Goals = (Venue-Specific Attack Strength) ÷ (Opponent's Venue-Specific Defense Quality)
+            **Core Principle Maintained:** Expected Goals = (venue-Specific Attack Strength) ÷ (Opponent's venue-Specific Defense Quality)
             """)
 
 if __name__ == "__main__":
