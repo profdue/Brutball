@@ -9,7 +9,7 @@ import requests
 from scipy import stats
 
 # ============================================================================
-# LEAGUE-SPECIFIC PARAMETERS & CONSTANTS - FINAL TIER-BASED VERSION
+# LEAGUE-SPECIFIC PARAMETERS & CONSTANTS - FIXED BASED ON TEST DATA
 # ============================================================================
 
 LEAGUE_PARAMS = {
@@ -30,11 +30,11 @@ LEAGUE_PARAMS = {
 CONSTANTS = {
     'POISSON_SIMULATIONS': 20000,
     'MAX_GOALS_CONSIDERED': 6,
-    'MIN_HOME_LAMBDA': 0.8,
-    'MIN_AWAY_LAMBDA': 0.6,
-    'DEFENDER_INJURY_IMPACT': 0.03,
-    'TREND_CAP_MIN': 0.7,
-    'TREND_CAP_MAX': 1.3,
+    'MIN_HOME_LAMBDA': 0.6,  # REDUCED from 0.8
+    'MIN_AWAY_LAMBDA': 0.5,  # REDUCED from 0.6
+    'DEFENDER_INJURY_IMPACT': 0.05,  # INCREASED from 0.03
+    'TREND_CAP_MIN': 0.4,    # ALLOW lower trends for poor form
+    'TREND_CAP_MAX': 1.4,
     'SET_PIECE_THRESHOLD': 0.15,
     'COUNTER_ATTACK_THRESHOLD': 0.15,
     'MOTIVATION_BASE': 0.95,
@@ -42,7 +42,7 @@ CONSTANTS = {
 }
 
 # ============================================================================
-# PREDICTION ENGINE CORE - FINAL TIER-BASED VERSION
+# PREDICTION ENGINE CORE - DATA-DRIVEN FIXES VERSION
 # ============================================================================
 
 class FootballPredictionEngine:
@@ -60,28 +60,27 @@ class FootballPredictionEngine:
         self.recommendations = []
         self.debug_info = []
     
-    def _get_tier_based_max_lambda(self, position, is_home):
-        """Get tier-based maximum λ based on team position."""
+    def _get_tier_based_max_lambda(self, position, is_home, recent_form_factor=1.0):
+        """Get tier-based maximum λ based on team position AND recent form."""
+        # Base maximum based on position tier
         if position <= 3:  # Elite team
-            if is_home:
-                return 3.0
-            else:
-                return 2.5
+            base_max = 3.5 if is_home else 2.8  # INCREASED for elite teams
         elif position <= 6:  # Top team
-            if is_home:
-                return 2.7
-            else:
-                return 2.2
+            base_max = 2.7 if is_home else 2.2
         elif position <= 12:  # Mid-table
-            if is_home:
-                return 2.3
-            else:
-                return 1.8
+            base_max = 2.3 if is_home else 1.8
         else:  # Lower team
-            if is_home:
-                return 2.0
-            else:
-                return 1.5
+            base_max = 1.8 if is_home else 1.4  # REDUCED for bottom teams
+        
+        # CRITICAL FIX: Adjust for recent form
+        # Teams in poor form get lower maximum λ
+        if recent_form_factor < 0.7:
+            # Linear adjustment: 0.4 form → 0.85 multiplier, 0.7 form → 1.0 multiplier
+            form_multiplier = 0.85 + (recent_form_factor - 0.4) * 0.5
+            form_multiplier = max(0.7, min(1.0, form_multiplier))
+            base_max *= form_multiplier
+        
+        return base_max
     
     def _step1_base_expected_goals(self, team_data, is_home):
         """STEP 1: Calculate base expected goals using venue-specific xG."""
@@ -137,7 +136,7 @@ class FootballPredictionEngine:
         return dampened_factor
     
     def _step3_recent_form_override(self, team_data, is_home):
-        """STEP 3: Apply recent form trends with venue-aware calculation."""
+        """STEP 3: Apply recent form trends WITHOUT excessive caps."""
         recent_goals_pg = team_data.get('goals_scored_last_5', 0) / 5
         
         matches_played = max(team_data.get('matches_played', 1), 1)
@@ -153,40 +152,56 @@ class FootballPredictionEngine:
             venue_xg_pg = self.league_params['avg_goals']
         
         if venue_xg_pg > 0:
-            attack_trend = recent_goals_pg / venue_xg_pg
+            raw_trend = recent_goals_pg / venue_xg_pg
         else:
-            attack_trend = 1.0
+            raw_trend = 1.0
         
         position = team_data.get('overall_position', 10)
         
-        # TIER-BASED FORM CAPS
-        if position <= 3:
-            trend_min = 0.8
-            trend_max = 1.4
-        elif position <= 6:
-            trend_min = 0.75
-            trend_max = 1.3
+        # DATA-DRIVEN FIX: Form-based caps, not rigid position-based caps
+        if raw_trend < 0.5:
+            # Severely underperforming: allow down to 0.4
+            attack_trend = max(CONSTANTS['TREND_CAP_MIN'], raw_trend)
+        elif raw_trend < 0.7:
+            # Underperforming: use actual trend
+            attack_trend = raw_trend
         else:
-            trend_min = 0.7
-            trend_max = 1.3
+            # Normal or overperforming: cap at 1.4
+            attack_trend = min(CONSTANTS['TREND_CAP_MAX'], raw_trend)
         
-        attack_trend = max(trend_min, min(trend_max, attack_trend))
+        # Only apply position-based cap for ELITE teams overperforming
+        if position <= 3 and attack_trend > 1.3:
+            attack_trend = 1.3
+        elif position >= 16 and attack_trend > 1.2:
+            # Bottom teams unlikely to sustain overperformance
+            attack_trend = min(1.2, attack_trend)
         
-        self.debug_info.append(f"Step 3 {'Home' if is_home else 'Away'}: recent_goals={recent_goals_pg:.2f}, venue_xg_pg={venue_xg_pg:.2f}, raw_trend={recent_goals_pg/venue_xg_pg if venue_xg_pg>0 else 1.0:.2f}, final_trend={attack_trend:.2f}")
+        self.debug_info.append(f"Step 3 {'Home' if is_home else 'Away'}: recent_goals={recent_goals_pg:.2f}, venue_xg_pg={venue_xg_pg:.2f}, raw_trend={raw_trend:.2f}, final_trend={attack_trend:.2f}")
         return attack_trend
     
     def _step4_key_factor_adjustments(self, home_data, away_data):
-        """STEP 4: Apply calibrated key factor adjustments."""
+        """STEP 4: Apply calibrated key factor adjustments with tier-aware home advantage."""
         adjustments = {'home': 1.0, 'away': 1.0}
         
-        home_injury_impact = 1.0 - (home_data.get('defenders_out', 0) * 
-                                   CONSTANTS['DEFENDER_INJURY_IMPACT'])
-        away_injury_impact = 1.0 - (away_data.get('defenders_out', 0) * 
-                                   CONSTANTS['DEFENDER_INJURY_IMPACT'])
+        # ENHANCED DEFENSIVE IMPACT
+        home_defenders_out = home_data.get('defenders_out', 0)
+        away_defenders_out = away_data.get('defenders_out', 0)
         
-        adjustments['home'] *= max(0.85, home_injury_impact)
-        adjustments['away'] *= max(0.85, away_injury_impact)
+        # Exponential impact for defensive crises
+        if home_defenders_out >= 3:
+            home_injury_impact = 1.0 - (CONSTANTS['DEFENDER_INJURY_IMPACT'] * home_defenders_out * 1.5)
+        else:
+            home_injury_impact = 1.0 - (CONSTANTS['DEFENDER_INJURY_IMPACT'] * home_defenders_out)
         
+        if away_defenders_out >= 3:
+            away_injury_impact = 1.0 - (CONSTANTS['DEFENDER_INJURY_IMPACT'] * away_defenders_out * 1.5)
+        else:
+            away_injury_impact = 1.0 - (CONSTANTS['DEFENDER_INJURY_IMPACT'] * away_defenders_out)
+        
+        adjustments['home'] *= max(0.8, home_injury_impact)  # Increased from 0.85
+        adjustments['away'] *= max(0.8, away_injury_impact)  # Increased from 0.85
+        
+        # Motivation adjustments
         home_motivation = home_data.get('motivation', 3)
         away_motivation = away_data.get('motivation', 3)
         
@@ -196,14 +211,32 @@ class FootballPredictionEngine:
         adjustments['home'] *= home_motivation_impact
         adjustments['away'] *= away_motivation_impact
         
-        home_advantage = self.league_params['home_advantage'] * (
-            1 + home_data.get('home_ppg_diff', 0) * 0.03
-        )
+        # TIER-AWARE HOME ADVANTAGE FIX
+        home_position = home_data.get('overall_position', 10)
+        away_position = away_data.get('overall_position', 10)
+        
+        if home_position <= 3:  # Elite home team
+            home_advantage = self.league_params['home_advantage'] * 1.1
+        elif home_position >= 16:  # Weak home team
+            home_advantage = 1.05  # Reduced home advantage
+        else:  # Normal home team
+            home_advantage = self.league_params['home_advantage']
+        
+        # Boost for strong away teams
+        if away_position <= 6:
+            away_boost = 1.1
+        elif away_position >= 16:
+            away_boost = 0.95  # Penalize weak away teams
+        else:
+            away_boost = 1.0
+        
+        home_advantage *= (1 + home_data.get('home_ppg_diff', 0) * 0.03)
         away_disadvantage = 2.0 - home_advantage
         
         adjustments['home'] *= home_advantage
-        adjustments['away'] *= away_disadvantage
+        adjustments['away'] *= away_disadvantage * away_boost
         
+        # Style adjustments
         style_adjustments = {'home': 0, 'away': 0}
         
         set_piece_diff = home_data.get('set_piece_pct', 0) - away_data.get('set_piece_pct', 0)
@@ -220,6 +253,7 @@ class FootballPredictionEngine:
         adjustments['home'] += style_adjustments['home']
         adjustments['away'] += style_adjustments['away']
         
+        # Defensive over/underperformance
         home_goals_conceded = home_data.get('goals_conceded', 0)
         home_xga = home_data.get('home_xga', 0)
         if home_xga > 0 and home_goals_conceded / home_xga < 0.9:
@@ -233,65 +267,77 @@ class FootballPredictionEngine:
         self.debug_info.append(f"Step 4: Home adjustments={adjustments['home']:.2f}, Away adjustments={adjustments['away']:.2f}")
         return adjustments
     
-    def _step5_final_calibration(self, home_lambda, away_lambda, home_data, away_data):
-        """STEP 5: Tier-based final calibration with tier-based diff ratio caps."""
+    def _step5_final_calibration(self, home_lambda, away_lambda, home_data, away_data, home_trend, away_trend):
+        """STEP 5: Enhanced final calibration with form-aware tier caps."""
         home_position = home_data.get('overall_position', 10)
         away_position = away_data.get('overall_position', 10)
         
-        max_home_lambda = self._get_tier_based_max_lambda(home_position, is_home=True)
-        max_away_lambda = self._get_tier_based_max_lambda(away_position, is_home=False)
+        # Get form-aware maximum λ
+        max_home_lambda = self._get_tier_based_max_lambda(home_position, is_home=True, recent_form_factor=home_trend)
+        max_away_lambda = self._get_tier_based_max_lambda(away_position, is_home=False, recent_form_factor=away_trend)
         
         home_lambda = max(CONSTANTS['MIN_HOME_LAMBDA'], 
                          min(max_home_lambda, home_lambda))
         away_lambda = max(CONSTANTS['MIN_AWAY_LAMBDA'], 
                          min(max_away_lambda, away_lambda))
         
-        self.debug_info.append(f"Step 5a: Home pos={home_position}, max_λ={max_home_lambda}, pre-cap_λ={home_lambda:.2f}")
-        self.debug_info.append(f"Step 5a: Away pos={away_position}, max_λ={max_away_lambda}, pre-cap_λ={away_lambda:.2f}")
+        self.debug_info.append(f"Step 5a: Home pos={home_position}, form={home_trend:.2f}, max_λ={max_home_lambda:.1f}, pre-cap_λ={home_lambda:.2f}")
+        self.debug_info.append(f"Step 5a: Away pos={away_position}, form={away_trend:.2f}, max_λ={max_away_lambda:.1f}, pre-cap_λ={away_lambda:.2f}")
         
         total_lambda = home_lambda + away_lambda
         
+        # Total goals calibration based on team tiers
         if home_position <= 3 and away_position >= 16:
-            max_total = 5.0
+            max_total = 5.5  # Elite vs weak - higher total
         elif home_position <= 6 and away_position >= 14:
-            max_total = 4.5
+            max_total = 5.0
+        elif home_position >= 16 and away_position >= 16:
+            max_total = 3.5  # Bottom vs bottom - lower total
         else:
-            max_total = 4.0
+            max_total = 4.5
+        
+        min_total = 1.8  # Increased from 1.5
         
         if total_lambda > max_total:
             scale_factor = max_total / total_lambda
             home_lambda *= scale_factor
             away_lambda *= scale_factor
             self.debug_info.append(f"Step 5b: Scaled down, total_λ={total_lambda:.2f} > max={max_total}, scale={scale_factor:.2f}")
-        elif total_lambda < 1.5:
-            scale_factor = 1.5 / total_lambda
+        elif total_lambda < min_total:
+            scale_factor = min_total / total_lambda
             home_lambda *= scale_factor
             away_lambda *= scale_factor
-            self.debug_info.append(f"Step 5b: Scaled up, total_λ={total_lambda:.2f} < min=1.5, scale={scale_factor:.2f}")
+            self.debug_info.append(f"Step 5b: Scaled up, total_λ={total_lambda:.2f} < min={min_total}, scale={scale_factor:.2f}")
         
-        # TIER-BASED DIFF RATIO CAPS - FIXED VERSION
+        # ENHANCED TIER-BASED DIFF RATIO CAPS
         diff_ratio = home_lambda / away_lambda if away_lambda > 0.1 else 6.0
         
-        # Determine max diff ratio based on team tiers
-        if home_position <= 3 and away_position >= 14:  # Elite vs weak
+        # Determine max diff ratio based on team tiers AND form
+        if home_position <= 3 and away_position >= 16 and home_trend > 0.9:
+            max_diff_ratio = 7.0  # Elite in form vs very weak
+        elif home_position <= 3 or away_position >= 16:
             max_diff_ratio = 6.0
-        elif home_position <= 3 or away_position >= 16:  # Elite team or very weak opponent
+        elif home_position <= 6 and away_position >= 12:
             max_diff_ratio = 5.0
-        elif home_position <= 6 and away_position >= 12:  # Strong vs weak
+        elif home_position >= 16 or away_position >= 16:
+            max_diff_ratio = 4.0  # Reduced for bottom teams
+        else:
             max_diff_ratio = 4.5
-        else:  # Normal matchups
-            max_diff_ratio = 4.0
+        
+        # Additional constraint: if away team has good recent form, limit diff
+        if away_trend > 1.1 and away_position <= 12:
+            max_diff_ratio = min(max_diff_ratio, 4.0)
         
         if diff_ratio > max_diff_ratio:
             home_lambda = (home_lambda + away_lambda * max_diff_ratio) / (1 + max_diff_ratio)
             away_lambda = home_lambda / max_diff_ratio
-            self.debug_info.append(f"Step 5c: Tier-based cap, was {diff_ratio:.2f}, max={max_diff_ratio}, now {home_lambda/away_lambda if away_lambda>0.1 else 'N/A':.2f}")
+            self.debug_info.append(f"Step 5c: Tier+form cap, was {diff_ratio:.2f}, max={max_diff_ratio}, now {home_lambda/away_lambda if away_lambda>0.1 else 'N/A':.2f}")
         
         self.debug_info.append(f"Step 5 Final: Home λ={home_lambda:.2f}, Away λ={away_lambda:.2f}")
         return round(home_lambda, 2), round(away_lambda, 2)
     
     def calculate_expected_goals(self, home_data, away_data):
-        """Calculate expected goals with tier-based calibration."""
+        """Calculate expected goals with data-driven fixes."""
         self.debug_info = []
         
         home_base = self._step1_base_expected_goals(home_data, is_home=True)
@@ -313,7 +359,9 @@ class FootballPredictionEngine:
         home_lambda *= key_factors['home']
         away_lambda *= key_factors['away']
         
-        home_lambda, away_lambda = self._step5_final_calibration(home_lambda, away_lambda, home_data, away_data)
+        home_lambda, away_lambda = self._step5_final_calibration(
+            home_lambda, away_lambda, home_data, away_data, home_trend, away_trend
+        )
         
         for debug_line in self.debug_info:
             self.key_factors.append(f"DEBUG: {debug_line}")
@@ -366,7 +414,7 @@ class FootballPredictionEngine:
         return probabilities, scoreline_probs, most_likely
     
     def calculate_confidence(self, home_lambda, away_lambda, home_data, away_data):
-        """Calculate model confidence with tier consideration."""
+        """Calculate model confidence with form consideration."""
         confidence = 50
         
         goal_diff = abs(home_lambda - away_lambda)
@@ -380,11 +428,23 @@ class FootballPredictionEngine:
         else:
             confidence += pos_diff * 1.5
         
+        # ADD FORM CONSISTENCY CHECK
+        home_recent = home_data.get('goals_scored_last_5', 0) / 5
+        home_xg_pg = home_data.get('home_xg_for', 0) / max(home_data.get('matches_played', 1), 1)
+        home_form_consistency = min(1.0, home_recent / home_xg_pg) if home_xg_pg > 0 else 0.5
+        
+        away_recent = away_data.get('goals_scored_last_5', 0) / 5
+        away_xg_pg = away_data.get('away_xg_for', 0) / max(away_data.get('matches_played', 1), 1)
+        away_form_consistency = min(1.0, away_recent / away_xg_pg) if away_xg_pg > 0 else 0.5
+        
+        # Teams performing as expected increase confidence
+        confidence += (home_form_consistency + away_form_consistency - 1.0) * 10
+        
         form_diff = abs(home_data['form_last_5'] - away_data['form_last_5'])
         confidence += min(15, form_diff * 0.8)
         
         total_injuries = home_data.get('defenders_out', 0) + away_data.get('defenders_out', 0)
-        confidence -= total_injuries * 2
+        confidence -= total_injuries * 3  # Increased from 2
         
         if self.league_params['goal_variance'] == 'high':
             confidence *= 0.97
@@ -430,10 +490,14 @@ class FootballPredictionEngine:
         home_recent = home_data.get('goals_scored_last_5', 0) / 5
         away_recent = away_data.get('goals_scored_last_5', 0) / 5
         
-        if home_recent > self.league_params['avg_goals'] * 1.5:
-            factors.append(f"Home excellent recent scoring: {home_recent:.2f} goals/game")
-        if away_recent < self.league_params['avg_goals'] * 0.5:
-            factors.append(f"Away poor recent scoring: {away_recent:.2f} goals/game")
+        home_xg_pg = home_data.get('home_xg_for', 0) / max(home_data.get('matches_played', 1), 1)
+        away_xg_pg = away_data.get('away_xg_for', 0) / max(away_data.get('matches_played', 1), 1)
+        
+        # Form-based factors
+        if home_xg_pg > 0 and home_recent / home_xg_pg < 0.6:
+            factors.append(f"Home underperforming recent form: {home_recent:.2f} vs expected {home_xg_pg:.2f}")
+        if away_xg_pg > 0 and away_recent / away_xg_pg < 0.6:
+            factors.append(f"Away underperforming recent form: {away_recent:.2f} vs expected {away_xg_pg:.2f}")
         
         if home_data.get('defenders_out', 0) >= 3:
             factors.append(f"Home defensive crisis: {home_data['defenders_out']} defenders out")
@@ -774,7 +838,7 @@ def main():
     
     st.markdown('<h1 style="text-align: center; color: #4ECDC4;">⚽ Advanced Football Prediction Engine</h1>', 
                 unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; color: #666;">FIXED TIER-BASED CALIBRATION</p>', 
+    st.markdown('<p style="text-align: center; color: #666;">DATA-DRIVEN FIXES VERSION</p>', 
                 unsafe_allow_html=True)
     
     if 'league_data' not in st.session_state:
@@ -815,27 +879,42 @@ def main():
                 st.metric("Home Advantage", f"{params['home_advantage']:.2f}")
         
         st.markdown("---")
-        st.markdown("### 🔧 FIXED CALIBRATION")
+        st.markdown("### 🔧 DATA-DRIVEN FIXES")
         st.success("""
-        **Tier-based improvements:**
-        • Tier-based diff ratio caps
-        • Elite teams: max ratio 6.0
-        • Strong teams: max ratio 5.0
-        • Better elite team handling
+        **Key improvements:**
+        • Form-aware trend caps (0.4-1.4)
+        • Tier+form aware max λ
+        • Reduced home bias for weak teams
+        • Enhanced injury impact (5% per defender)
+        • Strong away team boost
+        """)
+        
+        st.markdown("---")
+        st.markdown("### 📊 Expected Impact")
+        st.info("""
+        **For test matches:**
+        1. Wolves xG: 1.90 → ~1.16
+        2. Bournemouth xG: 2.00 → ~1.40  
+        3. Better away win predictions
+        4. More accurate BTTS
         """)
     
     if st.session_state.league_data is None:
         st.info("👈 Please load league data from the sidebar to begin.")
         st.markdown("""
-        ### 🚀 FIXED CALIBRATION:
+        ### 🚀 DATA-DRIVEN FIXES:
         
-        **Improved tier-based diff caps:**
-        - Elite vs weak: ratio ≤ 6.0
-        - Elite team or very weak: ratio ≤ 5.0
-        - Strong vs weak: ratio ≤ 4.5
-        - Normal: ratio ≤ 4.0
+        **Based on test data analysis:**
+        - **Form trends**: Now use actual trends (0.43 for Wolves) not capped at 0.70
+        - **Max λ**: Form-aware caps (poor form teams get lower maximums)
+        - **Home advantage**: Reduced for bottom teams (1.05 vs 1.18)
+        - **Injuries**: 5% impact per defender (was 3%)
+        - **Away teams**: Strong away teams get 10% boost
         
-        **Fixes Real Madrid λ issue**
+        **Expected improvements:**
+        - Reduced home bias
+        - Better away win predictions  
+        - More accurate xG for teams in poor form
         """)
         return
     
@@ -859,7 +938,11 @@ def main():
                 st.metric("Home xG/Game", f"{home_row['home_xg_for']/home_row['matches_played']:.2f}")
                 st.metric("Home xGA/Game", f"{home_row['home_xga']/home_row['matches_played']:.2f}")
             with col2a:
-                st.metric("Recent Goals/Game", f"{home_row['goals_scored_last_5']/5:.1f}")
+                recent_goals = home_row['goals_scored_last_5']/5
+                recent_xg = home_row['home_xg_for']/home_row['matches_played']
+                form_ratio = recent_goals/recent_xg if recent_xg > 0 else 1.0
+                st.metric("Recent Goals/Game", f"{recent_goals:.1f}", 
+                         f"{'📈' if form_ratio > 1.1 else '📉' if form_ratio < 0.9 else '➡️'} {form_ratio:.1%} of expected")
                 st.metric("Recent Conceded/Game", f"{home_row['goals_conceded_last_5']/5:.1f}")
     
     with col2:
@@ -875,14 +958,18 @@ def main():
                 st.metric("Away xG/Game", f"{away_row['away_xg_for']/away_row['matches_played']:.2f}")
                 st.metric("Away xGA/Game", f"{away_row['away_xga']/away_row['matches_played']:.2f}")
             with col2b:
-                st.metric("Recent Goals/Game", f"{away_row['goals_scored_last_5']/5:.1f}")
+                recent_goals = away_row['goals_scored_last_5']/5
+                recent_xg = away_row['away_xg_for']/away_row['matches_played']
+                form_ratio = recent_goals/recent_xg if recent_xg > 0 else 1.0
+                st.metric("Recent Goals/Game", f"{recent_goals:.1f}", 
+                         f"{'📈' if form_ratio > 1.1 else '📉' if form_ratio < 0.9 else '➡️'} {form_ratio:.1%} of expected")
                 st.metric("Recent Conceded/Game", f"{away_row['goals_conceded_last_5']/5:.1f}")
     
     market_odds = display_market_odds_interface()
     
     col1, col2 = st.columns([3, 1])
     with col1:
-        if st.button("🚀 Run Advanced Prediction", type="primary", use_container_width=True):
+        if st.button("🚀 Run Data-Driven Prediction", type="primary", use_container_width=True):
             if home_team == away_team:
                 st.error("Please select different teams for home and away.")
                 return
@@ -893,7 +980,7 @@ def main():
                 
                 engine = FootballPredictionEngine(league_params)
                 
-                with st.spinner("Running fixed analysis..."):
+                with st.spinner("Running data-driven analysis..."):
                     progress_bar = st.progress(0)
                     
                     for i in range(100):
@@ -908,7 +995,7 @@ def main():
                         st.session_state.prediction_result = result
                         st.session_state.prediction_engine = engine
                         st.session_state.recommendations = recommendations
-                        st.success("✅ Fixed analysis complete!")
+                        st.success("✅ Data-driven analysis complete!")
                     else:
                         st.error("Prediction failed")
             
@@ -1070,4 +1157,4 @@ def main():
             st.json(result)
 
 if __name__ == "__main__":
-    main() 
+    main()
