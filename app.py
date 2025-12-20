@@ -32,7 +32,7 @@ CONSTANTS = {
     'MAX_GOALS_CONSIDERED': 6,
     'MIN_HOME_LAMBDA': 0.8,
     'MIN_AWAY_LAMBDA': 0.6,
-    'MAX_LAMBDA': 2.5,  # Realistic maximum for football
+    'MAX_LAMBDA': 2.3,  # Realistic maximum for football
     'DEFENDER_INJURY_IMPACT': 0.03,
     'TREND_CAP_MIN': 0.7,
     'TREND_CAP_MAX': 1.3,
@@ -100,7 +100,7 @@ class FootballPredictionEngine:
             dampened_factor = 1.0 + (raw_ratio - 1.0) * 0.3
         elif raw_ratio > 1.4:  # Opponent is 40%+ worse than average (HIGH)
             # Strong dampening: 50% of the excess
-            dampened_factor = 1.0 + (raw_ratio - 1.0) * 0.5
+            dampened_factor = 1.0 + (raw_ratio - 1.0) * 0.25
         elif raw_ratio < 0.6:  # Opponent is 40%+ better than average (EXTREME)
             # Very strong dampening for excellent defenses
             dampened_factor = 1.0 - (1.0 - raw_ratio) * 0.4
