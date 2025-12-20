@@ -16,13 +16,13 @@ LEAGUE_PARAMS = {
     'LA LIGA': {
         'league_avg_goals_conceded': 1.26,
         'league_avg_shots_allowed': 12.3,
-        'home_advantage_base': 1.15,  # Increased from 1.12
+        'home_advantage_base': 1.15,
         'variance_factor': 0.95,
     },
     'PREMIER LEAGUE': {
         'league_avg_goals_conceded': 1.42,
         'league_avg_shots_allowed': 12.7,
-        'home_advantage_base': 1.18,  # Increased from 1.15
+        'home_advantage_base': 1.18,
         'variance_factor': 1.05,
     }
 }
@@ -30,16 +30,16 @@ LEAGUE_PARAMS = {
 CONSTANTS = {
     'POISSON_SIMULATIONS': 20000,
     'MAX_GOALS_CONSIDERED': 6,
-    'MIN_HOME_LAMBDA': 0.8,   # Increased minimums
+    'MIN_HOME_LAMBDA': 0.8,
     'MIN_AWAY_LAMBDA': 0.6,
     'MAX_LAMBDA': 4.0,
     'SET_PIECE_THRESHOLD': 0.15,
     'COUNTER_ATTACK_THRESHOLD': 0.15,
-    'DEFENDER_INJURY_IMPACT': 0.06,  # Reduced from 0.08
+    'DEFENDER_INJURY_IMPACT': 0.06,
 }
 
 # ============================================================================
-# PREDICTION ENGINE CORE (WITH ALL FIXES)
+# PREDICTION ENGINE CORE (WITH TIERED PENALTIES)
 # ============================================================================
 
 class FootballPredictionEngine:
@@ -56,6 +56,46 @@ class FootballPredictionEngine:
         self.key_factors = []
         self.recommendations = []
     
+    def _apply_tiered_penalties(self, position, recent_goals_pg, recent_conceded_pg, is_attack):
+        """Apply tiered penalties for extreme cases."""
+        attack_penalty = 1.0
+        defense_penalty = 1.0
+        
+        # TIER 1: Terrible teams (position 18-20) - Relegation certainties
+        if position >= 18:
+            if is_attack:
+                if recent_goals_pg < 1.0:
+                    attack_penalty = 0.75  # Extra 25% penalty for terrible attack
+                    self.key_factors.append(f"Tier 1 attack penalty: team scores <1.0 goals/game")
+            else:
+                if recent_conceded_pg > 2.0:
+                    defense_penalty = 1.25  # Extra 25% worse defense
+                    self.key_factors.append(f"Tier 1 defense penalty: team concedes >2.0 goals/game")
+                elif recent_conceded_pg > 1.5:
+                    defense_penalty = 1.15  # Extra 15% worse defense
+        
+        # TIER 2: Very bad teams (position 15-17) - Relegation battlers
+        elif position >= 15:
+            if is_attack:
+                if recent_goals_pg < 0.8:
+                    attack_penalty = 0.85  # Extra 15% penalty
+            else:
+                if recent_conceded_pg > 1.8:
+                    defense_penalty = 1.15  # Extra 15% worse defense
+                elif recent_conceded_pg > 1.4:
+                    defense_penalty = 1.08  # Extra 8% worse defense
+        
+        # TIER 3: Top teams (position 1-4) - Title contenders
+        elif position <= 4:
+            if is_attack:
+                if recent_goals_pg > 1.8:
+                    attack_penalty = 1.15  # Extra 15% boost for strong attack
+            else:
+                if recent_conceded_pg < 0.8:
+                    defense_penalty = 0.85  # Extra 15% better defense
+        
+        return attack_penalty, defense_penalty
+    
     def _calculate_position_factor(self, position, is_attack=True):
         """More realistic position multipliers."""
         if position <= 4:          # Top 4
@@ -70,13 +110,22 @@ class FootballPredictionEngine:
             return 0.85 if is_attack else 1.15
     
     def _calculate_recent_attack(self, team_data):
-        """Calculate attack strength with better balance of recent vs season stats."""
+        """Calculate attack strength with tiered penalties."""
         # Use weighted average of recent and season performance
         recent_goals_pg = team_data['goals_scored_last_5'] / 5
         season_xg_pg = team_data['xg_for'] / team_data['matches_played']
         
         # 70% weight to recent, 30% to season
         base_attack = (recent_goals_pg * 0.7) + (season_xg_pg * 0.3)
+        
+        # Apply tiered penalties
+        attack_penalty, _ = self._apply_tiered_penalties(
+            team_data['overall_position'], 
+            recent_goals_pg, 
+            0,  # Not needed for attack calculation
+            is_attack=True
+        )
+        base_attack *= attack_penalty
         
         # Minimum floor for attack
         base_attack = max(0.7, base_attack)
@@ -106,7 +155,7 @@ class FootballPredictionEngine:
         return base_attack * pos_boost * finishing_adj * form_momentum * motivation_adj
     
     def _calculate_recent_defense(self, team_data, is_home):
-        """Calculate defensive quality with better balance."""
+        """Calculate defensive quality with tiered penalties."""
         # Use weighted average
         recent_conceded_pg = team_data['goals_conceded_last_5'] / 5
         
@@ -116,6 +165,15 @@ class FootballPredictionEngine:
             season_xga_pg = team_data['away_xga'] / team_data['matches_played']
         
         base_defense = (recent_conceded_pg * 0.6) + (season_xga_pg * 0.4)
+        
+        # Apply tiered penalties
+        _, defense_penalty = self._apply_tiered_penalties(
+            team_data['overall_position'],
+            0,  # Not needed for defense calculation
+            recent_conceded_pg,
+            is_attack=False
+        )
+        base_defense *= defense_penalty
         
         # Position-based defense factor
         pos_factor = self._calculate_position_factor(team_data['overall_position'], is_attack=False)
@@ -174,7 +232,7 @@ class FootballPredictionEngine:
         return adjustments
     
     def calculate_expected_goals(self, home_data, away_data):
-        """Calculate expected goals with stronger home advantage."""
+        """Calculate expected goals with tiered penalties."""
         # Home team expected goals
         home_attack = self._calculate_recent_attack(home_data)
         away_defense = self._calculate_recent_defense(away_data, is_home=False)
@@ -204,12 +262,12 @@ class FootballPredictionEngine:
         
         # Position difference adjustment (less extreme)
         pos_diff = away_data['overall_position'] - home_data['overall_position']
-        if pos_diff >= 6:
-            home_lambda *= 1.05
-            away_lambda *= 0.95
-        elif pos_diff <= -6:
-            home_lambda *= 0.95
-            away_lambda *= 1.05
+        if pos_diff >= 8:
+            home_lambda *= 1.08
+            away_lambda *= 0.92
+        elif pos_diff <= -8:
+            home_lambda *= 0.92
+            away_lambda *= 1.08
         
         return round(home_lambda, 2), round(away_lambda, 2)
     
@@ -300,9 +358,9 @@ class FootballPredictionEngine:
         # Position factors
         pos_diff = away_data['overall_position'] - home_data['overall_position']
         if pos_diff >= 5:
-            factors.append(f"Home position advantage: #{home_data['overall_position']} vs #{away_data['overall_position']}")
+            factors.append(f"Home position disadvantage: #{home_data['overall_position']} vs #{away_data['overall_position']}")
         elif pos_diff <= -5:
-            factors.append(f"Away position advantage: #{away_data['overall_position']} vs #{home_data['overall_position']}")
+            factors.append(f"Away position disadvantage: #{away_data['overall_position']} vs #{home_data['overall_position']}")
         
         # Form factors
         form_diff = home_data['form_last_5'] - away_data['form_last_5']
@@ -328,6 +386,17 @@ class FootballPredictionEngine:
             factors.append(f"Home injuries: {home_data['defenders_out']} defenders out")
         if away_data['defenders_out'] > 0:
             factors.append(f"Away injuries: {away_data['defenders_out']} defenders out")
+        
+        # Tier indicators
+        if home_data['overall_position'] >= 18:
+            factors.append(f"Home in relegation zone (Tier 1)")
+        elif home_data['overall_position'] >= 15:
+            factors.append(f"Home in relegation battle (Tier 2)")
+        
+        if away_data['overall_position'] >= 18:
+            factors.append(f"Away in relegation zone (Tier 1)")
+        elif away_data['overall_position'] >= 15:
+            factors.append(f"Away in relegation battle (Tier 2)")
         
         return factors
     
