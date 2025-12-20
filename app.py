@@ -792,11 +792,11 @@ def main():
                     github_base_url = "https://raw.githubusercontent.com/profdue/Brutball/main/leagues/"
                     league_files = {
                         'Premier League': 'epl_complete.csv',
-                        'La Liga': 'la_liga_complete.csv',
+                        'La Liga': 'la_liga.csv',
                     }
                     
                     # Try complete data first, fall back to basic
-                    url = f"{github_base_url}{league_files.get(selected_league, 'la_liga_complete.csv')}"
+                    url = f"{github_base_url}{league_files.get(selected_league, 'la_liga.csv')}"
                     response = requests.get(url, timeout=10)
                     
                     if response.status_code == 200:
