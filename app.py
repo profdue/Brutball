@@ -2,1072 +2,651 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import time
-import math
-import io
-import requests
+from plotly.subplots import make_subplots
+import random
 from scipy import stats
 
 # ============================================================================
-# LEAGUE-SPECIFIC PARAMETERS & CONSTANTS - FINAL TIER-BASED VERSION
+# STRESS TEST FRAMEWORK
 # ============================================================================
 
-LEAGUE_PARAMS = {
-    'LA LIGA': {
-        'avg_goals': 1.26,
-        'avg_shots': 12.3,
-        'home_advantage': 1.18,
-        'goal_variance': 'medium'
-    },
-    'PREMIER LEAGUE': {
-        'avg_goals': 1.42,
-        'avg_shots': 12.7,
-        'home_advantage': 1.18,
-        'goal_variance': 'high'
-    }
-}
-
-CONSTANTS = {
-    'POISSON_SIMULATIONS': 20000,
-    'MAX_GOALS_CONSIDERED': 6,
-    'MIN_HOME_LAMBDA': 0.8,
-    'MIN_AWAY_LAMBDA': 0.6,
-    'DEFENDER_INJURY_IMPACT': 0.03,
-    'TREND_CAP_MIN': 0.7,
-    'TREND_CAP_MAX': 1.3,
-    'SET_PIECE_THRESHOLD': 0.15,
-    'COUNTER_ATTACK_THRESHOLD': 0.15,
-    'MOTIVATION_BASE': 0.95,
-    'MOTIVATION_INCREMENT': 0.02,
-}
-
-# ============================================================================
-# PREDICTION ENGINE CORE - FINAL TIER-BASED VERSION
-# ============================================================================
-
-class FootballPredictionEngine:
-    def __init__(self, league_params):
-        self.league_params = league_params
-        self.reset()
-    
-    def reset(self):
-        self.home_lambda = None
-        self.away_lambda = None
-        self.probabilities = {}
-        self.scoreline_probs = {}
-        self.confidence = 0
-        self.key_factors = []
-        self.recommendations = []
-        self.debug_info = []
-    
-    def _get_tier_based_max_lambda(self, position, is_home):
-        """Get tier-based maximum λ based on team position."""
-        if position <= 3:  # Elite team
-            if is_home:
-                return 3.0
-            else:
-                return 2.5
-        elif position <= 6:  # Top team
-            if is_home:
-                return 2.7
-            else:
-                return 2.2
-        elif position <= 12:  # Mid-table
-            if is_home:
-                return 2.3
-            else:
-                return 1.8
-        else:  # Lower team
-            if is_home:
-                return 2.0
-            else:
-                return 1.5
-    
-    def _step1_base_expected_goals(self, team_data, is_home):
-        """STEP 1: Calculate base expected goals using venue-specific xG."""
-        if is_home:
-            home_xg_for = team_data.get('home_xg_for', 0)
-            home_matches = team_data.get('matches_played', 1)
-            if home_matches > 0:
-                base_xg = home_xg_for / home_matches
-            else:
-                base_xg = self.league_params['avg_goals'] * 1.1
-        else:
-            away_xg_for = team_data.get('away_xg_for', 0)
-            away_matches = team_data.get('matches_played', 1)
-            if away_matches > 0:
-                base_xg = away_xg_for / away_matches
-            else:
-                base_xg = self.league_params['avg_goals'] * 0.9
+class StressTestFramework:
+    def __init__(self, engine_class):
+        self.engine_class = engine_class
+        self.test_results = []
+        self.anomalies = []
         
-        self.debug_info.append(f"Step 1 {'Home' if is_home else 'Away'}: base_xg = {base_xg:.2f}")
-        return base_xg
-    
-    def _step2_opponent_adjustment(self, attack_team_data, defense_team_data, is_home):
-        """STEP 2: Calibrated opponent defense adjustment with piecewise dampening."""
-        if is_home:
-            opp_xga = defense_team_data.get('away_xga', 0)
-            opp_matches = defense_team_data.get('matches_played', 1)
-        else:
-            opp_xga = defense_team_data.get('home_xga', 0)
-            opp_matches = defense_team_data.get('matches_played', 1)
-        
-        if opp_matches > 0:
-            opp_defense = opp_xga / opp_matches
-        else:
-            opp_defense = self.league_params['avg_goals']
-        
-        raw_ratio = opp_defense / self.league_params['avg_goals']
-        
-        # CALIBRATED PIECEWISE DAMPENING
-        if raw_ratio > 1.8:
-            dampened_factor = 1.0 + (raw_ratio - 1.0) * 0.25
-        elif raw_ratio > 1.4:
-            dampened_factor = 1.0 + (raw_ratio - 1.0) * 0.5
-        elif raw_ratio < 0.6:
-            dampened_factor = 1.0 - (1.0 - raw_ratio) * 0.4
-        elif raw_ratio < 0.8:
-            dampened_factor = 1.0 - (1.0 - raw_ratio) * 0.6
-        else:
-            dampened_factor = raw_ratio ** 0.8
-        
-        dampened_factor = max(0.6, min(1.8, dampened_factor))
-        
-        self.debug_info.append(f"Step 2 {'Home' if is_home else 'Away'}: opp_defense={opp_defense:.2f}, raw_ratio={raw_ratio:.2f}, dampened_factor={dampened_factor:.2f}")
-        return dampened_factor
-    
-    def _step3_recent_form_override(self, team_data, is_home):
-        """STEP 3: Apply recent form trends with venue-aware calculation."""
-        recent_goals_pg = team_data.get('goals_scored_last_5', 0) / 5
-        
-        matches_played = max(team_data.get('matches_played', 1), 1)
-        
-        if is_home:
-            venue_xg = team_data.get('home_xg_for', 0)
-        else:
-            venue_xg = team_data.get('away_xg_for', 0)
-        
-        if matches_played > 0:
-            venue_xg_pg = venue_xg / matches_played
-        else:
-            venue_xg_pg = self.league_params['avg_goals']
-        
-        if venue_xg_pg > 0:
-            attack_trend = recent_goals_pg / venue_xg_pg
-        else:
-            attack_trend = 1.0
-        
-        position = team_data.get('overall_position', 10)
-        
-        # TIER-BASED FORM CAPS
-        if position <= 3:
-            trend_min = 0.8
-            trend_max = 1.4
-        elif position <= 6:
-            trend_min = 0.75
-            trend_max = 1.3
-        else:
-            trend_min = 0.7
-            trend_max = 1.3
-        
-        attack_trend = max(trend_min, min(trend_max, attack_trend))
-        
-        self.debug_info.append(f"Step 3 {'Home' if is_home else 'Away'}: recent_goals={recent_goals_pg:.2f}, venue_xg_pg={venue_xg_pg:.2f}, raw_trend={recent_goals_pg/venue_xg_pg if venue_xg_pg>0 else 1.0:.2f}, final_trend={attack_trend:.2f}")
-        return attack_trend
-    
-    def _step4_key_factor_adjustments(self, home_data, away_data):
-        """STEP 4: Apply calibrated key factor adjustments."""
-        adjustments = {'home': 1.0, 'away': 1.0}
-        
-        home_injury_impact = 1.0 - (home_data.get('defenders_out', 0) * 
-                                   CONSTANTS['DEFENDER_INJURY_IMPACT'])
-        away_injury_impact = 1.0 - (away_data.get('defenders_out', 0) * 
-                                   CONSTANTS['DEFENDER_INJURY_IMPACT'])
-        
-        adjustments['home'] *= max(0.85, home_injury_impact)
-        adjustments['away'] *= max(0.85, away_injury_impact)
-        
-        home_motivation = home_data.get('motivation', 3)
-        away_motivation = away_data.get('motivation', 3)
-        
-        home_motivation_impact = CONSTANTS['MOTIVATION_BASE'] + (home_motivation * CONSTANTS['MOTIVATION_INCREMENT'])
-        away_motivation_impact = CONSTANTS['MOTIVATION_BASE'] + (away_motivation * CONSTANTS['MOTIVATION_INCREMENT'])
-        
-        adjustments['home'] *= home_motivation_impact
-        adjustments['away'] *= away_motivation_impact
-        
-        home_advantage = self.league_params['home_advantage'] * (
-            1 + home_data.get('home_ppg_diff', 0) * 0.03
-        )
-        away_disadvantage = 2.0 - home_advantage
-        
-        adjustments['home'] *= home_advantage
-        adjustments['away'] *= away_disadvantage
-        
-        style_adjustments = {'home': 0, 'away': 0}
-        
-        set_piece_diff = home_data.get('set_piece_pct', 0) - away_data.get('set_piece_pct', 0)
-        if abs(set_piece_diff) > CONSTANTS['SET_PIECE_THRESHOLD']:
-            if set_piece_diff > 0:
-                style_adjustments['home'] += 0.05
-            else:
-                style_adjustments['away'] += 0.05
-        
-        if (away_data.get('counter_attack_pct', 0) > CONSTANTS['COUNTER_ATTACK_THRESHOLD'] and 
-            home_data.get('shots_allowed_pg', 0) > self.league_params['avg_shots']):
-            style_adjustments['away'] += 0.04
-        
-        adjustments['home'] += style_adjustments['home']
-        adjustments['away'] += style_adjustments['away']
-        
-        home_goals_conceded = home_data.get('goals_conceded', 0)
-        home_xga = home_data.get('home_xga', 0)
-        if home_xga > 0 and home_goals_conceded / home_xga < 0.9:
-            adjustments['away'] *= 0.98
-        
-        away_goals_conceded = away_data.get('goals_conceded', 0)
-        away_xga = away_data.get('away_xga', 0)
-        if away_xga > 0 and away_goals_conceded / away_xga < 0.9:
-            adjustments['home'] *= 0.98
-        
-        self.debug_info.append(f"Step 4: Home adjustments={adjustments['home']:.2f}, Away adjustments={adjustments['away']:.2f}")
-        return adjustments
-    
-    def _step5_final_calibration(self, home_lambda, away_lambda, home_data, away_data):
-        """STEP 5: Tier-based final calibration with tier-based diff ratio caps."""
-        home_position = home_data.get('overall_position', 10)
-        away_position = away_data.get('overall_position', 10)
-        
-        max_home_lambda = self._get_tier_based_max_lambda(home_position, is_home=True)
-        max_away_lambda = self._get_tier_based_max_lambda(away_position, is_home=False)
-        
-        home_lambda = max(CONSTANTS['MIN_HOME_LAMBDA'], 
-                         min(max_home_lambda, home_lambda))
-        away_lambda = max(CONSTANTS['MIN_AWAY_LAMBDA'], 
-                         min(max_away_lambda, away_lambda))
-        
-        self.debug_info.append(f"Step 5a: Home pos={home_position}, max_λ={max_home_lambda}, pre-cap_λ={home_lambda:.2f}")
-        self.debug_info.append(f"Step 5a: Away pos={away_position}, max_λ={max_away_lambda}, pre-cap_λ={away_lambda:.2f}")
-        
-        total_lambda = home_lambda + away_lambda
-        
-        if home_position <= 3 and away_position >= 16:
-            max_total = 5.0
-        elif home_position <= 6 and away_position >= 14:
-            max_total = 4.5
-        else:
-            max_total = 4.0
-        
-        if total_lambda > max_total:
-            scale_factor = max_total / total_lambda
-            home_lambda *= scale_factor
-            away_lambda *= scale_factor
-            self.debug_info.append(f"Step 5b: Scaled down, total_λ={total_lambda:.2f} > max={max_total}, scale={scale_factor:.2f}")
-        elif total_lambda < 1.5:
-            scale_factor = 1.5 / total_lambda
-            home_lambda *= scale_factor
-            away_lambda *= scale_factor
-            self.debug_info.append(f"Step 5b: Scaled up, total_λ={total_lambda:.2f} < min=1.5, scale={scale_factor:.2f}")
-        
-        # TIER-BASED DIFF RATIO CAPS - FIXED VERSION
-        diff_ratio = home_lambda / away_lambda if away_lambda > 0.1 else 6.0
-        
-        # Determine max diff ratio based on team tiers
-        if home_position <= 3 and away_position >= 14:  # Elite vs weak
-            max_diff_ratio = 6.0
-        elif home_position <= 3 or away_position >= 16:  # Elite team or very weak opponent
-            max_diff_ratio = 5.0
-        elif home_position <= 6 and away_position >= 12:  # Strong vs weak
-            max_diff_ratio = 4.5
-        else:  # Normal matchups
-            max_diff_ratio = 4.0
-        
-        if diff_ratio > max_diff_ratio:
-            home_lambda = (home_lambda + away_lambda * max_diff_ratio) / (1 + max_diff_ratio)
-            away_lambda = home_lambda / max_diff_ratio
-            self.debug_info.append(f"Step 5c: Tier-based cap, was {diff_ratio:.2f}, max={max_diff_ratio}, now {home_lambda/away_lambda if away_lambda>0.1 else 'N/A':.2f}")
-        
-        self.debug_info.append(f"Step 5 Final: Home λ={home_lambda:.2f}, Away λ={away_lambda:.2f}")
-        return round(home_lambda, 2), round(away_lambda, 2)
-    
-    def calculate_expected_goals(self, home_data, away_data):
-        """Calculate expected goals with tier-based calibration."""
-        self.debug_info = []
-        
-        home_base = self._step1_base_expected_goals(home_data, is_home=True)
-        away_base = self._step1_base_expected_goals(away_data, is_home=False)
-        
-        home_opp_factor = self._step2_opponent_adjustment(home_data, away_data, is_home=True)
-        away_opp_factor = self._step2_opponent_adjustment(away_data, home_data, is_home=False)
-        
-        home_lambda = home_base * home_opp_factor
-        away_lambda = away_base * away_opp_factor
-        
-        home_trend = self._step3_recent_form_override(home_data, is_home=True)
-        away_trend = self._step3_recent_form_override(away_data, is_home=False)
-        
-        home_lambda *= home_trend
-        away_lambda *= away_trend
-        
-        key_factors = self._step4_key_factor_adjustments(home_data, away_data)
-        home_lambda *= key_factors['home']
-        away_lambda *= key_factors['away']
-        
-        home_lambda, away_lambda = self._step5_final_calibration(home_lambda, away_lambda, home_data, away_data)
-        
-        for debug_line in self.debug_info:
-            self.key_factors.append(f"DEBUG: {debug_line}")
-        
-        return home_lambda, away_lambda
-    
-    def calculate_probabilities(self, home_lambda, away_lambda):
-        """Calculate probabilities using Poisson distribution."""
-        simulations = CONSTANTS['POISSON_SIMULATIONS']
-        
-        np.random.seed(42)
-        home_goals = np.random.poisson(home_lambda, simulations)
-        away_goals = np.random.poisson(away_lambda, simulations)
-        
-        home_wins = np.sum(home_goals > away_goals)
-        draws = np.sum(home_goals == away_goals)
-        away_wins = np.sum(home_goals < away_goals)
-        
-        total_goals = home_goals + away_goals
-        over_25 = np.sum(total_goals > 2.5)
-        under_25 = np.sum(total_goals < 2.5)
-        btts_yes = np.sum((home_goals > 0) & (away_goals > 0))
-        btts_no = np.sum((home_goals == 0) | (away_goals == 0))
-        
-        probabilities = {
-            'home_win': home_wins / simulations,
-            'draw': draws / simulations,
-            'away_win': away_wins / simulations,
-            'over_25': over_25 / simulations,
-            'under_25': under_25 / simulations,
-            'btts_yes': btts_yes / simulations,
-            'btts_no': btts_no / simulations,
+    def create_mock_team_data(self, position, is_home=True, strength_factor=1.0):
+        """Create realistic mock team data for testing."""
+        base_data = {
+            'overall_position': position,
+            'team': f"Team_{position}",
+            'venue': 'home' if is_home else 'away',
+            'matches_played': 20,
+            'home_xg_for': 25 * strength_factor if is_home else 0,
+            'away_xg_for': 0 if is_home else 20 * strength_factor,
+            'goals': 30 * strength_factor,
+            'home_xga': 15 if is_home else 0,
+            'away_xga': 0 if is_home else 18,
+            'goals_conceded': 20,
+            'defenders_out': random.randint(0, 2),
+            'form_last_5': random.uniform(1.0, 2.0) * strength_factor,
+            'motivation': random.randint(3, 5),
+            'open_play_pct': 0.7,
+            'set_piece_pct': 0.2,
+            'counter_attack_pct': 0.1,
+            'form': 'WWDLW',
+            'shots_allowed_pg': 12.0,
+            'home_ppg_diff': 0.5 if is_home else -0.3,
+            'goals_scored_last_5': 8 * strength_factor,
+            'goals_conceded_last_5': 5
         }
-        
-        scoreline_probs = {}
-        max_goals = CONSTANTS['MAX_GOALS_CONSIDERED']
-        for i in range(max_goals + 1):
-            for j in range(max_goals + 1):
-                prob = (stats.poisson.pmf(i, home_lambda) * 
-                       stats.poisson.pmf(j, away_lambda))
-                if prob > 0.001:
-                    scoreline_probs[f"{i}-{j}"] = prob
-        
-        total_score_prob = sum(scoreline_probs.values())
-        if total_score_prob > 0:
-            scoreline_probs = {k: v/total_score_prob for k, v in scoreline_probs.items()}
-        
-        most_likely = max(scoreline_probs.items(), key=lambda x: x[1])[0] if scoreline_probs else "1-1"
-        
-        return probabilities, scoreline_probs, most_likely
+        return base_data
     
-    def calculate_confidence(self, home_lambda, away_lambda, home_data, away_data):
-        """Calculate model confidence with tier consideration."""
-        confidence = 50
+    def run_extreme_case_test(self, league_params):
+        """Test extreme matchups."""
+        engine = self.engine_class(league_params)
         
-        goal_diff = abs(home_lambda - away_lambda)
-        confidence += goal_diff * 15
-        
-        pos_diff = abs(home_data['overall_position'] - away_data['overall_position'])
-        if pos_diff >= 10:
-            confidence += 25
-        elif pos_diff >= 5:
-            confidence += 15
-        else:
-            confidence += pos_diff * 1.5
-        
-        form_diff = abs(home_data['form_last_5'] - away_data['form_last_5'])
-        confidence += min(15, form_diff * 0.8)
-        
-        total_injuries = home_data.get('defenders_out', 0) + away_data.get('defenders_out', 0)
-        confidence -= total_injuries * 2
-        
-        if self.league_params['goal_variance'] == 'high':
-            confidence *= 0.97
-        
-        return round(max(30, min(85, confidence)), 1)
-    
-    def generate_key_factors(self, home_data, away_data, home_lambda, away_lambda):
-        """Generate key factors for the prediction."""
-        factors = []
-        
-        home_position = home_data['overall_position']
-        away_position = away_data['overall_position']
-        pos_diff = away_position - home_position
-        
-        if abs(pos_diff) >= 10:
-            factors.append(f"Huge position difference: #{home_position} vs #{away_position}")
-        elif abs(pos_diff) >= 5:
-            factors.append(f"Significant position difference: #{home_position} vs #{away_position}")
-        
-        if home_position <= 3:
-            factors.append(f"Elite home team: #{home_position} position")
-        if away_position >= 16:
-            factors.append(f"Struggling away team: #{away_position} position")
-        
-        if home_lambda > 2.5:
-            factors.append(f"Extremely high home expected goals: {home_lambda:.2f}")
-        elif home_lambda > 2.0:
-            factors.append(f"Very high home expected goals: {home_lambda:.2f}")
-        
-        if away_lambda > 2.0:
-            factors.append(f"Very high away expected goals: {away_lambda:.2f}")
-        elif away_lambda > 1.5:
-            factors.append(f"High away expected goals: {away_lambda:.2f}")
-        
-        home_xga_pg = home_data.get('home_xga', 0) / max(home_data.get('matches_played', 1), 1)
-        away_xga_pg = away_data.get('away_xga', 0) / max(away_data.get('matches_played', 1), 1)
-        
-        if home_xga_pg < self.league_params['avg_goals'] * 0.8:
-            factors.append(f"Strong home defense: {home_xga_pg:.2f} xGA/game")
-        if away_xga_pg > self.league_params['avg_goals'] * 1.5:
-            factors.append(f"Weak away defense: {away_xga_pg:.2f} xGA/game")
-        
-        home_recent = home_data.get('goals_scored_last_5', 0) / 5
-        away_recent = away_data.get('goals_scored_last_5', 0) / 5
-        
-        if home_recent > self.league_params['avg_goals'] * 1.5:
-            factors.append(f"Home excellent recent scoring: {home_recent:.2f} goals/game")
-        if away_recent < self.league_params['avg_goals'] * 0.5:
-            factors.append(f"Away poor recent scoring: {away_recent:.2f} goals/game")
-        
-        if home_data.get('defenders_out', 0) >= 3:
-            factors.append(f"Home defensive crisis: {home_data['defenders_out']} defenders out")
-        if away_data.get('defenders_out', 0) >= 3:
-            factors.append(f"Away defensive crisis: {away_data['defenders_out']} defenders out")
-        
-        return factors
-    
-    def get_market_recommendations(self, probabilities, market_odds):
-        """Get market recommendations."""
-        recommendations = []
-        
-        if probabilities['over_25'] > probabilities['under_25']:
-            over_rec = {
-                'market': 'Total Goals',
-                'prediction': 'Over 2.5',
-                'probability': probabilities['over_25'],
-                'fair_odds': 1 / probabilities['over_25'],
-                'market_odds': market_odds.get('over_25', 1.85),
-                'strength': 'Strong' if probabilities['over_25'] > 0.65 else 'Moderate' if probabilities['over_25'] > 0.55 else 'Weak'
-            }
-            recommendations.append(over_rec)
-        else:
-            under_rec = {
-                'market': 'Total Goals',
-                'prediction': 'Under 2.5',
-                'probability': probabilities['under_25'],
-                'fair_odds': 1 / probabilities['under_25'],
-                'market_odds': 1 / (1 - 1/market_odds.get('over_25', 1.85)) if market_odds.get('over_25', 1.85) > 1 else 2.00,
-                'strength': 'Strong' if probabilities['under_25'] > 0.65 else 'Moderate' if probabilities['under_25'] > 0.55 else 'Weak'
-            }
-            recommendations.append(under_rec)
-        
-        if probabilities['btts_yes'] > probabilities['btts_no']:
-            btts_rec = {
-                'market': 'Both Teams to Score',
-                'prediction': 'Yes',
-                'probability': probabilities['btts_yes'],
-                'fair_odds': 1 / probabilities['btts_yes'],
-                'market_odds': market_odds.get('btts_yes', 1.75),
-                'strength': 'Strong' if probabilities['btts_yes'] > 0.65 else 'Moderate' if probabilities['btts_yes'] > 0.55 else 'Weak'
-            }
-            recommendations.append(btts_rec)
-        else:
-            btts_rec = {
-                'market': 'Both Teams to Score',
-                'prediction': 'No',
-                'probability': probabilities['btts_no'],
-                'fair_odds': 1 / probabilities['btts_no'],
-                'market_odds': 1 / (1 - 1/market_odds.get('btts_yes', 1.75)) if market_odds.get('btts_yes', 1.75) > 1 else 2.00,
-                'strength': 'Strong' if probabilities['btts_no'] > 0.65 else 'Moderate' if probabilities['btts_no'] > 0.55 else 'Weak'
-            }
-            recommendations.append(btts_rec)
-        
-        return recommendations
-    
-    def predict(self, home_data, away_data):
-        """Main prediction function."""
-        self.reset()
-        
-        home_lambda, away_lambda = self.calculate_expected_goals(home_data, away_data)
-        self.home_lambda = home_lambda
-        self.away_lambda = away_lambda
-        
-        probabilities, scoreline_probs, most_likely = self.calculate_probabilities(home_lambda, away_lambda)
-        self.probabilities = probabilities
-        self.scoreline_probs = scoreline_probs
-        self.most_likely_score = most_likely
-        
-        self.confidence = self.calculate_confidence(home_lambda, away_lambda, home_data, away_data)
-        regular_factors = self.generate_key_factors(home_data, away_data, home_lambda, away_lambda)
-        self.key_factors = self.key_factors + regular_factors
-        
-        return {
-            'expected_goals': {'home': home_lambda, 'away': away_lambda},
-            'probabilities': probabilities,
-            'scorelines': {
-                'most_likely': most_likely,
-                'top_10': dict(sorted(scoreline_probs.items(), key=lambda x: x[1], reverse=True)[:10])
+        test_cases = [
+            # Case 1: Elite vs Bottom (Position 1 vs 20)
+            {
+                'name': 'Elite vs Bottom',
+                'home': self.create_mock_team_data(1, is_home=True, strength_factor=1.5),
+                'away': self.create_mock_team_data(20, is_home=False, strength_factor=0.6)
             },
-            'confidence': self.confidence,
-            'key_factors': self.key_factors,
-            'success': True
-        }
-
-# ============================================================================
-# DATA LOADING & VALIDATION
-# ============================================================================
-
-def load_league_data(league_name):
-    """Load league data from GitHub with validation."""
-    github_urls = {
-        'LA LIGA': 'https://raw.githubusercontent.com/profdue/Brutball/main/leagues/la_liga.csv',
-        'PREMIER LEAGUE': 'https://raw.githubusercontent.com/profdue/Brutball/main/leagues/premier_league.csv'
-    }
-    
-    url = github_urls.get(league_name.upper())
-    if not url:
-        st.error(f"League {league_name} not configured in the system")
-        return None
-    
-    try:
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 404:
-            st.error(f"❌ Data file not found for {league_name}")
-            st.info(f"""
-            **File not found:** `{url.split('/')[-1]}`
-            
-            To add {league_name} data:
-            1. Go to your GitHub repository: https://github.com/profdue/Brutball
-            2. Navigate to the `leagues` folder
-            3. Upload a CSV file named `{league_name.lower().replace(' ', '_')}.csv`
-            4. Ensure it has the EXACT same format
-            
-            **Required columns:**
-            ```
-            overall_position,team,venue,matches_played,home_xg_for,away_xg_for,goals,
-            home_xga,away_xga,goals_conceded,home_xgdiff_def,away_xgdiff_def,defenders_out,
-            form_last_5,motivation,open_play_pct,set_piece_pct,counter_attack_pct,form,
-            shots_allowed_pg,home_ppg_diff,goals_scored_last_5,goals_conceded_last_5
-            ```
-            """)
-            return None
-        
-        response.raise_for_status()
-        
-        df = pd.read_csv(io.StringIO(response.content.decode('utf-8')))
-        
-        original_columns = df.columns.tolist()
-        df.columns = df.columns.str.lower().str.replace(' ', '_')
-        
-        available_cols = list(df.columns)
-        
-        if 'xg_for' in df.columns and 'home_xg_for' not in df.columns:
-            st.info("⚠️ Using estimated home/away xG splits for La Liga data")
-            
-            for idx, row in df.iterrows():
-                venue = row['venue']
-                if venue == 'home':
-                    df.at[idx, 'home_xg_for'] = row['xg_for'] * 0.55
-                    df.at[idx, 'away_xg_for'] = 0
-                    df.at[idx, 'home_xga'] = row.get('home_xga', row['xg_for'] * 0.8)
-                    df.at[idx, 'away_xga'] = 0
-                else:
-                    df.at[idx, 'home_xg_for'] = 0
-                    df.at[idx, 'away_xg_for'] = row['xg_for'] * 0.45
-                    df.at[idx, 'home_xga'] = 0
-                    df.at[idx, 'away_xga'] = row.get('away_xga', row['xg_for'] * 0.8)
-        
-        required_cols = [
-            'overall_position', 'team', 'venue', 'matches_played', 'home_xg_for', 
-            'away_xg_for', 'goals', 'home_xga', 'away_xga', 'goals_conceded',
-            'defenders_out', 'form_last_5', 'motivation', 'open_play_pct', 
-            'set_piece_pct', 'counter_attack_pct', 'form', 'shots_allowed_pg', 
-            'home_ppg_diff', 'goals_scored_last_5', 'goals_conceded_last_5'
+            # Case 2: Two Elite Teams
+            {
+                'name': 'Elite vs Elite',
+                'home': self.create_mock_team_data(2, is_home=True, strength_factor=1.3),
+                'away': self.create_mock_team_data(3, is_home=False, strength_factor=1.3)
+            },
+            # Case 3: Mid-table Mediocrity
+            {
+                'name': 'Mid-table Clash',
+                'home': self.create_mock_team_data(10, is_home=True, strength_factor=1.0),
+                'away': self.create_mock_team_data(11, is_home=False, strength_factor=1.0)
+            },
+            # Case 4: Strong Defense vs Weak Attack
+            {
+                'name': 'Defensive vs Weak Attack',
+                'home': self.create_mock_team_data(5, is_home=True, strength_factor=1.0),
+                'away': self.create_mock_team_data(18, is_home=False, strength_factor=0.7)
+            },
+            # Case 5: Many Injuries
+            {
+                'name': 'Injury Crisis',
+                'home': self.create_mock_team_data(8, is_home=True, strength_factor=1.0),
+                'away': self.create_mock_team_data(9, is_home=False, strength_factor=1.0)
+            }
         ]
         
-        missing_cols = [col for col in required_cols if col not in df.columns]
+        # Add extra injuries for case 5
+        test_cases[4]['home']['defenders_out'] = 4
+        test_cases[4]['away']['defenders_out'] = 3
         
-        if missing_cols:
-            st.warning(f"⚠️ Missing columns in {league_name} data: {', '.join(missing_cols)}")
+        results = []
+        for case in test_cases:
+            result = engine.predict(case['home'], case['away'])
+            results.append({
+                'case': case['name'],
+                'home_λ': result['expected_goals']['home'],
+                'away_λ': result['expected_goals']['away'],
+                'home_win': result['probabilities']['home_win'],
+                'draw': result['probabilities']['draw'],
+                'away_win': result['probabilities']['away_win'],
+                'confidence': result['confidence'],
+                'total_λ': result['expected_goals']['home'] + result['expected_goals']['away']
+            })
             
-            with st.expander("🔍 View Raw Data Structure"):
-                st.write("**Original column names:**", original_columns)
-                st.write("**Standardized column names:**", available_cols)
-                st.write("**First 3 rows of data:**")
-                st.dataframe(df.head(3))
+            # Check for anomalies
+            λ_diff = abs(result['expected_goals']['home'] - result['expected_goals']['away'])
+            if λ_diff > 2.0 and 'Elite' not in case['name']:
+                self.anomalies.append(f"Large λ diff ({λ_diff:.2f}) in {case['name']}")
             
-            for col in missing_cols:
-                if col not in df.columns:
-                    df[col] = 0
+            if result['expected_goals']['home'] > 3.0:
+                self.anomalies.append(f"Very high home λ ({result['expected_goals']['home']:.2f}) in {case['name']}")
+        
+        return results
+    
+    def run_monte_carlo_calibration(self, league_params, n_simulations=1000):
+        """Run Monte Carlo simulations to test calibration."""
+        engine = self.engine_class(league_params)
+        
+        calibration_data = []
+        for _ in range(n_simulations):
+            # Random team positions
+            home_pos = random.randint(1, 20)
+            away_pos = random.randint(1, 20)
             
-        numeric_cols = ['matches_played', 'home_xg_for', 'away_xg_for', 'goals', 
-                       'home_xga', 'away_xga', 'goals_conceded', 'defenders_out',
-                       'form_last_5', 'motivation', 'open_play_pct', 'set_piece_pct', 
-                       'counter_attack_pct', 'shots_allowed_pg', 'home_ppg_diff',
-                       'goals_scored_last_5', 'goals_conceded_last_5']
+            # Create random strength factors
+            home_strength = 1.0 + (1 - home_pos/20) * 0.5
+            away_strength = 1.0 + (1 - away_pos/20) * 0.5
+            
+            home_data = self.create_mock_team_data(
+                home_pos, is_home=True, strength_factor=home_strength
+            )
+            away_data = self.create_mock_team_data(
+                away_pos, is_home=False, strength_factor=away_strength
+            )
+            
+            result = engine.predict(home_data, away_data)
+            
+            calibration_data.append({
+                'home_pos': home_pos,
+                'away_pos': away_pos,
+                'pos_diff': abs(home_pos - away_pos),
+                'home_λ': result['expected_goals']['home'],
+                'away_λ': result['expected_goals']['away'],
+                'λ_diff': abs(result['expected_goals']['home'] - result['expected_goals']['away']),
+                'total_λ': result['expected_goals']['home'] + result['expected_goals']['away'],
+                'home_win_prob': result['probabilities']['home_win'],
+                'confidence': result['confidence']
+            })
         
-        for col in numeric_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-                if df[col].isna().any():
-                    if col in ['home_xg_for', 'away_xg_for']:
-                        df[col].fillna(1.0, inplace=True)
-                    elif col in ['home_xga', 'away_xga', 'goals_conceded']:
-                        df[col].fillna(1.5, inplace=True)
-                    elif col == 'form_last_5':
-                        df[col].fillna(5.0, inplace=True)
-                    elif col == 'motivation':
-                        df[col].fillna(3.0, inplace=True)
-                    elif col == 'shots_allowed_pg':
-                        df[col].fillna(12.0, inplace=True)
-                    else:
-                        df[col].fillna(0, inplace=True)
-        
-        st.success(f"✅ Successfully loaded {league_name} data ({len(df)} records)")
-        
-        return df
-        
-    except requests.exceptions.RequestException as e:
-        st.error(f"Failed to load {league_name} data from GitHub: {str(e)}")
-        return None
-    except Exception as e:
-        st.error(f"Error processing {league_name} data: {str(e)}")
-        return None
-
-def prepare_team_data(df, team_name, venue):
-    """Prepare team data for prediction."""
-    team_data = df[(df['team'] == team_name) & (df['venue'] == venue.lower())]
+        return pd.DataFrame(calibration_data)
     
-    if team_data.empty:
-        team_data = df[(df['team'].str.lower() == team_name.lower()) & 
-                      (df['venue'] == venue.lower())]
+    def run_tier_boundary_test(self, league_params):
+        """Test boundary conditions between tiers."""
+        engine = self.engine_class(league_params)
+        
+        boundaries = [
+            (3, 4),  # Elite/Top boundary
+            (6, 7),  # Top/Mid boundary
+            (12, 13),  # Mid/Lower boundary
+            (15, 16),  # Lower tier boundary
+        ]
+        
+        results = []
+        for home_pos, away_pos in boundaries:
+            # Test both directions
+            home_data = self.create_mock_team_data(home_pos, is_home=True)
+            away_data = self.create_mock_team_data(away_pos, is_home=False)
+            
+            result = engine.predict(home_data, away_data)
+            
+            results.append({
+                'boundary': f'{home_pos}-{away_pos}',
+                'home_pos': home_pos,
+                'away_pos': away_pos,
+                'home_λ': result['expected_goals']['home'],
+                'away_λ': result['expected_goals']['away'],
+                'home_max': engine._get_tier_based_max_lambda(home_pos, True),
+                'away_max': engine._get_tier_based_max_lambda(away_pos, False)
+            })
+            
+            # Check if max λ constraints are working
+            if result['expected_goals']['home'] > engine._get_tier_based_max_lambda(home_pos, True):
+                self.anomalies.append(f"Home λ exceeds max for position {home_pos}")
+            
+            if result['expected_goals']['away'] > engine._get_tier_based_max_lambda(away_pos, False):
+                self.anomalies.append(f"Away λ exceeds max for position {away_pos}")
+        
+        return results
     
-    if team_data.empty:
-        raise ValueError(f"No data found for {team_name} at {venue} venue")
+    def run_consistency_test(self, league_params, n_repeats=50):
+        """Test consistency of predictions for same matchup."""
+        engine = self.engine_class(league_params)
+        
+        home_data = self.create_mock_team_data(5, is_home=True)
+        away_data = self.create_mock_team_data(15, is_home=False)
+        
+        results = []
+        for _ in range(n_repeats):
+            result = engine.predict(home_data.copy(), away_data.copy())
+            results.append({
+                'home_λ': result['expected_goals']['home'],
+                'away_λ': result['expected_goals']['away'],
+                'total_λ': result['expected_goals']['home'] + result['expected_goals']['away'],
+                'home_win': result['probabilities']['home_win']
+            })
+        
+        df = pd.DataFrame(results)
+        
+        # Calculate consistency metrics
+        consistency = {
+            'home_λ_std': df['home_λ'].std(),
+            'away_λ_std': df['away_λ'].std(),
+            'home_λ_cv': df['home_λ'].std() / df['home_λ'].mean() if df['home_λ'].mean() > 0 else 0,
+            'home_win_std': df['home_win'].std(),
+            'is_consistent': df['home_λ'].std() < 0.1 and df['home_win'].std() < 0.02
+        }
+        
+        return df, consistency
     
-    return team_data.iloc[0].to_dict()
+    def run_probability_calibration_test(self, league_params):
+        """Test if probabilities are well-calibrated."""
+        engine = self.engine_class(league_params)
+        
+        # Test different probability ranges
+        test_bins = []
+        for target_prob in [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]:
+            # Find matchup that gives approximately this probability
+            best_matchup = None
+            best_diff = float('inf')
+            
+            for _ in range(100):
+                home_pos = random.randint(1, 20)
+                away_pos = random.randint(1, 20)
+                
+                home_strength = 1.0 + (1 - home_pos/20) * 0.5
+                away_strength = 1.0 + (1 - away_pos/20) * 0.5
+                
+                home_data = self.create_mock_team_data(home_pos, True, home_strength)
+                away_data = self.create_mock_team_data(away_pos, False, away_strength)
+                
+                result = engine.predict(home_data, away_data)
+                prob = result['probabilities']['home_win']
+                
+                if abs(prob - target_prob) < best_diff:
+                    best_diff = abs(prob - target_prob)
+                    best_matchup = {
+                        'target_prob': target_prob,
+                        'actual_prob': prob,
+                        'home_pos': home_pos,
+                        'away_pos': away_pos,
+                        'home_λ': result['expected_goals']['home'],
+                        'away_λ': result['expected_goals']['away']
+                    }
+            
+            if best_matchup:
+                test_bins.append(best_matchup)
+        
+        return test_bins
 
 # ============================================================================
-# STREAMLIT UI COMPONENTS
+# VISUALIZATION FUNCTIONS
 # ============================================================================
 
-def display_prediction_box(title, value, subtitle="", color="#4ECDC4"):
-    """Display prediction in styled box."""
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, {color}, rgba(78,205,196,0.9));
-                border-radius: 15px; padding: 20px; margin: 15px 0; color: white;
-                box-shadow: 0 10px 20px rgba(0,0,0,0.1);">
-        <div style="font-size: 1.2em; text-align: center; opacity: 0.9;">{title}</div>
-        <div style="font-size: 2.5em; font-weight: 800; margin: 10px 0; text-align: center;">{value}</div>
-        <div style="font-size: 1.2em; text-align: center; opacity: 0.9;">{subtitle}</div>
-    </div>
-    """, unsafe_allow_html=True)
+def plot_lambda_distribution(df, title):
+    """Plot distribution of λ values."""
+    fig = make_subplots(
+        rows=2, cols=2,
+        subplot_titles=('Home λ Distribution', 'Away λ Distribution', 
+                       'Total λ Distribution', 'λ Difference Distribution'),
+        specs=[[{'type': 'histogram'}, {'type': 'histogram'}],
+               [{'type': 'histogram'}, {'type': 'histogram'}]]
+    )
+    
+    fig.add_trace(go.Histogram(x=df['home_λ'], nbinsx=30, name='Home λ'), row=1, col=1)
+    fig.add_trace(go.Histogram(x=df['away_λ'], nbinsx=30, name='Away λ'), row=1, col=2)
+    fig.add_trace(go.Histogram(x=df['total_λ'], nbinsx=30, name='Total λ'), row=2, col=1)
+    fig.add_trace(go.Histogram(x=df['λ_diff'], nbinsx=30, name='λ Diff'), row=2, col=2)
+    
+    fig.update_layout(height=600, title_text=title, showlegend=False)
+    return fig
 
-def display_market_recommendation(rec):
-    """Display market recommendation."""
-    if rec['prediction'] in ['Over 2.5', 'Yes']:
-        color = "#00b09b"
-        icon = "📈"
-    else:
-        color = "#ff416c"
-        icon = "📉"
+def plot_position_vs_lambda(df):
+    """Plot λ values vs team positions."""
+    fig = make_subplots(
+        rows=2, cols=2,
+        subplot_titles=('Home λ vs Position', 'Away λ vs Position',
+                       'λ Diff vs Position Diff', 'Confidence vs Position Diff'),
+        specs=[[{'type': 'scatter'}, {'type': 'scatter'}],
+               [{'type': 'scatter'}, {'type': 'scatter'}]]
+    )
     
-    ev = (rec['market_odds'] / rec['fair_odds']) - 1
-    ev_color = "green" if ev > 0 else "red"
-    ev_text = f"+{ev:.1%}" if ev > 0 else f"{ev:.1%}"
+    fig.add_trace(
+        go.Scatter(x=df['home_pos'], y=df['home_λ'], mode='markers', name='Home'),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=df['away_pos'], y=df['away_λ'], mode='markers', name='Away'),
+        row=1, col=2
+    )
+    fig.add_trace(
+        go.Scatter(x=df['pos_diff'], y=df['λ_diff'], mode='markers', name='λ Diff'),
+        row=2, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=df['pos_diff'], y=df['confidence'], mode='markers', name='Confidence'),
+        row=2, col=2
+    )
     
-    st.markdown(f"""
-    <div style="background: {color}; border-radius: 15px; padding: 20px; margin: 15px 0; color: white;
-                box-shadow: 0 10px 20px rgba(0,0,0,0.1);">
-        <div style="font-size: 1.5em; font-weight: 600; margin-bottom: 10px;">
-            {icon} {rec['market']}: {rec['prediction']}
-        </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-            <div>
-                <div style="font-size: 0.9em; opacity: 0.8;">Probability</div>
-                <div style="font-size: 1.3em; font-weight: 600;">{rec['probability']:.1%}</div>
-            </div>
-            <div>
-                <div style="font-size: 0.9em; opacity: 0.8;">Fair Odds</div>
-                <div style="font-size: 1.3em; font-weight: 600;">{rec['fair_odds']:.2f}</div>
-            </div>
-            <div>
-                <div style="font-size: 0.9em; opacity: 0.8;">Market Odds</div>
-                <div style="font-size: 1.3em; font-weight: 600;">{rec['market_odds']:.2f}</div>
-            </div>
-            <div>
-                <div style="font-size: 0.9em; opacity: 0.8;">Expected Value</div>
-                <div style="font-size: 1.3em; font-weight: 600; color: {ev_color};">{ev_text}</div>
-            </div>
-        </div>
-        <div style="font-size: 1em; text-align: center; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2);">
-            Strength: {rec['strength']}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    fig.update_layout(height=600, title_text="Position-Based Analysis", showlegend=False)
+    return fig
 
-def display_market_odds_interface():
-    """Display market odds input."""
-    st.markdown("### 📊 Market Odds Input")
+def plot_extreme_case_results(results):
+    """Visualize extreme case test results."""
+    cases = [r['case'] for r in results]
+    home_lambda = [r['home_λ'] for r in results]
+    away_lambda = [r['away_λ'] for r in results]
+    home_win_prob = [r['home_win'] * 100 for r in results]
+    confidence = [r['confidence'] for r in results]
     
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        home_odds = st.number_input("Home Win", min_value=1.01, max_value=100.0, 
-                                   value=2.50, step=0.01, format="%.2f", key="home_odds")
-    with col2:
-        draw_odds = st.number_input("Draw", min_value=1.01, max_value=100.0,
-                                   value=3.40, step=0.01, format="%.2f", key="draw_odds")
-    with col3:
-        away_odds = st.number_input("Away Win", min_value=1.01, max_value=100.0,
-                                   value=2.80, step=0.01, format="%.2f", key="away_odds")
+    fig = make_subplots(
+        rows=2, cols=2,
+        subplot_titles=('Expected Goals (λ)', 'Win Probability (%)',
+                       'Model Confidence (%)', 'Total Expected Goals'),
+        specs=[[{'type': 'bar'}, {'type': 'bar'}],
+               [{'type': 'bar'}, {'type': 'bar'}]]
+    )
     
-    col4, col5 = st.columns(2)
-    with col4:
-        over_odds = st.number_input("Over 2.5 Goals", min_value=1.01, max_value=100.0,
-                                   value=1.85, step=0.01, format="%.2f", key="over_odds")
-    with col5:
-        btts_odds = st.number_input("BTTS Yes", min_value=1.01, max_value=100.0,
-                                   value=1.75, step=0.01, format="%.2f", key="btts_odds")
+    fig.add_trace(
+        go.Bar(x=cases, y=home_lambda, name='Home λ', marker_color='blue'),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Bar(x=cases, y=away_lambda, name='Away λ', marker_color='red'),
+        row=1, col=1
+    )
     
-    return {
-        'home': home_odds,
-        'draw': draw_odds,
-        'away': away_odds,
-        'over_25': over_odds,
-        'btts_yes': btts_odds
-    }
+    fig.add_trace(
+        go.Bar(x=cases, y=home_win_prob, name='Home Win %', marker_color='green'),
+        row=1, col=2
+    )
+    
+    fig.add_trace(
+        go.Bar(x=cases, y=confidence, name='Confidence', marker_color='orange'),
+        row=2, col=1
+    )
+    
+    total_lambda = [r['total_λ'] for r in results]
+    fig.add_trace(
+        go.Bar(x=cases, y=total_lambda, name='Total λ', marker_color='purple'),
+        row=2, col=2
+    )
+    
+    fig.update_layout(height=600, title_text="Extreme Case Analysis", barmode='group')
+    return fig
+
+def plot_calibration_curve(test_bins):
+    """Plot probability calibration curve."""
+    target_probs = [b['target_prob'] for b in test_bins]
+    actual_probs = [b['actual_prob'] for b in test_bins]
+    
+    fig = go.Figure()
+    
+    fig.add_trace(go.Scatter(
+        x=target_probs, y=actual_probs,
+        mode='markers+lines',
+        name='Actual vs Target',
+        marker=dict(size=10)
+    ))
+    
+    fig.add_trace(go.Scatter(
+        x=[0, 1], y=[0, 1],
+        mode='lines',
+        name='Perfect Calibration',
+        line=dict(dash='dash', color='gray')
+    ))
+    
+    fig.update_layout(
+        title='Probability Calibration Curve',
+        xaxis_title='Target Probability',
+        yaxis_title='Actual Probability',
+        height=500
+    )
+    
+    return fig
 
 # ============================================================================
-# MAIN APPLICATION
+# MAIN STRESS TEST APP
 # ============================================================================
 
 def main():
     st.set_page_config(
-        page_title="Advanced Football Prediction Engine",
-        page_icon="⚽",
+        page_title="Prediction Engine Stress Test",
+        page_icon="🧪",
         layout="wide"
     )
     
-    st.markdown("""
-    <style>
-    .stButton > button {
-        background: linear-gradient(135deg, #4ECDC4, #44A08D);
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        border-radius: 10px;
-        font-weight: 600;
-    }
-    .stButton > button:hover {
-        background: linear-gradient(135deg, #44A08D, #4ECDC4);
-        color: white;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    st.title("🧪 Football Prediction Engine Stress Test")
+    st.markdown("### Comprehensive Calibration Analysis")
     
-    st.markdown('<h1 style="text-align: center; color: #4ECDC4;">⚽ Advanced Football Prediction Engine</h1>', 
-                unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; color: #666;">FIXED TIER-BASED CALIBRATION</p>', 
-                unsafe_allow_html=True)
-    
-    if 'league_data' not in st.session_state:
-        st.session_state.league_data = None
-    if 'prediction_result' not in st.session_state:
-        st.session_state.prediction_result = None
-    
-    with st.sidebar:
-        st.markdown("### 🏆 Select League")
-        available_leagues = ['LA LIGA', 'PREMIER LEAGUE']
-        selected_league = st.selectbox("Choose League:", available_leagues)
-        
-        st.markdown("---")
-        st.markdown("### 📥 Load Data")
-        
-        if st.button(f"📂 Load {selected_league} Data", type="primary", use_container_width=True):
-            with st.spinner(f"Loading {selected_league} data..."):
-                df = load_league_data(selected_league)
-                if df is not None:
-                    st.session_state.league_data = df
-                    st.session_state.selected_league = selected_league
-                    
-                    with st.expander(f"📊 {selected_league} Data Preview"):
-                        st.dataframe(df.head(), use_container_width=True)
-                        st.metric("Total Records", len(df))
-                        st.metric("Unique Teams", len(df['team'].unique()))
-                else:
-                    st.error(f"Failed to load {selected_league} data")
-        
-        if selected_league in LEAGUE_PARAMS:
-            st.markdown("---")
-            st.markdown("### 📈 League Parameters")
-            params = LEAGUE_PARAMS[selected_league]
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Avg Goals", f"{params['avg_goals']:.2f}")
-            with col2:
-                st.metric("Home Advantage", f"{params['home_advantage']:.2f}")
-        
-        st.markdown("---")
-        st.markdown("### 🔧 FIXED CALIBRATION")
-        st.success("""
-        **Tier-based improvements:**
-        • Tier-based diff ratio caps
-        • Elite teams: max ratio 6.0
-        • Strong teams: max ratio 5.0
-        • Better elite team handling
-        """)
-    
-    if st.session_state.league_data is None:
-        st.info("👈 Please load league data from the sidebar to begin.")
-        st.markdown("""
-        ### 🚀 FIXED CALIBRATION:
-        
-        **Improved tier-based diff caps:**
-        - Elite vs weak: ratio ≤ 6.0
-        - Elite team or very weak: ratio ≤ 5.0
-        - Strong vs weak: ratio ≤ 4.5
-        - Normal: ratio ≤ 4.0
-        
-        **Fixes Real Madrid λ issue**
-        """)
-        return
-    
-    df = st.session_state.league_data
-    selected_league = st.session_state.selected_league
+    # Select league for testing
+    league_options = ['LA LIGA', 'PREMIER LEAGUE']
+    selected_league = st.selectbox("Select League for Testing:", league_options)
     league_params = LEAGUE_PARAMS[selected_league]
     
-    st.markdown("## 🏟️ Match Setup")
-    available_teams = sorted(df['team'].unique())
+    # Initialize test framework
+    test_framework = StressTestFramework(FootballPredictionEngine)
     
-    col1, col2 = st.columns(2)
-    with col1:
-        home_team = st.selectbox("🏠 Home Team:", available_teams, key="home_team")
-        home_stats = df[(df['team'] == home_team) & (df['venue'] == 'home')]
-        if not home_stats.empty:
-            home_row = home_stats.iloc[0]
-            st.markdown(f"**{home_team} Home Stats:**")
-            col1a, col2a = st.columns(2)
-            with col1a:
-                st.metric("Position", f"#{int(home_row['overall_position'])}")
-                st.metric("Home xG/Game", f"{home_row['home_xg_for']/home_row['matches_played']:.2f}")
-                st.metric("Home xGA/Game", f"{home_row['home_xga']/home_row['matches_played']:.2f}")
-            with col2a:
-                st.metric("Recent Goals/Game", f"{home_row['goals_scored_last_5']/5:.1f}")
-                st.metric("Recent Conceded/Game", f"{home_row['goals_conceded_last_5']/5:.1f}")
-    
-    with col2:
-        away_options = [t for t in available_teams if t != home_team]
-        away_team = st.selectbox("✈️ Away Team:", away_options, key="away_team")
-        away_stats = df[(df['team'] == away_team) & (df['venue'] == 'away')]
-        if not away_stats.empty:
-            away_row = away_stats.iloc[0]
-            st.markdown(f"**{away_team} Away Stats:**")
-            col1b, col2b = st.columns(2)
-            with col1b:
-                st.metric("Position", f"#{int(away_row['overall_position'])}")
-                st.metric("Away xG/Game", f"{away_row['away_xg_for']/away_row['matches_played']:.2f}")
-                st.metric("Away xGA/Game", f"{away_row['away_xga']/away_row['matches_played']:.2f}")
-            with col2b:
-                st.metric("Recent Goals/Game", f"{away_row['goals_scored_last_5']/5:.1f}")
-                st.metric("Recent Conceded/Game", f"{away_row['goals_conceded_last_5']/5:.1f}")
-    
-    market_odds = display_market_odds_interface()
-    
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        if st.button("🚀 Run Advanced Prediction", type="primary", use_container_width=True):
-            if home_team == away_team:
-                st.error("Please select different teams for home and away.")
-                return
+    # Run different tests
+    st.markdown("## 1️⃣ Extreme Case Analysis")
+    if st.button("Run Extreme Case Test", type="primary"):
+        with st.spinner("Testing extreme matchups..."):
+            extreme_results = test_framework.run_extreme_case_test(league_params)
             
-            try:
-                home_data = prepare_team_data(df, home_team, 'home')
-                away_data = prepare_team_data(df, away_team, 'away')
+            col1, col2 = st.columns(2)
+            with col1:
+                st.dataframe(pd.DataFrame(extreme_results), use_container_width=True)
+            with col2:
+                fig = plot_extreme_case_results(extreme_results)
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # Display anomalies
+            if test_framework.anomalies:
+                st.warning("⚠️ Anomalies Detected:")
+                for anomaly in test_framework.anomalies:
+                    st.write(f"• {anomalie}")
+    
+    st.markdown("## 2️⃣ Monte Carlo Calibration")
+    if st.button("Run Monte Carlo Simulation", type="primary"):
+        with st.spinner(f"Running {1000} simulations..."):
+            mc_df = test_framework.run_monte_carlo_calibration(league_params, 1000)
+            
+            # Summary statistics
+            st.subheader("Summary Statistics")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Avg Home λ", f"{mc_df['home_λ'].mean():.2f}")
+            with col2:
+                st.metric("Avg Away λ", f"{mc_df['away_λ'].mean():.2f}")
+            with col3:
+                st.metric("Avg Total λ", f"{mc_df['total_λ'].mean():.2f}")
+            with col4:
+                st.metric("Avg Confidence", f"{mc_df['confidence'].mean():.1f}%")
+            
+            # Distributions
+            fig1 = plot_lambda_distribution(mc_df, "Monte Carlo λ Distributions")
+            st.plotly_chart(fig1, use_container_width=True)
+            
+            # Position analysis
+            fig2 = plot_position_vs_lambda(mc_df)
+            st.plotly_chart(fig2, use_container_width=True)
+    
+    st.markdown("## 3️⃣ Tier Boundary Testing")
+    if st.button("Test Tier Boundaries", type="primary"):
+        with st.spinner("Testing tier boundaries..."):
+            boundary_results = test_framework.run_tier_boundary_test(league_params)
+            
+            st.subheader("Tier Boundary Analysis")
+            df_boundary = pd.DataFrame(boundary_results)
+            st.dataframe(df_boundary, use_container_width=True)
+            
+            # Check max λ constraints
+            st.subheader("Max λ Constraint Check")
+            for idx, row in df_boundary.iterrows():
+                home_ok = row['home_λ'] <= row['home_max']
+                away_ok = row['away_λ'] <= row['away_max']
                 
-                engine = FootballPredictionEngine(league_params)
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**{row['boundary']} - Home:**")
+                    st.write(f"λ: {row['home_λ']:.2f}, Max: {row['home_max']:.1f}")
+                    st.success("✓ Within limit") if home_ok else st.error("✗ Exceeds limit")
                 
-                with st.spinner("Running fixed analysis..."):
-                    progress_bar = st.progress(0)
-                    
-                    for i in range(100):
-                        time.sleep(0.01)
-                        progress_bar.progress(i + 1)
-                    
-                    result = engine.predict(home_data, away_data)
-                    
-                    if result['success']:
-                        recommendations = engine.get_market_recommendations(result['probabilities'], market_odds)
-                        
-                        st.session_state.prediction_result = result
-                        st.session_state.prediction_engine = engine
-                        st.session_state.recommendations = recommendations
-                        st.success("✅ Fixed analysis complete!")
-                    else:
-                        st.error("Prediction failed")
-            
-            except ValueError as e:
-                st.error(f"Data error: {str(e)}")
-                st.info("Please ensure both teams have data for the selected venue.")
-            except Exception as e:
-                st.error(f"Unexpected error: {str(e)}")
+                with col2:
+                    st.write(f"**{row['boundary']} - Away:**")
+                    st.write(f"λ: {row['away_λ']:.2f}, Max: {row['away_max']:.1f}")
+                    st.success("✓ Within limit") if away_ok else st.error("✗ Exceeds limit")
     
-    if st.session_state.prediction_result:
-        result = st.session_state.prediction_result
-        recommendations = st.session_state.get('recommendations', [])
-        
-        st.markdown("---")
-        st.markdown("# 📊 Prediction Results")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            display_prediction_box(
-                f"🏠 {home_team} Expected Goals",
-                f"{result['expected_goals']['home']:.2f}",
-                "λ (Poisson mean)"
-            )
-        with col2:
-            display_prediction_box(
-                f"✈️ {away_team} Expected Goals",
-                f"{result['expected_goals']['away']:.2f}",
-                "λ (Poisson mean)"
-            )
-        
-        st.markdown("### 🎯 Match Probabilities")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            display_prediction_box(
-                f"🏠 {home_team} Win",
-                f"{result['probabilities']['home_win']*100:.1f}%",
-                f"Fair odds: {1/result['probabilities']['home_win']:.2f}"
-            )
-        with col2:
-            display_prediction_box(
-                "Draw",
-                f"{result['probabilities']['draw']*100:.1f}%",
-                f"Fair odds: {1/result['probabilities']['draw']:.2f}"
-            )
-        with col3:
-            display_prediction_box(
-                f"✈️ {away_team} Win",
-                f"{result['probabilities']['away_win']*100:.1f}%",
-                f"Fair odds: {1/result['probabilities']['away_win']:.2f}"
-            )
-        
-        score_prob = result['scorelines']['top_10'].get(result['scorelines']['most_likely'], 0) * 100
-        display_prediction_box(
-            "🎯 Most Likely Score",
-            result['scorelines']['most_likely'],
-            f"Probability: {score_prob:.1f}%"
-        )
-        
-        st.markdown("### 📊 Total Goals Market")
-        col1, col2 = st.columns(2)
-        with col1:
-            display_prediction_box(
-                "Over 2.5 Goals",
-                f"{result['probabilities']['over_25']*100:.1f}%",
-                f"Fair odds: {1/result['probabilities']['over_25']:.2f}",
-                color="#00b09b" if result['probabilities']['over_25'] > 0.5 else "#4ECDC4"
-            )
-        with col2:
-            display_prediction_box(
-                "Under 2.5 Goals",
-                f"{result['probabilities']['under_25']*100:.1f}%",
-                f"Fair odds: {1/result['probabilities']['under_25']:.2f}",
-                color="#ff416c" if result['probabilities']['under_25'] > 0.5 else "#4ECDC4"
-            )
-        
-        st.markdown("### ⚽ Both Teams to Score")
-        col1, col2 = st.columns(2)
-        with col1:
-            display_prediction_box(
-                "BTTS - Yes",
-                f"{result['probabilities']['btts_yes']*100:.1f}%",
-                f"Fair odds: {1/result['probabilities']['btts_yes']:.2f}",
-                color="#00b09b" if result['probabilities']['btts_yes'] > 0.5 else "#4ECDC4"
-            )
-        with col2:
-            display_prediction_box(
-                "BTTS - No",
-                f"{result['probabilities']['btts_no']*100:.1f}%",
-                f"Fair odds: {1/result['probabilities']['btts_no']:.2f}",
-                color="#ff416c" if result['probabilities']['btts_no'] > 0.5 else "#4ECDC4"
-            )
-        
-        if recommendations:
-            st.markdown("### 💰 Market Recommendations")
-            for rec in recommendations:
-                display_market_recommendation(rec)
-        
-        confidence = result['confidence']
-        confidence_color = "#00b09b" if confidence >= 70 else "#f7971e" if confidence >= 50 else "#ff416c"
-        st.markdown(f"""
-        <div style="background: {confidence_color}; border-radius: 15px; padding: 20px; margin: 15px 0; color: white;">
-            <h3 style="text-align: center; margin: 0;">🤖 Model Confidence: {confidence:.1f}%</h3>
-            <p style="text-align: center; margin: 5px 0 0 0;">
-                {'High Confidence' if confidence >= 70 else 'Medium Confidence' if confidence >= 50 else 'Low Confidence'}
-                • Based on {CONSTANTS['POISSON_SIMULATIONS']:,} simulations
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        if result['key_factors']:
-            st.markdown("### 🔑 Key Factors & Debug Info")
-            cols = st.columns(2)
-            for idx, factor in enumerate(result['key_factors']):
-                with cols[idx % 2]:
-                    if factor.startswith("DEBUG:"):
-                        bg_color = "rgba(255,255,0,0.1)"
-                        border_color = "#FFD700"
-                    else:
-                        bg_color = "rgba(255,107,107,0.1)"
-                        border_color = "#FF6B6B"
-                    
-                    st.markdown(f"""
-                    <div style="background: {bg_color}; border-radius: 10px; padding: 10px; 
-                                margin: 5px 0; border-left: 4px solid {border_color};">
-                        <span style="color: #333; font-weight: 500;">{factor}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-        
-        st.markdown("---")
-        st.markdown("### 📊 Scoreline Probability Distribution")
-        
-        if result['scorelines']['top_10']:
-            scoreline_df = pd.DataFrame(
-                list(result['scorelines']['top_10'].items())[:10],
-                columns=['Scoreline', 'Probability']
-            )
-            scoreline_df['Probability'] = scoreline_df['Probability'] * 100
+    st.markdown("## 4️⃣ Consistency Testing")
+    if st.button("Test Prediction Consistency", type="primary"):
+        with st.spinner("Testing consistency..."):
+            consistency_df, consistency_metrics = test_framework.run_consistency_test(league_params, 50)
             
-            fig = go.Figure(data=[
-                go.Bar(
-                    x=scoreline_df['Scoreline'],
-                    y=scoreline_df['Probability'],
-                    marker_color='#4ECDC4',
-                    text=scoreline_df['Probability'].round(1),
-                    textposition='auto'
-                )
-            ])
+            st.subheader("Consistency Metrics")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Home λ Std Dev", f"{consistency_metrics['home_λ_std']:.4f}")
+            with col2:
+                st.metric("Home λ Coeff Var", f"{consistency_metrics['home_λ_cv']:.4f}")
+            with col3:
+                st.metric("Home Win Prob Std", f"{consistency_metrics['home_win_std']:.4f}")
+            with col4:
+                status = "Consistent ✓" if consistency_metrics['is_consistent'] else "Inconsistent ✗"
+                st.metric("Consistency", status)
             
-            fig.update_layout(
-                title="Top 10 Most Likely Scorelines",
-                xaxis_title="Scoreline",
-                yaxis_title="Probability (%)",
-                showlegend=False
-            )
+            st.subheader("Distribution of Repeated Predictions")
+            fig = make_subplots(rows=1, cols=2, subplot_titles=('Home λ Distribution', 'Home Win Probability Distribution'))
             
+            fig.add_trace(go.Histogram(x=consistency_df['home_λ'], nbinsx=20, name='Home λ'), row=1, col=1)
+            fig.add_trace(go.Histogram(x=consistency_df['home_win'], nbinsx=20, name='Home Win Prob'), row=1, col=2)
+            
+            fig.update_layout(height=400, showlegend=False)
             st.plotly_chart(fig, use_container_width=True)
-        
-        with st.expander("📋 View Raw Prediction Data"):
-            st.json(result)
+    
+    st.markdown("## 5️⃣ Probability Calibration")
+    if st.button("Test Probability Calibration", type="primary"):
+        with st.spinner("Testing probability calibration..."):
+            test_bins = test_framework.run_probability_calibration_test(league_params)
+            
+            st.subheader("Calibration Test Results")
+            df_calib = pd.DataFrame(test_bins)
+            st.dataframe(df_calib, use_container_width=True)
+            
+            fig = plot_calibration_curve(test_bins)
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Calculate calibration error
+            calib_error = np.mean([abs(b['target_prob'] - b['actual_prob']) for b in test_bins])
+            st.metric("Average Calibration Error", f"{calib_error:.4f}")
+    
+    st.markdown("## 6️⃣ Comprehensive Report")
+    if st.button("Generate Full Stress Test Report", type="primary"):
+        with st.spinner("Running comprehensive analysis..."):
+            # Run all tests
+            extreme_results = test_framework.run_extreme_case_test(league_params)
+            mc_df = test_framework.run_monte_carlo_calibration(league_params, 500)
+            boundary_results = test_framework.run_tier_boundary_test(league_params)
+            consistency_df, consistency_metrics = test_framework.run_consistency_test(league_params, 30)
+            test_bins = test_framework.run_probability_calibration_test(league_params)
+            
+            # Generate report
+            st.markdown("### 📊 Comprehensive Stress Test Report")
+            
+            # Executive summary
+            st.markdown("#### Executive Summary")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                avg_home_lambda = mc_df['home_λ'].mean()
+                status = "✓" if 1.0 <= avg_home_lambda <= 2.0 else "⚠"
+                st.metric("Avg Home λ", f"{avg_home_lambda:.2f}", delta=status)
+            
+            with col2:
+                avg_confidence = mc_df['confidence'].mean()
+                status = "✓" if avg_confidence >= 50 else "⚠"
+                st.metric("Avg Confidence", f"{avg_confidence:.1f}%", delta=status)
+            
+            with col3:
+                calib_error = np.mean([abs(b['target_prob'] - b['actual_prob']) for b in test_bins])
+                status = "✓" if calib_error < 0.05 else "⚠"
+                st.metric("Calibration Error", f"{calib_error:.4f}", delta=status)
+            
+            with col4:
+                is_consistent = consistency_metrics['is_consistent']
+                status = "✓" if is_consistent else "⚠"
+                st.metric("Consistency", "Good" if is_consistent else "Issues", delta=status)
+            
+            # Issues and recommendations
+            st.markdown("#### 🚨 Issues Detected")
+            if test_framework.anomalies:
+                for anomaly in test_framework.anomalies:
+                    st.error(anomalie)
+            else:
+                st.success("No major anomalies detected")
+            
+            # Recommendations
+            st.markdown("#### 💡 Recommendations")
+            
+            recommendations = []
+            
+            # Check max λ constraints
+            max_home_lambda = mc_df['home_λ'].max()
+            max_away_lambda = mc_df['away_λ'].max()
+            
+            if max_home_lambda > 3.0:
+                recommendations.append(f"Consider reducing max home λ (current max: {max_home_lambda:.2f})")
+            if max_away_lambda > 2.5:
+                recommendations.append(f"Consider reducing max away λ (current max: {max_away_lambda:.2f})")
+            
+            # Check probability calibration
+            if calib_error > 0.1:
+                recommendations.append("Improve probability calibration - predictions may be biased")
+            
+            # Check consistency
+            if not is_consistent:
+                recommendations.append("Improve prediction consistency")
+            
+            # Check tier boundaries
+            for boundary in boundary_results:
+                if boundary['home_λ'] > boundary['home_max'] or boundary['away_λ'] > boundary['away_max']:
+                    recommendations.append(f"Review tier boundaries at position {boundary['boundary']}")
+            
+            if recommendations:
+                for rec in recommendations:
+                    st.info(f"• {rec}")
+            else:
+                st.success("Engine appears well-calibrated!")
+            
+            # Detailed metrics
+            with st.expander("View Detailed Metrics"):
+                st.subheader("λ Statistics")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write("**Home λ:**")
+                    st.write(f"Mean: {mc_df['home_λ'].mean():.3f}")
+                    st.write(f"Std: {mc_df['home_λ'].std():.3f}")
+                    st.write(f"Min: {mc_df['home_λ'].min():.3f}")
+                    st.write(f"Max: {mc_df['home_λ'].max():.3f}")
+                
+                with col2:
+                    st.write("**Away λ:**")
+                    st.write(f"Mean: {mc_df['away_λ'].mean():.3f}")
+                    st.write(f"Std: {mc_df['away_λ'].std():.3f}")
+                    st.write(f"Min: {mc_df['away_λ'].min():.3f}")
+                    st.write(f"Max: {mc_df['away_λ'].max():.3f}")
+                
+                st.subheader("Confidence Statistics")
+                st.write(f"Mean: {mc_df['confidence'].mean():.1f}%")
+                st.write(f"Std: {mc_df['confidence'].std():.1f}%")
+                st.write(f"Range: {mc_df['confidence'].min():.1f}% to {mc_df['confidence'].max():.1f}%")
+            
+            # Export results
+            st.markdown("#### 📥 Export Results")
+            if st.button("Download Test Results as CSV"):
+                # Combine all results
+                all_results = []
+                
+                # Add extreme cases
+                for result in extreme_results:
+                    result['test_type'] = 'extreme_case'
+                    all_results.append(result)
+                
+                # Add Monte Carlo samples
+                for _, row in mc_df.iterrows():
+                    all_results.append({
+                        'test_type': 'monte_carlo',
+                        'home_pos': row['home_pos'],
+                        'away_pos': row['away_pos'],
+                        'home_λ': row['home_λ'],
+                        'away_λ': row['away_λ'],
+                        'confidence': row['confidence']
+                    })
+                
+                # Create CSV
+                df_export = pd.DataFrame(all_results)
+                csv = df_export.to_csv(index=False)
+                
+                st.download_button(
+                    label="Download CSV",
+                    data=csv,
+                    file_name=f"stress_test_results_{selected_league}.csv",
+                    mime="text/csv"
+                )
 
 if __name__ == "__main__":
+    # Import your existing code
+    from your_main_file import FootballPredictionEngine, LEAGUE_PARAMS, CONSTANTS
     main()
