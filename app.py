@@ -430,7 +430,7 @@ class BrutballStateEngine:
                        league_avg_xg: float) -> Dict:
         """Execute v6.0 decision tree."""
         
-        rationale = ["🧠 BRUTBALL v6.0 DECISION TREE EXECUTION"]
+        rationale = ["⚽ BRUTBALL v6.0 DECISION TREE EXECUTION"]
         decision_steps = []
         
         # Determine favorite (by position)
@@ -713,7 +713,7 @@ def calculate_derived_metrics(df: pd.DataFrame) -> pd.DataFrame:
 # =================== STREAMLIT UI ===================
 def render_header():
     """Render main header."""
-    st.markdown('<div class="main-header">🧠 BRUTBALL v6.0 - MATCH-STATE IDENTIFICATION ENGINE</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header">⚽ BRUTBALL v6.0 - MATCH-STATE IDENTIFICATION ENGINE</div>', unsafe_allow_html=True)
     st.markdown("""
     <div style="text-align: center; color: #6B7280; margin-bottom: 2rem;">
         <p><strong>No hype. No redundancy. Every axiom has a job and failure condition.</strong></p>
