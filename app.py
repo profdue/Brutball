@@ -617,7 +617,7 @@ class BrutballStateEngine:
             }
         }
 
-# =================== DATA LOADING (YOUR ORIGINAL CODE) ===================
+# =================== DATA LOADING ===================
 @st.cache_data(ttl=3600, show_spinner="Loading league data...")
 def load_and_prepare_data(league_name: str) -> Optional[pd.DataFrame]:
     """Load, validate, and prepare the dataset for selected league."""
@@ -909,10 +909,14 @@ def main():
         if result['controller']:
             criteria_info = result['criteria_met']
             controller_name = result['controller']
-            is_home = controller_name == home_team
             
-            criteria_count = criteria_info['home']['count'] if is_home else criteria_info['away']['count']
-            criteria_details = criteria_info['home']['details'] if is_home else criteria_info['away']['details']
+            # Determine if controller is home or away
+            is_home_controller = controller_name == result['team_context']['home']
+            key = 'home' if is_home_controller else 'away'
+            
+            criteria_data = criteria_info[key]
+            criteria_count = criteria_data['count']
+            criteria_details = criteria_data['details']
             
             st.markdown(f"""
             <div class="control-badge">
@@ -1039,6 +1043,17 @@ def main():
         st.markdown("---")
         st.markdown("#### 📤 Export Analysis")
         
+        # Get controller criteria info safely
+        controller_criteria_info = ""
+        if result['controller']:
+            # Determine if controller is home or away
+            is_home_controller = result['controller'] == result['team_context']['home']
+            key = 'home' if is_home_controller else 'away'
+            criteria_data = result['criteria_met'][key]
+            controller_criteria_info = f"{criteria_data['count']}/4 met"
+        else:
+            controller_criteria_info = "0/4 met"
+        
         export_text = f"""
 BRUTBALL v6.0 - MATCH-STATE ANALYSIS
 =====================================
@@ -1048,13 +1063,13 @@ Date: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 GAME-STATE IDENTIFICATION (AXIOM 2):
 • Controller: {result['controller'] if result['controller'] else 'NONE'}
-• Controller Criteria: {result['criteria_met'][result['controller'].lower()]['count'] if result['controller'] else '0'}/4 met
+• Controller Criteria: {controller_criteria_info}
 • Goals Environment: {result['has_goals_env']} (AXIOM 4)
 
 TEAM CONTEXT:
 • Favorite: {result['team_context']['favorite']} (#{min(result['key_metrics']['home_pos'], result['key_metrics']['away_pos'])})
 • Underdog: {result['team_context']['underdog']} (#{max(result['key_metrics']['home_pos'], result['key_metrics']['away_pos'])})
-• Control > Status: {'YES' if result['controller'] == result['team_context']['underdog'] else 'NO'}
+• Control > Status: {'YES' if result['controller'] and result['controller'] == result['team_context']['underdog'] else 'NO'}
 
 DECISION:
 • Primary Action: {result['primary_action']}
