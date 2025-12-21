@@ -8,7 +8,7 @@ warnings.filterwarnings('ignore')
 # =================== PAGE CONFIGURATION ===================
 st.set_page_config(
     page_title="Brutball v6.0 - Match-State Engine",
-    page_icon="🧠",
+    page_icon="⚽",
     layout="wide",
     initial_sidebar_state="expanded"
 )
