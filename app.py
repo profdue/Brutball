@@ -817,7 +817,7 @@ def render_v6_axioms():
 
 def render_decision_tree():
     """Display decision tree."""
-    st.markdown('<div class="axiom-header">🧠 v6.0 DECISION TREE</div>', unsafe_allow_html=True)
+    st.markdown('<div class="axiom-header">⚽ v6.0 DECISION TREE</div>', unsafe_allow_html=True)
     
     st.markdown("""
     <div style="
@@ -996,7 +996,7 @@ def main():
             st.markdown(f"- {step}")
         
         # Display rationale
-        with st.expander("🧠 VIEW COMPLETE RATIONALE", expanded=True):
+        with st.expander("⚽ VIEW COMPLETE RATIONALE", expanded=True):
             for line in result['rationale']:
                 if '🧠' in line or '🎯' in line or '📋' in line:
                     st.markdown(f"**{line}**")
