@@ -321,7 +321,6 @@ class BrutballProQuantitative:
         details['defenders_out'] = defenders_out
         
         # 2. RECENT DEFENSIVE FORM (0-6 points)
-        # We only have overall goals_conceded_last_5, not split by home/away
         goals_conceded = team_data.get('goals_conceded_last_5', 0)
         
         if is_home:
@@ -362,11 +361,11 @@ class BrutballProQuantitative:
         details['momentum'] = momentum
         
         # 4. ATTACKING CONFIDENCE (0-4 points) - Inverse scoring
+        goals_scored = team_data.get('goals_scored_last_5', 0)
+        
         if is_home:
-            goals_scored = team_data.get('goals_scored_last_5', 0)
             xg_per_match = team_data.get('home_xg_per_match', 0)
         else:
-            goals_scored = team_data.get('goals_scored_last_5', 0)
             xg_per_match = team_data.get('away_xg_per_match', 0)
         
         if goals_scored <= 4 and xg_per_match < self.league_metrics.get('xg_25th', 0.8):
@@ -654,108 +653,194 @@ class BrutballProQuantitative:
             reasons.append(f"❌ Insufficient confidence: {confidence:.1f}/8.0")
             return False, 0.0, reasons
     
-    # ========== PHASE 5: QUANTITATIVE ARCHETYPE CLASSIFICATION ==========
+    # ========== PHASE 5: CORRECTED QUANTITATIVE ARCHETYPE CLASSIFICATION ==========
+    def calculate_attack_competence_factor(self, home_data: Dict, away_data: Dict) -> float:
+        """Calculate attack competence factor (0.0-1.5)."""
+        home_xg_per_game = home_data.get('home_xg_per_match', 0)
+        away_xg_per_game = away_data.get('away_xg_per_match', 0)
+        
+        if home_xg_per_game > 1.4 and away_xg_per_game > 1.4:
+            return 1.5
+        elif home_xg_per_game > 1.1 and away_xg_per_game > 1.1:
+            return 1.3
+        elif home_xg_per_game > 0.8 and away_xg_per_game > 0.8:
+            return 1.0
+        elif home_xg_per_game > 0.6 and away_xg_per_game > 0.6:
+            return 0.8
+        else:
+            return 0.6
+    
+    def calculate_goals_galore_score(self, home_crisis: Dict, away_crisis: Dict, 
+                                   tactical: Dict, home_data: Dict, away_data: Dict) -> Tuple[float, List[str]]:
+        """
+        CORRECTED GOALS GALORE SCORING with Chaos Override and Volume Concession Boost.
+        Implements the fix for Type B (Chaos Goals) environments.
+        """
+        rationale = []
+        goals_score = 0
+
+        # 1️⃣ Determine if Chaos Override applies
+        chaos_override = home_crisis['severity'] == 'CRITICAL' and away_crisis['severity'] == 'CRITICAL'
+        if chaos_override:
+            rationale.append("⚡ Chaos Override applied (dual critical crises)")
+        
+        # 2️⃣ Base GOALS score
+        crisis_sum = home_crisis['score'] + away_crisis['score']
+        if chaos_override:
+            # Reduced reliance on tactical edge for chaos games
+            goals_score = crisis_sum * (max(1.0, tactical['total_score']) / 10)
+        else:
+            # Standard calculation
+            goals_score = crisis_sum * (tactical['total_score'] / 5)
+        
+        rationale.append(f"Base GOALS score: {goals_score:.1f}")
+
+        # 3️⃣ Volume Concession Boost
+        home_conceded = home_data.get('goals_conceded_last_5', 0)
+        away_conceded = away_data.get('goals_conceded_last_5', 0)
+        total_goals_conceded = home_conceded + away_conceded
+        
+        if total_goals_conceded >= 30:
+            boost = 0.3 * goals_score
+            goals_score += boost
+            rationale.append(f"📈 Volume Boost: +{boost:.1f} for {total_goals_conceded} conceded (last 5)")
+
+        # 4️⃣ Attack Competence Modifier
+        attack_factor = self.calculate_attack_competence_factor(home_data, away_data)
+        
+        if attack_factor < 0.7:
+            goals_score *= 0.7
+            rationale.append(f"⚠️ Low attack competence ({attack_factor:.2f}) → 30% penalty")
+        elif attack_factor > 1.2:
+            goals_score *= 1.2
+            rationale.append(f"✅ High attack competence ({attack_factor:.2f}) → 20% boost")
+        else:
+            goals_score *= attack_factor
+
+        return goals_score, rationale
+    
+    def calculate_fade_favorite_score(self, favorite_crisis: Dict, underdog_stability: float, 
+                                     xg_deviation: float) -> float:
+        """Score for FADE_THE_FAVORITE archetype."""
+        base = favorite_crisis['score'] * (underdog_stability / 5)
+        if xg_deviation > 0.5:  # Favorite significantly underperforming xG
+            base *= 1.5
+        return base
+    
+    def calculate_back_underdog_score(self, underdog_stability: float, favorite_underperformance: float,
+                                     tactical_mismatch: float) -> float:
+        """Score for BACK_THE_UNDERDOG archetype."""
+        return underdog_stability * favorite_underperformance * (tactical_mismatch / 10)
+    
+    def calculate_defensive_grind_score(self, home_attack: float, away_attack: float, 
+                                       home_crisis: Dict, away_crisis: Dict) -> float:
+        """Score for DEFENSIVE_GRIND archetype (Under 2.5)."""
+        if home_crisis['score'] > 5 or away_crisis['score'] > 5:
+            return 0  # No grind if either team is in crisis
+        attack_suppression = (max(0, 3 - home_attack) + max(0, 3 - away_attack)) / 2
+        return attack_suppression * 2
+    
     def determine_archetype(self, home_crisis: Dict, away_crisis: Dict,
                            home_reality: Dict, away_reality: Dict,
                            tactical: Dict, home_data: Dict, away_data: Dict) -> Dict:
-        """Quantitative archetype classification."""
+        """
+        CORRECTED QUANTITATIVE ARCHETYPE CLASSIFICATION.
+        Uses the corrected scoring with Chaos Override and Volume Concession Boost.
+        """
         
-        fade_score = 0.0
-        goals_score = 0.0
-        back_score = 0.0
-        defensive_grind_valid = False
-        grind_confidence = 0.0
-        grind_reasons = []
-        rationale = []
+        # Calculate all archetype scores
+        goals_score, goals_rationale = self.calculate_goals_galore_score(
+            home_crisis, away_crisis, tactical, home_data, away_data
+        )
         
-        # ===== 1. DEFENSIVE GRIND VALIDATION =====
+        # Determine favorite (simplified - you might have a better method)
+        home_position = home_data.get('season_position', 10)
+        away_position = away_data.get('season_position', 10)
+        home_is_favorite = home_position < away_position
+        
+        if home_is_favorite:
+            fade_score = self.calculate_fade_favorite_score(
+                favorite_crisis=home_crisis,
+                underdog_stability=away_crisis['score'],
+                xg_deviation=abs(home_reality['metrics']['deviation'])
+            )
+            back_score = self.calculate_back_underdog_score(
+                underdog_stability=away_crisis['score'],
+                favorite_underperformance=home_reality['confidence'],
+                tactical_mismatch=tactical['total_score'] / 2
+            )
+        else:
+            fade_score = self.calculate_fade_favorite_score(
+                favorite_crisis=away_crisis,
+                underdog_stability=home_crisis['score'],
+                xg_deviation=abs(away_reality['metrics']['deviation'])
+            )
+            back_score = self.calculate_back_underdog_score(
+                underdog_stability=home_crisis['score'],
+                favorite_underperformance=away_reality['confidence'],
+                tactical_mismatch=tactical['total_score'] / 2
+            )
+        
+        # Defensive Grind validation
         defensive_grind_valid, grind_confidence, grind_reasons = self.validate_defensive_grind(
             home_data, away_data, home_crisis, away_crisis
         )
         
-        if defensive_grind_valid:
-            rationale.append(f"DEFENSIVE GRIND qualified ({grind_confidence:.1f}/8.0)")
+        defensive_score = self.calculate_defensive_grind_score(
+            home_attack=home_data.get('home_xg_per_match', 0),
+            away_attack=away_data.get('away_xg_per_match', 0),
+            home_crisis=home_crisis,
+            away_crisis=away_crisis
+        ) if defensive_grind_valid else 0
         
-        # ===== 2. FADE_THE_FAVORITE SCORING =====
-        if (away_crisis['severity'] == 'CRITICAL' and 
-            home_crisis['severity'] in ['STABLE', 'WARNING'] and
-            away_reality['status'] == 'OVERPERFORMING'):
-            
-            fade_score = (
-                away_crisis['score'] * 0.4 +
-                away_reality['confidence'] * 0.3 +
-                (15 - home_crisis['score']) * 0.3
-            )
-            
-            if fade_score > 0:
-                rationale.append(f"FADE score: {fade_score:.1f} (Away crisis + overperformance)")
+        # Collect all scores with thresholds
+        archetype_scores = [
+            ('GOALS GALORE', goals_score, goals_rationale, 8.0),
+            ('FADE_THE_FAVORITE', fade_score, [], 7.0),
+            ('BACK_THE_UNDERDOG', back_score, [], 6.5),
+            ('DEFENSIVE_GRIND', defensive_score, [], 7.0)
+        ]
         
-        # ===== 3. GOALS_GALORE SCORING =====
-        crisis_present = (home_crisis['severity'] == 'CRITICAL' or 
-                         away_crisis['severity'] == 'CRITICAL')
+        rationale = []
         
-        if crisis_present:
-            crisis_sum = home_crisis['score'] + away_crisis['score']
-            
-            goals_score = (
-                crisis_sum * 0.4 +
-                tactical['total_score'] * 0.3 +
-                (tactical['details']['attack_competence']['score'] * 0.3)
-            )
-            
-            if not tactical['attack_competence']:
-                goals_score *= 0.7
-                rationale.append("GOALS score penalized: weak attack competence")
-            
-            if goals_score > 0:
-                rationale.append(f"GOALS score: {goals_score:.1f} (Crisis + tactical edge)")
+        # Filter and select the highest scoring archetype that meets its minimum threshold
+        viable = [(name, score, sub_rationale) for name, score, sub_rationale, threshold in archetype_scores if score >= threshold]
         
-        # ===== 4. BACK_THE_UNDERDOG SCORING =====
-        if (home_reality['status'] == 'UNDERPERFORMING' and
-            home_crisis['severity'] == 'STABLE' and
-            away_crisis['severity'] != 'CRITICAL'):
-            
-            back_score = (
-                home_reality['confidence'] * 0.4 +
-                (15 - home_crisis['score']) * 0.3 +
-                tactical['total_score'] * 0.3
-            )
-            
-            if back_score > 0:
-                rationale.append(f"BACK score: {back_score:.1f} (Home underperformance + stability)")
-        
-        # ===== 5. DECISION HIERARCHY =====
-        if defensive_grind_valid and grind_confidence >= 6.0:
-            confidence = min(10.0, grind_confidence * 1.25)
-            archetype = 'DEFENSIVE_GRIND'
-            rationale.append(f"→ DEFENSIVE GRIND selected (confidence: {confidence:.1f}/10)")
-        
-        elif fade_score > 18 and fade_score > max(goals_score, back_score):
-            confidence = min(10.0, fade_score / 2.5)
-            archetype = 'FADE_THE_FAVORITE'
-            rationale.append(f"→ FADE selected (score: {fade_score:.1f})")
-        
-        elif goals_score > 15 and goals_score > max(fade_score, back_score):
-            confidence = min(10.0, goals_score / 2.0)
-            archetype = 'GOALS_GALORE'
-            rationale.append(f"→ GOALS selected (score: {goals_score:.1f})")
-        
-        elif back_score > 12:
-            confidence = min(8.0, back_score / 1.8)
-            archetype = 'BACK_THE_UNDERDOG'
-            rationale.append(f"→ BACK selected (score: {back_score:.1f})")
-        
-        else:
+        if not viable:
             archetype = 'AVOID'
-            confidence = 0.0
-            rationale.append("→ No quantitative edge above thresholds")
+            confidence = 0
+            rationale.append("No archetype score met the minimum threshold for action.")
+        else:
+            # Select the highest score
+            selected = max(viable, key=lambda x: x[1])
+            archetype_name, score, sub_rationale = selected
+            archetype = archetype_name
+            rationale.extend(sub_rationale)
+            
+            # Convert score to confidence (0-10 scale)
+            if score >= 15:
+                confidence = 10
+            elif score >= 12:
+                confidence = 9
+            elif score >= 10:
+                confidence = 8
+            elif score >= 8:
+                confidence = 7
+            elif score >= 6:
+                confidence = 6
+            elif score >= 5:
+                confidence = 5
+            elif score >= 4:
+                confidence = 4
+            else:
+                confidence = 3  # Minimal confidence, but still actionable
         
         if defensive_grind_valid:
             rationale.extend([f"Defensive Grind Check: {reason}" for reason in grind_reasons])
         
         return {
             'archetype': archetype,
-            'confidence': round(confidence, 1),
+            'confidence': confidence,
             'scores': {
                 'fade': round(fade_score, 1),
                 'goals': round(goals_score, 1),
@@ -776,18 +861,10 @@ class BrutballProQuantitative:
             return 0.0
         
         base_stakes = {
-            'FADE_THE_FAVORITE': {
-                8.5: 2.5, 7.0: 2.0, 5.5: 1.5, 4.0: 1.0
-            },
-            'GOALS_GALORE': {
-                8.5: 2.0, 7.0: 1.5, 5.5: 1.0, 4.0: 0.5
-            },
-            'BACK_THE_UNDERDOG': {
-                8.0: 1.5, 6.5: 1.0, 5.0: 0.5, 4.0: 0.25
-            },
-            'DEFENSIVE_GRIND': {
-                8.0: 1.5, 6.5: 1.0, 5.0: 0.5, 4.0: 0.25
-            }
+            'GOALS GALORE': {8: 2.5, 7: 2.0, 6: 2.0, 5: 1.5, 4: 1.0},
+            'FADE_THE_FAVORITE': {8: 2.5, 7: 2.0, 6: 1.5, 5: 1.0, 4: 1.0},
+            'BACK_THE_UNDERDOG': {8: 2.0, 7: 1.5, 6: 1.5, 5: 1.0, 4: 1.0},
+            'DEFENSIVE_GRIND': {8: 2.0, 7: 1.5, 6: 1.5, 5: 1.0, 4: 1.0}
         }
         
         thresholds = base_stakes.get(archetype, {})
@@ -822,7 +899,7 @@ class BrutballProQuantitative:
         # ===== PHASE 3: TACTICAL ANALYSIS =====
         tactical = self.analyze_tactical_matchup(home_data, away_data)
         
-        # ===== PHASE 4 & 5: ARCHETYPE CLASSIFICATION =====
+        # ===== PHASE 4 & 5: CORRECTED ARCHETYPE CLASSIFICATION =====
         archetype_result = self.determine_archetype(
             home_crisis, away_crisis, home_reality, away_reality,
             tactical, home_data, away_data
@@ -922,7 +999,7 @@ def render_framework_overview():
         st.markdown("• 4 Archetype Classification")
         st.markdown("• Defensive Grind Validator")
         st.markdown("• Confidence Scoring (0-10)")
-        st.markdown("**Status:** ✅ OPERATIONAL")
+        st.markdown("**Status:** ✅ CORRECTED")
         st.markdown('</div>', unsafe_allow_html=True)
     
     with col3:
@@ -1067,8 +1144,8 @@ def render_archetype_decision(analysis: Dict):
     """Render archetype decision with styling."""
     
     archetype_colors = {
+        'GOALS GALORE': {'bg': '#FFEDD5', 'border': '#EA580C', 'text': '#EA580C'},
         'FADE_THE_FAVORITE': {'bg': '#FEF2F2', 'border': '#DC2626', 'text': '#DC2626'},
-        'GOALS_GALORE': {'bg': '#FFEDD5', 'border': '#EA580C', 'text': '#EA580C'},
         'BACK_THE_UNDERDOG': {'bg': '#F0FDF4', 'border': '#16A34A', 'text': '#16A34A'},
         'DEFENSIVE_GRIND': {'bg': '#EFF6FF', 'border': '#2563EB', 'text': '#2563EB'},
         'AVOID': {'bg': '#F3F4F6', 'border': '#6B7280', 'text': '#6B7280'}
@@ -1126,7 +1203,7 @@ def render_archetype_decision(analysis: Dict):
     
     with st.expander("📝 Decision Rationale", expanded=True):
         for line in analysis['rationale']:
-            if '→' in line:
+            if '→' in line or '📈' in line or '⚡' in line or '✅' in line or '⚠️' in line:
                 st.markdown(f"**{line}**")
             else:
                 st.markdown(f"• {line}")
@@ -1173,23 +1250,32 @@ def render_professional_notes(analysis: Dict):
     notes = []
     archetype = analysis['archetype']
     
-    if archetype == 'FADE_THE_FAVORITE':
+    if archetype == 'GOALS GALORE':
+        notes.append("**🎯 PRIMARY BET:** Over 2.5 Goals")
+        
+        # Check for Chaos Override signals
+        rationale_text = ' '.join(analysis['rationale'])
+        if 'Chaos Override' in rationale_text:
+            notes.append("**⚡ CHAOS OVERRIDE ACTIVE:** Dual critical crises detected")
+            notes.append("**💡 STRATEGY:** Pure defensive collapse - expect high-volume chaos")
+            notes.append("**💰 STAKE:** Full allocation (2.0-2.5%) - High confidence signal")
+        elif 'Volume Boost' in rationale_text:
+            notes.append("**📈 VOLUME BOOST ACTIVE:** Extreme goals conceded")
+            notes.append("**💡 STRATEGY:** High-volume concession environment")
+            notes.append("**💰 STAKE:** Standard allocation (2.0%)")
+        else:
+            notes.append("**💡 STRATEGY:** Tactical goals matchup")
+            notes.append("**💰 STAKE:** Standard allocation (1.5-2.0%)")
+        
+        notes.append("**⚠️ RISK:** Early goal could change game state")
+        notes.append("**📊 MARKET:** Consider Both Teams to Score as secondary bet")
+    
+    elif archetype == 'FADE_THE_FAVORITE':
         notes.append("**🎯 PRIMARY BET:** Back the underdog or draw")
         notes.append("**💡 STRATEGY:** Exploit overperforming team in crisis")
         notes.append("**💰 STAKE:** Full allocation (2.0-2.5%) - High confidence signal")
         notes.append("**⚠️ RISK:** Market may have already adjusted for crisis")
         notes.append("**📊 MARKET:** Look for value in Double Chance (X2) or Asian Handicap")
-    
-    elif archetype == 'GOALS_GALORE':
-        notes.append("**🎯 PRIMARY BET:** Over 2.5 Goals")
-        if analysis['tactical_edge']['attack_competence']:
-            notes.append("**💡 STRATEGY:** Both attacks competent + defensive crisis")
-            notes.append("**💰 STAKE:** Standard allocation (1.5-2.0%)")
-        else:
-            notes.append("**💡 STRATEGY:** Defensive crisis but attack competence limited")
-            notes.append("**💰 STAKE:** Reduced allocation (1.0-1.5%)")
-        notes.append("**⚠️ RISK:** Early goal could change game state")
-        notes.append("**📊 MARKET:** Consider Both Teams to Score as secondary bet")
     
     elif archetype == 'BACK_THE_UNDERDOG':
         notes.append("**🎯 PRIMARY BET:** Underdog to win or Double Chance")
@@ -1248,11 +1334,11 @@ def render_footer():
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; color: #6B7280; font-size: 0.9rem; padding: 1rem;">
-        <p><strong>Brutball Professional Quantitative Framework v3.0</strong></p>
-        <p>Complete Six-Phase Logic | All CSV Columns Utilized | Professional Capital Allocation</p>
+        <p><strong>Brutball Professional Quantitative Framework v3.1</strong></p>
+        <p>Complete Six-Phase Logic | Corrected GOALS Scoring | Chaos Override & Volume Boost Active</p>
         <p style="font-size: 0.8rem; margin-top: 0.5rem;">
             For professional use only. All betting involves risk. Never bet more than you can afford to lose.
-            <br>Framework logic strictly follows quantitative principles with no narrative bias.
+            <br>Framework logic now correctly identifies Type A (Tactical Goals) and Type B (Chaos Goals) environments.
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -1306,7 +1392,7 @@ def main():
                 render_defensive_grind_analysis(analysis)
             
             st.markdown("---")
-            st.markdown('<div class="framework-header">🎯 LAYER 2: QUANTITATIVE DECISION CLASSIFICATION</div>', 
+            st.markdown('<div class="framework-header">🎯 LAYER 2: CORRECTED QUANTITATIVE DECISION CLASSIFICATION</div>', 
                        unsafe_allow_html=True)
             
             render_archetype_decision(analysis)
@@ -1319,8 +1405,8 @@ def main():
             st.markdown("#### 📤 Export Analysis Report")
             
             report = f"""
-BRUTBALL PROFESSIONAL ANALYSIS REPORT
-=====================================
+BRUTBALL PROFESSIONAL ANALYSIS REPORT (v3.1)
+=============================================
 
 Match: {analysis['match']}
 Analysis Date: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
@@ -1335,17 +1421,31 @@ Away Team ({analysis['match'].split(' vs ')[1]}):
 • Crisis Score: {analysis['crisis_analysis']['away']['score']}/20
 • Severity: {analysis['crisis_analysis']['away']['severity']}
 
+CORRECTED LOGIC ACTIVE:
+• Chaos Override: {analysis['crisis_analysis']['home']['severity'] == 'CRITICAL' and analysis['crisis_analysis']['away']['severity'] == 'CRITICAL'}
+• Volume Concession: {analysis['crisis_analysis']['home']['details']['goals_conceded'] + analysis['crisis_analysis']['away']['details']['goals_conceded']} goals conceded last 5
+
 LAYER 2: DECISION CLASSIFICATION
 --------------------------------
 Archetype: {analysis['archetype'].replace('_', ' ')}
 Confidence Score: {analysis['confidence']}/10
 
+Quantitative Scores:
+• Goals Score: {analysis['quantitative_scores']['goals']:.1f}
+• Fade Score: {analysis['quantitative_scores']['fade']:.1f}
+• Back Score: {analysis['quantitative_scores']['back']:.1f}
+• Defensive Grind: {analysis['quantitative_scores']['defensive_grind']:.1f}
+
 LAYER 3: CAPITAL ALLOCATION
 --------------------------
 Recommended Stake: {analysis['recommended_stake']}% of bankroll
 
-=====================================
-Brutball Professional Framework v3.0
+DECISION RATIONALE:
+{chr(10).join(['• ' + line for line in analysis['rationale']])}
+
+=============================================
+Brutball Professional Framework v3.1
+Corrected for Type B (Chaos Goals) environments
             """
             
             st.download_button(
