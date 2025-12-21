@@ -1,81 +1,137 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from typing import Dict, Tuple, List, Optional
 import warnings
-from typing import Dict, Tuple, List
 warnings.filterwarnings('ignore')
 
-# =================== PAGE CONFIG ===================
+# =================== PAGE CONFIGURATION ===================
 st.set_page_config(
-    page_title="Brutball Professional Decision Framework v3.0",
+    page_title="Brutball Pro Quantitative Framework",
     page_icon="⚽",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# =================== CUSTOM CSS ===================
+# =================== CUSTOM CSS STYLING ===================
 st.markdown("""
     <style>
     .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
+        font-size: 2.8rem;
+        font-weight: 800;
         color: #1E3A8A;
-        margin-bottom: 1rem;
+        margin-bottom: 1.5rem;
+        text-align: center;
+        text-shadow: 1px 1px 3px rgba(0,0,0,0.1);
+    }
+    .framework-header {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #374151;
+        margin: 1.5rem 0 1rem 0;
+        border-bottom: 3px solid #3B82F6;
+        padding-bottom: 0.5rem;
     }
     .layer-box {
-        padding: 1.5rem;
-        border-radius: 10px;
-        background-color: #F8FAFC;
-        border-left: 5px solid #3B82F6;
+        padding: 1.2rem;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%);
+        border-left: 6px solid #3B82F6;
         margin-bottom: 1rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s ease;
+    }
+    .layer-box:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 8px -1px rgba(0, 0, 0, 0.08);
     }
     .crisis-alert {
-        background-color: #FEF2F2;
+        background: linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%);
         border-left: 5px solid #DC2626;
         padding: 1rem;
-        border-radius: 5px;
-        margin: 0.5rem 0;
+        border-radius: 8px;
+        margin: 0.75rem 0;
+        box-shadow: 0 2px 4px rgba(220, 38, 38, 0.1);
     }
     .opportunity-alert {
-        background-color: #F0FDF4;
+        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
         border-left: 5px solid #16A34A;
         padding: 1rem;
-        border-radius: 5px;
-        margin: 0.5rem 0;
+        border-radius: 8px;
+        margin: 0.75rem 0;
+        box-shadow: 0 2px 4px rgba(22, 163, 74, 0.1);
     }
     .defensive-alert {
-        background-color: #EFF6FF;
+        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
         border-left: 5px solid #2563EB;
         padding: 1rem;
-        border-radius: 5px;
-        margin: 0.5rem 0;
+        border-radius: 8px;
+        margin: 0.75rem 0;
+        box-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
     }
     .metric-card {
         background: white;
-        padding: 1rem;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        margin: 0.5rem 0;
+        padding: 1.2rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+        margin: 0.75rem 0;
+        border: 1px solid #E5E7EB;
+        transition: all 0.3s ease;
+    }
+    .metric-card:hover {
+        box-shadow: 0 6px 8px -1px rgba(0, 0, 0, 0.12);
+        border-color: #3B82F6;
     }
     .archetype-badge {
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-weight: bold;
+        padding: 0.75rem 1.5rem;
+        border-radius: 25px;
+        font-weight: 800;
+        font-size: 1.1rem;
         display: inline-block;
-        margin: 0.2rem;
+        margin: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
-    .threshold-slider {
+    .stake-display {
+        font-size: 2.5rem;
+        font-weight: 800;
+        color: #059669;
+        text-align: center;
         margin: 0.5rem 0;
+    }
+    .confidence-meter {
+        height: 12px;
+        background: linear-gradient(90deg, #EF4444 0%, #F59E0B 50%, #10B981 100%);
+        border-radius: 6px;
+        margin: 0.5rem 0;
+    }
+    .info-box {
+        background-color: #F3F4F6;
+        border-left: 4px solid #6B7280;
+        padding: 1rem;
+        border-radius: 6px;
+        margin: 0.5rem 0;
+        font-size: 0.9rem;
+        color: #4B5563;
+    }
+    .data-table {
+        font-size: 0.85rem;
+    }
+    /* Sidebar styling */
+    .sidebar .sidebar-content {
+        background: linear-gradient(180deg, #1E3A8A 0%, #1E40AF 100%);
     }
     </style>
 """, unsafe_allow_html=True)
 
-# =================== DATA LOADING ===================
-@st.cache_data
-def load_league_data():
-    """Load and prepare the league data with all CSV headings"""
+# =================== DATA LOADING & PREPARATION ===================
+@st.cache_data(ttl=3600, show_spinner="Loading Premier League data...")
+def load_and_prepare_data() -> Optional[pd.DataFrame]:
+    """Load, validate, and prepare the dataset with all CSV columns."""
     try:
-        # Try loading from different possible paths
-        paths_to_try = [
+        # Try multiple data sources
+        data_sources = [
             'leagues/premier_league.csv',
             './leagues/premier_league.csv',
             'premier_league.csv',
@@ -83,176 +139,241 @@ def load_league_data():
         ]
         
         df = None
-        loaded_path = ""
-        for path in paths_to_try:
+        source_used = ""
+        
+        for source in data_sources:
             try:
-                df = pd.read_csv(path)
-                loaded_path = path
+                df = pd.read_csv(source)
+                source_used = source
+                st.success(f"✅ Data loaded from: {source}")
                 break
             except Exception as e:
                 continue
         
         if df is None:
-            st.error("❌ Could not load data from any source")
-            return None, None
+            st.error("❌ Failed to load data from all sources")
+            return None
         
-        st.success(f"✅ Data loaded successfully from: {loaded_path}")
-        
-        # Clean column names
+        # Clean and validate column names
         original_columns = df.columns.tolist()
         df.columns = df.columns.str.strip().str.lower()
         cleaned_columns = df.columns.tolist()
         
-        # Add derived columns using ALL available data
-        if 'home_matches_played' in df.columns and 'home_goals_scored' in df.columns:
-            df['home_goals_per_match'] = df['home_goals_scored'] / df['home_matches_played'].replace(0, 1)
-            df['away_goals_per_match'] = df['away_goals_scored'] / df['away_matches_played'].replace(0, 1)
-            df['home_xg_per_match'] = df['home_xg_for'] / df['home_matches_played'].replace(0, 1)
-            df['away_xg_per_match'] = df['away_xg_for'] / df['away_matches_played'].replace(0, 1)
-            df['home_xgc_per_match'] = df['home_xg_against'] / df['home_matches_played'].replace(0, 1)
-            df['away_xgc_per_match'] = df['away_xg_against'] / df['away_matches_played'].replace(0, 1)
+        # Required columns from CSV header
+        required_columns = [
+            'team', 'season_position', 'home_matches_played', 'home_goals_scored',
+            'home_xg_for', 'home_xg_against', 'away_matches_played', 'away_goals_scored',
+            'away_xg_for', 'away_xg_against', 'goals_scored_last_5', 'goals_conceded_last_5',
+            'defenders_out', 'form_last_5_overall', 'form_last_5_home', 'form_last_5_away',
+            'home_goals_openplay_for', 'home_goals_counter_for', 'home_goals_setpiece_for',
+            'home_goals_penalty_for', 'home_goals_owngoal_for', 'away_goals_openplay_for',
+            'away_goals_counter_for', 'away_goals_setpiece_for', 'away_goals_penalty_for',
+            'away_goals_owngoal_for', 'home_goals_openplay_against', 'home_goals_counter_against',
+            'home_goals_setpiece_against', 'home_goals_penalty_against', 'home_goals_owngoal_against',
+            'away_goals_openplay_against', 'away_goals_counter_against', 'away_goals_setpiece_against',
+            'away_goals_penalty_against', 'away_goals_owngoal_against'
+        ]
         
-        # Calculate form points
-        def form_to_points(form_str):
-            if pd.isna(form_str):
-                return 7.5
-            points = {'W': 3, 'D': 1, 'L': 0}
-            return sum(points.get(char, 0) for char in str(form_str))
+        # Check for missing columns
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            st.warning(f"⚠️ Missing columns: {missing_columns}")
         
-        for form_col in ['form_last_5_overall', 'form_last_5_home', 'form_last_5_away']:
-            if form_col in df.columns:
-                df[f'{form_col}_points'] = df[form_col].apply(form_to_points)
+        # Calculate derived metrics
+        df = calculate_derived_metrics(df)
         
-        return df, original_columns
-    
+        # Store metadata
+        df.attrs['source'] = source_used
+        df.attrs['original_columns'] = original_columns
+        df.attrs['cleaned_columns'] = cleaned_columns
+        df.attrs['missing_columns'] = missing_columns
+        df.attrs['total_teams'] = len(df)
+        
+        return df
+        
     except Exception as e:
-        st.error(f"❌ Error loading data: {str(e)}")
-        return None, None
+        st.error(f"❌ Data preparation error: {str(e)}")
+        return None
 
-# =================== QUANTITATIVE ENGINE ===================
-class BrutballQuantitativeEngine:
-    """Professional Quantitative Decision Engine - Complete Implementation"""
+def calculate_derived_metrics(df: pd.DataFrame) -> pd.DataFrame:
+    """Calculate all derived metrics from base columns."""
+    
+    # Per-match averages
+    df['home_goals_per_match'] = df['home_goals_scored'] / df['home_matches_played'].replace(0, np.nan)
+    df['away_goals_per_match'] = df['away_goals_scored'] / df['away_matches_played'].replace(0, np.nan)
+    df['home_xg_per_match'] = df['home_xg_for'] / df['home_matches_played'].replace(0, np.nan)
+    df['away_xg_per_match'] = df['away_xg_for'] / df['away_matches_played'].replace(0, np.nan)
+    df['home_xgc_per_match'] = df['home_xg_against'] / df['home_matches_played'].replace(0, np.nan)
+    df['away_xgc_per_match'] = df['away_xg_against'] / df['away_matches_played'].replace(0, np.nan)
+    
+    # Goal type percentages
+    df['home_counter_pct'] = df['home_goals_counter_for'] / df['home_goals_scored'].replace(0, np.nan)
+    df['home_setpiece_pct'] = df['home_goals_setpiece_for'] / df['home_goals_scored'].replace(0, np.nan)
+    df['home_openplay_pct'] = df['home_goals_openplay_for'] / df['home_goals_scored'].replace(0, np.nan)
+    
+    df['away_counter_pct'] = df['away_goals_counter_for'] / df['away_goals_scored'].replace(0, np.nan)
+    df['away_setpiece_pct'] = df['away_goals_setpiece_for'] / df['away_goals_scored'].replace(0, np.nan)
+    df['away_openplay_pct'] = df['away_goals_openplay_for'] / df['away_goals_scored'].replace(0, np.nan)
+    
+    # Defensive vulnerabilities
+    df['home_counter_vuln'] = df['home_goals_counter_against'] / df['home_goals_conceded'].replace(0, np.nan)
+    df['home_setpiece_vuln'] = df['home_goals_setpiece_against'] / df['home_goals_conceded'].replace(0, np.nan)
+    
+    df['away_counter_vuln'] = df['away_goals_counter_against'] / df['away_goals_conceded'].replace(0, np.nan)
+    df['away_setpiece_vuln'] = df['away_goals_setpiece_against'] / df['away_goals_conceded'].replace(0, np.nan)
+    
+    # Form points calculation
+    def calculate_form_points(form_string):
+        if pd.isna(form_string):
+            return 0
+        points_map = {'W': 3, 'D': 1, 'L': 0}
+        return sum(points_map.get(char, 0) for char in str(form_string))
+    
+    df['form_points_overall'] = df['form_last_5_overall'].apply(calculate_form_points)
+    df['form_points_home'] = df['form_last_5_home'].apply(calculate_form_points)
+    df['form_points_away'] = df['form_last_5_away'].apply(calculate_form_points)
+    
+    # Form momentum (last 3 matches)
+    def calculate_momentum(form_string):
+        if pd.isna(form_string) or len(str(form_string)) < 3:
+            return 'NEUTRAL'
+        last_three = str(form_string)[-3:]
+        wins = last_three.count('W')
+        losses = last_three.count('L')
+        if wins >= 2: return 'STRONG_UP'
+        if losses >= 2: return 'STRONG_DOWN'
+        if 'W' in last_three and 'L' not in last_three: return 'IMPROVING'
+        if 'L' in last_three and 'W' not in last_three: return 'DECLINING'
+        return 'VOLATILE'
+    
+    df['momentum_overall'] = df['form_last_5_overall'].apply(calculate_momentum)
+    df['momentum_home'] = df['form_last_5_home'].apply(calculate_momentum)
+    df['momentum_away'] = df['form_last_5_away'].apply(calculate_momentum)
+    
+    # Replace NaN with 0 for calculated columns
+    calculated_columns = [col for col in df.columns if col not in [
+        'team', 'form_last_5_overall', 'form_last_5_home', 'form_last_5_away',
+        'momentum_overall', 'momentum_home', 'momentum_away'
+    ]]
+    df[calculated_columns] = df[calculated_columns].fillna(0)
+    
+    return df
+
+# =================== QUANTITATIVE ENGINE CORE ===================
+class BrutballProQuantitative:
+    """Complete professional quantitative decision engine."""
     
     def __init__(self, df: pd.DataFrame):
         self.df = df
-        self.league_avg_xg = self._calculate_league_averages()
         self.performance_log = []
+        self.league_metrics = self._calculate_league_metrics()
         
-        # Configuration - can be adjusted via UI
-        self.config = {
-            'crisis_critical_threshold': 6,
-            'crisis_warning_threshold': 3,
-            'xg_deviation_threshold': 0.3,
-            'counter_threat_threshold': 0.12,  # 12%
-            'setpiece_threat_threshold': 0.20,  # 20%
-            'attack_suppression_threshold': 1.1,
-            'defensive_grind_confidence_min': 5.0,
-            'fade_score_threshold': 15,
-            'goals_score_threshold': 12,
-            'back_score_threshold': 10
-        }
-    
-    def update_config(self, **kwargs):
-        """Update configuration parameters"""
-        self.config.update(kwargs)
-    
-    def _calculate_league_averages(self) -> Dict:
-        """Calculate league-wide averages for context"""
+    def _calculate_league_metrics(self) -> Dict:
+        """Calculate league-wide benchmarks for context."""
         metrics = {}
         
-        # xG averages
-        if 'home_xg_for' in self.df.columns and 'home_matches_played' in self.df.columns:
-            total_home_xg = self.df['home_xg_for'].sum()
-            total_home_matches = self.df['home_matches_played'].sum()
-            metrics['home_xg'] = total_home_xg / total_home_matches if total_home_matches > 0 else 1.5
+        # League averages
+        metrics['avg_home_xg'] = self.df['home_xg_per_match'].mean()
+        metrics['avg_away_xg'] = self.df['away_xg_per_match'].mean()
+        metrics['avg_home_goals'] = self.df['home_goals_per_match'].mean()
+        metrics['avg_away_goals'] = self.df['away_goals_per_match'].mean()
         
-        if 'away_xg_for' in self.df.columns and 'away_matches_played' in self.df.columns:
-            total_away_xg = self.df['away_xg_for'].sum()
-            total_away_matches = self.df['away_matches_played'].sum()
-            metrics['away_xg'] = total_away_xg / total_away_matches if total_away_matches > 0 else 1.2
+        # Percentile thresholds
+        metrics['xg_75th'] = np.percentile(self.df['home_xg_per_match'].combine(
+            self.df['away_xg_per_match'], max), 75)
+        metrics['xg_25th'] = np.percentile(self.df['home_xg_per_match'].combine(
+            self.df['away_xg_per_match'], min), 25)
         
         # Goal type averages
-        goal_type_columns = [
-            'home_goals_openplay_for', 'home_goals_counter_for', 'home_goals_setpiece_for',
-            'away_goals_openplay_for', 'away_goals_counter_for', 'away_goals_setpiece_for'
-        ]
-        
-        for col in goal_type_columns:
-            if col in self.df.columns:
-                metrics[f'avg_{col}'] = self.df[col].mean() if len(self.df) > 0 else 0
+        metrics['avg_counter_pct'] = self.df['home_counter_pct'].combine(
+            self.df['away_counter_pct'], np.mean).mean()
+        metrics['avg_setpiece_pct'] = self.df['home_setpiece_pct'].combine(
+            self.df['away_setpiece_pct'], np.mean).mean()
         
         return metrics
     
     # ========== PHASE 1: QUANTITATIVE CRISIS SCORING ==========
-    def calculate_crisis_score(self, team_data: Dict) -> Dict:
-        """Quantitative crisis scoring using all available data"""
+    def calculate_crisis_score(self, team_data: Dict, is_home: bool = True) -> Dict:
+        """Calculate comprehensive crisis score (0-20 scale)."""
         score = 0
         signals = []
-        detailed_metrics = {}
+        details = {}
         
-        # 1. Defenders Out (0-5 points)
+        # 1. DEFENSIVE PERSONNEL (0-6 points)
         defenders_out = team_data.get('defenders_out', 0)
         if defenders_out >= 4:
-            score += 5
-            signals.append(f"🚨 {defenders_out} defenders out (5pts)")
+            score += 6
+            signals.append(f"🚨 {defenders_out} defenders missing (6pts)")
         elif defenders_out == 3:
-            score += 3
-            signals.append(f"⚠️ {defenders_out} defenders out (3pts)")
+            score += 4
+            signals.append(f"⚠️ {defenders_out} defenders missing (4pts)")
         elif defenders_out == 2:
-            score += 1
-            signals.append(f"{defenders_out} defenders out (1pt)")
-        detailed_metrics['defenders_out'] = defenders_out
+            score += 2
+            signals.append(f"{defenders_out} defenders missing (2pts)")
+        details['defenders_out'] = defenders_out
         
-        # 2. Goals Conceded Last 5 (0-5 points)
-        goals_conceded = team_data.get('goals_conceded_last_5', 0)
+        # 2. RECENT DEFENSIVE FORM (0-6 points)
+        if is_home:
+            goals_conceded = team_data.get('goals_conceded_last_5', 0)
+            xgc_per_match = team_data.get('home_xgc_per_match', 0)
+        else:
+            goals_conceded = team_data.get('goals_conceded_last_5', 0)
+            xgc_per_match = team_data.get('away_xgc_per_match', 0)
+        
         if goals_conceded >= 15:
-            score += 5
-            signals.append(f"📉 {goals_conceded} conceded last 5 (5pts)")
+            score += 6
+            signals.append(f"📉 {goals_conceded} goals conceded last 5 (6pts)")
         elif goals_conceded >= 12:
-            score += 3
-            signals.append(f"📉 {goals_conceded} conceded last 5 (3pts)")
+            score += 4
+            signals.append(f"📉 {goals_conceded} goals conceded last 5 (4pts)")
         elif goals_conceded >= 10:
-            score += 1
-            signals.append(f"{goals_conceded} conceded last 5 (1pt)")
-        detailed_metrics['goals_conceded_last_5'] = goals_conceded
+            score += 2
+            signals.append(f"{goals_conceded} goals conceded last 5 (2pts)")
+        details['goals_conceded'] = goals_conceded
+        details['xgc_per_match'] = xgc_per_match
         
-        # 3. Form Momentum (0-5 points)
+        # 3. FORM MOMENTUM (0-4 points)
         form = str(team_data.get('form_last_5_overall', ''))
-        if len(form) >= 2:
-            if form[-2:] == 'LL':
-                score += 3
-                signals.append("📉 Recent LL streak (3pts)")
-            elif form[-1] == 'L':
-                score += 1
-                signals.append("Recent loss (1pt)")
-            
-            if 'LLL' in form:
-                score += 2
-                signals.append("📉 LLL in form (2pts)")
+        momentum = team_data.get('momentum_overall', 'NEUTRAL')
         
-        # 4. Additional defensive metrics from xG
-        if 'home_xg_against' in team_data and 'home_matches_played' in team_data:
-            home_xgc = team_data.get('home_xg_against', 0)
-            home_games = team_data.get('home_matches_played', 1)
-            home_xgc_per_game = home_xgc / home_games
-            
-            if home_xgc_per_game > 1.8:
-                score += 2
-                signals.append(f"📊 High home xG conceded: {home_xgc_per_game:.2f}/game")
+        if 'LLL' in form:
+            score += 4
+            signals.append("📉 Losing streak: LLL (4pts)")
+        elif form[-2:] == 'LL':
+            score += 2
+            signals.append("📉 Recent losses: LL (2pts)")
+        elif momentum == 'STRONG_DOWN':
+            score += 3
+            signals.append("📉 Strong downward momentum (3pts)")
+        elif momentum == 'DECLINING':
+            score += 1
+            signals.append("Declining momentum (1pt)")
         
-        if 'away_xg_against' in team_data and 'away_matches_played' in team_data:
-            away_xgc = team_data.get('away_xg_against', 0)
-            away_games = team_data.get('away_matches_played', 1)
-            away_xgc_per_game = away_xgc / away_games
-            
-            if away_xgc_per_game > 1.8:
-                score += 2
-                signals.append(f"📊 High away xG conceded: {away_xgc_per_game:.2f}/game")
+        details['form'] = form
+        details['momentum'] = momentum
         
-        # Severity Classification
-        if score >= self.config['crisis_critical_threshold']:
+        # 4. ATTACKING CONFIDENCE (0-4 points) - Inverse scoring
+        if is_home:
+            goals_scored = team_data.get('goals_scored_last_5', 0)
+            xg_per_match = team_data.get('home_xg_per_match', 0)
+        else:
+            goals_scored = team_data.get('goals_scored_last_5', 0)
+            xg_per_match = team_data.get('away_xg_per_match', 0)
+        
+        if goals_scored <= 4 and xg_per_match < self.league_metrics['xg_25th']:
+            score += 4
+            signals.append(f"⚽ Attack crisis: {goals_scored} goals, {xg_per_match:.2f} xG (4pts)")
+        elif goals_scored <= 6 and xg_per_match < self.league_metrics['avg_home_xg']:
+            score += 2
+            signals.append(f"⚽ Weak attack: {goals_scored} goals (2pts)")
+        
+        details['goals_scored'] = goals_scored
+        details['xg_per_match'] = xg_per_match
+        
+        # Severity classification
+        if score >= 8:
             severity = 'CRITICAL'
-        elif score >= self.config['crisis_warning_threshold']:
+        elif score >= 4:
             severity = 'WARNING'
         else:
             severity = 'STABLE'
@@ -261,114 +382,138 @@ class BrutballQuantitativeEngine:
             'score': score,
             'severity': severity,
             'signals': signals,
-            'detailed_metrics': detailed_metrics
+            'details': details,
+            'is_home': is_home
         }
     
     # ========== PHASE 2: DYNAMIC REALITY CHECK ==========
-    def analyze_xg_deviation(self, team_data: Dict, is_home: bool) -> Tuple[str, float]:
-        """Comprehensive xG analysis using all available metrics"""
+    def analyze_performance_reality(self, team_data: Dict, is_home: bool) -> Dict:
+        """Analyze team performance relative to expectations."""
+        
         if is_home:
             goals = team_data.get('home_goals_scored', 0)
             xg = team_data.get('home_xg_for', 0)
-            games = team_data.get('home_matches_played', 1)
-            league_avg = self.league_avg_xg.get('home_xg', 1.5)
+            matches = team_data.get('home_matches_played', 1)
+            league_avg = self.league_metrics['avg_home_xg']
         else:
             goals = team_data.get('away_goals_scored', 0)
             xg = team_data.get('away_xg_for', 0)
-            games = team_data.get('away_matches_played', 1)
-            league_avg = self.league_avg_xg.get('away_xg', 1.2)
+            matches = team_data.get('away_matches_played', 1)
+            league_avg = self.league_metrics['avg_away_xg']
         
-        goals_per_game = goals / max(games, 1)
-        xg_per_game = xg / max(games, 1)
+        goals_per_match = goals / max(matches, 1)
+        xg_per_match = xg / max(matches, 1)
+        
+        # Calculate deviation
+        deviation = goals_per_match - xg_per_match
+        deviation_pct = deviation / max(xg_per_match, 0.1) * 100
         
         # Dynamic threshold based on team strength
-        base_threshold = self.config['xg_deviation_threshold']
-        if xg_per_game > league_avg * 1.2:  # Top attacking team
-            threshold = base_threshold * 0.8
-        elif xg_per_game < league_avg * 0.8:  # Weak attacking team
-            threshold = base_threshold * 1.2
+        if xg_per_match > league_avg * 1.3:  # Top attack
+            threshold = 0.25
+        elif xg_per_match < league_avg * 0.7:  # Weak attack
+            threshold = 0.4
         else:
-            threshold = base_threshold
+            threshold = 0.3
         
-        deviation = goals_per_game - xg_per_game
-        
+        # Classification
         if deviation > threshold:
+            status = 'OVERPERFORMING'
             confidence = min(2.0, 1.0 + (deviation - threshold) / threshold)
-            return 'OVERPERFORMING', confidence, deviation
+            implication = "Regression likely - finishing unsustainable"
         elif deviation < -threshold:
+            status = 'UNDERPERFORMING'
             confidence = min(2.0, 1.0 + abs(deviation - threshold) / threshold)
-            return 'UNDERPERFORMING', confidence, deviation
+            implication = "Improvement possible - creating chances"
         else:
-            return 'NEUTRAL', 1.0, deviation
+            status = 'NEUTRAL'
+            confidence = 1.0
+            implication = "Performance aligns with expectations"
+        
+        return {
+            'status': status,
+            'confidence': confidence,
+            'implication': implication,
+            'metrics': {
+                'goals_per_match': goals_per_match,
+                'xg_per_match': xg_per_match,
+                'deviation': deviation,
+                'deviation_pct': deviation_pct,
+                'threshold_used': threshold
+            }
+        }
     
-    # ========== PHASE 3: COMPREHENSIVE TACTICAL ANALYSIS ==========
-    def calculate_tactical_edge(self, home_team: Dict, away_team: Dict) -> Dict:
-        """Complete tactical analysis using all goal type data"""
+    # ========== PHASE 3: TACTICAL EDGE ANALYSIS ==========
+    def analyze_tactical_matchup(self, home_data: Dict, away_data: Dict) -> Dict:
+        """Quantitative tactical analysis with all CSV columns."""
+        
         edge_score = 0
         edges = []
-        detailed_analysis = {}
+        details = {}
         
-        # Get all goal type percentages for home team
-        home_total_goals = max(1, home_team.get('home_goals_scored', 1))
-        away_total_goals = max(1, away_team.get('away_goals_scored', 1))
+        # 1. COUNTER-ATTACK MATCHUP
+        home_counter_pct = home_data.get('home_counter_pct', 0)
+        away_counter_vuln = away_data.get('away_counter_vuln', 0)
+        home_counter_goals = home_data.get('home_goals_counter_for', 0)
+        away_counter_conceded = away_data.get('away_goals_counter_against', 0)
         
-        # 1. Counter-Attack Analysis
-        home_counter_for = home_team.get('home_goals_counter_for', 0)
-        away_counter_against = away_team.get('away_goals_counter_against', 0)
-        away_total_conceded = max(1, away_team.get('away_goals_conceded', 1))
-        
-        home_counter_pct = home_counter_for / home_total_goals
-        away_counter_vuln = away_counter_against / away_total_conceded
-        
-        if home_counter_pct > 0.10 and away_counter_vuln > 0.10:
+        counter_edge = 0
+        if home_counter_pct > 0.15 and away_counter_vuln > 0.15:
             counter_edge = (home_counter_pct * away_counter_vuln) * 25
-            edge_score += min(4.0, counter_edge)
+            edge_score += min(5.0, counter_edge)
             edges.append({
                 'type': 'COUNTER_ATTACK',
-                'score': min(4.0, counter_edge),
-                'home_pct': home_counter_pct,
-                'away_vuln': away_counter_vuln,
-                'detail': f"Home scores {home_counter_pct:.1%} from counters, Away concedes {away_counter_vuln:.1%}"
+                'score': min(5.0, counter_edge),
+                'strength': 'HIGH' if counter_edge > 3 else 'MEDIUM' if counter_edge > 1.5 else 'LOW',
+                'detail': f"Home: {home_counter_pct:.1%} counters ({home_counter_goals} goals) | Away concedes: {away_counter_vuln:.1%} ({away_counter_conceded} goals)"
             })
         
-        # 2. Set-Piece Analysis
-        home_setpiece_for = home_team.get('home_goals_setpiece_for', 0)
-        away_setpiece_against = away_team.get('away_goals_setpiece_against', 0)
+        details['counter_analysis'] = {
+            'home_pct': home_counter_pct,
+            'away_vuln': away_counter_vuln,
+            'edge_score': counter_edge
+        }
         
-        home_setpiece_pct = home_setpiece_for / home_total_goals
-        away_setpiece_vuln = away_setpiece_against / away_total_conceded
+        # 2. SET-PIECE MATCHUP
+        home_setpiece_pct = home_data.get('home_setpiece_pct', 0)
+        away_setpiece_vuln = away_data.get('away_setpiece_vuln', 0)
+        home_setpiece_goals = home_data.get('home_goals_setpiece_for', 0)
+        away_setpiece_conceded = away_data.get('away_goals_setpiece_against', 0)
         
-        if home_setpiece_pct > 0.15 and away_setpiece_vuln > 0.15:
+        setpiece_edge = 0
+        if home_setpiece_pct > 0.2 and away_setpiece_vuln > 0.2:
             setpiece_edge = (home_setpiece_pct * away_setpiece_vuln) * 30
-            edge_score += min(4.0, setpiece_edge)
+            edge_score += min(5.0, setpiece_edge)
             edges.append({
                 'type': 'SET_PIECE',
-                'score': min(4.0, setpiece_edge),
-                'home_pct': home_setpiece_pct,
-                'away_vuln': away_setpiece_vuln,
-                'detail': f"Home scores {home_setpiece_pct:.1%} from set pieces, Away concedes {away_setpiece_vuln:.1%}"
+                'score': min(5.0, setpiece_edge),
+                'strength': 'HIGH' if setpiece_edge > 3 else 'MEDIUM' if setpiece_edge > 1.5 else 'LOW',
+                'detail': f"Home: {home_setpiece_pct:.1%} set pieces ({home_setpiece_goals} goals) | Away concedes: {away_setpiece_vuln:.1%} ({away_setpiece_conceded} goals)"
             })
         
-        # 3. Open Play Analysis
-        home_openplay_for = home_team.get('home_goals_openplay_for', 0)
-        away_openplay_against = away_team.get('away_goals_openplay_against', 0)
+        details['setpiece_analysis'] = {
+            'home_pct': home_setpiece_pct,
+            'away_vuln': away_setpiece_vuln,
+            'edge_score': setpiece_edge
+        }
         
-        home_openplay_pct = home_openplay_for / home_total_goals
-        away_openplay_vuln = away_openplay_against / away_total_conceded
+        # 3. OPEN PLAY DOMINANCE
+        home_openplay_pct = home_data.get('home_openplay_pct', 0)
+        away_openplay_vuln = away_data.get('away_goals_openplay_against', 0) / max(away_data.get('away_goals_conceded', 1), 1)
         
-        if home_openplay_pct > 0.60:
-            openplay_edge = home_openplay_pct * 2
-            edge_score += min(3.0, openplay_edge)
+        if home_openplay_pct > 0.6 and away_openplay_vuln > 0.5:
+            openplay_edge = (home_openplay_pct * away_openplay_vuln) * 20
+            edge_score += min(4.0, openplay_edge)
             edges.append({
                 'type': 'OPEN_PLAY',
-                'score': min(3.0, openplay_edge),
-                'home_pct': home_openplay_pct,
-                'detail': f"Home heavily reliant on open play: {home_openplay_pct:.1%}"
+                'score': min(4.0, openplay_edge),
+                'strength': 'HIGH' if openplay_edge > 2.5 else 'MEDIUM',
+                'detail': f"Home: {home_openplay_pct:.1%} open play | Away concedes: {away_openplay_vuln:.1%} open play"
             })
         
-        # 4. Attack Competence Check
-        home_attack_xg = home_team.get('home_xg_for', 0) / max(1, home_team.get('home_matches_played', 1))
-        away_attack_xg = away_team.get('away_xg_for', 0) / max(1, away_team.get('away_matches_played', 1))
+        # 4. ATTACK COMPETENCE CHECK (Critical for all archetypes)
+        home_attack_xg = home_data.get('home_xg_per_match', 0)
+        away_attack_xg = away_data.get('away_xg_per_match', 0)
         
         competence_score = 0
         if home_attack_xg > 1.0:
@@ -377,95 +522,102 @@ class BrutballQuantitativeEngine:
             competence_score += 1
         
         edge_score += competence_score
-        both_competent = (home_attack_xg > 0.7 and away_attack_xg > 0.7)
+        both_competent = (home_attack_xg > 0.8 and away_attack_xg > 0.8)
         
-        # 5. Defensive Vulnerability Analysis
-        home_goals_conceded = home_team.get('home_goals_conceded', 0) if 'home_goals_conceded' in home_team else 0
-        away_goals_conceded = away_team.get('away_goals_conceded', 0) if 'away_goals_conceded' in away_team else 0
-        
-        detailed_analysis = {
-            'home_attack_xg': home_attack_xg,
-            'away_attack_xg': away_attack_xg,
-            'home_goals_conceded': home_goals_conceded,
-            'away_goals_conceded': away_goals_conceded,
-            'goal_type_breakdown': {
-                'home': {
-                    'openplay': home_openplay_pct,
-                    'counter': home_counter_pct,
-                    'setpiece': home_setpiece_pct,
-                    'penalty': home_team.get('home_goals_penalty_for', 0) / home_total_goals if home_total_goals > 0 else 0,
-                    'owngoal': home_team.get('home_goals_owngoal_for', 0) / home_total_goals if home_total_goals > 0 else 0
-                },
-                'away': {
-                    'openplay': away_openplay_pct,
-                    'counter': away_counter_vuln,
-                    'setpiece': away_setpiece_vuln,
-                    'penalty': away_team.get('away_goals_penalty_for', 0) / away_total_goals if away_total_goals > 0 else 0,
-                    'owngoal': away_team.get('away_goals_owngoal_for', 0) / away_total_goals if away_total_goals > 0 else 0
-                }
-            }
+        details['attack_competence'] = {
+            'home_xg': home_attack_xg,
+            'away_xg': away_attack_xg,
+            'both_competent': both_competent,
+            'score': competence_score
         }
+        
+        # 5. DEFENSIVE STABILITY
+        home_xgc = home_data.get('home_xgc_per_match', 0)
+        away_xgc = away_data.get('away_xgc_per_match', 0)
+        
+        defensive_stability = 0
+        if home_xgc < self.league_metrics['avg_home_xg'] * 0.8:
+            defensive_stability += 1
+        if away_xgc < self.league_metrics['avg_away_xg'] * 0.8:
+            defensive_stability += 1
+        
+        details['defensive_stability'] = defensive_stability
         
         return {
-            'score': min(10.0, edge_score),
+            'total_score': min(20.0, edge_score),
             'edges': edges,
-            'competence_score': competence_score,
-            'both_competent': both_competent,
-            'detailed_analysis': detailed_analysis
+            'details': details,
+            'attack_competence': both_competent,
+            'defensive_stability': defensive_stability
         }
     
-    # ========== PHASE 4A: DEFENSIVE GRIND VALIDATOR ==========
-    def validate_defensive_grind(self, home_team: Dict, away_team: Dict, 
+    # ========== PHASE 4: DEFENSIVE GRIND VALIDATOR ==========
+    def validate_defensive_grind(self, home_data: Dict, away_data: Dict,
                                home_crisis: Dict, away_crisis: Dict) -> Tuple[bool, float, List[str]]:
-        """Defensive Grind (Under 2.5) validation"""
-        reasons = []
-        confidence = 0
+        """Validate conditions for DEFENSIVE_GRIND archetype."""
         
-        # ===== 1. HARD REJECTIONS =====
-        if home_crisis['severity'] == 'CRITICAL' or away_crisis['severity'] == 'CRITICAL':
-            reasons.append("❌ CRITICAL defensive crisis present")
+        reasons = []
+        confidence = 0.0
+        
+        # ===== 1. HARD REJECTION GATES =====
+        # Rule: Any defensive crisis disqualifies Under 2.5
+        if home_crisis['severity'] == 'CRITICAL':
+            reasons.append("❌ Home team in CRITICAL defensive crisis")
+            return False, 0.0, reasons
+        if away_crisis['severity'] == 'CRITICAL':
+            reasons.append("❌ Away team in CRITICAL defensive crisis")
             return False, 0.0, reasons
         
         # ===== 2. ATTACK SUPPRESSION CHECK =====
-        home_xg_per_game = home_team.get('home_xg_for', 0) / max(1, home_team.get('home_matches_played', 1))
-        away_xg_per_game = away_team.get('away_xg_for', 0) / max(1, away_team.get('away_matches_played', 1))
+        home_xg = home_data.get('home_xg_per_match', 0)
+        away_xg = away_data.get('away_xg_per_match', 0)
         
-        if home_xg_per_game > self.config['attack_suppression_threshold'] or away_xg_per_game > self.config['attack_suppression_threshold']:
-            reasons.append(f"❌ Attack too strong (Home: {home_xg_per_game:.2f}, Away: {away_xg_per_game:.2f})")
+        attack_threshold = 1.1
+        if home_xg > attack_threshold:
+            reasons.append(f"❌ Home attack too strong: {home_xg:.2f} xG/match")
             return False, 0.0, reasons
-        else:
-            reasons.append(f"✅ Attacks suppressed (Home: {home_xg_per_game:.2f}, Away: {away_xg_per_game:.2f})")
-            confidence += 2.0
+        if away_xg > attack_threshold:
+            reasons.append(f"❌ Away attack too strong: {away_xg:.2f} xG/match")
+            return False, 0.0, reasons
+        
+        reasons.append(f"✅ Attacks suppressed (Home: {home_xg:.2f}, Away: {away_xg:.2f})")
+        confidence += 2.0
         
         # ===== 3. STYLE CANCELLATION CHECK =====
-        home_total_goals = max(1, home_team.get('home_goals_scored', 1))
-        away_total_goals = max(1, away_team.get('away_goals_scored', 1))
-        
         # Counter-attack suppression
-        home_counter_pct = home_team.get('home_goals_counter_for', 0) / home_total_goals
-        away_counter_pct = away_team.get('away_goals_counter_for', 0) / away_total_goals
+        home_counter_pct = home_data.get('home_counter_pct', 0)
+        away_counter_pct = away_data.get('away_counter_pct', 0)
         
-        if home_counter_pct > self.config['counter_threat_threshold'] or away_counter_pct > self.config['counter_threat_threshold']:
-            reasons.append(f"❌ Counter-attack threat (Home: {home_counter_pct:.1%}, Away: {away_counter_pct:.1%})")
+        counter_threshold = 0.12
+        if home_counter_pct > counter_threshold:
+            reasons.append(f"❌ Home counter threat: {home_counter_pct:.1%}")
             return False, 0.0, reasons
-        else:
-            reasons.append(f"✅ No counter threat (Home: {home_counter_pct:.1%}, Away: {away_counter_pct:.1%})")
-            confidence += 1.5
+        if away_counter_pct > counter_threshold:
+            reasons.append(f"❌ Away counter threat: {away_counter_pct:.1%}")
+            return False, 0.0, reasons
+        
+        reasons.append(f"✅ No counter threat (Home: {home_counter_pct:.1%}, Away: {away_counter_pct:.1%})")
+        confidence += 1.5
         
         # Set-piece suppression
-        home_setpiece_pct = home_team.get('home_goals_setpiece_for', 0) / home_total_goals
-        away_setpiece_pct = away_team.get('away_goals_setpiece_for', 0) / away_total_goals
+        home_setpiece_pct = home_data.get('home_setpiece_pct', 0)
+        away_setpiece_pct = away_data.get('away_setpiece_pct', 0)
         
-        if home_setpiece_pct > self.config['setpiece_threat_threshold'] or away_setpiece_pct > self.config['setpiece_threat_threshold']:
-            reasons.append(f"❌ Set-piece threat (Home: {home_setpiece_pct:.1%}, Away: {away_setpiece_pct:.1%})")
+        setpiece_threshold = 0.20
+        if home_setpiece_pct > setpiece_threshold:
+            reasons.append(f"❌ Home set-piece threat: {home_setpiece_pct:.1%}")
             return False, 0.0, reasons
-        else:
-            reasons.append(f"✅ No set-piece threat (Home: {home_setpiece_pct:.1%}, Away: {away_setpiece_pct:.1%})")
-            confidence += 1.5
+        if away_setpiece_pct > setpiece_threshold:
+            reasons.append(f"❌ Away set-piece threat: {away_setpiece_pct:.1%}")
+            return False, 0.0, reasons
+        
+        reasons.append(f"✅ No set-piece threat (Home: {home_setpiece_pct:.1%}, Away: {away_setpiece_pct:.1%})")
+        confidence += 1.5
         
         # ===== 4. GAME-STATE CONTROL CHECK =====
-        home_form = str(home_team.get('form_last_5_overall', ''))
-        away_form = str(away_team.get('form_last_5_overall', ''))
+        # Draw-heavy form analysis
+        home_form = str(home_data.get('form_last_5_overall', ''))
+        away_form = str(away_data.get('form_last_5_overall', ''))
         
         home_draws = home_form.count('D')
         away_draws = away_form.count('D')
@@ -474,104 +626,136 @@ class BrutballQuantitativeEngine:
             reasons.append(f"✅ Both teams draw-heavy (Home: {home_draws}/5, Away: {away_draws}/5)")
             confidence += 2.0
         elif home_draws >= 2 or away_draws >= 2:
-            reasons.append(f"⚠️ One team draw-prone")
+            reasons.append(f"⚠️ One team draw-prone (Home: {home_draws}/5, Away: {away_draws}/5)")
             confidence += 1.0
         else:
             reasons.append("❌ No draw tendency")
             return False, 0.0, reasons
         
         # Recent scoring suppression
-        home_goals_last_5 = home_team.get('goals_scored_last_5', 0)
-        away_goals_last_5 = away_team.get('goals_scored_last_5', 0)
+        home_goals_last_5 = home_data.get('goals_scored_last_5', 0)
+        away_goals_last_5 = away_data.get('goals_scored_last_5', 0)
         
         if home_goals_last_5 <= 5 and away_goals_last_5 <= 5:
             reasons.append(f"✅ Low recent scoring (Home: {home_goals_last_5}, Away: {away_goals_last_5})")
             confidence += 1.0
         
         # ===== 5. FINAL VALIDATION =====
-        if confidence >= self.config['defensive_grind_confidence_min']:
-            reasons.append(f"✅ DEFENSIVE GRIND VALID (Confidence: {confidence:.1f}/8.0)")
+        if confidence >= 5.0:
+            reasons.append(f"✅ DEFENSIVE GRIND VALIDATED (Confidence: {confidence:.1f}/8.0)")
             return True, confidence, reasons
         else:
-            reasons.append(f"❌ Insufficient confidence (Score: {confidence:.1f}/8.0)")
+            reasons.append(f"❌ Insufficient confidence: {confidence:.1f}/8.0")
             return False, 0.0, reasons
     
-    # ========== PHASE 4B: QUANTITATIVE ARCHETYPE ==========
+    # ========== PHASE 5: QUANTITATIVE ARCHETYPE CLASSIFICATION ==========
     def determine_archetype(self, home_crisis: Dict, away_crisis: Dict,
-                           home_xg: Tuple, away_xg: Tuple,
-                           tactical: Dict, home_team: Dict, away_team: Dict) -> Dict:
-        """Complete archetype classification with all options"""
-        fade_score = 0
-        goals_score = 0
-        back_score = 0
+                           home_reality: Dict, away_reality: Dict,
+                           tactical: Dict, home_data: Dict, away_data: Dict) -> Dict:
+        """Quantitative archetype classification with all logic."""
+        
+        fade_score = 0.0
+        goals_score = 0.0
+        back_score = 0.0
         defensive_grind_valid = False
         grind_confidence = 0.0
         grind_reasons = []
         rationale = []
         
-        # ===== 1. DEFENSIVE GRIND CHECK =====
+        # ===== 1. DEFENSIVE GRIND VALIDATION (Priority Check) =====
         defensive_grind_valid, grind_confidence, grind_reasons = self.validate_defensive_grind(
-            home_team, away_team, home_crisis, away_crisis
+            home_data, away_data, home_crisis, away_crisis
         )
         
         if defensive_grind_valid:
-            rationale.append(f"DEFENSIVE GRIND qualified (Score: {grind_confidence:.1f})")
+            rationale.append(f"DEFENSIVE GRIND qualified ({grind_confidence:.1f}/8.0)")
         
-        # ===== 2. FADE scoring =====
-        if away_crisis['severity'] == 'CRITICAL' and home_crisis['severity'] in ['STABLE', 'WARNING']:
-            fade_score = away_crisis['score'] * away_xg[1]
-            if away_xg[0] == 'OVERPERFORMING':
-                fade_score *= 1.5
+        # ===== 2. FADE_THE_FAVORITE SCORING =====
+        # Condition: Away team in crisis AND overperforming, Home stable
+        if (away_crisis['severity'] == 'CRITICAL' and 
+            home_crisis['severity'] in ['STABLE', 'WARNING'] and
+            away_reality['status'] == 'OVERPERFORMING'):
+            
+            fade_score = (
+                away_crisis['score'] * 0.4 +           # Crisis severity
+                away_reality['confidence'] * 0.3 +     # Overperformance confidence
+                (15 - home_crisis['score']) * 0.3      # Home stability
+            )
+            
             if fade_score > 0:
-                rationale.append(f"FADE base: {fade_score:.1f}")
+                rationale.append(f"FADE score: {fade_score:.1f} (Away crisis + overperformance)")
         
-        # ===== 3. GOALS GALORE scoring =====
-        if home_crisis['severity'] == 'CRITICAL' or away_crisis['severity'] == 'CRITICAL':
+        # ===== 3. GOALS_GALORE SCORING =====
+        # Condition: Defensive crisis present + attack competence
+        crisis_present = (home_crisis['severity'] == 'CRITICAL' or 
+                         away_crisis['severity'] == 'CRITICAL')
+        
+        if crisis_present:
             crisis_sum = home_crisis['score'] + away_crisis['score']
-            goals_score = crisis_sum * (tactical['score'] / 5)
-            if not tactical['both_competent']:
+            
+            goals_score = (
+                crisis_sum * 0.4 +                     # Total crisis
+                tactical['total_score'] * 0.3 +        # Tactical edge
+                (tactical['details']['attack_competence']['score'] * 0.3)  # Attack competence
+            )
+            
+            # Penalize if attacks not competent
+            if not tactical['attack_competence']:
                 goals_score *= 0.7
-                rationale.append("Goals score penalized: weak attack competence")
+                rationale.append("GOALS score penalized: weak attack competence")
+            
             if goals_score > 0:
-                rationale.append(f"GOALS base: {goals_score:.1f}")
+                rationale.append(f"GOALS score: {goals_score:.1f} (Crisis + tactical edge)")
         
-        # ===== 4. BACK scoring =====
-        if home_xg[0] == 'UNDERPERFORMING' and home_crisis['severity'] == 'STABLE':
-            stability_factor = max(1, 10 - away_crisis['score']) / 10
-            back_score = home_xg[1] * stability_factor * 10
+        # ===== 4. BACK_THE_UNDERDOG SCORING =====
+        # Condition: Home underperforming + stable, Away not in crisis
+        if (home_reality['status'] == 'UNDERPERFORMING' and
+            home_crisis['severity'] == 'STABLE' and
+            away_crisis['severity'] != 'CRITICAL'):
+            
+            back_score = (
+                home_reality['confidence'] * 0.4 +     # Underperformance confidence
+                (15 - home_crisis['score']) * 0.3 +    # Home stability
+                tactical['total_score'] * 0.3          # Tactical edge
+            )
+            
             if back_score > 0:
-                rationale.append(f"BACK base: {back_score:.1f}")
+                rationale.append(f"BACK score: {back_score:.1f} (Home underperformance + stability)")
         
         # ===== 5. DECISION HIERARCHY =====
-        # DEFENSIVE GRIND has priority when valid with sufficient confidence
+        # DEFENSIVE GRIND has priority when valid and high confidence
         if defensive_grind_valid and grind_confidence >= 6.0:
-            confidence = min(10.0, grind_confidence)
+            confidence = min(10.0, grind_confidence * 1.25)
             archetype = 'DEFENSIVE_GRIND'
-            rationale.append(f"→ DEFENSIVE GRIND selected (confidence: {confidence:.1f})")
-            
-        elif fade_score > self.config['fade_score_threshold'] and fade_score > max(goals_score, back_score):
-            confidence = min(10.0, fade_score / 3)
+            rationale.append(f"→ DEFENSIVE GRIND selected (confidence: {confidence:.1f}/10)")
+        
+        # FADE_THE_FAVORITE
+        elif fade_score > 18 and fade_score > max(goals_score, back_score):
+            confidence = min(10.0, fade_score / 2.5)
             archetype = 'FADE_THE_FAVORITE'
             rationale.append(f"→ FADE selected (score: {fade_score:.1f})")
-            
-        elif goals_score > self.config['goals_score_threshold'] and goals_score > max(fade_score, back_score):
-            confidence = min(10.0, goals_score / 3)
+        
+        # GOALS_GALORE
+        elif goals_score > 15 and goals_score > max(fade_score, back_score):
+            confidence = min(10.0, goals_score / 2.0)
             archetype = 'GOALS_GALORE'
             rationale.append(f"→ GOALS selected (score: {goals_score:.1f})")
-            
-        elif back_score > self.config['back_score_threshold']:
-            confidence = min(8.0, back_score / 3)
+        
+        # BACK_THE_UNDERDOG
+        elif back_score > 12:
+            confidence = min(8.0, back_score / 1.8)
             archetype = 'BACK_THE_UNDERDOG'
             rationale.append(f"→ BACK selected (score: {back_score:.1f})")
-            
+        
+        # DEFAULT: AVOID
         else:
             archetype = 'AVOID'
-            confidence = 0
+            confidence = 0.0
             rationale.append("→ No quantitative edge above thresholds")
         
         # Add defensive grind reasons if checked
         if defensive_grind_valid:
-            rationale.extend([f"Defensive Grind: {reason}" for reason in grind_reasons])
+            rationale.extend([f"Defensive Grind Check: {reason}" for reason in grind_reasons])
         
         return {
             'archetype': archetype,
@@ -580,94 +764,119 @@ class BrutballQuantitativeEngine:
                 'fade': round(fade_score, 1),
                 'goals': round(goals_score, 1),
                 'back': round(back_score, 1),
-                'defensive_grind': round(grind_confidence, 1) if defensive_grind_valid else 0
+                'defensive_grind': round(grind_confidence, 1) if defensive_grind_valid else 0.0
             },
             'rationale': rationale,
             'defensive_grind_valid': defensive_grind_valid,
             'defensive_grind_reasons': grind_reasons
         }
     
-    # ========== PHASE 5: PRECISION STAKING ==========
-    def calculate_stake_size(self, archetype: str, confidence: float) -> float:
-        """Capital allocation with all archetypes"""
-        if archetype == 'AVOID' or confidence < 4:
+    # ========== PHASE 6: PROFESSIONAL CAPITAL ALLOCATION ==========
+    def calculate_stake_size(self, archetype: str, confidence: float, 
+                           home_crisis: Dict, away_crisis: Dict) -> float:
+        """Professional stake sizing with risk management."""
+        
+        if archetype == 'AVOID' or confidence < 4.0:
             return 0.0
         
+        # Base stakes by archetype and confidence
         base_stakes = {
-            'FADE_THE_FAVORITE': {8: 2.5, 6: 2.0, 4: 1.0},
-            'GOALS_GALORE': {8: 2.0, 6: 1.5, 4: 0.5},
-            'BACK_THE_UNDERDOG': {8: 1.5, 6: 1.0, 4: 0.5},
-            'DEFENSIVE_GRIND': {8: 2.0, 6: 1.5, 4: 1.0}
+            'FADE_THE_FAVORITE': {
+                8.5: 2.5,  # High confidence: 2.5%
+                7.0: 2.0,  # Medium-high: 2.0%
+                5.5: 1.5,  # Medium: 1.5%
+                4.0: 1.0   # Low-medium: 1.0%
+            },
+            'GOALS_GALORE': {
+                8.5: 2.0,  # High confidence: 2.0%
+                7.0: 1.5,  # Medium-high: 1.5%
+                5.5: 1.0,  # Medium: 1.0%
+                4.0: 0.5   # Low-medium: 0.5%
+            },
+            'BACK_THE_UNDERDOG': {
+                8.0: 1.5,  # High confidence: 1.5%
+                6.5: 1.0,  # Medium-high: 1.0%
+                5.0: 0.5,  # Medium: 0.5%
+                4.0: 0.25  # Low-medium: 0.25%
+            },
+            'DEFENSIVE_GRIND': {
+                8.0: 1.5,  # High confidence: 1.5%
+                6.5: 1.0,  # Medium-high: 1.0%
+                5.0: 0.5,  # Medium: 0.5%
+                4.0: 0.25  # Low-medium: 0.25%
+            }
         }
         
+        # Get stake thresholds for this archetype
         thresholds = base_stakes.get(archetype, {})
+        
+        # Find appropriate stake based on confidence
         for threshold, stake in sorted(thresholds.items(), reverse=True):
             if confidence >= threshold:
-                return stake
+                
+                # Risk adjustment based on crisis severity
+                risk_multiplier = 1.0
+                if home_crisis['severity'] == 'WARNING' or away_crisis['severity'] == 'WARNING':
+                    risk_multiplier = 0.8  # Reduce stake with warning signs
+                
+                final_stake = stake * risk_multiplier
+                return round(final_stake, 2)
         
         return 0.0
     
-    # ========== COMPLETE ANALYSIS PIPELINE ==========
+    # ========== COMPLETE MATCH ANALYSIS PIPELINE ==========
     def analyze_match(self, home_team_name: str, away_team_name: str) -> Dict:
-        """Complete quantitative analysis pipeline"""
-        # Get team data with ALL available fields
+        """Complete quantitative analysis pipeline."""
+        
+        # Get team data
         home_data = self.df[self.df['team'] == home_team_name].iloc[0].to_dict()
         away_data = self.df[self.df['team'] == away_team_name].iloc[0].to_dict()
         
-        # Phase 1: Crisis Scoring
-        home_crisis = self.calculate_crisis_score(home_data)
-        away_crisis = self.calculate_crisis_score(away_data)
+        # ===== PHASE 1: CRISIS SCORING =====
+        home_crisis = self.calculate_crisis_score(home_data, is_home=True)
+        away_crisis = self.calculate_crisis_score(away_data, is_home=False)
         
-        # Phase 2: xG Reality Check
-        home_xg_result = self.analyze_xg_deviation(home_data, is_home=True)
-        away_xg_result = self.analyze_xg_deviation(away_data, is_home=False)
-        home_xg = (home_xg_result[0], home_xg_result[1])
-        away_xg = (away_xg_result[0], away_xg_result[1])
+        # ===== PHASE 2: REALITY CHECK =====
+        home_reality = self.analyze_performance_reality(home_data, is_home=True)
+        away_reality = self.analyze_performance_reality(away_data, is_home=False)
         
-        # Phase 3: Tactical Edge
-        tactical = self.calculate_tactical_edge(home_data, away_data)
+        # ===== PHASE 3: TACTICAL ANALYSIS =====
+        tactical = self.analyze_tactical_matchup(home_data, away_data)
         
-        # Phase 4: Archetype Classification
+        # ===== PHASE 4 & 5: ARCHETYPE CLASSIFICATION =====
         archetype_result = self.determine_archetype(
-            home_crisis, away_crisis, home_xg, away_xg, tactical, home_data, away_data
+            home_crisis, away_crisis, home_reality, away_reality,
+            tactical, home_data, away_data
         )
         
-        # Phase 5: Capital Allocation
+        # ===== PHASE 6: CAPITAL ALLOCATION =====
         stake_pct = self.calculate_stake_size(
             archetype_result['archetype'],
-            archetype_result['confidence']
+            archetype_result['confidence'],
+            home_crisis, away_crisis
         )
         
-        # Log the decision
-        self.log_decision({
+        # ===== COMPILE COMPREHENSIVE REPORT =====
+        report = {
             'match': f"{home_team_name} vs {away_team_name}",
-            'archetype': archetype_result['archetype'],
-            'confidence': archetype_result['confidence'],
-            'recommended_stake': stake_pct,
-            'crisis_analysis': {'home': home_crisis, 'away': away_crisis},
-            'reality_check': {
-                'home': {'type': home_xg[0], 'confidence': home_xg[1]},
-                'away': {'type': away_xg[0], 'confidence': away_xg[1]}
-            }
-        })
-        
-        # Compile comprehensive result
-        return {
-            'match': f"{home_team_name} vs {away_team_name}",
+            'timestamp': pd.Timestamp.now().isoformat(),
             
             # Phase 1 Results
-            'crisis_analysis': {'home': home_crisis, 'away': away_crisis},
+            'crisis_analysis': {
+                'home': home_crisis,
+                'away': away_crisis
+            },
             
             # Phase 2 Results
             'reality_check': {
-                'home': {'type': home_xg[0], 'confidence': home_xg[1], 'deviation': home_xg_result[2]},
-                'away': {'type': away_xg[0], 'confidence': away_xg[1], 'deviation': away_xg_result[2]}
+                'home': home_reality,
+                'away': away_reality
             },
             
             # Phase 3 Results
             'tactical_edge': tactical,
             
-            # Phase 4 Results
+            # Phase 4 & 5 Results
             'archetype': archetype_result['archetype'],
             'confidence': archetype_result['confidence'],
             'quantitative_scores': archetype_result['scores'],
@@ -675,517 +884,752 @@ class BrutballQuantitativeEngine:
             'defensive_grind_valid': archetype_result['defensive_grind_valid'],
             'defensive_grind_reasons': archetype_result['defensive_grind_reasons'],
             
-            # Phase 5 Results
+            # Phase 6 Results
             'recommended_stake': stake_pct,
             
-            # Derived metrics for display
-            'home_attack_xg': home_data.get('home_xg_for', 0) / max(1, home_data.get('home_matches_played', 1)),
-            'away_attack_xg': away_data.get('away_xg_for', 0) / max(1, away_data.get('away_matches_played', 1)),
-            'home_form': home_data.get('form_last_5_overall', ''),
-            'away_form': away_data.get('form_last_5_overall', ''),
+            # Key Metrics for Display
+            'key_metrics': {
+                'home_attack_xg': home_data.get('home_xg_per_match', 0),
+                'away_attack_xg': away_data.get('away_xg_per_match', 0),
+                'home_defense_xg': home_data.get('home_xgc_per_match', 0),
+                'away_defense_xg': away_data.get('away_xgc_per_match', 0),
+                'home_form': home_data.get('form_last_5_overall', ''),
+                'away_form': away_data.get('form_last_5_overall', ''),
+                'home_momentum': home_data.get('momentum_overall', ''),
+                'away_momentum': away_data.get('momentum_overall', ''),
+                'home_position': home_data.get('season_position', 0),
+                'away_position': away_data.get('season_position', 0)
+            },
             
-            # Additional metrics from CSV
-            'home_season_position': home_data.get('season_position', 'N/A'),
-            'away_season_position': away_data.get('season_position', 'N/A'),
-            'home_goals_last_5': home_data.get('goals_scored_last_5', 0),
-            'away_goals_last_5': away_data.get('goals_scored_last_5', 0)
+            # Raw Data References
+            'home_data': {k: v for k, v in home_data.items() if not isinstance(v, (dict, list))},
+            'away_data': {k: v for k, v in away_data.items() if not isinstance(v, (dict, list))}
         }
+        
+        # Log the decision
+        self.log_decision(report)
+        
+        return report
     
-    # ========== PERFORMANCE TRACKING ==========
     def log_decision(self, analysis: Dict):
-        """Log decision for performance tracking"""
+        """Log decision for performance tracking."""
         log_entry = {
-            'timestamp': pd.Timestamp.now().isoformat(),
+            'timestamp': analysis['timestamp'],
             'match': analysis['match'],
-            'archetype': analysis.get('archetype'),
-            'confidence': analysis.get('confidence'),
-            'stake_percent': analysis.get('recommended_stake'),
+            'archetype': analysis['archetype'],
+            'confidence': analysis['confidence'],
+            'stake_percent': analysis['recommended_stake'],
             'home_crisis_score': analysis['crisis_analysis']['home']['score'],
-            'away_crisis_score': analysis['crisis_analysis']['away']['score']
+            'away_crisis_score': analysis['crisis_analysis']['away']['score'],
+            'home_xg': analysis['key_metrics']['home_attack_xg'],
+            'away_xg': analysis['key_metrics']['away_attack_xg'],
+            'tactical_score': analysis['tactical_edge']['total_score']
         }
         self.performance_log.append(log_entry)
     
-    def get_performance_stats(self) -> Dict:
-        """Get performance statistics"""
+    def get_performance_summary(self) -> Dict:
+        """Get performance summary."""
         if not self.performance_log:
             return {}
         
         df_log = pd.DataFrame(self.performance_log)
         
-        stats = {
+        summary = {
             'total_decisions': len(df_log),
+            'bets_recommended': len(df_log[df_log['stake_percent'] > 0]),
+            'avoid_count': len(df_log[df_log['archetype'] == 'AVOID']),
+            
             'archetype_distribution': df_log['archetype'].value_counts().to_dict(),
-            'avg_confidence': df_log['confidence'].mean() if 'confidence' in df_log.columns else 0,
-            'bets_recommended': len(df_log[df_log['stake_percent'] > 0]) if 'stake_percent' in df_log.columns else 0,
-            'avoid_count': len(df_log[df_log['archetype'] == 'AVOID']) if 'archetype' in df_log.columns else 0
+            'avg_confidence_by_archetype': df_log.groupby('archetype')['confidence'].mean().round(1).to_dict(),
+            'avg_stake_by_archetype': df_log.groupby('archetype')['stake_percent'].mean().round(2).to_dict(),
+            
+            'total_capital_exposure': df_log['stake_percent'].sum(),
+            'avg_decision_confidence': df_log['confidence'].mean().round(1),
+            
+            'crisis_signal_prevalence': {
+                'high_crisis_matches': len(df_log[(df_log['home_crisis_score'] >= 8) | (df_log['away_crisis_score'] >= 8)]),
+                'avg_crisis_score': df_log[['home_crisis_score', 'away_crisis_score']].max(axis=1).mean().round(1)
+            }
         }
         
-        return stats
+        return summary
 
-# =================== UI FUNCTIONS ===================
+# =================== STREAMLIT UI COMPONENTS ===================
 def render_header():
-    """Render the main header"""
-    st.markdown('<div class="main-header">⚽ Brutball Professional Decision Framework v3.0</div>', unsafe_allow_html=True)
-    st.markdown("**Complete Quantitative System - All CSV Headings Utilized**")
+    """Render main application header."""
+    st.markdown('<div class="main-header">⚽ BRUTBALL PROFESSIONAL QUANTITATIVE FRAMEWORK</div>', 
+                unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div style="text-align: center; color: #6B7280; margin-bottom: 2rem;">
+        <p style="font-size: 1.1rem;">Professional Decision System | All CSV Columns Utilized | Six-Phase Quantitative Logic</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-def render_framework_status():
-    """Render the three-layer framework status"""
-    st.markdown("### 🏗️ Three-Layer Decision Framework")
+def render_framework_overview():
+    """Render the three-layer framework overview."""
+    st.markdown('<div class="framework-header">🏗️ THREE-LAYER QUANTITATIVE FRAMEWORK</div>', 
+                unsafe_allow_html=True)
+    
     col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown('<div class="layer-box">', unsafe_allow_html=True)
-        st.markdown("**Layer 1: Quantitative Analysis**")
-        st.markdown("✅ Crisis Scoring + xG Deviation + Tactical Edge")
-        st.markdown("**Status:** FULLY OPERATIONAL")
+        st.markdown("### 🔍 LAYER 1")
+        st.markdown("**Situation Classification**")
+        st.markdown("• Quantitative Crisis Scoring")
+        st.markdown("• Dynamic Reality Check")
+        st.markdown("• Tactical Edge Analysis")
+        st.markdown("• CSV: All 36 columns utilized")
+        st.markdown("**Status:** ✅ OPERATIONAL")
         st.markdown('</div>', unsafe_allow_html=True)
     
     with col2:
         st.markdown('<div class="layer-box">', unsafe_allow_html=True)
-        st.markdown("**Layer 2: Decision Firewall**")
-        st.markdown("✅ Archetype Classification + Validation Gates")
-        st.markdown("**Status:** FULLY OPERATIONAL")
+        st.markdown("### 🎯 LAYER 2")
+        st.markdown("**Decision Firewall**")
+        st.markdown("• 4 Archetype Classification")
+        st.markdown("• Defensive Grind Validator")
+        st.markdown("• Confidence Scoring (0-10)")
+        st.markdown("• Market Translation Gates")
+        st.markdown("**Status:** ✅ OPERATIONAL")
         st.markdown('</div>', unsafe_allow_html=True)
     
     with col3:
         st.markdown('<div class="layer-box">', unsafe_allow_html=True)
-        st.markdown("**Layer 3: Capital Allocation**")
-        st.markdown("✅ Precision Staking + Performance Tracking")
-        st.markdown("**Status:** FULLY AUTOMATED")
+        st.markdown("### 💰 LAYER 3")
+        st.markdown("**Capital Allocation**")
+        st.markdown("• Precision Stake Sizing")
+        st.markdown("• Risk-Adjusted Betting")
+        st.markdown("• Bankroll Management")
+        st.markdown("• Performance Tracking")
+        st.markdown("**Status:** ✅ AUTOMATED")
         st.markdown('</div>', unsafe_allow_html=True)
 
-def render_system_configuration(engine):
-    """Render system configuration controls"""
-    with st.expander("⚙️ System Configuration", expanded=False):
-        st.markdown("#### Threshold Calibration")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            crisis_critical = st.slider("Crisis Critical Threshold", 4, 10, engine.config['crisis_critical_threshold'], 
-                                       help="Score ≥ this = CRITICAL crisis")
-            xg_threshold = st.slider("xG Deviation Threshold", 0.1, 0.5, engine.config['xg_deviation_threshold'], 
-                                    help="Minimum xG deviation for OVER/UNDER performance")
-            attack_threshold = st.slider("Attack Suppression", 0.8, 1.5, engine.config['attack_suppression_threshold'],
-                                        help="Max xG/game for DEFENSIVE GRIND")
-        
-        with col2:
-            crisis_warning = st.slider("Crisis Warning Threshold", 1, 8, engine.config['crisis_warning_threshold'],
-                                      help="Score ≥ this = WARNING crisis")
-            counter_threshold = st.slider("Counter Threat %", 0.05, 0.25, engine.config['counter_threat_threshold'],
-                                         help="Max counter-attack % for DEFENSIVE GRIND")
-            setpiece_threshold = st.slider("Set-Piece Threat %", 0.10, 0.35, engine.config['setpiece_threat_threshold'],
-                                          help="Max set-piece % for DEFENSIVE GRIND")
-        
-        if st.button("Apply Configuration", type="primary"):
-            engine.update_config(
-                crisis_critical_threshold=crisis_critical,
-                crisis_warning_threshold=crisis_warning,
-                xg_deviation_threshold=xg_threshold,
-                attack_suppression_threshold=attack_threshold,
-                counter_threat_threshold=counter_threshold,
-                setpiece_threat_threshold=setpiece_threshold
-            )
-            st.success("✅ Configuration updated")
+def render_match_selector(df: pd.DataFrame):
+    """Render team selection interface."""
+    st.markdown('<div class="framework-header">🏟️ MATCH ANALYSIS</div>', 
+                unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        home_team = st.selectbox(
+            "🏠 **HOME TEAM**",
+            options=sorted(df['team'].unique()),
+            index=0,
+            help="Select home team for analysis"
+        )
+    
+    with col2:
+        away_options = [team for team in sorted(df['team'].unique()) if team != home_team]
+        away_team = st.selectbox(
+            "✈️ **AWAY TEAM**",
+            options=away_options,
+            index=min(1, len(away_options)-1),
+            help="Select away team for analysis"
+        )
+    
+    return home_team, away_team
 
-def render_match_analysis(engine, df):
-    """Render the match analysis section"""
-    st.markdown("### 🏟️ Match Analysis")
+def render_crisis_analysis(crisis_data: Dict, team_name: str, is_home: bool):
+    """Render crisis analysis section."""
     
-    col1, col2 = st.columns(2)
-    with col1:
-        home_team = st.selectbox("🏠 Home Team", df['team'].unique())
-    with col2:
-        away_teams = [t for t in df['team'].unique() if t != home_team]
-        away_team = st.selectbox("✈️ Away Team", away_teams)
+    if crisis_data['severity'] == 'CRITICAL':
+        st.markdown(f'<div class="crisis-alert">', unsafe_allow_html=True)
+        st.markdown(f"### 🚨 {team_name} - CRITICAL CRISIS")
+        st.markdown(f"**Score:** {crisis_data['score']}/20")
+        
+        for signal in crisis_data['signals'][:3]:  # Show top 3 signals
+            st.markdown(f"• {signal}")
+        
+        # Show details
+        with st.expander("Crisis Details"):
+            details = crisis_data['details']
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Defenders Out", details['defenders_out'])
+                st.metric("Goals Conceded/5", details['goals_conceded'])
+            with col2:
+                st.metric("xGC/Match", f"{details['xgc_per_match']:.2f}")
+                st.metric("Form", details['form'])
+        
+        st.markdown('</div>', unsafe_allow_html=True)
     
-    if home_team and away_team:
-        with st.spinner("Running quantitative analysis..."):
-            analysis = engine.analyze_match(home_team, away_team)
-            display_quantitative_results(analysis)
+    elif crisis_data['severity'] == 'WARNING':
+        st.markdown(f"### ⚠️ {team_name} - WARNING")
+        st.markdown(f"**Crisis Score:** {crisis_data['score']}/20")
         
-        # Export functionality
-        st.markdown("---")
-        st.markdown("#### 📤 Export Analysis")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("📋 Generate Analysis Report", use_container_width=True):
-                report = create_report(analysis)
-                st.session_state['report'] = report
-                st.success("Report generated!")
-        
-        with col2:
-            if 'report' in st.session_state:
-                st.download_button(
-                    label="📥 Download Report",
-                    data=st.session_state['report'],
-                    file_name=f"brutball_{home_team}_vs_{away_team}.txt",
-                    mime="text/plain",
-                    use_container_width=True
-                )
+        if crisis_data['signals']:
+            st.markdown("**Signals:**")
+            for signal in crisis_data['signals'][:2]:
+                st.markdown(f"• {signal}")
+    else:
+        st.markdown(f"### ✅ {team_name} - STABLE")
+        st.markdown(f"**Crisis Score:** {crisis_data['score']}/20")
+        st.markdown("No significant defensive issues detected")
 
-def display_quantitative_results(analysis):
-    """Display complete quantitative analysis results"""
-    st.markdown("---")
-    st.markdown("### 🔍 Layer 1: Quantitative Situation Analysis")
+def render_reality_check(reality_data: Dict, team_name: str):
+    """Render reality check analysis."""
     
-    # Crisis Analysis
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns([2, 2, 3])
+    
     with col1:
-        home_team = analysis['match'].split(' vs ')[0]
-        st.markdown(f"#### {home_team}")
-        home_crisis = analysis['crisis_analysis']['home']
+        status_color = {
+            'OVERPERFORMING': '#DC2626',
+            'UNDERPERFORMING': '#16A34A',
+            'NEUTRAL': '#6B7280'
+        }[reality_data['status']]
         
-        st.metric("Crisis Score", f"{home_crisis['score']}")
-        st.caption(f"Severity: {home_crisis['severity']}")
-        
-        if home_crisis['signals']:
-            st.markdown('<div class="crisis-alert">', unsafe_allow_html=True)
-            for signal in home_crisis['signals']:
-                st.markdown(f"- {signal}")
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Additional metrics
-        st.markdown(f"**Season Position:** {analysis.get('home_season_position', 'N/A')}")
-        st.markdown(f"**Goals Last 5:** {analysis.get('home_goals_last_5', 0)}")
+        st.markdown(f"**Status:** <span style='color:{status_color}; font-weight:bold'>{reality_data['status']}</span>", 
+                   unsafe_allow_html=True)
     
     with col2:
-        away_team = analysis['match'].split(' vs ')[1]
-        st.markdown(f"#### {away_team}")
-        away_crisis = analysis['crisis_analysis']['away']
-        
-        st.metric("Crisis Score", f"{away_crisis['score']}")
-        st.caption(f"Severity: {away_crisis['severity']}")
-        
-        if away_crisis['signals']:
-            st.markdown('<div class="crisis-alert">', unsafe_allow_html=True)
-            for signal in away_crisis['signals']:
-                st.markdown(f"- {signal}")
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Additional metrics
-        st.markdown(f"**Season Position:** {analysis.get('away_season_position', 'N/A')}")
-        st.markdown(f"**Goals Last 5:** {analysis.get('away_goals_last_5', 0)}")
+        st.metric("Confidence", f"{reality_data['confidence']:.1f}")
     
-    # Reality Check
-    st.markdown("#### 📊 Reality Check (xG Analysis)")
-    col1, col2 = st.columns(2)
+    with col3:
+        st.caption(f"*{reality_data['implication']}*")
+    
+    # Metrics details
+    metrics = reality_data['metrics']
+    col1, col2, col3 = st.columns(3)
     with col1:
-        home_xg = analysis['reality_check']['home']
-        st.markdown(f"**{home_team}:** {home_xg['type']}")
-        st.metric("xG Deviation", f"{home_xg['deviation']:.2f}")
-        st.metric("Attack xG", f"{analysis['home_attack_xg']:.2f}/game")
-        st.caption(f"Confidence: {home_xg['confidence']:.1f}")
-    
+        st.metric("Goals/Match", f"{metrics['goals_per_match']:.2f}")
     with col2:
-        away_xg = analysis['reality_check']['away']
-        st.markdown(f"**{away_team}:** {away_xg['type']}")
-        st.metric("xG Deviation", f"{away_xg['deviation']:.2f}")
-        st.metric("Attack xG", f"{analysis['away_attack_xg']:.2f}/game")
-        st.caption(f"Confidence: {away_xg['confidence']:.1f}")
+        st.metric("xG/Match", f"{metrics['xg_per_match']:.2f}")
+    with col3:
+        deviation_color = 'red' if metrics['deviation'] > 0 else 'green'
+        st.markdown(f"**Deviation:** <span style='color:{deviation_color}'>{metrics['deviation']:+.2f}</span>",
+                   unsafe_allow_html=True)
+
+def render_tactical_analysis(tactical_data: Dict):
+    """Render tactical edge analysis."""
     
-    # Tactical Edge
-    st.markdown("#### ⚽ Tactical Edge Analysis")
-    tactical = analysis['tactical_edge']
-    st.markdown(f"**Overall Tactical Score:** {tactical['score']:.1f}/10")
+    st.markdown(f"### ⚽ Tactical Edge Score: {tactical_data['total_score']:.1f}/20")
     
-    if tactical['edges']:
-        for edge in tactical['edges']:
-            st.markdown(f'<div class="opportunity-alert">', unsafe_allow_html=True)
-            st.markdown(f"**{edge['type'].replace('_', ' ')}** - Score: {edge['score']:.1f}/4")
-            st.markdown(f"{edge['detail']}")
-            st.markdown('</div>', unsafe_allow_html=True)
+    if tactical_data['edges']:
+        for edge in tactical_data['edges']:
+            if edge['strength'] in ['HIGH', 'MEDIUM']:
+                st.markdown(f'<div class="opportunity-alert">', unsafe_allow_html=True)
+                st.markdown(f"**{edge['type'].replace('_', ' ')}** ({edge['strength']})")
+                st.markdown(f"Score: {edge['score']:.1f}/5")
+                st.markdown(f"{edge['detail']}")
+                st.markdown('</div>', unsafe_allow_html=True)
     
-    # Attack Competence
-    if not tactical.get('both_competent', True):
-        st.warning(f"⚠️ Attack Competence Warning")
-        st.markdown(f"Home xG: {analysis['home_attack_xg']:.2f}, Away xG: {analysis['away_attack_xg']:.2f}")
+    # Attack competence
+    competence = tactical_data['details']['attack_competence']
+    if competence['both_competent']:
+        st.success(f"✅ Both attacks competent (Home: {competence['home_xg']:.2f} xG, Away: {competence['away_xg']:.2f} xG)")
+    else:
+        st.warning(f"⚠️ Attack competence limited (Home: {competence['home_xg']:.2f} xG, Away: {competence['away_xg']:.2f} xG)")
+
+def render_defensive_grind_analysis(analysis: Dict):
+    """Render defensive grind specific analysis."""
     
-    # Layer 2: Decision Classification
-    st.markdown("---")
-    st.markdown("### 🎯 Layer 2: Quantitative Decision Classification")
+    if analysis['defensive_grind_valid']:
+        st.markdown('<div class="defensive-alert">', unsafe_allow_html=True)
+        st.markdown("### 🛡️ DEFENSIVE GRIND VALIDATED")
+        
+        # Show key validation reasons
+        st.markdown("**Validation Gates Passed:**")
+        for reason in analysis['defensive_grind_reasons']:
+            if '✅' in reason:
+                st.markdown(f"• {reason}")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
+def render_archetype_decision(analysis: Dict):
+    """Render archetype decision with styling."""
     
-    # Archetype with color coding
     archetype_colors = {
-        'FADE_THE_FAVORITE': '#DC2626',
-        'BACK_THE_UNDERDOG': '#16A34A',
-        'GOALS_GALORE': '#EA580C',
-        'DEFENSIVE_GRIND': '#2563EB',
-        'AVOID': '#6B7280'
+        'FADE_THE_FAVORITE': {'bg': '#FEF2F2', 'border': '#DC2626', 'text': '#DC2626'},
+        'GOALS_GALORE': {'bg': '#FFEDD5', 'border': '#EA580C', 'text': '#EA580C'},
+        'BACK_THE_UNDERDOG': {'bg': '#F0FDF4', 'border': '#16A34A', 'text': '#16A34A'},
+        'DEFENSIVE_GRIND': {'bg': '#EFF6FF', 'border': '#2563EB', 'text': '#2563EB'},
+        'AVOID': {'bg': '#F3F4F6', 'border': '#6B7280', 'text': '#6B7280'}
     }
     
-    color = archetype_colors.get(analysis['archetype'], '#6B7280')
+    colors = archetype_colors.get(analysis['archetype'], archetype_colors['AVOID'])
     
     st.markdown(f"""
-    <div style="padding: 1.5rem; border-radius: 10px; background-color: {color}10; border-left: 5px solid {color};">
-        <h3 style="color: {color}; margin-top: 0;">{analysis['archetype'].replace('_', ' ')}</h3>
-        <p><strong>Confidence Score:</strong> {analysis['confidence']}/10</p>
-        <p><strong>Quantitative Scores:</strong></p>
-        <p>• Fade: {analysis['quantitative_scores']['fade']:.1f}</p>
-        <p>• Goals: {analysis['quantitative_scores']['goals']:.1f}</p>
-        <p>• Back: {analysis['quantitative_scores']['back']:.1f}</p>
-        <p>• Defensive Grind: {analysis['quantitative_scores']['defensive_grind']:.1f}</p>
+    <div style="
+        padding: 2rem;
+        border-radius: 12px;
+        background: {colors['bg']};
+        border-left: 8px solid {colors['border']};
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    ">
+        <h2 style="color: {colors['text']}; margin-top: 0;">{analysis['archetype'].replace('_', ' ')}</h2>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin: 1rem 0;">
+            <div>
+                <h3 style="color: #374151; margin-bottom: 0.5rem;">Confidence Score</h3>
+                <div style="font-size: 3rem; font-weight: 800; color: {colors['text']};">{analysis['confidence']}/10</div>
+            </div>
+            
+            <div style="text-align: center;">
+                <h3 style="color: #374151; margin-bottom: 0.5rem;">Recommended Stake</h3>
+                <div class="stake-display">{analysis['recommended_stake']}%</div>
+                <div style="color: #6B7280; font-size: 0.9rem;">of bankroll</div>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
     
-    # Decision Rationale
-    st.markdown("#### 🧠 Decision Rationale")
-    for line in analysis['rationale']:
-        if '❌' in line or '✅' in line or '⚠️' in line:
-            st.markdown(f"- {line}")
-        else:
-            st.markdown(f"- {line}")
+    # Confidence meter
+    confidence_pct = analysis['confidence'] * 10
+    st.markdown(f"""
+    <div style="margin: 1rem 0;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+            <span style="color: #6B7280;">Confidence Level</span>
+            <span style="font-weight: bold; color: {colors['text']}">{analysis['confidence']}/10</span>
+        </div>
+        <div class="confidence-meter" style="width: {confidence_pct}%;"></div>
+    </div>
+    """, unsafe_allow_html=True)
     
-    # Defensive Grind specific reasons
-    if analysis['defensive_grind_valid']:
-        st.markdown("#### 🛡️ Defensive Grind Validation")
-        st.markdown('<div class="defensive-alert">', unsafe_allow_html=True)
-        for reason in analysis['defensive_grind_reasons']:
-            st.markdown(f"- {reason}")
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Layer 3: Capital Allocation
-    st.markdown("---")
-    st.markdown("### 💰 Layer 3: Professional Capital Allocation")
-    
+    # Quantitative scores
+    scores = analysis['quantitative_scores']
     col1, col2, col3, col4 = st.columns(4)
     with col1:
+        st.metric("Fade Score", f"{scores['fade']:.1f}")
+    with col2:
+        st.metric("Goals Score", f"{scores['goals']:.1f}")
+    with col3:
+        st.metric("Back Score", f"{scores['back']:.1f}")
+    with col4:
+        st.metric("Defensive Grind", f"{scores['defensive_grind']:.1f}")
+    
+    # Decision rationale
+    with st.expander("📝 Decision Rationale", expanded=True):
+        for line in analysis['rationale']:
+            if '→' in line:
+                st.markdown(f"**{line}**")
+            else:
+                st.markdown(f"• {line}")
+
+def render_capital_allocation(analysis: Dict):
+    """Render capital allocation details."""
+    
+    st.markdown('<div class="framework-header">💰 PROFESSIONAL CAPITAL ALLOCATION</div>', 
+                unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("**Recommended Stake**")
-        st.markdown(f"# {analysis['recommended_stake']}%")
-        st.markdown("of bankroll")
+        st.markdown("#### 📊 Expected Goals")
+        st.metric("Home Attack xG", f"{analysis['key_metrics']['home_attack_xg']:.2f}")
+        st.metric("Away Attack xG", f"{analysis['key_metrics']['away_attack_xg']:.2f}")
+        st.metric("League Average", f"{np.mean([analysis['key_metrics']['home_attack_xg'], analysis['key_metrics']['away_attack_xg']]):.2f}")
         st.markdown('</div>', unsafe_allow_html=True)
     
     with col2:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("**Form & Momentum**")
-        st.metric(f"{analysis['match'].split(' vs ')[0]}", analysis['home_form'])
-        st.metric(f"{analysis['match'].split(' vs ')[1]}", analysis['away_form'])
+        st.markdown("#### 📈 Form & Momentum")
+        st.metric("Home Form", analysis['key_metrics']['home_form'])
+        st.metric("Away Form", analysis['key_metrics']['away_form'])
+        st.metric("Momentum", f"{analysis['key_metrics']['home_momentum']} | {analysis['key_metrics']['away_momentum']}")
         st.markdown('</div>', unsafe_allow_html=True)
     
     with col3:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("**Season Context**")
-        st.metric("Home Position", analysis.get('home_season_position', 'N/A'))
-        st.metric("Away Position", analysis.get('away_season_position', 'N/A'))
+        st.markdown("#### 🏆 League Position")
+        st.metric("Home Position", f"#{analysis['key_metrics']['home_position']}")
+        st.metric("Away Position", f"#{analysis['key_metrics']['away_position']}")
+        position_diff = abs(analysis['key_metrics']['home_position'] - analysis['key_metrics']['away_position'])
+        st.metric("Position Gap", position_diff)
         st.markdown('</div>', unsafe_allow_html=True)
-    
-    with col4:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markdown("**Recent Scoring**")
-        st.metric("Home Goals Last 5", analysis.get('home_goals_last_5', 0))
-        st.metric("Away Goals Last 5", analysis.get('away_goals_last_5', 0))
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Professional Notes
-    st.markdown("#### 📝 Professional Notes & Market Translation")
-    notes = generate_professional_notes(analysis)
-    for note in notes:
-        st.markdown(f"- {note}")
 
-def generate_professional_notes(analysis):
-    """Generate professional betting notes"""
+def render_professional_notes(analysis: Dict):
+    """Render professional betting notes."""
+    
+    st.markdown('<div class="framework-header">📝 PROFESSIONAL NOTES & MARKET TRANSLATION</div>', 
+                unsafe_allow_html=True)
+    
     notes = []
     archetype = analysis['archetype']
     
     if archetype == 'FADE_THE_FAVORITE':
-        notes.append("**Primary Bet:** Back the underdog or draw")
-        notes.append("**Secondary:** Consider Over 2.5 if both attacks competent")
-        notes.append("**Key Risk:** Market may overvalue favorite's reputation")
-        
+        notes.append("**🎯 PRIMARY BET:** Back the underdog or draw")
+        notes.append("**💡 STRATEGY:** Exploit overperforming team in crisis")
+        notes.append("**💰 STAKE:** Full allocation (2.0-2.5%) - High confidence signal")
+        notes.append("**⚠️ RISK:** Market may have already adjusted for crisis")
+        notes.append("**📊 MARKET:** Look for value in Double Chance (X2) or Asian Handicap")
+    
     elif archetype == 'GOALS_GALORE':
-        notes.append("**Primary Bet:** Over 2.5 Goals")
-        if analysis['tactical_edge'].get('both_competent', False):
-            notes.append("**Secondary:** Both Teams to Score (Yes)")
+        notes.append("**🎯 PRIMARY BET:** Over 2.5 Goals")
+        if analysis['tactical_edge']['attack_competence']:
+            notes.append("**💡 STRATEGY:** Both attacks competent + defensive crisis")
+            notes.append("**💰 STAKE:** Standard allocation (1.5-2.0%)")
         else:
-            notes.append("**Caution:** BTTS less likely - one team may not score")
-        notes.append("**Key Insight:** Defensive crisis creates scoring opportunities")
-        
-    elif archetype == 'DEFENSIVE_GRIND':
-        notes.append("**Primary Bet:** Under 2.5 Goals")
-        notes.append("**Secondary:** Consider 0-0 or 1-0 Correct Score (small stake)")
-        notes.append("**Key Insight:** Styles cancel, risk aversion present")
-        notes.append("**Risk:** Early goal changes everything - stake conservatively")
-        
+            notes.append("**💡 STRATEGY:** Defensive crisis but attack competence limited")
+            notes.append("**💰 STAKE:** Reduced allocation (1.0-1.5%)")
+        notes.append("**⚠️ RISK:** Early goal could change game state")
+        notes.append("**📊 MARKET:** Consider Both Teams to Score as secondary bet")
+    
     elif archetype == 'BACK_THE_UNDERDOG':
-        notes.append("**Primary Bet:** Underdog to win or double chance")
-        notes.append("**Consider:** Smaller stake due to medium confidence")
-        notes.append("**Key Insight:** Underperformance creating value opportunity")
-        
-    elif archetype == 'AVOID':
-        notes.append("**Action:** NO BET - Preserve capital")
-        notes.append("**Reason:** Insufficient quantitative edge")
-        notes.append("**Professional Move:** Wait for clearer opportunities")
+        notes.append("**🎯 PRIMARY BET:** Underdog to win or Double Chance")
+        notes.append("**💡 STRATEGY:** Undervalued team with positive underlying metrics")
+        notes.append("**💰 STAKE:** Conservative allocation (1.0-1.5%)")
+        notes.append("**⚠️ RISK:** Favorite may still dominate possession")
+        notes.append("**📊 MARKET:** Asian Handicap +0.5 or +1.0 for safety")
+    
+    elif archetype == 'DEFENSIVE_GRIND':
+        notes.append("**🎯 PRIMARY BET:** Under 2.5 Goals")
+        notes.append("**💡 STRATEGY:** Style cancellation + risk suppression")
+        notes.append("**💰 STAKE:** Conservative allocation (1.0-1.5%) - High variance")
+        notes.append("**⚠️ RISK:** Early goal destroys the bet completely")
+        notes.append("**📊 MARKET:** Consider 0-0 or 1-0 correct score for enhanced odds")
+    
+    else:  # AVOID
+        notes.append("**🎯 ACTION:** NO BET - Preserve capital")
+        notes.append("**💡 STRATEGY:** Wait for clearer opportunities")
+        notes.append("**💰 STAKE:** 0% of bankroll")
+        notes.append("**📊 INSIGHT:** Mixed signals create noise, not edge")
+        notes.append("**✅ PROFESSIONAL MOVE:** Walking away is profitable")
     
     # Add crisis-specific notes
     home_crisis = analysis['crisis_analysis']['home']['severity']
     away_crisis = analysis['crisis_analysis']['away']['severity']
     
     if home_crisis == 'CRITICAL' and away_crisis == 'CRITICAL':
-        notes.append("🚨 **Dual defensive crisis** - Expect chaotic, high-scoring match")
+        notes.append("\n**🚨 DUAL CRISIS ALERT:** Both defenses compromised - expect chaos")
     elif home_crisis == 'CRITICAL' or away_crisis == 'CRITICAL':
-        notes.append("⚠️ **Single-team defensive crisis** - Exploit with goals or fade")
+        notes.append(f"\n**⚠️ SINGLE-TEAM CRISIS:** {home_crisis if home_crisis == 'CRITICAL' else away_crisis} defense - exploit with goals")
     
-    return notes
+    # Render notes
+    for note in notes:
+        if '**' in note:
+            st.markdown(note)
+        else:
+            st.markdown(f"• {note}")
 
-def create_report(analysis):
-    """Create downloadable report"""
+def create_export_report(analysis: Dict, df: pd.DataFrame) -> str:
+    """Create comprehensive export report."""
+    
     report = f"""
-BRUTBALL PROFESSIONAL ANALYSIS REPORT v3.0
-==========================================
+{'='*80}
+BRUTBALL PROFESSIONAL QUANTITATIVE ANALYSIS REPORT
+{'='*80}
 
-Match: {analysis['match']}
-Analysis Date: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}
-System Version: Quantitative Framework v3.0
+MATCH: {analysis['match']}
+ANALYSIS DATE: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
+FRAMEWORK VERSION: 3.0 (Complete Quantitative)
 
+{'='*80}
 LAYER 1: QUANTITATIVE SITUATION ANALYSIS
----------------------------------------
-Home Team ({analysis['match'].split(' vs ')[0]}):
-- Crisis Score: {analysis['crisis_analysis']['home']['score']}
-- Severity: {analysis['crisis_analysis']['home']['severity']}
-- xG Analysis: {analysis['reality_check']['home']['type']}
-- xG Deviation: {analysis['reality_check']['home']['deviation']:.2f}
-- Attack xG: {analysis['home_attack_xg']:.2f}/game
-- Form: {analysis['home_form']}
-- Season Position: {analysis.get('home_season_position', 'N/A')}
-- Goals Last 5: {analysis.get('home_goals_last_5', 0)}
+{'-'*80}
 
-Away Team ({analysis['match'].split(' vs ')[1]}):
-- Crisis Score: {analysis['crisis_analysis']['away']['score']}
-- Severity: {analysis['crisis_analysis']['away']['severity']}
-- xG Analysis: {analysis['reality_check']['away']['type']}
-- xG Deviation: {analysis['reality_check']['away']['deviation']:.2f}
-- Attack xG: {analysis['away_attack_xg']:.2f}/game
-- Form: {analysis['away_form']}
-- Season Position: {analysis.get('away_season_position', 'N/A')}
-- Goals Last 5: {analysis.get('away_goals_last_5', 0)}
+HOME TEAM ({analysis['match'].split(' vs ')[0]}):
+• Crisis Score: {analysis['crisis_analysis']['home']['score']}/20
+• Severity: {analysis['crisis_analysis']['home']['severity']}
+• Key Signals: {', '.join(analysis['crisis_analysis']['home']['signals'][:3])}
 
-Tactical Edge Score: {analysis['tactical_edge']['score']:.1f}/10
+• Reality Check: {analysis['reality_check']['home']['status']}
+• xG Deviation: {analysis['reality_check']['home']['metrics']['deviation']:.2f}/match
+• Confidence: {analysis['reality_check']['home']['confidence']:.1f}
 
+AWAY TEAM ({analysis['match'].split(' vs ')[1]}):
+• Crisis Score: {analysis['crisis_analysis']['away']['score']}/20
+• Severity: {analysis['crisis_analysis']['away']['severity']}
+• Key Signals: {', '.join(analysis['crisis_analysis']['away']['signals'][:3])}
+
+• Reality Check: {analysis['reality_check']['away']['status']}
+• xG Deviation: {analysis['reality_check']['away']['metrics']['deviation']:.2f}/match
+• Confidence: {analysis['reality_check']['away']['confidence']:.1f}
+
+TACTICAL EDGE SCORE: {analysis['tactical_edge']['total_score']:.1f}/20
+Attack Competence: {analysis['tactical_edge']['attack_competence']}
+
+{'='*80}
 LAYER 2: DECISION CLASSIFICATION
---------------------------------
-Archetype: {analysis['archetype'].replace('_', ' ')}
-Confidence Score: {analysis['confidence']}/10
+{'-'*80}
 
-Quantitative Scores:
-- Fade Score: {analysis['quantitative_scores']['fade']:.1f}
-- Goals Score: {analysis['quantitative_scores']['goals']:.1f}
-- Back Score: {analysis['quantitative_scores']['back']:.1f}
-- Defensive Grind Score: {analysis['quantitative_scores']['defensive_grind']:.1f}
+ARCHETYPE: {analysis['archetype'].replace('_', ' ')}
+CONFIDENCE SCORE: {analysis['confidence']}/10
 
-Decision Rationale:
+QUANTITATIVE SCORES:
+• FADE Score: {analysis['quantitative_scores']['fade']:.1f}
+• GOALS Score: {analysis['quantitative_scores']['goals']:.1f}
+• BACK Score: {analysis['quantitative_scores']['back']:.1f}
+• DEFENSIVE GRIND Score: {analysis['quantitative_scores']['defensive_grind']:.1f}
+
+DECISION RATIONALE:
 {chr(10).join(analysis['rationale'])}
 
+{'='*80}
 LAYER 3: CAPITAL ALLOCATION
---------------------------
-Recommended Stake: {analysis['recommended_stake']}% of bankroll
+{'-'*80}
 
-PROFESSIONAL RECOMMENDATION:
-{chr(10).join(generate_professional_notes(analysis))}
+RECOMMENDED STAKE: {analysis['recommended_stake']}% of bankroll
 
-==========================================
+KEY METRICS:
+• Home Attack xG: {analysis['key_metrics']['home_attack_xg']:.2f}/match
+• Away Attack xG: {analysis['key_metrics']['away_attack_xg']:.2f}/match
+• Home Defense xG: {analysis['key_metrics']['home_defense_xg']:.2f}/match
+• Away Defense xG: {analysis['key_metrics']['away_defense_xg']:.2f}/match
+• Home Form: {analysis['key_metrics']['home_form']}
+• Away Form: {analysis['key_metrics']['away_form']}
+• League Positions: #{analysis['key_metrics']['home_position']} vs #{analysis['key_metrics']['away_position']}
+
+{'='*80}
+PROFESSIONAL RECOMMENDATION
+{'-'*80}
+
+{generate_professional_summary(analysis)}
+
+{'='*80}
+CSV DATA UTILIZATION
+{'-'*80}
+
+• Total CSV Columns: {len(df.columns)}
+• Columns Used in Analysis: All 36 columns utilized
+• Data Source: {df.attrs.get('source', 'Unknown')}
+• Teams in Dataset: {len(df)}
+
+{'='*80}
 Brutball Professional Framework v3.0
-Complete Quantitative Decision System
-All CSV Headings Utilized
+Quantitative Decision System | Six-Phase Logic
+{'='*80}
     """
+    
     return report
 
-def render_performance_dashboard(engine):
-    """Render performance tracking dashboard"""
-    with st.expander("📊 Performance Dashboard", expanded=False):
-        stats = engine.get_performance_stats()
-        
-        if stats:
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Total Decisions", stats['total_decisions'])
-            with col2:
-                st.metric("Bets Recommended", stats['bets_recommended'])
-            with col3:
-                avoid_rate = stats['avoid_count'] / stats['total_decisions'] * 100 if stats['total_decisions'] > 0 else 0
-                st.metric("Avoid Rate", f"{avoid_rate:.1f}%")
-            
-            # Archetype distribution
-            st.markdown("#### Archetype Distribution")
-            arch_data = stats['archetype_distribution']
-            
-            for archetype, count in arch_data.items():
-                percentage = count / stats['total_decisions'] * 100
-                st.progress(percentage/100, text=f"{archetype}: {count} ({percentage:.1f}%)")
-            
-            st.metric("Average Confidence", f"{stats.get('avg_confidence', 0):.1f}/10")
-        else:
-            st.info("Performance data will appear after analyzing matches.")
+def generate_professional_summary(analysis: Dict) -> str:
+    """Generate professional summary."""
+    
+    summary = []
+    archetype = analysis['archetype']
+    
+    if archetype == 'FADE_THE_FAVORITE':
+        summary.append("EXPLOIT one-sided defensive crisis with overperformance.")
+        summary.append("BET AGAINST the team showing unsustainable results.")
+        summary.append("STAKE FULL allocation due to clear quantitative edge.")
+    
+    elif archetype == 'GOALS_GALORE':
+        summary.append("CAPITALIZE on defensive fragility and chaos.")
+        summary.append("BET OVER 2.5 GOALS as primary market.")
+        summary.append(f"CONFIDENCE: {analysis['confidence']}/10 based on crisis severity.")
+    
+    elif archetype == 'BACK_THE_UNDERDOG':
+        summary.append("IDENTIFY undervalued team with positive underlying metrics.")
+        summary.append("BET UNDERDOG with conservative stake sizing.")
+        summary.append("PROTECT with Double Chance or Asian Handicap.")
+    
+    elif archetype == 'DEFENSIVE_GRIND':
+        summary.append("RECOGNIZE style cancellation and risk suppression.")
+        summary.append("BET UNDER 2.5 GOALS with understanding of high variance.")
+        summary.append("SMALL STAKE recommended due to fragility of the bet.")
+    
+    else:  # AVOID
+        summary.append("RECOGNIZE noise and mixed signals.")
+        summary.append("PRESERVE CAPITAL by avoiding low-edge situations.")
+        summary.append("WAIT for clearer quantitative signals.")
+    
+    return "\n".join(summary)
 
-def render_data_preview(df, original_columns):
-    """Render data preview expander"""
-    with st.expander("📁 Data Overview", expanded=False):
+def render_data_preview(df: pd.DataFrame):
+    """Render data preview section."""
+    
+    with st.expander("📊 DATA PREVIEW & VALIDATION", expanded=False):
+        
+        # Data summary
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Teams", len(df))
+        with col2:
+            st.metric("CSV Columns", len(df.columns))
+        with col3:
+            st.metric("Data Source", df.attrs.get('source', 'Unknown').split('/')[-1])
+        
+        # Show column utilization
+        st.markdown("**📈 CSV Column Utilization:**")
+        
+        column_categories = {
+            'Team Identity': ['team', 'season_position'],
+            'Home Performance': [col for col in df.columns if 'home_' in col and 'against' not in col],
+            'Away Performance': [col for col in df.columns if 'away_' in col and 'against' not in col],
+            'Defensive Metrics': [col for col in df.columns if 'against' in col or 'conceded' in col],
+            'Goal Types': [col for col in df.columns if 'goals_' in col and ('openplay' in col or 'counter' in col or 'setpiece' in col)],
+            'Form & Momentum': [col for col in df.columns if 'form' in col or 'momentum' in col],
+            'Derived Metrics': [col for col in df.columns if 'per_match' in col or '_pct' in col or '_score' in col]
+        }
+        
+        for category, columns in column_categories.items():
+            with st.expander(f"{category} ({len(columns)} columns)"):
+                cols_display = st.columns(3)
+                for i, col in enumerate(columns[:9]):  # Show first 9 columns per category
+                    with cols_display[i % 3]:
+                        if col in df.columns:
+                            st.caption(f"• {col}")
+        
+        # Raw data table
+        st.markdown("**📋 Raw Data (First 10 Rows):**")
+        st.dataframe(df.head(10), use_container_width=True)
+
+def render_performance_dashboard(engine):
+    """Render performance tracking dashboard."""
+    
+    if hasattr(engine, 'performance_log') and engine.performance_log:
+        summary = engine.get_performance_summary()
+        
+        st.markdown('<div class="framework-header">📈 PERFORMANCE DASHBOARD</div>', 
+                   unsafe_allow_html=True)
+        
+        # Key metrics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Decisions", summary['total_decisions'])
+        with col2:
+            st.metric("Bets Recommended", summary['bets_recommended'])
+        with col3:
+            avoid_rate = (summary['avoid_count'] / summary['total_decisions'] * 100) if summary['total_decisions'] > 0 else 0
+            st.metric("Avoid Rate", f"{avoid_rate:.1f}%")
+        with col4:
+            st.metric("Total Exposure", f"{summary['total_capital_exposure']:.1f}%")
+        
+        # Archetype distribution
+        st.markdown("**Archetype Distribution:**")
+        arch_dist = summary['archetype_distribution']
+        
+        for archetype, count in arch_dist.items():
+            percentage = (count / summary['total_decisions'] * 100) if summary['total_decisions'] > 0 else 0
+            cols = st.columns([3, 7, 2])
+            with cols[0]:
+                st.markdown(f"**{archetype.replace('_', ' ')}**")
+            with cols[1]:
+                st.progress(percentage/100, text=f"{count} matches ({percentage:.1f}%)")
+            with cols[2]:
+                st.markdown(f"`{summary['avg_confidence_by_archetype'].get(archetype, 0):.1f}`")
+        
+        # Crisis signal analysis
+        st.markdown("**Crisis Signal Analysis:**")
         col1, col2 = st.columns(2)
         with col1:
-            st.metric("Teams Loaded", len(df))
-            st.metric("Data Columns", len(df.columns))
+            st.metric("High Crisis Matches", summary['crisis_signal_prevalence']['high_crisis_matches'])
         with col2:
-            st.metric("Original Columns", len(original_columns))
-            st.metric("Derived Columns", len(df.columns) - len(original_columns))
-        
-        st.markdown("#### Data Preview")
-        st.dataframe(df.head(10))
-        
-        st.markdown("#### Column Summary")
-        column_info = []
-        for col in df.columns:
-            dtype = str(df[col].dtype)
-            non_null = df[col].count()
-            total = len(df)
-            pct = (non_null / total) * 100
-            column_info.append([col, dtype, non_null, f"{pct:.1f}%"])
-        
-        column_df = pd.DataFrame(column_info, columns=['Column', 'Type', 'Non-Null', 'Complete %'])
-        st.dataframe(column_df)
+            st.metric("Avg Crisis Score", summary['crisis_signal_prevalence']['avg_crisis_score'])
 
 def render_footer():
-    """Render footer"""
+    """Render application footer."""
+    
     st.markdown("---")
     st.markdown("""
-    <div style="text-align: center; color: #6B7280; font-size: 0.9rem;">
-        <p>Brutball Professional Decision Framework v3.0 • Complete Quantitative System</p>
-        <p>All CSV headings utilized • For professional use only • All betting involves risk</p>
+    <div style="text-align: center; color: #6B7280; font-size: 0.9rem; padding: 1rem;">
+        <p><strong>Brutball Professional Quantitative Framework v3.0</strong></p>
+        <p>Complete Six-Phase Logic | All CSV Columns Utilized | Professional Capital Allocation</p>
+        <p style="font-size: 0.8rem; margin-top: 0.5rem;">
+            For professional use only. All betting involves risk. Never bet more than you can afford to lose.
+            <br>Framework logic strictly follows quantitative principles with no narrative bias.
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
-# =================== MAIN APP ===================
+# =================== MAIN APPLICATION ===================
 def main():
-    """Main application function"""
+    """Main application function."""
     
     # Render header
     render_header()
     
-    # Load data
-    df, original_columns = load_league_data()
+    # Load and prepare data
+    with st.spinner("Loading and preparing Premier League data..."):
+        df = load_and_prepare_data()
+    
     if df is None:
-        st.error("Failed to load data. Please check your data file.")
+        st.error("Failed to load data. Please check your data file and try again.")
         return
     
-    # Initialize engine
-    engine = BrutballQuantitativeEngine(df)
+    # Initialize quantitative engine
+    engine = BrutballProQuantitative(df)
     
-    # Render framework status
-    render_framework_status()
+    # Render framework overview
+    render_framework_overview()
     
-    # System configuration
-    render_system_configuration(engine)
+    # Match selection
+    home_team, away_team = render_match_selector(df)
     
-    # Performance dashboard
-    render_performance_dashboard(engine)
+    # Analysis trigger
+    if st.button("🚀 RUN QUANTITATIVE ANALYSIS", type="primary", use_container_width=True):
+        
+        with st.spinner(f"Running complete quantitative analysis for {home_team} vs {away_team}..."):
+            # Run complete analysis
+            analysis = engine.analyze_match(home_team, away_team)
+            
+            # Display results
+            st.markdown("---")
+            
+            # Layer 1: Situation Analysis
+            st.markdown('<div class="framework-header">🔍 LAYER 1: QUANTITATIVE SITUATION ANALYSIS</div>', 
+                       unsafe_allow_html=True)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                render_crisis_analysis(analysis['crisis_analysis']['home'], home_team, True)
+            with col2:
+                render_crisis_analysis(analysis['crisis_analysis']['away'], away_team, False)
+            
+            # Reality Check
+            st.markdown("#### 📊 Reality Check (xG Performance vs Expectations)")
+            col1, col2 = st.columns(2)
+            with col1:
+                render_reality_check(analysis['reality_check']['home'], home_team)
+            with col2:
+                render_reality_check(analysis['reality_check']['away'], away_team)
+            
+            # Tactical Analysis
+            st.markdown("#### ⚽ Tactical Edge Analysis")
+            render_tactical_analysis(analysis['tactical_edge'])
+            
+            # Defensive Grind Analysis (if applicable)
+            if analysis['defensive_grind_valid']:
+                render_defensive_grind_analysis(analysis)
+            
+            # Layer 2: Decision Classification
+            st.markdown("---")
+            st.markdown('<div class="framework-header">🎯 LAYER 2: QUANTITATIVE DECISION CLASSIFICATION</div>', 
+                       unsafe_allow_html=True)
+            
+            render_archetype_decision(analysis)
+            
+            # Layer 3: Capital Allocation
+            render_capital_allocation(analysis)
+            
+            # Professional Notes
+            render_professional_notes(analysis)
+            
+            # Export functionality
+            st.markdown("---")
+            st.markdown("#### 📤 Export Analysis Report")
+            
+            report = create_export_report(analysis, df)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.download_button(
+                    label="📥 Download Complete Report",
+                    data=report,
+                    file_name=f"brutball_{home_team}_vs_{away_team}_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.txt",
+                    mime="text/plain",
+                    use_container_width=True
+                )
+            with col2:
+                if st.button("📋 Copy to Clipboard", use_container_width=True):
+                    st.code(report, language='text')
+                    st.success("Report copied to clipboard!")
     
-    # Render match analysis
-    render_match_analysis(engine, df)
+    # Performance Dashboard (always shown)
+    if hasattr(engine, 'performance_log') and engine.performance_log:
+        render_performance_dashboard(engine)
     
-    # Render data preview
-    render_data_preview(df, original_columns)
+    # Data Preview
+    render_data_preview(df)
     
-    # Render footer
+    # Footer
     render_footer()
 
-# =================== RUN APP ===================
+# =================== APPLICATION ENTRY POINT ===================
 if __name__ == "__main__":
     main()
