@@ -7,21 +7,86 @@ warnings.filterwarnings('ignore')
 
 # =================== PAGE CONFIGURATION ===================
 st.set_page_config(
-    page_title="Brutball v6.0 - Match-State Identification",
+    page_title="Brutball v6.0 - Match-State Engine",
     page_icon="🧠",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# =================== MINIMAL CSS ===================
+# =================== LEAGUE CONFIGURATION ===================
+LEAGUES = {
+    'Premier League': {
+        'filename': 'premier_league.csv',
+        'display_name': '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League',
+        'country': 'England',
+        'color': '#3B82F6'
+    },
+    'La Liga': {
+        'filename': 'la_liga.csv',
+        'display_name': '🇪🇸 La Liga',
+        'country': 'Spain',
+        'color': '#EF4444'
+    },
+    'Bundesliga': {
+        'filename': 'bundesliga.csv',
+        'display_name': '🇩🇪 Bundesliga',
+        'country': 'Germany',
+        'color': '#000000'
+    },
+    'Serie A': {
+        'filename': 'serie_a.csv',
+        'display_name': '🇮🇹 Serie A',
+        'country': 'Italy',
+        'color': '#10B981'
+    },
+    'Ligue 1': {
+        'filename': 'ligue_1.csv',
+        'display_name': '🇫🇷 Ligue 1',
+        'country': 'France',
+        'color': '#8B5CF6'
+    }
+}
+
+# =================== CSS STYLING ===================
 st.markdown("""
     <style>
-    .state-identifier {
-        font-size: 2.2rem;
+    .main-header {
+        font-size: 2.5rem;
         font-weight: 800;
         color: #1E3A8A;
         margin-bottom: 1rem;
         text-align: center;
+    }
+    .axiom-header {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: #374151;
+        margin: 1.5rem 0 1rem 0;
+        border-bottom: 2px solid #3B82F6;
+        padding-bottom: 0.5rem;
+    }
+    .control-badge {
+        padding: 1.5rem;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+        border-left: 8px solid #16A34A;
+        margin: 1rem 0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    .no-control-badge {
+        padding: 1.5rem;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%);
+        border-left: 8px solid #6B7280;
+        margin: 1rem 0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    .action-display {
+        padding: 2rem;
+        border-radius: 12px;
+        text-align: center;
+        margin: 1rem 0;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     }
     .axiom-card {
         padding: 1rem;
@@ -31,83 +96,44 @@ st.markdown("""
         margin: 0.5rem 0;
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
-    .control-badge {
+    .metric-card {
+        background: white;
         padding: 1rem;
-        border-radius: 10px;
-        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
-        border-left: 6px solid #16A34A;
-        margin: 1rem 0;
-    }
-    .no-control-badge {
-        padding: 1rem;
-        border-radius: 10px;
-        background: linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%);
-        border-left: 6px solid #6B7280;
-        margin: 1rem 0;
-    }
-    .warning-badge {
-        padding: 1rem;
-        border-radius: 10px;
-        background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
-        border-left: 6px solid #F59E0B;
-        margin: 1rem 0;
-    }
-    .metric-display {
-        font-family: 'Courier New', monospace;
-        font-size: 1.1rem;
-        padding: 0.5rem;
-        background: #F8FAFC;
-        border-radius: 4px;
-        margin: 0.25rem 0;
-    }
-    .decision-step {
-        padding: 0.75rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
         margin: 0.5rem 0;
-        border-left: 3px solid #3B82F6;
-        background: #F8FAFC;
+        border: 1px solid #E5E7EB;
+    }
+    .league-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        display: inline-block;
+        margin: 0.25rem;
+    }
+    .confidence-bar {
+        height: 8px;
+        background: linear-gradient(90deg, #EF4444 0%, #F59E0B 50%, #10B981 100%);
+        border-radius: 4px;
+        margin: 0.5rem 0;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# =================== BRUTBALL v6.0 AXIOMS ===================
+# =================== BRUTBALL v6.0 CORE ENGINE ===================
 class BrutballStateEngine:
     """
-    v6.0 - Match-State Identification Engine
+    BRUTBALL v6.0 - Match-State Identification Engine
     No hype. No redundancy. Every axiom has a job and failure condition.
     """
     
-    # ========== AXIOM 1 ==========
-    @staticmethod
-    def football_is_not_symmetric(home_attack: float, away_attack: float,
-                                home_form: str, away_form: str) -> Tuple[bool, List[str]]:
-        """
-        AXIOM 1: FOOTBALL IS NOT SYMMETRIC
-        xG parity does not imply outcome parity.
-        """
-        rationale = []
-        
-        # Structural check
-        attack_diff = abs(home_attack - away_attack)
-        
-        if attack_diff < 0.2 and home_attack > 1.3 and away_attack > 1.3:
-            rationale.append("⚖️ Structural balance present")
-            rationale.append(f"  • Attack difference: {attack_diff:.2f} xG")
-            rationale.append("  • Both attacks > 1.30 xG")
-            symmetric = True
-        else:
-            symmetric = False
-        
-        return symmetric, rationale
-    
-    # ========== AXIOM 2 ==========
+    # AXIOM 2: GAME-STATE CONTROL IS PRIMARY
     @staticmethod
     def identify_game_state_controller(home_data: Dict, away_data: Dict,
                                      home_name: str, away_name: str,
                                      league_avg_xg: float) -> Tuple[Optional[str], List[str]]:
-        """
-        AXIOM 2: GAME-STATE CONTROL IS PRIMARY
-        Returns which team controls state, or None if no clear controller.
-        """
+        """Identify which team controls game state, or None if no clear controller."""
         rationale = []
         home_score = 0
         away_score = 0
@@ -123,20 +149,19 @@ class BrutballStateEngine:
             away_score += 1
             rationale.append(f"✅ {away_name}: Away attack {away_xg:.2f} ≥ {league_avg_xg*1.2:.2f}")
         
-        # CRITERION 2: Negative momentum or late collapses
+        # CRITERION 2: Negative momentum
         def has_negative_momentum(form: str) -> bool:
-            if len(form) < 3:
+            if len(form) < 2:
                 return False
-            last_three = str(form)[-3:]
-            return last_three.count('L') >= 2 or last_three == 'LLD' or last_three == 'LDL'
+            return form.endswith('LL') or form.endswith('L')
         
         if has_negative_momentum(home_data.get('form_last_5_overall', '')):
             away_score += 1
-            rationale.append(f"✅ {away_name}: Opponent {home_name} has negative momentum")
+            rationale.append(f"✅ {away_name}: {home_name} has negative momentum")
         
         if has_negative_momentum(away_data.get('form_last_5_overall', '')):
             home_score += 1
-            rationale.append(f"✅ {home_name}: Opponent {away_name} has negative momentum")
+            rationale.append(f"✅ {home_name}: {away_name} has negative momentum")
         
         # CRITERION 3: Repeatable scoring method
         def has_repeatable_scoring(team_data: Dict, is_home: bool) -> bool:
@@ -146,361 +171,183 @@ class BrutballStateEngine:
             else:
                 setpiece = team_data.get('away_setpiece_pct', 0)
                 openplay = team_data.get('away_openplay_pct', 0)
-            
             return setpiece > 0.25 or openplay > 0.65
         
         if has_repeatable_scoring(home_data, is_home=True):
             home_score += 1
-            rationale.append(f"✅ {home_name}: Has repeatable scoring method")
+            rationale.append(f"✅ {home_name}: Repeatable scoring method")
         
         if has_repeatable_scoring(away_data, is_home=False):
             away_score += 1
-            rationale.append(f"✅ {away_name}: Has repeatable scoring method")
+            rationale.append(f"✅ {away_name}: Repeatable scoring method")
         
-        # CRITERION 4: Opponent struggles when trailing (simplified proxy)
+        # CRITERION 4: Opponent concedes early frequently
         def concedes_early(team_data: Dict, is_home: bool) -> bool:
-            # Simplified: if concedes frequently in first half or early
             if is_home:
-                goals_conceded = team_data.get('home_goals_conceded', 0)
+                goals = team_data.get('home_goals_conceded', 0)
                 matches = team_data.get('home_matches_played', 1)
             else:
-                goals_conceded = team_data.get('away_goals_conceded', 0)
+                goals = team_data.get('away_goals_conceded', 0)
                 matches = team_data.get('away_matches_played', 1)
-            
-            return (goals_conceded / matches) > 1.5 if matches > 0 else False
+            return (goals / matches) > 1.5 if matches > 0 else False
         
         if concedes_early(away_data, is_home=False):
             home_score += 1
-            rationale.append(f"✅ {home_name}: Opponent {away_name} concedes early frequently")
+            rationale.append(f"✅ {home_name}: {away_name} concedes early")
         
         if concedes_early(home_data, is_home=True):
             away_score += 1
-            rationale.append(f"✅ {away_name}: Opponent {home_name} concedes early frequently")
+            rationale.append(f"✅ {away_name}: {home_name} concedes early")
         
-        # DETERMINE CONTROLLER
+        # DETERMINE CONTROLLER (need at least 2 criteria)
         if home_score >= 2 and home_score > away_score:
-            rationale.append(f"🎯 GAME-STATE CONTROLLER: {home_name} ({home_score} criteria)")
+            rationale.append(f"🎯 GAME-STATE CONTROLLER: {home_name} ({home_score}/4 criteria)")
             return home_name, rationale
         elif away_score >= 2 and away_score > home_score:
-            rationale.append(f"🎯 GAME-STATE CONTROLLER: {away_name} ({away_score} criteria)")
+            rationale.append(f"🎯 GAME-STATE CONTROLLER: {away_name} ({away_score}/4 criteria)")
             return away_name, rationale
         else:
             rationale.append(f"⚠️ NO CLEAR GAME-STATE CONTROLLER")
-            rationale.append(f"  • {home_name}: {home_score} criteria")
-            rationale.append(f"  • {away_name}: {away_score} criteria")
+            rationale.append(f"  • {home_name}: {home_score}/4 criteria")
+            rationale.append(f"  • {away_name}: {away_score}/4 criteria")
             return None, rationale
     
-    # ========== AXIOM 4 ==========
+    # AXIOM 4: GOALS ARE A CONSEQUENCE, NOT A STRATEGY
     @staticmethod
     def evaluate_goals_environment(home_data: Dict, away_data: Dict,
-                                 controller: Optional[str],
-                                 home_name: str, away_name: str) -> Tuple[bool, List[str]]:
-        """
-        AXIOM 4: GOALS ARE A CONSEQUENCE, NOT A STRATEGY
-        Returns True if goals environment exists.
-        """
+                                 controller: Optional[str]) -> Tuple[bool, List[str]]:
+        """Evaluate if goals environment exists."""
         rationale = []
         
         home_xg = home_data.get('home_xg_per_match', 0)
         away_xg = away_data.get('away_xg_per_match', 0)
         combined_xg = home_xg + away_xg
         
-        # CONDITION 1: Combined xG threshold
+        # Base conditions
         if combined_xg < 2.8:
-            rationale.append(f"❌ INSUFFICIENT GOAL CAPACITY")
-            rationale.append(f"  • Combined xG: {combined_xg:.2f} < 2.8")
+            rationale.append(f"❌ Combined xG {combined_xg:.2f} < 2.8")
             return False, rationale
         
-        # CONDITION 2: At least one elite attack
         if max(home_xg, away_xg) < 1.6:
-            rationale.append(f"❌ NO ELITE ATTACK")
-            rationale.append(f"  • Best attack: {max(home_xg, away_xg):.2f} < 1.6")
+            rationale.append(f"❌ No elite attack (max: {max(home_xg, away_xg):.2f})")
             return False, rationale
         
-        # CONDITION 3: Dual crisis check (AXIOM 6)
+        # AXIOM 6: DUAL FRAGILITY ≠ DUAL CHAOS
         home_crisis = home_data.get('goals_conceded_last_5', 0) >= 12
         away_crisis = away_data.get('goals_conceded_last_5', 0) >= 12
         
         if home_crisis and away_crisis and controller is None:
-            # Dual fragility but no controller - could be chaos
-            rationale.append(f"⚠️ DUAL CRISIS WITHOUT CONTROLLER")
-            # Check if both have tempo intent
-            home_intent = home_xg > 1.4
-            away_intent = away_xg > 1.4
-            if home_intent and away_intent:
-                rationale.append("  • Both teams have attacking intent")
-                rationale.append("✅ GOALS ENVIRONMENT: Dual crisis chaos")
+            # Check if both have intent
+            if home_xg > 1.4 and away_xg > 1.4:
+                rationale.append("✅ DUAL CRISIS + DUAL INTENT → Chaos goals")
                 return True, rationale
             else:
-                rationale.append("❌ Chaos suppressed (insufficient intent)")
+                rationale.append("❌ Dual crisis but insufficient intent")
                 return False, rationale
         
-        # Default: Goals environment exists
-        rationale.append(f"✅ GOALS ENVIRONMENT PRESENT")
-        rationale.append(f"  • Combined xG: {combined_xg:.2f} ≥ 2.8")
-        rationale.append(f"  • Elite attack: {max(home_xg, away_xg):.2f} ≥ 1.6")
-        
+        rationale.append(f"✅ GOALS ENVIRONMENT: Combined xG {combined_xg:.2f}, Elite attack present")
         return True, rationale
     
-    # ========== AXIOM 5 ==========
+    # AXIOM 5: ONE-SIDED CONTROL OVERRIDE
     @staticmethod
-    def apply_one_sided_control_override(controller: str, opponent_name: str,
-                                       controller_data: Dict, opponent_data: Dict,
-                                       has_goals_env: bool) -> Tuple[str, float, List[str]]:
-        """
-        AXIOM 5: ONE-SIDED CONTROL OVERRIDE
-        When control is asymmetric, direction beats volume.
-        """
+    def apply_control_override(controller: str, opponent_name: str,
+                             has_goals_env: bool) -> Tuple[str, float, List[str]]:
+        """Apply one-sided control override."""
         rationale = []
         
-        # PRIMARY ACTION: Back controller
         action = f"BACK {controller}"
         confidence = 8.0
         
-        rationale.append(f"🎯 ONE-SIDED CONTROL OVERRIDE APPLIED")
+        rationale.append(f"🎯 ONE-SIDED CONTROL OVERRIDE")
         rationale.append(f"  • Controller: {controller}")
-        rationale.append(f"  • Opponent: {opponent_name}")
+        rationale.append(f"  • Goals environment: {'YES' if has_goals_env else 'NO'}")
         
-        # Check if opponent must chase
-        opponent_chase_capacity = opponent_data.get('away_xg_per_match' if opponent_name != 'home' else 'home_xg_per_match', 0) > 1.3
-        
-        if has_goals_env and opponent_chase_capacity:
-            rationale.append(f"  • Opponent can chase → goals bias added")
+        if has_goals_env:
             action += " & OVER 2.5"
             confidence = 7.5
-        elif not has_goals_env:
-            rationale.append(f"  • No goals environment → clean win expected")
-            action += " & UNDER 2.5 bias"
+            rationale.append("  • Controller + goals environment → Back & Over")
+        else:
+            action += " (Clean win expected)"
             confidence = 8.5
+            rationale.append("  • Controller without goals → Clean win")
         
         return action, confidence, rationale
     
-    # ========== AXIOM 7 ==========
+    # AXIOM 7: FAVORITES FAIL STRUCTURALLY
     @staticmethod
-    def evaluate_favorite_fade(favorite_data: Dict, underdog_data: Dict,
-                             favorite_name: str, underdog_name: str,
+    def evaluate_favorite_fade(favorite: str, underdog: str,
                              controller: Optional[str]) -> Tuple[bool, List[str]]:
-        """
-        AXIOM 7: FAVORITES FAIL FOR STRUCTURAL REASONS
-        Fade only if favorite lacks GSC and underdog can disrupt.
-        """
+        """Evaluate if favorite can be faded."""
         rationale = []
         
-        # HARD STOP: Favorite is controller
-        if controller == favorite_name:
-            rationale.append(f"❌ CANNOT FADE {favorite_name}")
-            rationale.append(f"  • {favorite_name} is Game-State Controller")
+        if controller == favorite:
+            rationale.append(f"❌ Cannot fade {favorite} - is controller")
             return False, rationale
         
-        # CONDITION 1: Favorite lacks GSC
-        if controller is None:
-            rationale.append(f"✅ {favorite_name} lacks GSC")
-        elif controller == underdog_name:
-            rationale.append(f"✅ {underdog_name} controls state")
-        else:
-            rationale.append(f"❌ CANNOT FADE {favorite_name}")
-            rationale.append(f"  • Neither team clearly controls")
-            return False, rationale
-        
-        # CONDITION 2: Underdog can impose tempo or disrupt
-        underdog_xg = underdog_data.get('away_xg_per_match' if underdog_name != 'home' else 'home_xg_per_match', 0)
-        if underdog_xg >= 1.2:
-            rationale.append(f"✅ {underdog_name} can impose tempo (xg: {underdog_xg:.2f})")
-        else:
-            rationale.append(f"❌ {underdog_name} lacks tempo imposition")
-            return False, rationale
-        
-        # CONDITION 3: Favorite has structural weakness
-        favorite_form = str(favorite_data.get('form_last_5_overall', ''))
-        if 'LL' in favorite_form[-2:] or favorite_form.endswith('L'):
-            rationale.append(f"✅ {favorite_name} shows structural decline")
-        else:
-            rationale.append(f"⚠️ {favorite_name} stable but controllable")
-        
-        rationale.append(f"✅ CAN FADE {favorite_name}")
-        return True, rationale
-    
-    # ========== AXIOM 8 ==========
-    @staticmethod
-    def evaluate_under_conditions(controller: Optional[str],
-                                controller_data: Dict,
-                                opponent_data: Dict) -> Tuple[bool, List[str]]:
-        """
-        AXIOM 8: UNDER IS A CONTROL OUTCOME
-        Under happens when controller wins without urgency.
-        """
-        rationale = []
-        
-        if controller is None:
-            rationale.append("❌ No controller → Under is not a control outcome")
-            return False, rationale
-        
-        # Check opponent chase capacity
-        opponent_xg = opponent_data.get('away_xg_per_match' if 'away' in controller else 'home_xg_per_match', 0)
-        
-        if opponent_xg < 1.1:
-            rationale.append(f"✅ UNDER CONDITIONS: Opponent lacks chase capacity")
-            rationale.append(f"  • {controller} can win without urgency")
-            rationale.append(f"  • Opponent xG: {opponent_xg:.2f} < 1.1")
+        if controller == underdog:
+            rationale.append(f"✅ {underdog} controls state → Fade {favorite}")
             return True, rationale
         
-        rationale.append(f"❌ Opponent can chase (xg: {opponent_xg:.2f})")
-        return False, rationale
-    
-    # ========== AXIOM 9 ==========
-    @staticmethod
-    def evaluate_avoid_conditions(controller: Optional[str],
-                                home_xg: float, away_xg: float,
-                                league_avg_xg: float) -> Tuple[bool, List[str]]:
-        """
-        AXIOM 9: AVOID IS RARE AND EXPLICIT
-        Avoid only when no state advantage exists.
-        """
-        rationale = []
-        
-        if controller is not None:
-            rationale.append(f"❌ Controller exists: {controller}")
-            return False, rationale
-        
-        # Check if attacks are below league average
-        if home_xg > league_avg_xg * 0.9 or away_xg > league_avg_xg * 0.9:
-            rationale.append(f"❌ At least one team has competent attack")
-            rationale.append(f"  • Home: {home_xg:.2f}, Away: {away_xg:.2f}")
-            rationale.append(f"  • League avg: {league_avg_xg:.2f}")
-            return False, rationale
-        
-        # Check tactical edge neutralization (simplified)
-        combined_xg = home_xg + away_xg
-        if combined_xg < 2.4:
-            rationale.append(f"✅ AVOID CONDITIONS MET")
-            rationale.append(f"  • No game-state controller")
-            rationale.append(f"  • Attacks below league average")
-            rationale.append(f"  • Combined xG: {combined_xg:.2f} < 2.4")
+        if controller is None:
+            rationale.append(f"⚠️ No controller → Consider fade carefully")
             return True, rationale
         
-        rationale.append(f"❌ Combined xG suggests some potential: {combined_xg:.2f}")
+        rationale.append(f"❌ Controller exists but not underdog")
         return False, rationale
     
-    # ========== AXIOM 10 ==========
-    @staticmethod
-    def calculate_capital_allocation(controller: Optional[str],
-                                   confidence: float,
-                                   goals_env: bool) -> float:
-        """
-        AXIOM 10: CAPITAL FOLLOWS STATE CONFIDENCE
-        Stake size reflects control clarity.
-        """
-        if controller is None:
-            # No controller
-            if goals_env:
-                return 0.5  # Small stake on goals only
-            else:
-                return 0.0  # Avoid
-        
-        # Clear controller
-        if confidence >= 8.0:
-            return 2.0  # Full allocation
-        elif confidence >= 7.0:
-            return 1.5  # Strong allocation
-        elif confidence >= 6.0:
-            return 1.0  # Moderate allocation
-        else:
-            return 0.5  # Small allocation
-    
-    # ========== MAIN DECISION TREE ==========
+    # MAIN DECISION TREE
     @classmethod
-    def execute_decision_tree(cls, home_data: Dict, away_data: Dict,
-                            home_name: str, away_name: str,
-                            league_avg_xg: float) -> Dict:
-        """
-        FINAL DECISION TREE (v6.0)
-        1. Identify Game-State Controller → If exists → Back them
-        2. If controller + opponent collapses when trailing → Add goals bias
-        3. If no controller → Evaluate goals environment
-        4. If neither control nor goals → Avoid or Under
-        5. Stake proportional to control clarity
-        """
+    def execute_v6_tree(cls, home_data: Dict, away_data: Dict,
+                       home_name: str, away_name: str,
+                       league_avg_xg: float) -> Dict:
+        """Execute v6.0 decision tree."""
         
         rationale = ["🧠 BRUTBALL v6.0 DECISION TREE"]
-        decision_tree = []
         
-        # Determine favorite (by position)
+        # Determine favorite
         home_pos = home_data.get('season_position', 10)
         away_pos = away_data.get('season_position', 10)
         favorite = home_name if home_pos < away_pos else away_name
         underdog = away_name if favorite == home_name else home_name
         
-        rationale.append(f"⭐ Favorite: {favorite} (#{home_pos if favorite == home_name else away_pos})")
-        rationale.append(f"⚫ Underdog: {underdog} (#{away_pos if favorite == home_name else home_pos})")
+        rationale.append(f"⭐ Favorite: {favorite} (#{min(home_pos, away_pos)})")
+        rationale.append(f"⚫ Underdog: {underdog} (#{max(home_pos, away_pos)})")
         
-        # STEP 1: Check symmetry (AXIOM 1)
-        symmetric, sym_rationale = cls.football_is_not_symmetric(
-            home_data.get('home_xg_per_match', 0),
-            away_data.get('away_xg_per_match', 0),
-            home_data.get('form_last_5_overall', ''),
-            away_data.get('form_last_5_overall', '')
-        )
-        rationale.extend(sym_rationale)
-        decision_tree.append(f"Symmetry check: {'YES' if symmetric else 'NO'}")
-        
-        # STEP 2: Identify Game-State Controller (AXIOM 2)
+        # STEP 1: Identify Game-State Controller
         controller, control_rationale = cls.identify_game_state_controller(
             home_data, away_data, home_name, away_name, league_avg_xg
         )
         rationale.extend(control_rationale)
-        decision_tree.append(f"Game-State Controller: {controller if controller else 'NONE'}")
         
-        # STEP 3: Evaluate Goals Environment (AXIOM 4)
+        # STEP 2: Evaluate Goals Environment
         has_goals_env, goals_rationale = cls.evaluate_goals_environment(
-            home_data, away_data, controller, home_name, away_name
+            home_data, away_data, controller
         )
-        rationale.extend(["--- Goals Environment ---"])
+        rationale.extend(["-- Goals Environment --"])
         rationale.extend(goals_rationale)
-        decision_tree.append(f"Goals environment: {'YES' if has_goals_env else 'NO'}")
         
-        # STEP 4: Apply Overrides & Make Decision
+        # STEP 3: Apply Decision Logic
         primary_action = "ANALYZING"
         confidence = 5.0
         secondary_signal = None
         
         if controller:
-            # CASE A: Clear controller exists
-            opponent_name = away_name if controller == home_name else home_name
-            opponent_data = away_data if controller == home_name else home_data
-            
-            # Apply one-sided control override (AXIOM 5)
-            action, conf, override_rationale = cls.apply_one_sided_control_override(
-                controller, opponent_name,
-                home_data if controller == home_name else away_data,
-                opponent_data,
-                has_goals_env
+            # CASE A: Controller exists → AXIOM 5 override
+            opponent = away_name if controller == home_name else home_name
+            action, conf, override_rationale = cls.apply_control_override(
+                controller, opponent, has_goals_env
             )
-            rationale.extend(["--- One-Sided Control Override ---"])
+            rationale.extend(["-- Control Override --"])
             rationale.extend(override_rationale)
-            
             primary_action = action
             confidence = conf
             
-            # Check Under conditions (AXIOM 8)
-            if "UNDER" in action:
-                under_ok, under_rationale = cls.evaluate_under_conditions(
-                    controller,
-                    home_data if controller == home_name else away_data,
-                    opponent_data
-                )
-                if not under_ok:
-                    primary_action = primary_action.replace(" & UNDER 2.5 bias", "")
-            
         elif has_goals_env:
             # CASE B: No controller but goals environment
-            # Check favorite fade (AXIOM 7)
-            favorite_data = home_data if favorite == home_name else away_data
-            underdog_data = away_data if favorite == home_name else home_data
-            
             can_fade, fade_rationale = cls.evaluate_favorite_fade(
-                favorite_data, underdog_data, favorite, underdog, controller
+                favorite, underdog, controller
             )
-            rationale.extend(["--- Favorite Fade Check ---"])
+            rationale.extend(["-- Favorite Fade Check --"])
             rationale.extend(fade_rationale)
             
             if can_fade:
@@ -514,37 +361,23 @@ class BrutballStateEngine:
         
         else:
             # CASE C: Neither controller nor goals
-            # Check avoid conditions (AXIOM 9)
-            should_avoid, avoid_rationale = cls.evaluate_avoid_conditions(
-                controller,
-                home_data.get('home_xg_per_match', 0),
-                away_data.get('away_xg_per_match', 0),
-                league_avg_xg
-            )
-            rationale.extend(["--- Avoid Conditions Check ---"])
-            rationale.extend(avoid_rationale)
-            
-            if should_avoid:
-                primary_action = "AVOID"
-                confidence = 0.0
-                secondary_signal = "Preserve capital"
-            else:
-                # Check Under as fallback
+            # Check Under conditions
+            combined_xg = home_data.get('home_xg_per_match', 0) + away_data.get('away_xg_per_match', 0)
+            if combined_xg < 2.4:
                 primary_action = "UNDER 2.5 GOALS"
                 confidence = 5.5
                 secondary_signal = "Low-scoring control outcome"
+            else:
+                primary_action = "AVOID"
+                confidence = 0.0
+                secondary_signal = "No edge identified"
         
-        # STEP 5: Calculate Capital Allocation (AXIOM 10)
-        stake_pct = cls.calculate_capital_allocation(controller, confidence, has_goals_env)
-        
-        # Compile final report
-        rationale.insert(0, "=== DECISION TREE EXECUTION ===")
-        for step in decision_tree:
-            rationale.insert(1, f"• {step}")
+        # Calculate stake
+        stake_pct = cls.calculate_stake(controller, confidence, has_goals_env)
         
         rationale.append(f"\n🎯 FINAL DECISION: {primary_action}")
         rationale.append(f"📊 Confidence: {confidence}/10")
-        rationale.append(f"💰 Recommended Stake: {stake_pct}% of bankroll")
+        rationale.append(f"💰 Stake: {stake_pct}%")
         
         if secondary_signal:
             rationale.append(f"🔍 Secondary: {secondary_signal}")
@@ -569,17 +402,82 @@ class BrutballStateEngine:
                 'away_xg': away_data.get('away_xg_per_match', 0),
                 'home_pos': home_pos,
                 'away_pos': away_pos,
-                'home_form': home_data.get('form_last_5_overall', ''),
-                'away_form': away_data.get('form_last_5_overall', ''),
-                'combined_xg': home_data.get('home_xg_per_match', 0) + away_data.get('away_xg_per_match', 0)
+                'combined_xg': home_data.get('home_xg_per_match', 0) + away_data.get('away_xg_per_match', 0),
+                'league_avg_xg': league_avg_xg
             }
         }
-
-# =================== DATA & UI ===================
-def calculate_derived_metrics(df: pd.DataFrame) -> pd.DataFrame:
-    """Calculate necessary metrics from your CSV structure."""
     
-    # Calculate home/away goals conceded
+    @staticmethod
+    def calculate_stake(controller: Optional[str], confidence: float, has_goals_env: bool) -> float:
+        """Calculate stake percentage (AXIOM 10)."""
+        if controller:
+            if confidence >= 8.0:
+                return 2.0
+            elif confidence >= 7.0:
+                return 1.5
+            elif confidence >= 6.0:
+                return 1.0
+            else:
+                return 0.5
+        elif has_goals_env:
+            return 0.5
+        else:
+            return 0.0
+
+# =================== DATA LOADING (YOUR ORIGINAL CODE) ===================
+@st.cache_data(ttl=3600, show_spinner="Loading league data...")
+def load_and_prepare_data(league_name: str) -> Optional[pd.DataFrame]:
+    """Load, validate, and prepare the dataset for selected league."""
+    try:
+        if league_name not in LEAGUES:
+            st.error(f"❌ Unknown league: {league_name}")
+            return None
+        
+        league_config = LEAGUES[league_name]
+        filename = league_config['filename']
+        
+        # Try multiple data source locations (YOUR EXACT CODE)
+        data_sources = [
+            f'leagues/{filename}',
+            f'./leagues/{filename}',
+            filename,
+            f'https://raw.githubusercontent.com/profdue/Brutball/main/leagues/{filename}'
+        ]
+        
+        df = None
+        source_used = ""
+        
+        for source in data_sources:
+            try:
+                df = pd.read_csv(source)
+                source_used = source
+                break
+            except Exception:
+                continue
+        
+        if df is None:
+            st.error(f"❌ Failed to load data for {league_config['display_name']}")
+            return None
+        
+        # Calculate derived metrics (YOUR EXACT FUNCTION)
+        df = calculate_derived_metrics(df)
+        
+        # Store metadata
+        df.attrs['league_name'] = league_name
+        df.attrs['display_name'] = league_config['display_name']
+        df.attrs['country'] = league_config['country']
+        df.attrs['color'] = league_config['color']
+        
+        return df
+        
+    except Exception as e:
+        st.error(f"❌ Data preparation error: {str(e)}")
+        return None
+
+def calculate_derived_metrics(df: pd.DataFrame) -> pd.DataFrame:
+    """Calculate all derived metrics from YOUR actual CSV columns."""
+    
+    # 1. Calculate home/away goals conceded
     df['home_goals_conceded'] = (
         df['home_goals_openplay_against'].fillna(0) +
         df['home_goals_counter_against'].fillna(0) +
@@ -596,38 +494,113 @@ def calculate_derived_metrics(df: pd.DataFrame) -> pd.DataFrame:
         df['away_goals_owngoal_against'].fillna(0)
     )
     
-    # Per-match averages
-    for prefix in ['home', 'away']:
-        matches_col = f'{prefix}_matches_played'
-        if matches_col in df.columns:
-            for metric in ['goals_scored', 'xg_for', 'xg_against']:
-                col = f'{prefix}_{metric}'
-                if col in df.columns:
-                    df[f'{prefix}_{metric}_per_match'] = df[col] / df[matches_col].replace(0, np.nan)
+    # 2. Per-match averages
+    df['home_goals_per_match'] = df['home_goals_scored'] / df['home_matches_played'].replace(0, np.nan)
+    df['away_goals_per_match'] = df['away_goals_scored'] / df['away_matches_played'].replace(0, np.nan)
     
-    # Goal type percentages
-    for prefix in ['home', 'away']:
-        goals_col = f'{prefix}_goals_scored'
-        if goals_col in df.columns:
-            for method in ['counter', 'setpiece', 'openplay']:
-                col = f'{prefix}_goals_{method}_for'
-                if col in df.columns:
-                    df[f'{prefix}_{method}_pct'] = df[col] / df[goals_col].replace(0, np.nan)
+    df['home_xg_per_match'] = df['home_xg_for'] / df['home_matches_played'].replace(0, np.nan)
+    df['away_xg_per_match'] = df['away_xg_for'] / df['away_matches_played'].replace(0, np.nan)
     
-    # Fill NaN values
+    # 3. Goal type percentages
+    df['home_counter_pct'] = df['home_goals_counter_for'] / df['home_goals_scored'].replace(0, np.nan)
+    df['home_setpiece_pct'] = df['home_goals_setpiece_for'] / df['home_goals_scored'].replace(0, np.nan)
+    df['home_openplay_pct'] = df['home_goals_openplay_for'] / df['home_goals_scored'].replace(0, np.nan)
+    
+    df['away_counter_pct'] = df['away_goals_counter_for'] / df['away_goals_scored'].replace(0, np.nan)
+    df['away_setpiece_pct'] = df['away_goals_setpiece_for'] / df['away_goals_scored'].replace(0, np.nan)
+    df['away_openplay_pct'] = df['away_goals_openplay_for'] / df['away_goals_scored'].replace(0, np.nan)
+    
+    # 4. Fill NaN
     for col in df.columns:
         if df[col].dtype in ['float64', 'int64']:
             df[col] = df[col].fillna(0)
     
     return df
 
-def render_axioms():
-    """Display the v6.0 axioms."""
+# =================== STREAMLIT UI ===================
+def render_header():
+    """Render main header."""
+    st.markdown('<div class="main-header">🧠 BRUTBALL v6.0 - MATCH-STATE IDENTIFICATION ENGINE</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div style="text-align: center; color: #6B7280; margin-bottom: 2rem;">
+        <p>No hype. No redundancy. Every axiom has a job and failure condition.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+def render_league_selector():
+    """Render league selection buttons."""
+    st.markdown('<div class="axiom-header">🌍 SELECT LEAGUE</div>', unsafe_allow_html=True)
+    
+    cols = st.columns(5)
+    leagues = list(LEAGUES.keys())
+    
+    for idx, (col, league) in enumerate(zip(cols, leagues)):
+        with col:
+            config = LEAGUES[league]
+            if st.button(
+                config['display_name'],
+                use_container_width=True,
+                type="primary" if 'selected_league' not in st.session_state else "secondary"
+            ):
+                st.session_state.selected_league = league
+    
+    if 'selected_league' not in st.session_state:
+        st.session_state.selected_league = 'Premier League'
+    
+    config = LEAGUES[st.session_state.selected_league]
+    st.markdown(f"""
+    <div style="
+        padding: 1rem;
+        border-radius: 10px;
+        background: {config['color']}15;
+        border-left: 6px solid {config['color']};
+        margin: 1rem 0;
+        text-align: center;
+    ">
+        <h3 style="color: {config['color']}; margin: 0;">
+            {config['display_name']} • {config['country']}
+        </h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    return st.session_state.selected_league
+
+def render_match_selector(df: pd.DataFrame, league_name: str):
+    """Render team selection."""
+    st.markdown('<div class="axiom-header">🏟️ MATCH ANALYSIS</div>', unsafe_allow_html=True)
+    
+    config = LEAGUES[league_name]
+    st.markdown(f"""
+    <div style="
+        padding: 0.5rem 1rem;
+        background: {config['color']}10;
+        border-radius: 8px;
+        border: 1px solid {config['color']}30;
+        margin-bottom: 1rem;
+        text-align: center;
+        font-weight: 600;
+        color: {config['color']};
+    ">
+        {config['display_name']} • {len(df)} Teams Loaded
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        home_team = st.selectbox("🏠 HOME TEAM", sorted(df['team'].unique()))
+    with col2:
+        away_options = [t for t in sorted(df['team'].unique()) if t != home_team]
+        away_team = st.selectbox("✈️ AWAY TEAM", away_options)
+    
+    return home_team, away_team
+
+def render_v6_axioms():
+    """Display v6.0 axioms."""
+    st.markdown('<div class="axiom-header">🔐 BRUTBALL v6.0 AXIOMS</div>', unsafe_allow_html=True)
     
     axioms = [
         ("AXIOM 1", "FOOTBALL IS NOT SYMMETRIC", "Structural balance ≠ match balance"),
         ("AXIOM 2", "GAME-STATE CONTROL IS PRIMARY", "Team that imposes tempo after scoring owns match"),
-        ("AXIOM 3", "STRUCTURAL METRICS ARE CONTEXTUAL", "xG, form, crisis only matter after control known"),
         ("AXIOM 4", "GOALS ARE A CONSEQUENCE", "Goals follow state; they do not define it"),
         ("AXIOM 5", "ONE-SIDED CONTROL OVERRIDE", "When control is asymmetric, direction beats volume"),
         ("AXIOM 6", "DUAL FRAGILITY ≠ DUAL CHAOS", "Two bad defenses don't guarantee wild match"),
@@ -648,16 +621,15 @@ def render_axioms():
             """, unsafe_allow_html=True)
 
 def render_decision_tree():
-    """Display the decision tree."""
+    """Display decision tree."""
+    st.markdown('<div class="axiom-header">🧠 DECISION TREE</div>', unsafe_allow_html=True)
     
     st.markdown("""
-    ### 🧠 FINAL DECISION TREE (v6.0)
-    
     ```python
     1. Identify Game-State Controller
-       → If exists → Back them
+       → If exists → Back them (AXIOM 5)
     
-    2. If controller + opponent collapses when trailing
+    2. If controller + opponent collapses
        → Add goals bias
     
     3. If no controller
@@ -671,93 +643,89 @@ def render_decision_tree():
     """)
 
 def main():
-    """Main application."""
+    """Main application function."""
     
-    st.markdown('<div class="state-identifier">🧠 BRUTBALL v6.0 - MATCH-STATE IDENTIFICATION</div>', unsafe_allow_html=True)
-    st.markdown("**No hype. No redundancy. Every axiom has a job and failure condition.**")
+    render_header()
     
-    # Load sample data or user upload
-    st.markdown("---")
-    st.markdown("### 📁 DATA INPUT")
+    # Initialize session state
+    if 'selected_league' not in st.session_state:
+        st.session_state.selected_league = 'Premier League'
     
-    uploaded_file = st.file_uploader("Upload your league CSV (or use sample)", type=['csv'])
+    # Select league
+    selected_league = render_league_selector()
     
-    if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file)
-    else:
-        # Use a sample if available
-        st.info("Upload a CSV with team data, or [download sample template](https://example.com)")
+    # Load data
+    with st.spinner(f"Loading {LEAGUES[selected_league]['display_name']} data..."):
+        df = load_and_prepare_data(selected_league)
+    
+    if df is None:
+        st.error("Failed to load data. Please check if CSV files exist in the 'leagues/' directory.")
         return
     
-    # Calculate metrics
-    df = calculate_derived_metrics(df)
-    
     # Calculate league average xG
-    home_xg_avg = df['home_xg_for_per_match'].mean() if 'home_xg_for_per_match' in df.columns else 1.3
-    away_xg_avg = df['away_xg_for_per_match'].mean() if 'away_xg_for_per_match' in df.columns else 1.1
-    league_avg_xg = (home_xg_avg + away_xg_avg) / 2
+    if 'home_xg_per_match' in df.columns and 'away_xg_per_match' in df.columns:
+        league_avg_xg = (df['home_xg_per_match'].mean() + df['away_xg_per_match'].mean()) / 2
+    else:
+        league_avg_xg = 1.3  # Fallback
     
-    # Team selection
-    st.markdown("---")
-    st.markdown("### 🏟️ MATCH SELECTION")
+    # Select match
+    home_team, away_team = render_match_selector(df, selected_league)
     
-    col1, col2 = st.columns(2)
-    with col1:
-        home_team = st.selectbox("🏠 HOME TEAM", sorted(df['team'].unique()))
-    with col2:
-        away_options = [t for t in sorted(df['team'].unique()) if t != home_team]
-        away_team = st.selectbox("✈️ AWAY TEAM", away_options)
+    # Show axioms and decision tree
+    render_v6_axioms()
+    render_decision_tree()
     
-    # Get team data
-    home_data = df[df['team'] == home_team].iloc[0].to_dict()
-    away_data = df[df['team'] == away_team].iloc[0].to_dict()
-    
-    if st.button("🚀 EXECUTE STATE IDENTIFICATION", type="primary"):
+    # Analysis button
+    if st.button("🚀 EXECUTE MATCH-STATE ANALYSIS", type="primary", use_container_width=True):
         
-        # Execute decision tree
-        result = BrutballStateEngine.execute_decision_tree(
+        # Get team data
+        home_data = df[df['team'] == home_team].iloc[0].to_dict()
+        away_data = df[df['team'] == away_team].iloc[0].to_dict()
+        
+        # Execute v6.0 engine
+        result = BrutballStateEngine.execute_v6_tree(
             home_data, away_data, home_team, away_team, league_avg_xg
         )
         
         st.markdown("---")
         
         # Display controller identification
+        config = LEAGUES[selected_league]
         if result['controller']:
             st.markdown(f"""
             <div class="control-badge">
             <h2>🎯 GAME-STATE CONTROLLER IDENTIFIED</h2>
             <h1 style="color: #16A34A; margin: 0.5rem 0;">{result['controller']}</h1>
-            <p>Controls tempo, scoring opportunities, and match flow</p>
+            <p style="color: #6B7280;">Controls tempo, scoring, and match flow</p>
             </div>
             """, unsafe_allow_html=True)
         else:
             st.markdown(f"""
             <div class="no-control-badge">
-            <h2>⚠️ NO CLEAR CONTROLLER</h2>
-            <p>Match state is contested or undefined</p>
+            <h2>⚠️ NO CLEAR GAME-STATE CONTROLLER</h2>
+            <p style="color: #6B7280;">Match state is contested or undefined</p>
             </div>
             """, unsafe_allow_html=True)
         
         # Display primary action
-        action_color = "#16A34A" if "BACK" in result['primary_action'] else \
-                      "#EA580C" if "OVER" in result['primary_action'] else \
-                      "#2563EB" if "UNDER" in result['primary_action'] else "#6B7280"
+        action = result['primary_action']
+        if "BACK" in action:
+            color = "#16A34A"
+        elif "OVER" in action or "FADE" in action:
+            color = "#EA580C"
+        elif "UNDER" in action:
+            color = "#2563EB"
+        else:
+            color = "#6B7280"
         
         st.markdown(f"""
-        <div style="
-            padding: 2rem;
-            border-radius: 10px;
-            background: white;
-            border: 3px solid {action_color};
-            text-align: center;
-            margin: 1rem 0;
-        ">
+        <div class="action-display" style="border: 3px solid {color};">
             <h3 style="color: #374151; margin: 0 0 0.5rem 0;">PRIMARY ACTION</h3>
-            <h1 style="color: {action_color}; margin: 0;">{result['primary_action']}</h1>
-            <div style="display: flex; justify-content: center; margin-top: 1rem;">
+            <h1 style="color: {color}; margin: 0;">{action}</h1>
+            <div style="display: flex; justify-content: center; margin-top: 1.5rem;">
                 <div style="margin: 0 2rem;">
                     <div style="color: #6B7280;">Confidence</div>
-                    <div style="font-size: 2rem; font-weight: 800; color: {action_color};">{result['confidence']}/10</div>
+                    <div style="font-size: 2rem; font-weight: 800; color: {color};">{result['confidence']}/10</div>
                 </div>
                 <div style="margin: 0 2rem;">
                     <div style="color: #6B7280;">Stake</div>
@@ -767,105 +735,103 @@ def main():
         </div>
         """, unsafe_allow_html=True)
         
+        # Confidence bar
+        st.markdown(f"""
+        <div style="margin: 1rem 0;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                <span style="color: #6B7280; font-size: 0.9rem;">State Confidence</span>
+                <span style="font-weight: 600; color: {color}">{result['confidence']}/10</span>
+            </div>
+            <div class="confidence-bar" style="width: {result['confidence'] * 10}%;"></div>
+        </div>
+        """, unsafe_allow_html=True)
+        
         # Display rationale
-        with st.expander("📋 VIEW DECISION RATIONALE", expanded=True):
+        with st.expander("📋 VIEW COMPLETE RATIONALE", expanded=True):
             for line in result['rationale']:
-                if '===' in line:
+                if '🧠' in line or '🎯' in line:
                     st.markdown(f"**{line}**")
-                elif '🎯' in line or '✅' in line or '❌' in line or '⚠️' in line:
+                elif '✅' in line or '❌' in line or '⚠️' in line:
                     st.markdown(f"**{line}**")
-                elif line.startswith("•"):
-                    st.markdown(f"`{line}`")
-                elif line.strip():
+                elif '--' in line:
+                    st.markdown(f"*{line}*")
+                else:
                     st.markdown(line)
         
-        # Display key metrics
-        st.markdown("---")
-        st.markdown("### 📊 KEY METRICS")
+        # Key metrics
+        st.markdown('<div class="axiom-header">📊 KEY METRICS</div>', unsafe_allow_html=True)
         
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         
         with col1:
+            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
             st.markdown("#### ⚽ Expected Goals")
-            st.markdown(f'<div class="metric-display">Home: {result["key_metrics"]["home_xg"]:.2f}</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="metric-display">Away: {result["key_metrics"]["away_xg"]:.2f}</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="metric-display">Combined: {result["key_metrics"]["combined_xg"]:.2f}</div>', unsafe_allow_html=True)
+            st.metric("Home xG/Match", f"{result['key_metrics']['home_xg']:.2f}")
+            st.metric("Away xG/Match", f"{result['key_metrics']['away_xg']:.2f}")
+            st.metric("Combined xG", f"{result['key_metrics']['combined_xg']:.2f}")
+            st.metric("League Average", f"{result['key_metrics']['league_avg_xg']:.2f}")
+            st.markdown('</div>', unsafe_allow_html=True)
         
         with col2:
-            st.markdown("#### 🏆 Positions")
-            st.markdown(f'<div class="metric-display">{result["team_context"]["home"]}: #{result["key_metrics"]["home_pos"]}</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="metric-display">{result["team_context"]["away"]}: #{result["key_metrics"]["away_pos"]}</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="metric-display">Favorite: {result["team_context"]["favorite"]}</div>', unsafe_allow_html=True)
-        
-        with col3:
-            st.markdown("#### 📈 Form")
-            st.markdown(f'<div class="metric-display">{result["team_context"]["home"]}: {result["key_metrics"]["home_form"]}</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="metric-display">{result["team_context"]["away"]}: {result["key_metrics"]["away_form"]}</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="metric-display">League Avg xG: {league_avg_xg:.2f}</div>', unsafe_allow_html=True)
-        
-        # Display axioms
-        st.markdown("---")
-        st.markdown("### 🔐 ACTIVE AXIOMS")
-        render_axioms()
-        
-        # Display decision tree
-        render_decision_tree()
+            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+            st.markdown("#### 🏆 Team Context")
+            team_context = result['team_context']
+            st.metric(f"{team_context['home']}", f"#{result['key_metrics']['home_pos']}")
+            st.metric(f"{team_context['away']}", f"#{result['key_metrics']['away_pos']}")
+            st.metric("Favorite", team_context['favorite'])
+            st.metric("Underdog", team_context['underdog'])
+            st.markdown('</div>', unsafe_allow_html=True)
         
         # Export
         st.markdown("---")
-        st.markdown("### 📤 EXPORT ANALYSIS")
+        st.markdown("#### 📤 Export Analysis")
         
         export_text = f"""
 BRUTBALL v6.0 - MATCH-STATE ANALYSIS
 =====================================
+League: {selected_league}
 Match: {result['match']}
 Date: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 GAME-STATE IDENTIFICATION:
 • Controller: {result['controller'] if result['controller'] else 'NONE'}
 • Goals Environment: {result['has_goals_env']}
-• Symmetry: {'Present' if result['key_metrics']['home_xg'] - result['key_metrics']['away_xg'] < 0.2 else 'Broken'}
+• Favorite: {result['team_context']['favorite']}
+• Underdog: {result['team_context']['underdog']}
 
 DECISION:
 • Primary Action: {result['primary_action']}
 • Confidence: {result['confidence']}/10
-• Recommended Stake: {result['stake_pct']}% of bankroll
-• Secondary Signal: {result['secondary_signal'] if result['secondary_signal'] else 'N/A'}
-
-RATIONALE:
-{chr(10).join(result['rationale'])}
+• Stake: {result['stake_pct']}% of bankroll
+• Secondary: {result['secondary_signal'] if result['secondary_signal'] else 'N/A'}
 
 KEY METRICS:
 • Home xG: {result['key_metrics']['home_xg']:.2f}
 • Away xG: {result['key_metrics']['away_xg']:.2f}
 • Combined xG: {result['key_metrics']['combined_xg']:.2f}
-• Home Position: #{result['key_metrics']['home_pos']}
-• Away Position: #{result['key_metrics']['away_pos']}
+• League Avg xG: {result['key_metrics']['league_avg_xg']:.2f}
+
+RATIONALE:
+{chr(10).join(result['rationale'])}
 
 =====================================
 Brutball v6.0 - Match-State Identification Engine
-No hype. No redundancy. Football reality only.
         """
         
         st.download_button(
-            label="📥 Download Complete Analysis",
+            label="📥 Download Analysis Report",
             data=export_text,
-            file_name=f"brutball_{home_team}_vs_{away_team}_{pd.Timestamp.now().strftime('%Y%m%d')}.txt",
-            mime="text/plain"
+            file_name=f"brutball_v6_{selected_league.replace(' ', '_')}_{home_team}_vs_{away_team}.txt",
+            mime="text/plain",
+            use_container_width=True
         )
-    
-    # Always show axioms and decision tree
-    st.markdown("---")
-    render_axioms()
-    render_decision_tree()
     
     # Footer
     st.markdown("---")
     st.markdown("""
-    <div style="text-align: center; color: #6B7280; font-size: 0.9rem;">
-    <p><strong>Brutball v6.0 - Match-State Identification Engine</strong></p>
-    <p>Not a betting system. Football reality identification only.</p>
-    <p>Every axiom has a job. Every axiom has a failure condition.</p>
+    <div style="text-align: center; color: #6B7280; font-size: 0.9rem; padding: 1rem;">
+        <p><strong>Brutball v6.0 - Match-State Identification Engine</strong></p>
+        <p>Football reality identification. No forced bets. No chaos assumptions.</p>
     </div>
     """, unsafe_allow_html=True)
 
