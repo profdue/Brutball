@@ -87,17 +87,6 @@ st.markdown("""
         color: #3B82F6;
         font-size: 1.2rem;
     }
-    .axiom-badge {
-        display: inline-block;
-        padding: 0.25rem 0.75rem;
-        background: #10B98115;
-        color: #10B981;
-        border-radius: 20px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        margin: 0.25rem;
-        border: 1px solid #10B98130;
-    }
     .control-indicator {
         padding: 1.5rem;
         background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
@@ -162,33 +151,6 @@ st.markdown("""
         margin: 1rem 0;
         box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     }
-    .criteria-list {
-        padding-left: 1.5rem;
-        margin: 0.5rem 0;
-    }
-    .status-badge {
-        display: inline-block;
-        padding: 0.25rem 0.75rem;
-        border-radius: 20px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        margin: 0.25rem;
-    }
-    .status-success {
-        background: #DCFCE7;
-        color: #16A34A;
-        border: 1px solid #86EFAC;
-    }
-    .status-warning {
-        background: #FEF3C7;
-        color: #D97706;
-        border: 1px solid #FCD34D;
-    }
-    .status-neutral {
-        background: #F3F4F6;
-        color: #6B7280;
-        border: 1px solid #D1D5DB;
-    }
     .controller-badge {
         display: inline-block;
         padding: 0.25rem 0.75rem;
@@ -218,6 +180,44 @@ st.markdown("""
         border-left: 3px solid #F59E0B;
         margin: 0.5rem 0;
         font-size: 0.85rem;
+    }
+    .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin: 0.25rem;
+    }
+    .status-success {
+        background: #DCFCE7;
+        color: #16A34A;
+        border: 1px solid #86EFAC;
+    }
+    .status-warning {
+        background: #FEF3C7;
+        color: #D97706;
+        border: 1px solid #FCD34D;
+    }
+    .status-neutral {
+        background: #F3F4F6;
+        color: #6B7280;
+        border: 1px solid #D1D5DB;
+    }
+    .metric-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 0.5rem 0;
+        padding: 0.5rem;
+        border-radius: 4px;
+    }
+    .metric-row-controller {
+        background: #F0FDF4;
+        border-left: 3px solid #16A34A;
+    }
+    .metric-row-team {
+        background: #F9FAFB;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -398,8 +398,8 @@ class BrutballAuditEngine:
             if controller_xg_for_context < 1.6:
                 rationale.append(f"⚠️ AXIOM 4 nuance: Controller xG {controller_xg_for_context:.2f} < 1.6")
                 rationale.append("  • **Justification for backing & over:**")
-                rationale.append("    1. Overall environment supports scoring (combined xG ≥ 2.8)")
-                rationale.append("    2. Elite attack exists in match (max xG ≥ 1.6)")
+                rationale.append(f"    1. Overall environment supports scoring (combined xG: {combined_xg:.2f} ≥ 2.8)")
+                rationale.append(f"    2. Elite attack exists in match (max xG: {max_xg:.2f} ≥ 1.6)")
                 rationale.append("    3. Controller has structured tempo (>1.4 xG) regardless of elite threshold")
         
         # AXIOM 6: Dual fragility check (explicit)
@@ -449,7 +449,7 @@ class BrutballAuditEngine:
             if controller_xg < 1.6:
                 rationale.append(f"⚠️ Controller xG {controller_xg:.2f} < 1.6 elite threshold")
                 rationale.append("  • **Still valid because:**")
-                rationale.append("    1. Overall environment supports scoring (combined xG: {combined_xg:.2f})")
+                rationale.append(f"    1. Overall environment supports scoring (combined xG: {combined_xg:.2f})")
                 rationale.append("    2. Controller has structured tempo (>1.4 xG minimum)")
                 rationale.append("    3. Control takes precedence over raw xG volume")
                 confidence -= 0.5  # Small reduction
@@ -617,6 +617,7 @@ class BrutballAuditEngine:
             
             if adjustments:
                 rationale.append(f"• **Applied adjustments:** {', '.join(adjustments)}")
+                rationale.append(f"  • Note: High asymmetry can offset underdog reduction if both apply")
                 stake = max(0.5, min(stake, 3.0))  # Cap between 0.5% and 3.0%
                 rationale.append(f"• Stake capped between 0.5% and 3.0%")
             
@@ -1060,122 +1061,6 @@ def main():
         away_options = [t for t in sorted(df['team'].unique()) if t != home_team]
         away_team = st.selectbox("Away Team", away_options)
     
-    # Collapsible Axioms Section
-    with st.expander("🔐 VIEW BRUTBALL v6.0 AXIOMS (SEQUENTIAL)", expanded=False):
-        axioms = [
-            ("1", "FOOTBALL IS NOT SYMMETRIC", "Structural balance ≠ match balance"),
-            ("2", "GAME-STATE CONTROL IS PRIMARY", "Team imposing tempo after scoring owns the match"),
-            ("3", "STRUCTURAL METRICS ARE CONTEXTUAL", "xG, form, crisis matter only after GSC identification"),
-            ("4", "GOALS ARE A CONSEQUENCE, NOT A STRATEGY", "Goals follow state; they do not define it"),
-            ("5", "ONE-SIDED CONTROL OVERRIDE", "When control is asymmetric, direction beats volume"),
-            ("6", "DUAL FRAGILITY ≠ DUAL CHAOS", "Two weak defenses do not guarantee high-scoring game"),
-            ("7", "FAVORITES FAIL FOR STRUCTURAL REASONS", "Not because favorites, but due to lack of GSC"),
-            ("8", "UNDER IS A CONTROL OUTCOME", "Controller wins without urgency"),
-            ("9", "AVOID IS RARE AND EXPLICIT", "Only when no state advantage exists"),
-            ("10", "CAPITAL FOLLOWS STATE CONFIDENCE", "Stake size reflects clarity of control")
-        ]
-        
-        for num, title, desc in axioms:
-            st.markdown(f"""
-            <div class="axiom-section">
-                <strong>AXIOM {num}: {title}</strong><br>
-                <small>{desc}</small>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    # Collapsible Decision Tree Section
-    with st.expander("⚽ v6.0 DECISION TREE (WITH EXPLICIT THRESHOLDS & TIE-BREAKERS)", expanded=False):
-        
-        st.markdown("""
-        <div style="
-            padding: 1.5rem;
-            background: #F8FAFC;
-            border-radius: 8px;
-            border: 2px solid #E5E7EB;
-            font-family: 'Courier New', monospace;
-            font-size: 0.95rem;
-            line-height: 1.6;
-        ">
-        <strong>STEP 1: IDENTIFY GAME-STATE CONTROLLER (AXIOM 2)</strong><br>
-        &nbsp;&nbsp;• 4 control criteria<br>
-        &nbsp;&nbsp;• 2+ criteria needed<br>
-        &nbsp;&nbsp;• <strong>Tie-breaker:</strong> If both teams meet ≥2 criteria, select team with higher structured control score (sum of criteria weightings)<br>
-        <br>
-        <strong>STEP 2: EVALUATE GOALS ENVIRONMENT (AXIOMS 3,4,6)</strong><br>
-        &nbsp;&nbsp;• Combined xG ≥ 2.8<br>
-        &nbsp;&nbsp;• Elite attack ≥ 1.6 xG<br>
-        &nbsp;&nbsp;• Dual fragility check (both defenses weak)<br>
-        &nbsp;&nbsp;• <strong>Note:</strong> Controller xG < elite threshold is valid if overall environment supports scoring<br>
-        <br>
-        <strong>STEP 3: APPLY DECISION LOGIC</strong><br>
-        &nbsp;&nbsp;<strong>A.</strong> Controller exists → BACK CONTROLLER (AXIOM 5)<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;• +Goals env → & OVER 2.5<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;• -Goals env → Clean win (likely UNDER)<br>
-        <br>
-        &nbsp;&nbsp;<strong>B.</strong> No controller + Goals env →<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;• Can fade favorite? → FADE & OVER (AXIOM 7)<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;• Cannot fade → OVER only<br>
-        <br>
-        &nbsp;&nbsp;<strong>C.</strong> No controller + No goals →<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;• Under conditions → UNDER (AXIOM 8)<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;• Avoid conditions → AVOID (AXIOM 9)<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;• Fallback → UNDER<br>
-        <br>
-        <strong>STEP 4: ALLOCATE CAPITAL (AXIOM 10)</strong><br>
-        &nbsp;&nbsp;• Stake proportional to controller clarity<br>
-        &nbsp;&nbsp;• <strong>Confidence modifiers:</strong> Underdog controller slightly lowers stake; high asymmetry increases stake<br>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Thresholds Display
-    st.markdown("### 📏 EXPLICIT THRESHOLDS & NUANCES")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown('<div class="threshold-box">', unsafe_allow_html=True)
-        st.markdown("**CONTROL CRITERIA (AXIOM 2)**")
-        st.markdown("""
-        • Tempo dominance: xG > 1.4
-        • Scoring efficiency: >90% xG conversion
-        • Critical area threat: Set pieces >25%
-        • Repeatable patterns: Open play >50% OR counters >15%
-        <br>
-        <strong>Weightings for tie-breakers:</strong>
-        • Tempo/Scoring: 1.0
-        • Threat/Patterns: 0.8
-        """)
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown('<div class="threshold-box">', unsafe_allow_html=True)
-        st.markdown("**GOALS ENVIRONMENT (AXIOM 4)**")
-        st.markdown("""
-        • Combined xG ≥ 2.8
-        • Elite attack: ≥1.6 xG
-        • Dual fragility: Both defenses concede ≥12 last 5
-        • Tempo imposition: ≥1.3 xG
-        <br>
-        <strong>Nuance:</strong>
-        • Controller xG < 1.6 valid if environment supports
-        • Dual fragility ≠ chaos if controller exists
-        """)
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown('<div class="threshold-box">', unsafe_allow_html=True)
-        st.markdown("**UNDER/AVOID (AXIOMS 8,9)**")
-        st.markdown("""
-        • Under: Combined xG < 2.4 AND opponent xG < 1.1
-        • Avoid: No controller AND attacks <90% league avg AND combined xG < 2.4
-        • Chase capacity: <1.1 xG
-        <br>
-        <strong>Confidence adjustments:</strong>
-        • Underdog controller: -20% stake
-        • High asymmetry: +20% stake
-        """)
-        st.markdown('</div>', unsafe_allow_html=True)
-    
     # Execute analysis
     if st.button("🚀 EXECUTE MATCH-STATE ANALYSIS", type="primary", use_container_width=True):
         
@@ -1245,15 +1130,10 @@ def main():
             color = "#6B7280"
             badge = "Avoid (AXIOM 9)"
         
-        # Confidence adjustment display
-        confidence_adjustments_html = ""
+        # Confidence adjustment display (plain text for export compatibility)
+        confidence_adjustments_text = ""
         if result.get('stake_adjustments'):
-            confidence_adjustments_html = f"""
-            <div class="confidence-adjustment-box" style="margin-top: 1rem;">
-                <strong>Confidence Adjustments Applied:</strong><br>
-                {'<br>'.join([f'• {adj}' for adj in result['stake_adjustments']])}
-            </div>
-            """
+            confidence_adjustments_text = "\n".join([f"• {adj}" for adj in result['stake_adjustments']])
         
         st.markdown(f"""
         <div class="action-display" style="border-color: {color};">
@@ -1272,7 +1152,7 @@ def main():
                     <div class="stake-display">{result['stake_pct']:.2f}%</div>
                 </div>
             </div>
-            {confidence_adjustments_html}
+            {"<div class='confidence-adjustment-box'><strong>Confidence Adjustments Applied:</strong><br>" + "<br>".join([f"• {adj}" for adj in result['stake_adjustments']]) + "</div>" if result.get('stake_adjustments') else ""}
         </div>
         """, unsafe_allow_html=True)
         
@@ -1297,28 +1177,30 @@ def main():
             controller = result['controller']
             
             # Home xG - with controller distinction
-            home_label = f"<span class='team-label'>Home ({result['team_context']['home']})</span>"
-            if controller == result['team_context']['home']:
-                home_label = f"<span class='controller-label'>🏠 Home ({result['team_context']['home']})</span>"
+            is_home_controller = controller == result['team_context']['home']
+            home_class = "metric-row-controller" if is_home_controller else "metric-row-team"
+            home_icon = "🏠 " if is_home_controller else ""
+            home_badge = " (Controller)" if is_home_controller else ""
             
             home_status = "status-success" if home_xg >= 1.6 else "status-warning" if home_xg >= 1.0 else "status-neutral"
             st.markdown(f"""
-            <div style="display: flex; justify-content: space-between; align-items: center; margin: 0.5rem 0;">
-                <span>{home_label}</span>
+            <div class="metric-row {home_class}">
+                <span>{home_icon}<span class='{"controller-label" if is_home_controller else "team-label"}'>Home ({result['team_context']['home']}){home_badge}</span></span>
                 <span><strong>{home_xg:.2f}</strong></span>
                 <span class="status-badge {home_status}">{'≥1.6' if home_xg >= 1.6 else '≥1.0' if home_xg >= 1.0 else '<1.0'}</span>
             </div>
             """, unsafe_allow_html=True)
             
             # Away xG - with controller distinction
-            away_label = f"<span class='team-label'>Away ({result['team_context']['away']})</span>"
-            if controller == result['team_context']['away']:
-                away_label = f"<span class='controller-label'>✈️ Away ({result['team_context']['away']})</span>"
+            is_away_controller = controller == result['team_context']['away']
+            away_class = "metric-row-controller" if is_away_controller else "metric-row-team"
+            away_icon = "✈️ " if is_away_controller else ""
+            away_badge = " (Controller)" if is_away_controller else ""
             
             away_status = "status-success" if away_xg >= 1.6 else "status-warning" if away_xg >= 1.0 else "status-neutral"
             st.markdown(f"""
-            <div style="display: flex; justify-content: space-between; align-items: center; margin: 0.5rem 0;">
-                <span>{away_label}</span>
+            <div class="metric-row {away_class}">
+                <span>{away_icon}<span class='{"controller-label" if is_away_controller else "team-label"}'>Away ({result['team_context']['away']}){away_badge}</span></span>
                 <span><strong>{away_xg:.2f}</strong></span>
                 <span class="status-badge {away_status}">{'≥1.6' if away_xg >= 1.6 else '≥1.0' if away_xg >= 1.0 else '<1.0'}</span>
             </div>
@@ -1327,20 +1209,21 @@ def main():
             # Combined xG
             combined_status = "status-success" if combined_xg >= 2.8 else "status-warning" if combined_xg >= 2.0 else "status-neutral"
             st.markdown(f"""
-            <div style="display: flex; justify-content: space-between; align-items: center; margin: 0.5rem 0;">
+            <div class="metric-row">
                 <span>Combined xG:</span>
                 <span><strong>{combined_xg:.2f}</strong></span>
                 <span class="status-badge {combined_status}">{'≥2.8' if combined_xg >= 2.8 else '≥2.0' if combined_xg >= 2.0 else '<2.0'}</span>
             </div>
             """, unsafe_allow_html=True)
             
-            # Controller xG note with enhanced justification
+            # Controller xG note with ENHANCED justification and ACTUAL VALUES
             if controller and controller_xg < 1.6:
+                max_xg = max(home_xg, away_xg)
                 st.markdown('<div class="nuance-box">', unsafe_allow_html=True)
                 st.markdown(f"**🎯 AXIOM 4 nuance: Controller xG {controller_xg:.2f} < 1.6 elite threshold**")
                 st.markdown("**Justification for BACK & OVER:**")
-                st.markdown("1. **Overall environment supports scoring** (combined xG: {combined_xg:.2f} ≥ 2.8)".format(combined_xg=combined_xg))
-                st.markdown("2. **Elite attack exists in match** (max xG: {max_xg:.2f} ≥ 1.6)".format(max_xg=max(home_xg, away_xg)))
+                st.markdown(f"1. **Overall environment supports scoring** (combined xG: {combined_xg:.2f} ≥ 2.8)")
+                st.markdown(f"2. **Elite attack exists in match** (max xG: {max_xg:.2f} ≥ 1.6)")
                 st.markdown("3. **Controller has structured tempo** (>1.4 xG minimum for control)")
                 st.markdown("4. **Control takes precedence** over raw xG volume (AXIOM 5)")
                 st.markdown('</div>', unsafe_allow_html=True)
@@ -1401,16 +1284,20 @@ def main():
                 st.markdown("**Control > Status** → underdog controller valid despite favorite status")
                 st.markdown('</div>', unsafe_allow_html=True)
             
-            # Asymmetry level display
+            # Asymmetry level display with adjustment note
             asymmetry = result['key_metrics']['asymmetry_level']
             asymmetry_status = "High" if asymmetry > 0.5 else "Moderate" if asymmetry > 0.3 else "Low"
             asymmetry_color = "#F59E0B" if asymmetry > 0.5 else "#6B7280"
+            asymmetry_note = " (+20% stake adjustment)" if asymmetry > 0.5 else ""
             
             st.markdown(f"""
             <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #E5E7EB;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin: 0.5rem 0;">
                     <span>Asymmetry Level:</span>
-                    <span><strong style="color: {asymmetry_color};">{asymmetry:.2f} ({asymmetry_status})</strong></span>
+                    <span><strong style="color: {asymmetry_color};">{asymmetry:.2f} ({asymmetry_status}){asymmetry_note}</strong></span>
+                </div>
+                <div style="font-size: 0.8rem; color: #6B7280; margin-top: 0.5rem;">
+                    {"High asymmetry (>0.5) increases stake by 20% to reflect clearer control direction" if asymmetry > 0.5 else "Moderate/low asymmetry has no stake adjustment"}
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -1433,9 +1320,27 @@ def main():
         st.markdown("---")
         st.markdown("#### 📤 Export Audit Report")
         
-        # Safely format all values for export
+        # Safely format all values for export with ACTUAL VALUES, NO PLACEHOLDERS
         controller_xg_display = f"{result['key_metrics']['controller_xg']:.2f}" if result['controller'] else "N/A"
         max_xg = max(result['key_metrics']['home_xg'], result['key_metrics']['away_xg'])
+        combined_xg = result['key_metrics']['combined_xg']
+        
+        # Build justification text with ACTUAL VALUES
+        justification_text = ""
+        if result['controller'] and result['key_metrics']['controller_xg'] < 1.6:
+            justification_text = f"""CONTROLLER JUSTIFICATION (Sub-elite xG):
+1. Overall environment supports scoring (combined xG: {combined_xg:.2f} ≥ 2.8)
+2. Elite attack exists in match (max xG: {max_xg:.2f} ≥ 1.6)
+3. Controller has structured tempo (>1.4 xG minimum for control)
+4. Control takes precedence over raw xG volume (AXIOM 5)
+"""
+        
+        # Build adjustments text
+        adjustments_text = "None"
+        if result.get('stake_adjustments'):
+            adjustments_text = "\n".join([f"  • {adj}" for adj in result['stake_adjustments']])
+            if len(result['stake_adjustments']) > 1:
+                adjustments_text += "\n  • Note: High asymmetry can offset underdog reduction if both apply"
         
         export_text = f"""BRUTBALL v6.0 - AUDIT-READY ANALYSIS REPORT
 ===========================================
@@ -1452,12 +1357,13 @@ FINAL DECISION:
 • Stake: {result['stake_pct']:.2f}% of bankroll (AXIOM 10)
 • Logic: {result['secondary_logic'] if result['secondary_logic'] else 'Direct application of axioms'}
 • Tie-breaker applied: {'Yes' if result['tie_breaker_applied'] else 'No'}
-• Stake adjustments: {', '.join(result.get('stake_adjustments', ['None']))}
+• Stake adjustments:
+{adjustments_text}
 
 KEY METRICS WITH THRESHOLDS:
 • Home xG: {result['key_metrics']['home_xg']:.2f} ({'≥1.6' if result['key_metrics']['home_xg'] >= 1.6 else '<1.6'})
 • Away xG: {result['key_metrics']['away_xg']:.2f} ({'≥1.6' if result['key_metrics']['away_xg'] >= 1.6 else '<1.6'})
-• Combined xG: {result['key_metrics']['combined_xg']:.2f} ({'≥2.8' if result['key_metrics']['combined_xg'] >= 2.8 else '<2.8'})
+• Combined xG: {combined_xg:.2f} ({'≥2.8' if combined_xg >= 2.8 else '<2.8'})
 • Controller xG: {controller_xg_display} ({'≥1.6' if result['controller'] and result['key_metrics']['controller_xg'] >= 1.6 else '<1.6' if result['controller'] else 'N/A'})
 • League Average: {result['key_metrics']['league_avg_xg']:.2f}
 • Asymmetry Level: {result['key_metrics']['asymmetry_level']:.2f} ({'High' if result['key_metrics']['asymmetry_level'] > 0.5 else 'Moderate' if result['key_metrics']['asymmetry_level'] > 0.3 else 'Low'})
@@ -1469,12 +1375,7 @@ TEAM CONTEXT:
 • Home Position: #{result['team_context']['home_pos']}
 • Away Position: #{result['team_context']['away_pos']}
 
-CONTROLLER JUSTIFICATION{' (Sub-elite xG)' if result['controller'] and result['key_metrics']['controller_xg'] < 1.6 else ''}:
-{'1. Overall environment supports scoring (combined xG: ' + f'{result["key_metrics"]["combined_xg"]:.2f}' + ' ≥ 2.8)' if result['controller'] and result['key_metrics']['controller_xg'] < 1.6 else ''}
-{'2. Elite attack exists in match (max xG: ' + f'{max_xg:.2f}' + ' ≥ 1.6)' if result['controller'] and result['key_metrics']['controller_xg'] < 1.6 else ''}
-{'3. Controller has structured tempo (>1.4 xG minimum for control)' if result['controller'] and result['key_metrics']['controller_xg'] < 1.6 else ''}
-{'4. Control takes precedence over raw xG volume (AXIOM 5)' if result['controller'] and result['key_metrics']['controller_xg'] < 1.6 else ''}
-
+{justification_text}
 AUDIT LOG:
 {chr(10).join(result['audit_log'])}
 
