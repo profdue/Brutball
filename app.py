@@ -44,6 +44,18 @@ LEAGUES = {
         'display_name': '🇫🇷 Ligue 1',
         'country': 'France',
         'color': '#8B5CF6'
+    },
+    'Eredivisie': {
+        'filename': 'eredivisie.csv',
+        'display_name': '🇳🇱 Eredivisie',
+        'country': 'Netherlands',
+        'color': '#F59E0B'
+    },
+    'Primeira Liga': {
+        'filename': 'premeira_portugal.csv',
+        'display_name': '🇵🇹 Primeira Liga',
+        'country': 'Portugal',
+        'color': '#DC2626'
     }
 }
 
@@ -1028,7 +1040,9 @@ def main():
     
     # League selection
     st.markdown("### 🌍 League Selection")
-    cols = st.columns(5)
+    
+    # Calculate number of columns needed (7 leagues)
+    cols = st.columns(7)
     leagues = list(LEAGUES.keys())
     
     for idx, (col, league) in enumerate(zip(cols, leagues)):
@@ -1037,7 +1051,7 @@ def main():
             if st.button(
                 config['display_name'],
                 use_container_width=True,
-                type="primary" if 'selected_league' not in st.session_state else "secondary"
+                type="primary" if st.session_state.selected_league == league else "secondary"
             ):
                 st.session_state.selected_league = league
     
