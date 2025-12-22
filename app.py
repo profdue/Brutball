@@ -327,7 +327,8 @@ class BrutballAuditEngine:
     # AXIOM 4 & 6: GOALS ENVIRONMENT + DUAL FRAGILITY
     @staticmethod
     def evaluate_goals_environment(home_data: Dict, away_data: Dict,
-                                 controller: Optional[str]) -> Tuple[bool, List[str], float]:
+                                 controller: Optional[str],
+                                 home_name: str, away_name: str) -> Tuple[bool, List[str], float]:
         """
         AXIOM 4: Goals are consequence, not strategy
         AXIOM 6: Dual fragility ≠ dual chaos
@@ -695,7 +696,7 @@ class BrutballAuditEngine:
         
         # Evaluate goals environment (AXIOM 4 & 6) with explicit thresholds
         has_goals_env, goals_rationale, controller_xg = cls.evaluate_goals_environment(
-            home_data, away_data, controller
+            home_data, away_data, controller, home_name, away_name
         )
         audit_log.extend(goals_rationale)
         
@@ -771,7 +772,9 @@ class BrutballAuditEngine:
             # CASE C: No controller + No goals (AXIOMS 8,9)
             # Check Under conditions first (AXIOM 8)
             under_ok, under_rationale = cls.evaluate_under_conditions(
-                controller, away_xg, combined_xg
+                controller,
+                away_xg,  # Using away as opponent for home controller check
+                combined_xg
             )
             
             if under_ok:
