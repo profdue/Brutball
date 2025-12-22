@@ -189,6 +189,36 @@ st.markdown("""
         color: #6B7280;
         border: 1px solid #D1D5DB;
     }
+    .controller-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        background: #16A34A15;
+        color: #16A34A;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        margin: 0.25rem;
+        border: 1px solid #16A34A30;
+    }
+    .team-label {
+        font-weight: 600;
+        color: #4B5563;
+    }
+    .controller-label {
+        font-weight: 700;
+        color: #16A34A;
+        background: #16A34A10;
+        padding: 0.1rem 0.5rem;
+        border-radius: 4px;
+    }
+    .confidence-adjustment-box {
+        background: #FEF3C7;
+        padding: 0.75rem;
+        border-radius: 6px;
+        border-left: 3px solid #F59E0B;
+        margin: 0.5rem 0;
+        font-size: 0.85rem;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -367,7 +397,10 @@ class BrutballAuditEngine:
             
             if controller_xg_for_context < 1.6:
                 rationale.append(f"⚠️ AXIOM 4 nuance: Controller xG {controller_xg_for_context:.2f} < 1.6")
-                rationale.append("  • Valid if overall environment supports scoring")
+                rationale.append("  • **Justification for backing & over:**")
+                rationale.append("    1. Overall environment supports scoring (combined xG ≥ 2.8)")
+                rationale.append("    2. Elite attack exists in match (max xG ≥ 1.6)")
+                rationale.append("    3. Controller has structured tempo (>1.4 xG) regardless of elite threshold")
         
         # AXIOM 6: Dual fragility check (explicit)
         rationale.append("🔍 AXIOM 6: DUAL FRAGILITY CHECK")
@@ -395,7 +428,8 @@ class BrutballAuditEngine:
     @staticmethod
     def apply_one_sided_override(controller: str, opponent_name: str,
                                controller_xg: float, has_goals_env: bool,
-                               combined_xg: float, is_underdog: bool) -> Tuple[str, float, List[str]]:
+                               combined_xg: float, is_underdog: bool,
+                               asymmetry_level: float) -> Tuple[str, float, List[str]]:
         """Apply one-sided control override with confidence adjustments."""
         rationale = []
         
@@ -414,7 +448,10 @@ class BrutballAuditEngine:
             # Confidence adjustment for controller xG < elite threshold
             if controller_xg < 1.6:
                 rationale.append(f"⚠️ Controller xG {controller_xg:.2f} < 1.6 elite threshold")
-                rationale.append("  • Overall environment supports scoring")
+                rationale.append("  • **Still valid because:**")
+                rationale.append("    1. Overall environment supports scoring (combined xG: {combined_xg:.2f})")
+                rationale.append("    2. Controller has structured tempo (>1.4 xG minimum)")
+                rationale.append("    3. Control takes precedence over raw xG volume")
                 confidence -= 0.5  # Small reduction
             
             rationale.append("• AXIOM 5: Controller + goals environment → Back & Over")
@@ -423,10 +460,26 @@ class BrutballAuditEngine:
             confidence = 9.0
             rationale.append("• AXIOM 5: Controller without goals → Clean win (likely UNDER)")
         
-        # Confidence adjustment for underdog controller
+        # Confidence adjustments with explanations
+        adjustments = []
+        adjustment_details = []
+        
         if is_underdog:
-            rationale.append(f"⚠️ Controller is underdog → stake slightly moderated")
             confidence -= 0.5  # Small reduction for underdog controller
+            adjustments.append("Underdog controller (-0.5)")
+            adjustment_details.append(f"Underdog controller: {controller} is underdog → slightly lower confidence")
+        
+        if asymmetry_level > 0.5:  # High asymmetry
+            confidence += 0.3  # Increase for high asymmetry
+            adjustments.append("High asymmetry (+0.3)")
+            adjustment_details.append(f"High asymmetry ({asymmetry_level:.2f} > 0.5) → clearer control direction")
+        
+        if adjustments:
+            rationale.append("• **Confidence adjustments:** " + ", ".join(adjustments))
+            for detail in adjustment_details:
+                rationale.append(f"  • {detail}")
+        
+        confidence = max(5.0, min(10.0, confidence))  # Cap between 5.0 and 10.0
         
         return action, confidence, rationale
     
@@ -528,12 +581,13 @@ class BrutballAuditEngine:
                         confidence: float,
                         has_goals_env: bool,
                         is_underdog_controller: bool,
-                        asymmetry_level: float) -> Tuple[float, List[str]]:
+                        asymmetry_level: float) -> Tuple[float, List[str], List[str]]:
         """Determine stake size based on state confidence with adjustments."""
         rationale = []
+        adjustments = []
         
         rationale.append("💰 AXIOM 10: CAPITAL ALLOCATION")
-        rationale.append(f"• Base confidence: {confidence}/10")
+        rationale.append(f"• Base confidence: {confidence:.1f}/10")
         
         if controller:
             # Base stake based on confidence
@@ -550,20 +604,21 @@ class BrutballAuditEngine:
                 stake = 1.0  # Low confidence
                 rationale.append(f"• Low confidence → 1.0% base stake")
             
-            # Confidence adjustments
-            adjustments = []
-            
+            # Confidence adjustments with tracking
             if is_underdog_controller:
                 stake *= 0.8  # Reduce by 20% for underdog controller
-                adjustments.append("Underdog controller (-20%)")
+                adjustments.append(f"Underdog controller: -20% (×0.8)")
+                rationale.append(f"• Underdog controller → stake reduced by 20%")
             
             if asymmetry_level > 0.5:  # High asymmetry
                 stake *= 1.2  # Increase by 20% for high asymmetry
-                adjustments.append("High asymmetry (+20%)")
+                adjustments.append(f"High asymmetry ({asymmetry_level:.2f} > 0.5): +20% (×1.2)")
+                rationale.append(f"• High asymmetry ({asymmetry_level:.2f} > 0.5) → stake increased by 20%")
             
             if adjustments:
-                rationale.append(f"• Adjustments: {', '.join(adjustments)}")
+                rationale.append(f"• **Applied adjustments:** {', '.join(adjustments)}")
                 stake = max(0.5, min(stake, 3.0))  # Cap between 0.5% and 3.0%
+                rationale.append(f"• Stake capped between 0.5% and 3.0%")
             
         elif has_goals_env:
             stake = 0.5  # Minimal for goals only
@@ -572,8 +627,8 @@ class BrutballAuditEngine:
             stake = 0.0  # Avoid
             rationale.append("• No edge → 0.0% stake (AVOID)")
         
-        rationale.append(f"• Final stake: {stake:.2f}% of bankroll")
-        return stake, rationale
+        rationale.append(f"• **Final stake: {stake:.2f}%** of bankroll")
+        return stake, rationale, adjustments
     
     # MAIN AUDIT-READY DECISION TREE
     @classmethod
@@ -725,7 +780,7 @@ class BrutballAuditEngine:
             
             action, conf, override_rationale = cls.apply_one_sided_override(
                 controller, opponent, controller_xg, has_goals_env,
-                combined_xg, is_underdog
+                combined_xg, is_underdog, asymmetry_level
             )
             audit_log.extend(override_rationale)
             primary_action = action
@@ -805,25 +860,30 @@ class BrutballAuditEngine:
         audit_log.append("STEP 4: ALLOCATE CAPITAL (AXIOM 10)")
         
         is_underdog_controller = controller == underdog if controller else False
-        stake_pct, stake_rationale = cls.allocate_capital(
+        stake_pct, stake_rationale, stake_adjustments = cls.allocate_capital(
             controller, confidence, has_goals_env,
             is_underdog_controller, asymmetry_level
         )
         audit_log.extend(stake_rationale)
         
         decision_steps.append(f"4. Stake: {stake_pct:.2f}% (with confidence adjustments)")
+        if stake_adjustments:
+            for adj in stake_adjustments:
+                decision_steps.append(f"   - {adj}")
         
         # Final summary
         audit_log.append("")
         audit_log.append("=" * 70)
         audit_log.append("🎯 FINAL DECISION")
         audit_log.append(f"• Action: {primary_action}")
-        audit_log.append(f"• Confidence: {confidence}/10")
+        audit_log.append(f"• Confidence: {confidence:.1f}/10")
         audit_log.append(f"• Stake: {stake_pct:.2f}% of bankroll")
         if secondary_logic:
             audit_log.append(f"• Logic: {secondary_logic}")
         if tie_breaker_applied:
             audit_log.append("• Note: Tie-breaker applied for controller selection")
+        if stake_adjustments:
+            audit_log.append(f"• Stake adjustments: {', '.join(stake_adjustments)}")
         audit_log.append("=" * 70)
         
         return {
@@ -854,7 +914,8 @@ class BrutballAuditEngine:
                 'combined_xg': combined_xg,
                 'league_avg_xg': league_avg_xg,
                 'asymmetry_level': asymmetry_level
-            }
+            },
+            'stake_adjustments': stake_adjustments
         }
 
 # =================== DATA LOADING ===================
@@ -1184,6 +1245,16 @@ def main():
             color = "#6B7280"
             badge = "Avoid (AXIOM 9)"
         
+        # Confidence adjustment display
+        confidence_adjustments_html = ""
+        if result.get('stake_adjustments'):
+            confidence_adjustments_html = f"""
+            <div class="confidence-adjustment-box" style="margin-top: 1rem;">
+                <strong>Confidence Adjustments Applied:</strong><br>
+                {'<br>'.join([f'• {adj}' for adj in result['stake_adjustments']])}
+            </div>
+            """
+        
         st.markdown(f"""
         <div class="action-display" style="border-color: {color};">
             <div style="color: #6B7280; font-size: 0.9rem;">PRIMARY ACTION</div>
@@ -1201,6 +1272,7 @@ def main():
                     <div class="stake-display">{result['stake_pct']:.2f}%</div>
                 </div>
             </div>
+            {confidence_adjustments_html}
         </div>
         """, unsafe_allow_html=True)
         
@@ -1222,22 +1294,31 @@ def main():
             away_xg = result['key_metrics']['away_xg']
             combined_xg = result['key_metrics']['combined_xg']
             controller_xg = result['key_metrics']['controller_xg']
+            controller = result['controller']
             
-            # Home xG
+            # Home xG - with controller distinction
+            home_label = f"<span class='team-label'>Home ({result['team_context']['home']})</span>"
+            if controller == result['team_context']['home']:
+                home_label = f"<span class='controller-label'>🏠 Home ({result['team_context']['home']})</span>"
+            
             home_status = "status-success" if home_xg >= 1.6 else "status-warning" if home_xg >= 1.0 else "status-neutral"
             st.markdown(f"""
             <div style="display: flex; justify-content: space-between; align-items: center; margin: 0.5rem 0;">
-                <span>Home xG:</span>
+                <span>{home_label}</span>
                 <span><strong>{home_xg:.2f}</strong></span>
                 <span class="status-badge {home_status}">{'≥1.6' if home_xg >= 1.6 else '≥1.0' if home_xg >= 1.0 else '<1.0'}</span>
             </div>
             """, unsafe_allow_html=True)
             
-            # Away xG
+            # Away xG - with controller distinction
+            away_label = f"<span class='team-label'>Away ({result['team_context']['away']})</span>"
+            if controller == result['team_context']['away']:
+                away_label = f"<span class='controller-label'>✈️ Away ({result['team_context']['away']})</span>"
+            
             away_status = "status-success" if away_xg >= 1.6 else "status-warning" if away_xg >= 1.0 else "status-neutral"
             st.markdown(f"""
             <div style="display: flex; justify-content: space-between; align-items: center; margin: 0.5rem 0;">
-                <span>Away xG:</span>
+                <span>{away_label}</span>
                 <span><strong>{away_xg:.2f}</strong></span>
                 <span class="status-badge {away_status}">{'≥1.6' if away_xg >= 1.6 else '≥1.0' if away_xg >= 1.0 else '<1.0'}</span>
             </div>
@@ -1253,11 +1334,15 @@ def main():
             </div>
             """, unsafe_allow_html=True)
             
-            # Threshold notes
-            if result['controller'] and controller_xg < 1.6:
+            # Controller xG note with enhanced justification
+            if controller and controller_xg < 1.6:
                 st.markdown('<div class="nuance-box">', unsafe_allow_html=True)
-                st.markdown(f"**AXIOM 4 nuance:** Controller xG {controller_xg:.2f} < 1.6 elite threshold")
-                st.markdown("Valid because overall environment supports scoring")
+                st.markdown(f"**🎯 AXIOM 4 nuance: Controller xG {controller_xg:.2f} < 1.6 elite threshold**")
+                st.markdown("**Justification for BACK & OVER:**")
+                st.markdown("1. **Overall environment supports scoring** (combined xG: {combined_xg:.2f} ≥ 2.8)".format(combined_xg=combined_xg))
+                st.markdown("2. **Elite attack exists in match** (max xG: {max_xg:.2f} ≥ 1.6)".format(max_xg=max(home_xg, away_xg)))
+                st.markdown("3. **Controller has structured tempo** (>1.4 xG minimum for control)")
+                st.markdown("4. **Control takes precedence** over raw xG volume (AXIOM 5)")
                 st.markdown('</div>', unsafe_allow_html=True)
             
             st.markdown('</div>', unsafe_allow_html=True)
@@ -1268,20 +1353,32 @@ def main():
             ctx = result['team_context']
             
             # Home team
+            home_star = '⭐' if ctx['home'] == ctx['favorite'] else '⚫'
+            home_badge = 'status-success' if ctx['home'] == ctx['favorite'] else 'status-neutral'
+            if controller == ctx['home']:
+                home_star = '🎯'
+                home_badge = 'status-success'
+            
             st.markdown(f"""
             <div style="display: flex; justify-content: space-between; align-items: center; margin: 0.5rem 0;">
                 <span>{ctx['home']}:</span>
                 <span><strong>#{ctx['home_pos']}</strong></span>
-                <span class="status-badge {'status-success' if ctx['home'] == ctx['favorite'] else 'status-neutral'}">{'⭐' if ctx['home'] == ctx['favorite'] else '⚫'}</span>
+                <span class="status-badge {home_badge}">{home_star}</span>
             </div>
             """, unsafe_allow_html=True)
             
             # Away team
+            away_star = '⭐' if ctx['away'] == ctx['favorite'] else '⚫'
+            away_badge = 'status-success' if ctx['away'] == ctx['favorite'] else 'status-neutral'
+            if controller == ctx['away']:
+                away_star = '🎯'
+                away_badge = 'status-success'
+            
             st.markdown(f"""
             <div style="display: flex; justify-content: space-between; align-items: center; margin: 0.5rem 0;">
                 <span>{ctx['away']}:</span>
                 <span><strong>#{ctx['away_pos']}</strong></span>
-                <span class="status-badge {'status-success' if ctx['away'] == ctx['favorite'] else 'status-neutral'}">{'⭐' if ctx['away'] == ctx['favorite'] else '⚫'}</span>
+                <span class="status-badge {away_badge}">{away_star}</span>
             </div>
             """, unsafe_allow_html=True)
             
@@ -1298,11 +1395,25 @@ def main():
             </div>
             """, unsafe_allow_html=True)
             
-            if result['controller'] and result['controller'] == ctx['underdog']:
+            if controller and controller == ctx['underdog']:
                 st.markdown('<div class="nuance-box">', unsafe_allow_html=True)
-                st.markdown("**AXIOM 7 validated:** Underdog controls state")
-                st.markdown("Control > Status → underdog controller valid")
+                st.markdown("**✅ AXIOM 7 validated:** Underdog controls state")
+                st.markdown("**Control > Status** → underdog controller valid despite favorite status")
                 st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Asymmetry level display
+            asymmetry = result['key_metrics']['asymmetry_level']
+            asymmetry_status = "High" if asymmetry > 0.5 else "Moderate" if asymmetry > 0.3 else "Low"
+            asymmetry_color = "#F59E0B" if asymmetry > 0.5 else "#6B7280"
+            
+            st.markdown(f"""
+            <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #E5E7EB;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin: 0.5rem 0;">
+                    <span>Asymmetry Level:</span>
+                    <span><strong style="color: {asymmetry_color};">{asymmetry:.2f} ({asymmetry_status})</strong></span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             
             st.markdown('</div>', unsafe_allow_html=True)
         
@@ -1322,8 +1433,9 @@ def main():
         st.markdown("---")
         st.markdown("#### 📤 Export Audit Report")
         
-        # Safely format controller xG for export
+        # Safely format all values for export
         controller_xg_display = f"{result['key_metrics']['controller_xg']:.2f}" if result['controller'] else "N/A"
+        max_xg = max(result['key_metrics']['home_xg'], result['key_metrics']['away_xg'])
         
         export_text = f"""BRUTBALL v6.0 - AUDIT-READY ANALYSIS REPORT
 ===========================================
@@ -1340,6 +1452,7 @@ FINAL DECISION:
 • Stake: {result['stake_pct']:.2f}% of bankroll (AXIOM 10)
 • Logic: {result['secondary_logic'] if result['secondary_logic'] else 'Direct application of axioms'}
 • Tie-breaker applied: {'Yes' if result['tie_breaker_applied'] else 'No'}
+• Stake adjustments: {', '.join(result.get('stake_adjustments', ['None']))}
 
 KEY METRICS WITH THRESHOLDS:
 • Home xG: {result['key_metrics']['home_xg']:.2f} ({'≥1.6' if result['key_metrics']['home_xg'] >= 1.6 else '<1.6'})
@@ -1347,12 +1460,20 @@ KEY METRICS WITH THRESHOLDS:
 • Combined xG: {result['key_metrics']['combined_xg']:.2f} ({'≥2.8' if result['key_metrics']['combined_xg'] >= 2.8 else '<2.8'})
 • Controller xG: {controller_xg_display} ({'≥1.6' if result['controller'] and result['key_metrics']['controller_xg'] >= 1.6 else '<1.6' if result['controller'] else 'N/A'})
 • League Average: {result['key_metrics']['league_avg_xg']:.2f}
-• Asymmetry Level: {result['key_metrics']['asymmetry_level']:.2f}
+• Asymmetry Level: {result['key_metrics']['asymmetry_level']:.2f} ({'High' if result['key_metrics']['asymmetry_level'] > 0.5 else 'Moderate' if result['key_metrics']['asymmetry_level'] > 0.3 else 'Low'})
 
 TEAM CONTEXT:
 • Favorite: {result['team_context']['favorite']} (#{min(result['team_context']['home_pos'], result['team_context']['away_pos'])})
 • Underdog: {result['team_context']['underdog']} (#{max(result['team_context']['home_pos'], result['team_context']['away_pos'])})
 • Underdog Controller: {'Yes' if result['controller'] == result['team_context']['underdog'] else 'No'}
+• Home Position: #{result['team_context']['home_pos']}
+• Away Position: #{result['team_context']['away_pos']}
+
+CONTROLLER JUSTIFICATION{' (Sub-elite xG)' if result['controller'] and result['key_metrics']['controller_xg'] < 1.6 else ''}:
+{'1. Overall environment supports scoring (combined xG: ' + f'{result["key_metrics"]["combined_xg"]:.2f}' + ' ≥ 2.8)' if result['controller'] and result['key_metrics']['controller_xg'] < 1.6 else ''}
+{'2. Elite attack exists in match (max xG: ' + f'{max_xg:.2f}' + ' ≥ 1.6)' if result['controller'] and result['key_metrics']['controller_xg'] < 1.6 else ''}
+{'3. Controller has structured tempo (>1.4 xG minimum for control)' if result['controller'] and result['key_metrics']['controller_xg'] < 1.6 else ''}
+{'4. Control takes precedence over raw xG volume (AXIOM 5)' if result['controller'] and result['key_metrics']['controller_xg'] < 1.6 else ''}
 
 AUDIT LOG:
 {chr(10).join(result['audit_log'])}
