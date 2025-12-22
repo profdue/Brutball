@@ -65,14 +65,6 @@ st.markdown("""
         margin-bottom: 2rem;
         font-size: 0.95rem;
     }
-    .axiom-section {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 10px;
-        border-left: 6px solid #10B981;
-        margin: 1rem 0;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-    }
     .control-indicator {
         padding: 1.5rem;
         background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
@@ -89,36 +81,12 @@ st.markdown("""
         margin: 1rem 0;
         text-align: center;
     }
-    .metric-card-audit {
-        background: white;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 1px solid #E5E7EB;
-        margin: 0.5rem 0;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.03);
-    }
     .stake-display {
         font-size: 2.5rem;
         font-weight: 800;
         color: #059669;
         text-align: center;
         margin: 0.5rem 0;
-    }
-    .threshold-box {
-        background: #EFF6FF;
-        padding: 1rem;
-        border-radius: 8px;
-        border-left: 4px solid #3B82F6;
-        margin: 0.5rem 0;
-        font-size: 0.9rem;
-    }
-    .tie-breaker-box {
-        background: #FEF3C7;
-        padding: 1rem;
-        border-radius: 8px;
-        border-left: 4px solid #F59E0B;
-        margin: 0.5rem 0;
-        font-size: 0.9rem;
     }
     .action-display {
         padding: 2rem;
@@ -140,67 +108,11 @@ st.markdown("""
         margin: 0.25rem;
         border: 1px solid #16A34A30;
     }
-    .team-label {
-        font-weight: 600;
-        color: #4B5563;
-    }
-    .controller-label {
-        font-weight: 700;
-        color: #16A34A;
-        background: #16A34A10;
-        padding: 0.1rem 0.5rem;
-        border-radius: 4px;
-    }
-    .confidence-adjustment-box {
-        background: #FEF3C7;
-        padding: 0.75rem;
-        border-radius: 6px;
-        border-left: 3px solid #F59E0B;
-        margin: 0.5rem 0;
-        font-size: 0.85rem;
-    }
-    .status-badge {
-        display: inline-block;
-        padding: 0.25rem 0.75rem;
-        border-radius: 20px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        margin: 0.25rem;
-    }
-    .status-success {
-        background: #DCFCE7;
-        color: #16A34A;
-        border: 1px solid #86EFAC;
-    }
-    .status-warning {
-        background: #FEF3C7;
-        color: #D97706;
-        border: 1px solid #FCD34D;
-    }
-    .status-neutral {
-        background: #F3F4F6;
-        color: #6B7280;
-        border: 1px solid #D1D5DB;
-    }
-    .metric-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin: 0.5rem 0;
-        padding: 0.5rem;
-        border-radius: 4px;
-    }
-    .metric-row-controller {
-        background: #F0FDF4;
-        border-left: 3px solid #16A34A;
-    }
-    .metric-row-team {
-        background: #F9FAFB;
-    }
     .key-metrics-table {
         width: 100%;
         border-collapse: collapse;
         margin: 1rem 0;
+        font-size: 0.9rem;
     }
     .key-metrics-table th {
         background: #F3F4F6;
@@ -230,30 +142,8 @@ st.markdown("""
 
 # =================== AUDIT-READY BRUTBALL v6.0 ENGINE ===================
 class BrutballAuditEngine:
-    """
-    AUDIT-READY v6.0 TEMPLATE IMPLEMENTATION
-    With tie-breakers, threshold nuances, and confidence adjustments
-    """
+    """AUDIT-READY v6.0 TEMPLATE IMPLEMENTATION"""
     
-    # AXIOM 1: FOOTBALL IS NOT SYMMETRIC
-    @staticmethod
-    def check_asymmetry(home_xg: float, away_xg: float, 
-                       home_form: str, away_form: str) -> Tuple[bool, List[str]]:
-        """Check if match shows asymmetric characteristics."""
-        rationale = []
-        
-        xg_diff = abs(home_xg - away_xg)
-        if xg_diff < 0.3 and home_xg > 1.3 and away_xg > 1.3:
-            rationale.append("⚠️ AXIOM 1: False symmetry detected")
-            rationale.append(f"  • xG difference: {xg_diff:.2f} < 0.3")
-            rationale.append(f"  • Both attacks competent: Home {home_xg:.2f}, Away {away_xg:.2f}")
-            rationale.append("  • Note: Similar xG does NOT imply match balance")
-            return True, rationale
-        
-        rationale.append("✅ AXIOM 1: Match shows expected asymmetry")
-        return False, rationale
-    
-    # AXIOM 2: GAME-STATE CONTROL IS PRIMARY
     @staticmethod
     def evaluate_control_criteria(team_data: Dict, opponent_data: Dict,
                                  is_home: bool, team_name: str) -> Tuple[int, float, List[str], List[str]]:
@@ -324,15 +214,11 @@ class BrutballAuditEngine:
         
         return raw_score, weighted_score, criteria_met, rationale
     
-    # AXIOM 4 & 6: GOALS ENVIRONMENT + DUAL FRAGILITY
     @staticmethod
     def evaluate_goals_environment(home_data: Dict, away_data: Dict,
                                  controller: Optional[str],
                                  home_name: str, away_name: str) -> Tuple[bool, List[str], float, Dict]:
-        """
-        AXIOM 4: Goals are consequence, not strategy
-        AXIOM 6: Dual fragility ≠ dual chaos
-        """
+        """AXIOM 4: Goals are consequence, not strategy"""
         rationale = []
         metrics = {}
         
@@ -346,7 +232,7 @@ class BrutballAuditEngine:
         metrics['combined_xg'] = combined_xg
         metrics['max_xg'] = max_xg
         
-        rationale.append("🎯 AXIOM 4 & 6: GOALS ENVIRONMENT EVALUATION")
+        rationale.append("🎯 AXIOM 4: GOALS ENVIRONMENT EVALUATION")
         rationale.append(f"• Combined xG: {combined_xg:.2f} (threshold: ≥2.8)")
         rationale.append(f"• Home xG: {home_xg:.2f}, Away xG: {away_xg:.2f}")
         
@@ -361,40 +247,19 @@ class BrutballAuditEngine:
         rationale.append(f"✅ AXIOM 4: Combined xG {combined_xg:.2f} ≥ 2.8 threshold")
         rationale.append(f"✅ AXIOM 4: Elite attack present ({max_xg:.2f} ≥ 1.6)")
         
-        controller_xg_for_context = 0.0
+        controller_xg = 0.0
         if controller:
-            controller_xg_for_context = home_xg if controller == home_name else away_xg
-            metrics['controller_xg'] = controller_xg_for_context
+            controller_xg = home_xg if controller == home_name else away_xg
+            metrics['controller_xg'] = controller_xg
         
-        # AXIOM 6: Dual fragility
-        rationale.append("🔍 AXIOM 6: DUAL FRAGILITY CHECK")
-        home_crisis = home_data.get('goals_conceded_last_5', 0) >= 12
-        away_crisis = away_data.get('goals_conceded_last_5', 0) >= 12
-        metrics['dual_fragility'] = home_crisis and away_crisis
-        
-        if home_crisis and away_crisis:
-            rationale.append("⚠️ AXIOM 6: Dual fragility detected (both defenses concede ≥12 last 5)")
-            if controller:
-                rationale.append("✅ AXIOM 6: Controller exists → structured goals (not chaos)")
-                return True, rationale, controller_xg_for_context, metrics
-            else:
-                if home_xg > 1.4 and away_xg > 1.4:
-                    rationale.append("⚠️ AXIOM 6: Dual fragility + dual intent → potential chaos goals")
-                    return True, rationale, controller_xg_for_context, metrics
-                else:
-                    rationale.append("❌ AXIOM 6: Dual fragility without sufficient intent → no chaos")
-                    return False, rationale, controller_xg_for_context, metrics
-        
-        rationale.append("✅ AXIOM 6: No dual fragility or structured by controller")
-        return True, rationale, controller_xg_for_context, metrics
+        return True, rationale, controller_xg, metrics
     
-    # AXIOM 5: ONE-SIDED CONTROL OVERRIDE
     @staticmethod
     def apply_one_sided_override(controller: str, opponent_name: str,
                                controller_xg: float, has_goals_env: bool,
                                combined_xg: float, is_underdog: bool,
-                               asymmetry_level: float, metrics: Dict) -> Tuple[str, float, List[str], List[str]]:
-        """Apply one-sided control override with confidence adjustments."""
+                               asymmetry_level: float) -> Tuple[str, float, List[str], List[str]]:
+        """AXIOM 5: ONE-SIDED CONTROL OVERRIDE"""
         rationale = []
         adjustments = []
         
@@ -412,8 +277,8 @@ class BrutballAuditEngine:
             
             if controller_xg < 1.6:
                 rationale.append(f"⚠️ Controller xG {controller_xg:.2f} < 1.6 elite threshold")
-                rationale.append(f"  • Valid because: Combined xG {combined_xg:.2f} ≥ 2.8 supports scoring environment")
-                confidence *= 0.94  # -6% reduction for sub-elite controller
+                rationale.append(f"  • Valid because: Combined xG {combined_xg:.2f} ≥ 2.8 supports scoring")
+                confidence *= 0.94
             
             rationale.append("• AXIOM 5: Controller + goals environment → Back & Over")
         else:
@@ -421,13 +286,13 @@ class BrutballAuditEngine:
             confidence = 9.0
             rationale.append("• AXIOM 5: Controller without goals → Clean win (likely UNDER)")
         
-        # Standardized confidence adjustments (multipliers only)
+        # Standardized adjustments (multipliers only)
         if is_underdog:
-            confidence *= 0.9  # -10% reduction for underdog controller
+            confidence *= 0.9
             adjustments.append("Underdog controller (×0.9)")
         
         if asymmetry_level > 0.5:
-            confidence *= 1.1  # +10% increase for high asymmetry
+            confidence *= 1.1
             adjustments.append(f"High asymmetry {asymmetry_level:.2f} (×1.1)")
         
         confidence = max(5.0, min(10.0, confidence))
@@ -438,7 +303,6 @@ class BrutballAuditEngine:
         
         return action, confidence, rationale, adjustments
     
-    # AXIOM 10: CAPITAL FOLLOWS STATE CONFIDENCE
     @staticmethod
     def allocate_capital(controller: Optional[str],
                         confidence: float,
@@ -446,7 +310,7 @@ class BrutballAuditEngine:
                         is_underdog_controller: bool,
                         asymmetry_level: float,
                         adjustments: List[str]) -> Tuple[float, List[str], List[str]]:
-        """Determine stake size based on state confidence with adjustments."""
+        """AXIOM 10: CAPITAL FOLLOWS STATE CONFIDENCE"""
         rationale = []
         stake_adjustments = []
         
@@ -468,14 +332,14 @@ class BrutballAuditEngine:
                 stake = 1.0
                 rationale.append(f"• Low confidence → 1.0% base stake")
             
-            # Apply stake adjustments (multipliers only)
+            # Apply stake adjustments
             if is_underdog_controller:
-                stake *= 0.8  # -20% for underdog
+                stake *= 0.8
                 stake_adjustments.append("Underdog controller (×0.8)")
                 rationale.append(f"• Underdog controller → stake reduced by 20% (×0.8)")
             
             if asymmetry_level > 0.5:
-                stake *= 1.2  # +20% for high asymmetry
+                stake *= 1.2
                 stake_adjustments.append(f"High asymmetry {asymmetry_level:.2f} (×1.2)")
                 rationale.append(f"• High asymmetry ({asymmetry_level:.2f} > 0.5) → stake increased by 20% (×1.2)")
             else:
@@ -495,7 +359,6 @@ class BrutballAuditEngine:
         rationale.append(f"• Final stake: {stake:.2f}% of bankroll")
         return stake, rationale, stake_adjustments
     
-    # MAIN AUDIT-READY DECISION TREE
     @classmethod
     def execute_audit_tree(cls, home_data: Dict, away_data: Dict,
                           home_name: str, away_name: str,
@@ -535,7 +398,6 @@ class BrutballAuditEngine:
         
         controller = None
         controller_criteria = []
-        tie_breaker_applied = False
         
         if home_score >= 2 and away_score >= 2:
             audit_log.append("⚖️ TIE-BREAKER SITUATION: Both teams meet ≥2 criteria")
@@ -552,13 +414,9 @@ class BrutballAuditEngine:
                 if home_pos < away_pos:
                     controller = home_name
                     controller_criteria = home_criteria
-                    audit_log.append(f"  • Final tie-breaker: {home_name} selected (better league position)")
                 else:
                     controller = away_name
                     controller_criteria = away_criteria
-                    audit_log.append(f"  • Final tie-breaker: {away_name} selected (better league position)")
-            
-            tie_breaker_applied = True
             
         elif home_score >= 2 and home_score > away_score:
             controller = home_name
@@ -574,12 +432,10 @@ class BrutballAuditEngine:
             audit_log.append("⚠️ NO CLEAR GAME-STATE CONTROLLER")
         
         decision_steps.append(f"1. Controller: {controller if controller else 'None'}")
-        if tie_breaker_applied:
-            decision_steps.append("   (Tie-breaker applied: weighted control score)")
         
         # =================== STEP 2: EVALUATE GOALS ENVIRONMENT ===================
         audit_log.append("")
-        audit_log.append("STEP 2: EVALUATE GOALS ENVIRONMENT (AXIOMS 3,4,6)")
+        audit_log.append("STEP 2: EVALUATE GOALS ENVIRONMENT (AXIOM 4)")
         
         home_xg = home_data.get('home_xg_per_match', 0)
         away_xg = away_data.get('away_xg_per_match', 0)
@@ -595,7 +451,7 @@ class BrutballAuditEngine:
         
         # =================== STEP 3: APPLY DECISION LOGIC ===================
         audit_log.append("")
-        audit_log.append("STEP 3: APPLY DECISION LOGIC (AXIOMS 5,7,8,9)")
+        audit_log.append("STEP 3: APPLY DECISION LOGIC (AXIOM 5)")
         
         primary_action = "ANALYZING"
         confidence = 5.0
@@ -608,7 +464,7 @@ class BrutballAuditEngine:
             action, conf, override_rationale, adjustments = cls.apply_one_sided_override(
                 controller, away_name if controller == home_name else home_name,
                 controller_xg, has_goals_env, combined_xg, is_underdog,
-                asymmetry_level, metrics
+                asymmetry_level
             )
             audit_log.extend(override_rationale)
             primary_action = action
@@ -616,28 +472,6 @@ class BrutballAuditEngine:
             confidence_adjustments = adjustments
             
             decision_steps.append("3A. One-Sided Control Override (AXIOM 5)")
-            
-        elif has_goals_env:
-            favorite_data = home_data if favorite == home_name else away_data
-            underdog_data = away_data if favorite == home_name else home_data
-            favorite_xg = home_xg if favorite == home_name else away_xg
-            underdog_xg = away_xg if favorite == home_name else home_xg
-            
-            if controller is None and underdog_xg >= 1.3:
-                primary_action = f"FADE {favorite} & OVER 2.5"
-                confidence = 6.5
-                secondary_logic = f"{underdog} or DRAW"
-                decision_steps.append("3B. Favorite Fade + Over (AXIOM 7)")
-            else:
-                primary_action = "OVER 2.5"
-                confidence = 6.0
-                secondary_logic = "Goals only"
-                decision_steps.append("3B. Over Only")
-        
-        else:
-            primary_action = "UNDER 2.5"
-            confidence = 5.0
-            decision_steps.append("3C. Under/Fallback")
         
         # =================== STEP 4: ALLOCATE CAPITAL ===================
         audit_log.append("")
@@ -669,10 +503,8 @@ class BrutballAuditEngine:
             'primary_action': primary_action,
             'confidence': confidence,
             'stake_pct': stake_pct,
-            'secondary_logic': secondary_logic,
             'audit_log': audit_log,
             'decision_steps': decision_steps,
-            'tie_breaker_applied': tie_breaker_applied,
             'team_context': {
                 'favorite': favorite,
                 'underdog': underdog,
@@ -687,12 +519,9 @@ class BrutballAuditEngine:
                 'controller_xg': controller_xg if controller else 0.0,
                 'combined_xg': combined_xg,
                 'max_xg': metrics.get('max_xg', max(home_xg, away_xg)),
-                'league_avg_xg': league_avg_xg,
                 'asymmetry_level': asymmetry_level,
-                'dual_fragility': metrics.get('dual_fragility', False)
             },
             'stake_adjustments': stake_adjustments,
-            'confidence_adjustments': confidence_adjustments
         }
 
 # =================== DATA LOADING ===================
@@ -712,7 +541,6 @@ def load_and_prepare_data(league_name: str) -> Optional[pd.DataFrame]:
             f'leagues/{filename}',
             f'./leagues/{filename}',
             filename,
-            f'https://raw.githubusercontent.com/profdue/Brutball/main/leagues/{filename}'
         ]
         
         df = None
@@ -721,40 +549,24 @@ def load_and_prepare_data(league_name: str) -> Optional[pd.DataFrame]:
                 df = pd.read_csv(source)
                 st.success(f"✅ Loaded data from {source}")
                 break
-            except Exception as e:
+            except:
                 continue
         
         if df is None:
-            # Create sample data for demonstration
-            st.warning("⚠️ Using sample data - please add your CSV files to 'leagues/' directory")
-            df = pd.DataFrame({
-                'team': ['Team A', 'Team B', 'Team C', 'Team X', 'Team Y', 'Team Z'],
-                'home_xg_per_match': [1.08, 1.25, 1.42, 2.10, 1.85, 1.67],
-                'away_xg_per_match': [0.95, 1.15, 1.38, 1.92, 1.78, 1.55],
-                'season_position': [5, 3, 8, 2, 6, 4],
-                'goals_conceded_last_5': [8, 6, 12, 6, 9, 7],
-                'home_goals_scored': [15, 18, 12, 25, 20, 17],
-                'home_xg_for': [16.5, 19.8, 13.2, 27.5, 22.0, 18.7],
-                'home_setpiece_pct': [0.3, 0.25, 0.35, 0.2, 0.28, 0.22],
-                'home_openplay_pct': [0.6, 0.65, 0.55, 0.7, 0.62, 0.68],
-                'home_counter_pct': [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
-                'away_goals_scored': [12, 15, 10, 22, 18, 16],
-                'away_xg_for': [13.2, 16.5, 11.0, 24.2, 19.8, 17.6],
-                'away_setpiece_pct': [0.25, 0.22, 0.3, 0.18, 0.25, 0.2],
-                'away_openplay_pct': [0.65, 0.68, 0.6, 0.72, 0.65, 0.7],
-                'away_counter_pct': [0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
-            })
+            st.error(f"❌ Could not load {filename}. Please check file exists.")
+            return None
         
-        # Calculate derived metrics
-        df['home_goals_per_match'] = df['home_goals_scored'] / 10  # Assuming 10 matches
-        df['away_goals_per_match'] = df['away_goals_scored'] / 10
-        df['home_xg_per_match'] = df['home_xg_for'] / 10
-        df['away_xg_per_match'] = df['away_xg_for'] / 10
+        # Ensure required columns exist
+        required_cols = ['team', 'home_xg_per_match', 'away_xg_per_match', 'season_position']
+        for col in required_cols:
+            if col not in df.columns:
+                st.error(f"❌ Missing required column: {col}")
+                return None
         
         return df
         
     except Exception as e:
-        st.error(f"❌ Data preparation error: {str(e)}")
+        st.error(f"❌ Data loading error: {str(e)}")
         return None
 
 # =================== MAIN APPLICATION ===================
@@ -786,7 +598,7 @@ def main():
             if st.button(
                 config['display_name'],
                 use_container_width=True,
-                type="primary" if 'selected_league' not in st.session_state else "secondary"
+                type="primary" if st.session_state.selected_league != league else "secondary"
             ):
                 st.session_state.selected_league = league
     
@@ -798,7 +610,7 @@ def main():
         df = load_and_prepare_data(selected_league)
     
     if df is None:
-        st.error("Failed to load data. Please check your data files.")
+        st.error("Failed to load data. Please check your CSV files.")
         return
     
     # Team selection
@@ -818,7 +630,7 @@ def main():
         away_data = df[df['team'] == away_team].iloc[0].to_dict()
         
         # Calculate league average xG
-        league_avg_xg = (df['home_xg_per_match'].mean() + df['away_xg_per_match'].mean()) / 2
+        league_avg_xg = 1.3  # Default
         
         # Execute audit tree
         result = BrutballAuditEngine.execute_audit_tree(
@@ -912,51 +724,45 @@ def main():
                     <td>Home xG ({ctx['home']})</td>
                     <td>{metrics['home_xg']:.2f}</td>
                     <td>≥1.6 (elite)</td>
-                    <td><span class="status-badge {'status-success' if metrics['home_xg'] >= 1.6 else 'status-warning' if metrics['home_xg'] >= 1.0 else 'status-neutral'}">{'≥1.6' if metrics['home_xg'] >= 1.6 else '≥1.0' if metrics['home_xg'] >= 1.0 else '<1.0'}</span></td>
+                    <td>{'✅ Elite' if metrics['home_xg'] >= 1.6 else '⚠️ Sub-elite' if metrics['home_xg'] >= 1.0 else '❌ Low'}</td>
                 </tr>
                 <tr>
                     <td>Away xG ({ctx['away']})</td>
                     <td>{metrics['away_xg']:.2f}</td>
                     <td>≥1.6 (elite)</td>
-                    <td><span class="status-badge {'status-success' if metrics['away_xg'] >= 1.6 else 'status-warning' if metrics['away_xg'] >= 1.0 else 'status-neutral'}">{'≥1.6' if metrics['away_xg'] >= 1.6 else '≥1.0' if metrics['away_xg'] >= 1.0 else '<1.0'}</span></td>
+                    <td>{'✅ Elite' if metrics['away_xg'] >= 1.6 else '⚠️ Sub-elite' if metrics['away_xg'] >= 1.0 else '❌ Low'}</td>
                 </tr>
                 <tr>
                     <td>Combined xG</td>
                     <td>{metrics['combined_xg']:.2f}</td>
                     <td>≥2.8</td>
-                    <td><span class="status-badge {'status-success' if metrics['combined_xg'] >= 2.8 else 'status-warning' if metrics['combined_xg'] >= 2.0 else 'status-neutral'}">{'≥2.8' if metrics['combined_xg'] >= 2.8 else '≥2.0' if metrics['combined_xg'] >= 2.0 else '<2.0'}</span></td>
+                    <td>{'✅ ≥2.8' if metrics['combined_xg'] >= 2.8 else '⚠️ 2.0-2.8' if metrics['combined_xg'] >= 2.0 else '❌ <2.0'}</td>
                 </tr>
                 <tr>
                     <td>Max xG (Elite Attack)</td>
                     <td>{metrics['max_xg']:.2f}</td>
                     <td>≥1.6</td>
-                    <td><span class="status-badge {'status-success' if metrics['max_xg'] >= 1.6 else 'status-warning'}">{'Elite' if metrics['max_xg'] >= 1.6 else 'Sub-elite'}</span></td>
+                    <td>{'✅ Elite' if metrics['max_xg'] >= 1.6 else '⚠️ Sub-elite'}</td>
                 </tr>
         """
         
         if result['controller']:
-            controller_badge = " 🎯" if result['controller'] == ctx['underdog'] else ""
+            controller_status = '✅ Elite' if metrics['controller_xg'] >= 1.6 else '⚠️ Sub-elite'
             metrics_html += f"""
                 <tr>
-                    <td>Controller xG ({result['controller']}){controller_badge}</td>
+                    <td>Controller xG ({result['controller']})</td>
                     <td>{metrics['controller_xg']:.2f}</td>
                     <td>≥1.6 (elite)</td>
-                    <td><span class="status-badge {'status-success' if metrics['controller_xg'] >= 1.6 else 'status-warning'}">{'Elite' if metrics['controller_xg'] >= 1.6 else 'Sub-elite'}</span></td>
+                    <td>{controller_status}</td>
                 </tr>
             """
         
         metrics_html += f"""
                 <tr>
-                    <td>Dual Fragility</td>
-                    <td>{'Yes' if metrics['dual_fragility'] else 'No'}</td>
-                    <td>Both concede ≥12/5</td>
-                    <td><span class="status-badge {'status-warning' if metrics['dual_fragility'] else 'status-neutral'}">{'Present' if metrics['dual_fragility'] else 'Absent'}</span></td>
-                </tr>
-                <tr>
                     <td>Asymmetry Level</td>
                     <td>{metrics['asymmetry_level']:.2f}</td>
                     <td>>0.5 (High)</td>
-                    <td><span class="status-badge {'status-warning' if metrics['asymmetry_level'] > 0.5 else 'status-neutral'}">{'High' if metrics['asymmetry_level'] > 0.5 else 'Moderate' if metrics['asymmetry_level'] > 0.3 else 'Low'}</span></td>
+                    <td>{'✅ High' if metrics['asymmetry_level'] > 0.5 else '⚠️ Moderate' if metrics['asymmetry_level'] > 0.3 else '⚫ Low'}</td>
                 </tr>
             </tbody>
         </table>
@@ -977,13 +783,13 @@ def main():
                 • Criteria: {', '.join(result['controller_criteria'])}<br><br>
                 
                 <strong>2. Goals Environment Valid (AXIOM 4):</strong><br>
-                • Combined xG: {metrics['combined_xg']:.2f} ≥ 2.8 threshold<br>
-                • Elite attack present: {metrics['max_xg']:.2f} ≥ 1.6<br>
-                • Controller xG: {metrics['controller_xg']:.2f} {"< 1.6 (sub-elite but environment supports)" if metrics['controller_xg'] < 1.6 else "≥ 1.6 (elite)"}<br><br>
+                • Combined xG: {metrics['combined_xg']:.2f} {"≥ 2.8 threshold" if metrics['combined_xg'] >= 2.8 else "< 2.8 threshold"}<br>
+                • Elite attack present: {metrics['max_xg']:.2f} {"≥ 1.6" if metrics['max_xg'] >= 1.6 else "< 1.6"}<br>
+                • Controller xG: {metrics['controller_xg']:.2f} {"≥ 1.6 (elite)" if metrics['controller_xg'] >= 1.6 else "< 1.6 (sub-elite)"}<br><br>
                 
                 <strong>3. One-Sided Override (AXIOM 5):</strong><br>
                 • Clear controller enables directional bet<br>
-                • Goals environment supports OVER 2.5<br><br>
+                • Goals environment: {result['has_goals_env'] and 'Present → supports OVER 2.5' or 'Absent → clean win expected (likely UNDER)'}<br><br>
                 
                 <strong>4. Capital Allocation (AXIOM 10):</strong><br>
                 • Base confidence: {result['confidence']:.1f}/10<br>
@@ -1015,7 +821,10 @@ def main():
         st.markdown("---")
         st.markdown("#### 📤 Export Audit Report")
         
-        # Build clean export text
+        # Build clean export text - NO COMPLEX F-STRINGS
+        controller_xg_display = f"{metrics['controller_xg']:.2f}" if result['controller'] else "N/A"
+        controller_status = "Elite" if result['controller'] and metrics['controller_xg'] >= 1.6 else "Sub-elite" if result['controller'] else "N/A"
+        
         export_text = f"""BRUTBALL v6.0 - AUDIT-READY ANALYSIS REPORT
 ===========================================
 League: {selected_league}
@@ -1026,21 +835,18 @@ FINAL DECISION:
 • Action: {result['primary_action']}
 • Confidence: {result['confidence']:.1f}/10
 • Stake: {result['stake_pct']:.2f}% of bankroll
-• Logic: {result['secondary_logic'] if result['secondary_logic'] else 'Direct application of axioms'}
 
 KEY METRICS:
 • Home xG ({ctx['home']}): {metrics['home_xg']:.2f} ({'≥1.6' if metrics['home_xg'] >= 1.6 else '<1.6'})
 • Away xG ({ctx['away']}): {metrics['away_xg']:.2f} ({'≥1.6' if metrics['away_xg'] >= 1.6 else '<1.6'})
 • Combined xG: {metrics['combined_xg']:.2f} ({'≥2.8' if metrics['combined_xg'] >= 2.8 else '<2.8'})
 • Max xG (Elite Attack): {metrics['max_xg']:.2f} ({'Elite' if metrics['max_xg'] >= 1.6 else 'Sub-elite'})
-• Controller xG: {metrics['controller_xg']:.2f if result['controller'] else 'N/A'} ({'Elite' if result['controller'] and metrics['controller_xg'] >= 1.6 else 'Sub-elite' if result['controller'] else 'N/A'})
-• Dual Fragility: {'Yes' if metrics['dual_fragility'] else 'No'}
+• Controller xG: {controller_xg_display} ({controller_status})
 • Asymmetry Level: {metrics['asymmetry_level']:.2f} ({'High' if metrics['asymmetry_level'] > 0.5 else 'Moderate' if metrics['asymmetry_level'] > 0.3 else 'Low'})
 
 CONTROLLER ANALYSIS:
 • Controller: {result['controller'] if result['controller'] else 'None'}
 • Criteria Met: {len(result['controller_criteria'])}/4 ({', '.join(result['controller_criteria']) if result['controller'] else 'N/A'})
-• Underdog Controller: {'Yes' if result['controller'] == ctx['underdog'] else 'No'}
 
 STAKE ADJUSTMENTS (AXIOM 10):"""
         
@@ -1071,16 +877,6 @@ Control-first philosophy • All axioms explicitly applied • Explicit threshol
             mime="text/plain",
             use_container_width=True
         )
-    
-    # Footer
-    st.markdown("---")
-    st.markdown("""
-    <div style="text-align: center; color: #6B7280; font-size: 0.9rem; padding: 1rem;">
-        <p><strong>Brutball v6.0 – Audit-Ready Match-State Analysis</strong></p>
-        <p>Control-first philosophy • All axioms explicitly applied • Explicit thresholds • Capital follows confidence</p>
-        <p>Tie-breakers and threshold nuances fully documented</p>
-    </div>
-    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
