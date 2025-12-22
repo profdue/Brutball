@@ -413,7 +413,7 @@ class BrutballAuditEngine:
             if controller_xg < 1.6:
                 rationale.append(f"⚠️ Controller xG {controller_xg:.2f} < 1.6 elite threshold")
                 rationale.append(f"  • Valid because: Combined xG {combined_xg:.2f} ≥ 2.8 supports scoring environment")
-                confidence -= 0.5
+                confidence *= 0.94  # -6% reduction for sub-elite controller
             
             rationale.append("• AXIOM 5: Controller + goals environment → Back & Over")
         else:
@@ -423,11 +423,11 @@ class BrutballAuditEngine:
         
         # Standardized confidence adjustments (multipliers only)
         if is_underdog:
-            confidence *= 0.9  # 10% reduction for underdog controller
+            confidence *= 0.9  # -10% reduction for underdog controller
             adjustments.append("Underdog controller (×0.9)")
         
         if asymmetry_level > 0.5:
-            confidence *= 1.1  # 10% increase for high asymmetry
+            confidence *= 1.1  # +10% increase for high asymmetry
             adjustments.append(f"High asymmetry {asymmetry_level:.2f} (×1.1)")
         
         confidence = max(5.0, min(10.0, confidence))
@@ -695,6 +695,68 @@ class BrutballAuditEngine:
             'confidence_adjustments': confidence_adjustments
         }
 
+# =================== DATA LOADING ===================
+@st.cache_data(ttl=3600, show_spinner="Loading league data...")
+def load_and_prepare_data(league_name: str) -> Optional[pd.DataFrame]:
+    """Load and prepare data."""
+    try:
+        if league_name not in LEAGUES:
+            st.error(f"❌ Unknown league: {league_name}")
+            return None
+        
+        league_config = LEAGUES[league_name]
+        filename = league_config['filename']
+        
+        # Try different paths for data loading
+        data_sources = [
+            f'leagues/{filename}',
+            f'./leagues/{filename}',
+            filename,
+            f'https://raw.githubusercontent.com/profdue/Brutball/main/leagues/{filename}'
+        ]
+        
+        df = None
+        for source in data_sources:
+            try:
+                df = pd.read_csv(source)
+                st.success(f"✅ Loaded data from {source}")
+                break
+            except Exception as e:
+                continue
+        
+        if df is None:
+            # Create sample data for demonstration
+            st.warning("⚠️ Using sample data - please add your CSV files to 'leagues/' directory")
+            df = pd.DataFrame({
+                'team': ['Team A', 'Team B', 'Team C', 'Team X', 'Team Y', 'Team Z'],
+                'home_xg_per_match': [1.08, 1.25, 1.42, 2.10, 1.85, 1.67],
+                'away_xg_per_match': [0.95, 1.15, 1.38, 1.92, 1.78, 1.55],
+                'season_position': [5, 3, 8, 2, 6, 4],
+                'goals_conceded_last_5': [8, 6, 12, 6, 9, 7],
+                'home_goals_scored': [15, 18, 12, 25, 20, 17],
+                'home_xg_for': [16.5, 19.8, 13.2, 27.5, 22.0, 18.7],
+                'home_setpiece_pct': [0.3, 0.25, 0.35, 0.2, 0.28, 0.22],
+                'home_openplay_pct': [0.6, 0.65, 0.55, 0.7, 0.62, 0.68],
+                'home_counter_pct': [0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+                'away_goals_scored': [12, 15, 10, 22, 18, 16],
+                'away_xg_for': [13.2, 16.5, 11.0, 24.2, 19.8, 17.6],
+                'away_setpiece_pct': [0.25, 0.22, 0.3, 0.18, 0.25, 0.2],
+                'away_openplay_pct': [0.65, 0.68, 0.6, 0.72, 0.65, 0.7],
+                'away_counter_pct': [0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+            })
+        
+        # Calculate derived metrics
+        df['home_goals_per_match'] = df['home_goals_scored'] / 10  # Assuming 10 matches
+        df['away_goals_per_match'] = df['away_goals_scored'] / 10
+        df['home_xg_per_match'] = df['home_xg_for'] / 10
+        df['away_xg_per_match'] = df['away_xg_for'] / 10
+        
+        return df
+        
+    except Exception as e:
+        st.error(f"❌ Data preparation error: {str(e)}")
+        return None
+
 # =================== MAIN APPLICATION ===================
 def main():
     """Main application function."""
@@ -733,57 +795,30 @@ def main():
     
     # Load data
     with st.spinner(f"Loading {config['display_name']} data..."):
-        df = None
-        # Simplified data loading - you'll need to implement your actual data loading
-        # This is just a placeholder structure
-        try:
-            # Your actual data loading code here
-            pass
-        except:
-            st.error("Please implement data loading logic")
-            return
+        df = load_and_prepare_data(selected_league)
     
     if df is None:
-        st.error("Data loading not implemented. Add your data loading code.")
+        st.error("Failed to load data. Please check your data files.")
         return
     
     # Team selection
     st.markdown("### 🏟️ Match Analysis")
     col1, col2 = st.columns(2)
     with col1:
-        home_team = st.selectbox("Home Team", ["Team A", "Team B", "Team C"])
+        home_team = st.selectbox("Home Team", sorted(df['team'].unique()))
     with col2:
-        away_team = st.selectbox("Away Team", ["Team X", "Team Y", "Team Z"])
+        away_options = [t for t in sorted(df['team'].unique()) if t != home_team]
+        away_team = st.selectbox("Away Team", away_options)
     
     # Execute analysis
     if st.button("🚀 EXECUTE MATCH-STATE ANALYSIS", type="primary", use_container_width=True):
         
-        # Mock data for demonstration
-        home_data = {
-            'home_xg_per_match': 1.08,
-            'away_xg_per_match': 0.0,
-            'season_position': 5,
-            'goals_conceded_last_5': 8,
-            'home_goals_scored': 15,
-            'home_xg_for': 16.5,
-            'home_setpiece_pct': 0.3,
-            'home_openplay_pct': 0.6,
-            'home_counter_pct': 0.1
-        }
+        # Get team data
+        home_data = df[df['team'] == home_team].iloc[0].to_dict()
+        away_data = df[df['team'] == away_team].iloc[0].to_dict()
         
-        away_data = {
-            'away_xg_per_match': 2.10,
-            'home_xg_per_match': 0.0,
-            'season_position': 2,
-            'goals_conceded_last_5': 6,
-            'away_goals_scored': 25,
-            'away_xg_for': 27.5,
-            'away_setpiece_pct': 0.2,
-            'away_openplay_pct': 0.7,
-            'away_counter_pct': 0.1
-        }
-        
-        league_avg_xg = 1.3
+        # Calculate league average xG
+        league_avg_xg = (df['home_xg_per_match'].mean() + df['away_xg_per_match'].mean()) / 2
         
         # Execute audit tree
         result = BrutballAuditEngine.execute_audit_tree(
@@ -929,7 +964,7 @@ def main():
         
         st.markdown(metrics_html, unsafe_allow_html=True)
         
-        # CONSOLIDATED JUSTIFICATION (One section only)
+        # CONSOLIDATED JUSTIFICATION
         if result['controller'] and "BACK" in result['primary_action']:
             st.markdown("#### 🎯 CONSOLIDATED DECISION JUSTIFICATION")
             
@@ -953,7 +988,7 @@ def main():
                 <strong>4. Capital Allocation (AXIOM 10):</strong><br>
                 • Base confidence: {result['confidence']:.1f}/10<br>
                 • Stake: {result['stake_pct']:.2f}% of bankroll<br>
-                {f"• Adjustments: {', '.join(result['stake_adjustments'])}" if result.get('stake_adjustments') else "• No stake adjustments applied"}
+                {"• Adjustments: " + ", ".join(result['stake_adjustments']) if result.get('stake_adjustments') else "• No stake adjustments applied"}
             </div>
             """
             
@@ -1007,9 +1042,15 @@ CONTROLLER ANALYSIS:
 • Criteria Met: {len(result['controller_criteria'])}/4 ({', '.join(result['controller_criteria']) if result['controller'] else 'N/A'})
 • Underdog Controller: {'Yes' if result['controller'] == ctx['underdog'] else 'No'}
 
-STAKE ADJUSTMENTS (AXIOM 10):
-{f"• {adj}" for adj in result['stake_adjustments']}""" + (f"\n".join([f"• {adj}" for adj in result['stake_adjustments']]) if result.get('stake_adjustments') else "• None")
-
+STAKE ADJUSTMENTS (AXIOM 10):"""
+        
+        # Add stake adjustments safely
+        if result.get('stake_adjustments'):
+            for adj in result['stake_adjustments']:
+                export_text += f"\n• {adj}"
+        else:
+            export_text += "\n• None"
+        
         export_text += f"""
 
 DECISION TREE EXECUTION:
@@ -1021,7 +1062,7 @@ AUDIT LOG:
 ===========================================
 Brutball v6.0 - Audit-Ready Match-State Analysis
 Control-first philosophy • All axioms explicitly applied • Explicit thresholds • Capital follows confidence
-        """
+"""
         
         st.download_button(
             label="📥 Download Complete Audit Report",
@@ -1030,6 +1071,16 @@ Control-first philosophy • All axioms explicitly applied • Explicit threshol
             mime="text/plain",
             use_container_width=True
         )
+    
+    # Footer
+    st.markdown("---")
+    st.markdown("""
+    <div style="text-align: center; color: #6B7280; font-size: 0.9rem; padding: 1rem;">
+        <p><strong>Brutball v6.0 – Audit-Ready Match-State Analysis</strong></p>
+        <p>Control-first philosophy • All axioms explicitly applied • Explicit thresholds • Capital follows confidence</p>
+        <p>Tie-breakers and threshold nuances fully documented</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
