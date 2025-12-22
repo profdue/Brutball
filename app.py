@@ -850,7 +850,7 @@ class BrutballAuditEngine:
             'key_metrics': {
                 'home_xg': home_xg,
                 'away_xg': away_xg,
-                'controller_xg': controller_xg,
+                'controller_xg': controller_xg if controller else 0.0,
                 'combined_xg': combined_xg,
                 'league_avg_xg': league_avg_xg,
                 'asymmetry_level': asymmetry_level
@@ -1194,7 +1194,7 @@ def main():
             <div style="display: flex; justify-content: center; margin-top: 1.5rem;">
                 <div style="margin: 0 1.5rem;">
                     <div style="color: #6B7280; font-size: 0.9rem;">State Confidence</div>
-                    <div style="font-size: 2rem; font-weight: 800; color: {color};">{result['confidence']}/10</div>
+                    <div style="font-size: 2rem; font-weight: 800; color: {color};">{result['confidence']:.1f}/10</div>
                 </div>
                 <div style="margin: 0 1.5rem;">
                     <div style="color: #6B7280; font-size: 0.9rem;">Capital Allocation (AXIOM 10)</div>
@@ -1322,6 +1322,9 @@ def main():
         st.markdown("---")
         st.markdown("#### 📤 Export Audit Report")
         
+        # Safely format controller xG for export
+        controller_xg_display = f"{result['key_metrics']['controller_xg']:.2f}" if result['controller'] else "N/A"
+        
         export_text = f"""BRUTBALL v6.0 - AUDIT-READY ANALYSIS REPORT
 ===========================================
 League: {selected_league}
@@ -1333,7 +1336,7 @@ DECISION TREE EXECUTION:
 
 FINAL DECISION:
 • Action: {result['primary_action']}
-• Confidence: {result['confidence']}/10
+• Confidence: {result['confidence']:.1f}/10
 • Stake: {result['stake_pct']:.2f}% of bankroll (AXIOM 10)
 • Logic: {result['secondary_logic'] if result['secondary_logic'] else 'Direct application of axioms'}
 • Tie-breaker applied: {'Yes' if result['tie_breaker_applied'] else 'No'}
@@ -1342,7 +1345,7 @@ KEY METRICS WITH THRESHOLDS:
 • Home xG: {result['key_metrics']['home_xg']:.2f} ({'≥1.6' if result['key_metrics']['home_xg'] >= 1.6 else '<1.6'})
 • Away xG: {result['key_metrics']['away_xg']:.2f} ({'≥1.6' if result['key_metrics']['away_xg'] >= 1.6 else '<1.6'})
 • Combined xG: {result['key_metrics']['combined_xg']:.2f} ({'≥2.8' if result['key_metrics']['combined_xg'] >= 2.8 else '<2.8'})
-• Controller xG: {result['key_metrics']['controller_xg']:.2f if result['controller'] else 'N/A'}
+• Controller xG: {controller_xg_display} ({'≥1.6' if result['controller'] and result['key_metrics']['controller_xg'] >= 1.6 else '<1.6' if result['controller'] else 'N/A'})
 • League Average: {result['key_metrics']['league_avg_xg']:.2f}
 • Asymmetry Level: {result['key_metrics']['asymmetry_level']:.2f}
 
