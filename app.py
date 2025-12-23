@@ -10,10 +10,11 @@ DIRECTION_THRESHOLD = 0.25  # LAW 2: Direction is mandatory
 ENFORCEMENT_METHODS_REQUIRED = 2  # LAW 3: Enforcement must be redundant
 CONTROL_CRITERIA_REQUIRED = 2  # GATE 1: Minimum for Quiet Control
 STATE_FLIP_FAILURES_REQUIRED = 2  # GATE 3: Opponent fails ≥2 escalation paths
+QUIET_CONTROL_SEPARATION_THRESHOLD = 0.1  # v6.1.2: Mutual control check
 
 # =================== PAGE CONFIGURATION ===================
 st.set_page_config(
-    page_title="BRUTBALL v6.1.1 - Canonical State Lock",
+    page_title="BRUTBALL v6.1.2 - Canonical State Lock",
     page_icon="🔒",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -62,6 +63,12 @@ LEAGUES = {
         'display_name': '🇵🇹 Primeira Liga',
         'country': 'Portugal',
         'color': '#DC2626'
+    },
+    'Super Lig': {
+        'filename': 'super_league.csv',
+        'display_name': '🇹🇷 Super Lig',
+        'country': 'Turkey',
+        'color': '#E11D48'
     }
 }
 
@@ -237,14 +244,23 @@ st.markdown("""
         margin: 0.5rem 0;
         white-space: pre-wrap;
     }
+    .mutual-control-alert {
+        background: #FFFBEB;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 2px solid #F59E0B;
+        margin: 1rem 0;
+        font-size: 0.9rem;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# =================== BRUTBALL v6.1.1 - CANONICAL STATE LOCK ENGINE ===================
+# =================== BRUTBALL v6.1.2 - CANONICAL STATE LOCK ENGINE ===================
 class BrutballCanonicalEngine:
     """
-    BRUTBALL v6.1.1 - CANONICAL STATE LOCK ENGINE
+    BRUTBALL v6.1.2 - CANONICAL STATE LOCK ENGINE
     Logically complete. No status resolution. Direction mandatory.
+    Includes v6.1.2 mutual control refinement.
     """
     
     @staticmethod
@@ -507,6 +523,7 @@ class BrutballCanonicalEngine:
                                league_avg_xg: float) -> Dict:
         """
         Execute canonical gate sequence. No status resolution. Direction mandatory.
+        Includes v6.1.2 mutual control refinement.
         Returns STATE LOCKED declaration or NO DECLARATION.
         """
         system_log = []
@@ -514,7 +531,7 @@ class BrutballCanonicalEngine:
         total_gates = 4
         
         system_log.append("=" * 70)
-        system_log.append("🔐 BRUTBALL v6.1.1 - CANONICAL STATE LOCK")
+        system_log.append("🔐 BRUTBALL v6.1.2 - CANONICAL STATE LOCK")
         system_log.append("=" * 70)
         system_log.append(f"MATCH: {home_name} vs {away_name}")
         system_log.append(f"SYSTEM TIME: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -539,35 +556,43 @@ class BrutballCanonicalEngine:
         controller = None
         controller_criteria = []
         
-        if home_score >= CONTROL_CRITERIA_REQUIRED and away_score >= CONTROL_CRITERIA_REQUIRED:
-            # Both teams meet minimum criteria - check for clear winner
-            if home_weighted > away_weighted + 0.1:  # Clear weighted advantage
-                controller = home_name
-                controller_criteria = home_criteria
-                system_log.append(f"• Controller: {home_name} (weighted advantage: {home_weighted:.2f} > {away_weighted:.2f})")
-            elif away_weighted > home_weighted + 0.1:
-                controller = away_name
-                controller_criteria = away_criteria
-                system_log.append(f"• Controller: {away_name} (weighted advantage: {away_weighted:.2f} > {home_weighted:.2f})")
-            else:
-                # Weighted scores are too close - check LAW 1
-                system_log.append("❌ LAW 1 VIOLATION: Quiet Control ambiguous")
+        # v6.1.2 REFINEMENT: Check for mutual control
+        both_meet_control = (home_score >= CONTROL_CRITERIA_REQUIRED and 
+                            away_score >= CONTROL_CRITERIA_REQUIRED)
+        
+        if both_meet_control:
+            weighted_diff = abs(home_weighted - away_weighted)
+            
+            # Check if weighted difference is too small (mutual control)
+            if weighted_diff <= QUIET_CONTROL_SEPARATION_THRESHOLD:
+                system_log.append(f"⚠️ v6.1.2 REFINEMENT: Mutual control detected")
                 system_log.append(f"  • Home weighted score: {home_weighted:.2f}")
                 system_log.append(f"  • Away weighted score: {away_weighted:.2f}")
-                system_log.append(f"  • Difference: {abs(home_weighted - away_weighted):.2f} ≤ 0.1")
-                system_log.append("• STATUS RESOLUTION REQUIRED → NO DECLARATION")
+                system_log.append(f"  • Difference: {weighted_diff:.2f} ≤ {QUIET_CONTROL_SEPARATION_THRESHOLD}")
+                system_log.append("• NO SINGLE CONTROLLER → NO DECLARATION")
                 system_log.append("⚠️ SYSTEM SILENT")
                 
                 return {
                     'declaration': None,
                     'state_locked': False,
                     'system_log': system_log,
-                    'reason': "LAW 1 VIOLATION: Quiet Control ambiguous (requires status resolution)",
+                    'reason': f"v6.1.2: Mutual control (weighted difference ≤ {QUIET_CONTROL_SEPARATION_THRESHOLD})",
                     'capital_authorized': False,
                     'gates_passed': gates_passed,
                     'total_gates': total_gates,
-                    'law_violations': ["LAW 1: Status resolution required"]
+                    'mutual_control': True,
+                    'weighted_diff': weighted_diff
                 }
+            
+            # Clear weighted advantage exists
+            if home_weighted > away_weighted:
+                controller = home_name
+                controller_criteria = home_criteria
+                system_log.append(f"• Controller: {home_name} (weighted advantage: {home_weighted:.2f} > {away_weighted:.2f})")
+            else:
+                controller = away_name
+                controller_criteria = away_criteria
+                system_log.append(f"• Controller: {away_name} (weighted advantage: {away_weighted:.2f} > {home_weighted:.2f})")
         
         elif home_score >= CONTROL_CRITERIA_REQUIRED and home_score > away_score:
             controller = home_name
@@ -853,18 +878,18 @@ def main():
     """Main application function."""
     
     # Header
-    st.markdown('<div class="system-header">🔐 BRUTBALL v6.1.1 – CANONICAL STATE LOCK</div>', unsafe_allow_html=True)
+    st.markdown('<div class="system-header">🔐 BRUTBALL v6.1.2 – CANONICAL STATE LOCK</div>', unsafe_allow_html=True)
     
     st.markdown("""
     <div class="system-subheader">
-        <p><strong>Logically complete • No status resolution • Direction mandatory • Redundant enforcement</strong></p>
-        <p>STATE LOCKED or NO DECLARATION – silence is discipline</p>
+        <p><strong>Logically complete • No status resolution • Direction mandatory • Mutual control detection</strong></p>
+        <p>STATE LOCKED or NO DECLARATION – silence is discipline • v6.1.2 refinement included</p>
     </div>
     """, unsafe_allow_html=True)
     
     # System constants display
     with st.expander("🔒 SYSTEM CONSTANTS (IMMUTABLE)", expanded=False):
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
             st.metric("Direction Threshold", f"> {DIRECTION_THRESHOLD}", "LAW 2")
         with col2:
@@ -873,12 +898,15 @@ def main():
             st.metric("Control Criteria", f"≥ {CONTROL_CRITERIA_REQUIRED}", "GATE 1")
         with col4:
             st.metric("State-Flip Failures", f"≥ {STATE_FLIP_FAILURES_REQUIRED}", "GATE 3")
+        with col5:
+            st.metric("Mutual Control Δ", f"≤ {QUIET_CONTROL_SEPARATION_THRESHOLD}", "v6.1.2")
         
         st.markdown('<div class="law-display">', unsafe_allow_html=True)
         st.markdown("**🔒 SYSTEM LAWS**")
         st.markdown("1. **LAW 1:** Status resolution → NO DECLARATION")
         st.markdown("2. **LAW 2:** Direction Δ ≤ 0.25 → NO DECLARATION")  
         st.markdown("3. **LAW 3:** Enforcement methods < 2 → NO DECLARATION")
+        st.markdown("4. **v6.1.2:** Mutual control (Δ ≤ 0.1) → NO DECLARATION")
         st.markdown('</div>', unsafe_allow_html=True)
     
     # Initialize session state
@@ -888,7 +916,7 @@ def main():
     # League selection
     st.markdown("### 🌍 League Selection")
     
-    cols = st.columns(7)
+    cols = st.columns(8)
     leagues = list(LEAGUES.keys())
     
     for idx, (col, league) in enumerate(zip(cols, leagues)):
@@ -1089,6 +1117,20 @@ def main():
                 
                 st.markdown(f"**Gates passed:** {gates_passed}/{total_gates}")
                 
+                # Show mutual control alert if applicable
+                if result.get('mutual_control'):
+                    st.markdown("""
+                    <div class="mutual-control-alert">
+                        <h4 style="color: #D97706; margin: 0;">v6.1.2 REFINEMENT: MUTUAL CONTROL DETECTED</h4>
+                        <p style="color: #92400E; margin: 0.5rem 0;">
+                            Both teams meet Quiet Control criteria with insufficient separation
+                        </p>
+                        <p style="color: #92400E; margin: 0; font-size: 0.9rem;">
+                            Weighted difference: {:.2f} ≤ {}
+                        </p>
+                    </div>
+                    """.format(result.get('weighted_diff', 0), QUIET_CONTROL_SEPARATION_THRESHOLD), unsafe_allow_html=True)
+                
                 if result.get('law_violations'):
                     st.markdown('<div class="law-violation">', unsafe_allow_html=True)
                     st.markdown("**LAW VIOLATIONS DETECTED:**")
@@ -1118,7 +1160,7 @@ def main():
         st.markdown("---")
         st.markdown("#### 📤 Export System Verdict")
         
-        export_text = f"""BRUTBALL v6.1.1 - CANONICAL STATE LOCK VERDICT
+        export_text = f"""BRUTBALL v6.1.2 - CANONICAL STATE LOCK VERDICT
 ===========================================
 League: {selected_league}
 Match: {home_team} vs {away_team}
@@ -1134,7 +1176,7 @@ REASON:
 
 GATE SEQUENCE RESULTS:
 Gates passed: {result.get('gates_passed', 0)}/{result.get('total_gates', 4)}
-{result.get('law_violations', ['No law violations'])[0] if result.get('law_violations') else 'All laws satisfied'}
+{'v6.1.2: Mutual control detected' if result.get('mutual_control') else result.get('law_violations', ['No law violations'])[0] if result.get('law_violations') else 'All laws satisfied'}
 
 {'CONTROLLER:' if result.get('controller') else ''}
 {result.get('controller', 'N/A')}
@@ -1147,15 +1189,16 @@ SYSTEM LOG:
 {chr(10).join(result['system_log'])}
 
 ===========================================
-BRUTBALL v6.1.1 - Canonical State Lock Engine
+BRUTBALL v6.1.2 - Canonical State Lock Engine
 Logically complete • No status resolution • Direction mandatory
-Silence is discipline • Capital flows only on STATE LOCKED
+v6.1.2 mutual control detection • Silence is discipline
+Capital flows only on STATE LOCKED
         """
         
         st.download_button(
             label="📥 Download System Verdict",
             data=export_text,
-            file_name=f"brutball_v6.1.1_verdict_{selected_league.replace(' ', '_')}_{home_team}_vs_{away_team}.txt",
+            file_name=f"brutball_v6.1.2_verdict_{selected_league.replace(' ', '_')}_{home_team}_vs_{away_team}.txt",
             mime="text/plain",
             use_container_width=True
         )
@@ -1164,9 +1207,10 @@ Silence is discipline • Capital flows only on STATE LOCKED
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; color: #6B7280; font-size: 0.9rem; padding: 1rem;">
-        <p><strong>BRUTBALL v6.1.1 – Canonical State Lock Engine</strong></p>
-        <p>Logically complete • No status resolution • Direction mandatory • Redundant enforcement</p>
+        <p><strong>BRUTBALL v6.1.2 – Canonical State Lock Engine</strong></p>
+        <p>Logically complete • No status resolution • Direction mandatory • Mutual control detection</p>
         <p>STATE LOCKED or NO DECLARATION – silence is not failure, silence is discipline</p>
+        <p>v6.0: Found edges • v6.1: Defined inevitability • v6.1.2: Enforces truth</p>
     </div>
     """, unsafe_allow_html=True)
 
