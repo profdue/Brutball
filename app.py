@@ -6,16 +6,23 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # =================== SYSTEM CONSTANTS (IMMUTABLE) ===================
+# v6.1.1 State Lock Authority Engine Constants
 DIRECTION_THRESHOLD = 0.25  # LAW 2: Direction is mandatory
 ENFORCEMENT_METHODS_REQUIRED = 2  # LAW 3: Enforcement must be redundant
 CONTROL_CRITERIA_REQUIRED = 2  # GATE 1: Minimum for Quiet Control
 STATE_FLIP_FAILURES_REQUIRED = 2  # GATE 3: Opponent fails ≥2 escalation paths
 QUIET_CONTROL_SEPARATION_THRESHOLD = 0.1  # v6.1.2: Mutual control check
 
+# v6.0 Edge Detection Engine Constants
+CAPITAL_MULTIPLIERS = {
+    'EDGE_MODE': 1.0,  # Base stake for v6.0-only decisions
+    'LOCK_MODE': 2.0   # Stake multiplier for STATE LOCKED authorization
+}
+
 # =================== PAGE CONFIGURATION ===================
 st.set_page_config(
-    page_title="BRUTBALL v6.1.2 - Canonical State Lock",
-    page_icon="🔒",
+    page_title="BRUTBALL v6.1.2 - Two Engine Architecture",
+    page_icon="⚖️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -108,6 +115,31 @@ st.markdown("""
         margin: 1.5rem 0;
         box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     }
+    .edge-analysis-display {
+        padding: 2rem;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+        border: 3px solid #3B82F6;
+        margin: 1rem 0;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+    }
+    .capital-mode-box {
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+        text-align: center;
+        font-weight: 700;
+    }
+    .edge-mode {
+        background: #EFF6FF;
+        color: #1E40AF;
+        border: 3px solid #3B82F6;
+    }
+    .lock-mode {
+        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+        color: #166534;
+        border: 3px solid #16A34A;
+    }
     .gate-passed {
         background: #F0FDF4;
         padding: 1rem;
@@ -139,22 +171,6 @@ st.markdown("""
         border: 2px solid #F59E0B;
         margin: 1rem 0;
         font-size: 0.9rem;
-    }
-    .control-indicator {
-        padding: 1.5rem;
-        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
-        border-radius: 10px;
-        border: 3px solid #16A34A;
-        margin: 1rem 0;
-        text-align: center;
-    }
-    .no-control-indicator {
-        padding: 1.5rem;
-        background: linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%);
-        border-radius: 10px;
-        border: 3px solid #6B7280;
-        margin: 1rem 0;
-        text-align: center;
     }
     .capital-authorized {
         background: #1E3A8A;
@@ -214,6 +230,10 @@ st.markdown("""
         background: #F0FDF4;
         border-left: 3px solid #16A34A;
     }
+    .metric-row-edge {
+        background: #EFF6FF;
+        border-left: 3px solid #3B82F6;
+    }
     .gate-sequence {
         counter-reset: gate-counter;
         margin: 1rem 0;
@@ -244,32 +264,260 @@ st.markdown("""
         margin: 0.5rem 0;
         white-space: pre-wrap;
     }
-    .mutual-control-alert {
-        background: #FFFBEB;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 2px solid #F59E0B;
+    .architecture-diagram {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 2px solid #E5E7EB;
         margin: 1rem 0;
-        font-size: 0.9rem;
+        text-align: center;
+    }
+    .engine-indicator {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 700;
+        margin: 0.5rem;
+    }
+    .engine-v6 {
+        background: #DBEAFE;
+        color: #1E40AF;
+        border: 2px solid #3B82F6;
+    }
+    .engine-v61 {
+        background: #DCFCE7;
+        color: #166534;
+        border: 2px solid #16A34A;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# =================== BRUTBALL v6.1.2 - CANONICAL STATE LOCK ENGINE ===================
-class BrutballCanonicalEngine:
+# =================== v6.0 EDGE DETECTION ENGINE ===================
+class BrutballEdgeEngine:
     """
-    BRUTBALL v6.1.2 - CANONICAL STATE LOCK ENGINE
-    Logically complete. No status resolution. Direction mandatory.
-    Includes v6.1.2 mutual control refinement.
+    BRUTBALL v6.0 - EDGE DETECTION ENGINE
+    Heuristic layer: identifies structural advantages in football
+    """
+    
+    @staticmethod
+    def evaluate_control_criteria(team_data: Dict, opponent_data: Dict,
+                                 is_home: bool, team_name: str) -> Tuple[int, float, List[str], List[str]]:
+        """Evaluate 4 control criteria with weighted scoring."""
+        rationale = []
+        criteria_met = []
+        raw_score = 0
+        weighted_score = 0.0
+        
+        # CRITERION 1: Tempo dominance (weight: 1.0)
+        if is_home:
+            tempo_xg = team_data.get('home_xg_per_match', 0)
+        else:
+            tempo_xg = team_data.get('away_xg_per_match', 0)
+        
+        if tempo_xg > 1.4:
+            raw_score += 1
+            weighted_score += 1.0
+            criteria_met.append("Tempo dominance")
+            rationale.append(f"✅ {team_name}: Tempo dominance (xG: {tempo_xg:.2f} > 1.4)")
+        
+        # CRITERION 2: Scoring efficiency (weight: 1.0)
+        if is_home:
+            goals = team_data.get('home_goals_scored', 0)
+            xg = team_data.get('home_xg_for', 0)
+        else:
+            goals = team_data.get('away_goals_scored', 0)
+            xg = team_data.get('away_xg_for', 0)
+        
+        efficiency = goals / max(xg, 0.1)
+        if efficiency > 0.9:
+            raw_score += 1
+            weighted_score += 1.0
+            criteria_met.append("Scoring efficiency")
+            rationale.append(f"✅ {team_name}: Scoring efficiency ({efficiency:.1%} of xG > 90%)")
+        
+        # CRITERION 3: Critical area threat (weight: 0.8)
+        if is_home:
+            setpiece_pct = team_data.get('home_setpiece_pct', 0)
+        else:
+            setpiece_pct = team_data.get('away_setpiece_pct', 0)
+        
+        if setpiece_pct > 0.25:
+            raw_score += 1
+            weighted_score += 0.8
+            criteria_met.append("Critical area threat")
+            rationale.append(f"✅ {team_name}: Critical area threat (set pieces: {setpiece_pct:.1%} > 25%)")
+        
+        # CRITERION 4: Repeatable patterns (weight: 0.8)
+        if is_home:
+            openplay_pct = team_data.get('home_openplay_pct', 0)
+            counter_pct = team_data.get('home_counter_pct', 0)
+        else:
+            openplay_pct = team_data.get('away_openplay_pct', 0)
+            counter_pct = team_data.get('away_counter_pct', 0)
+        
+        repeatable_methods = 0
+        if openplay_pct > 0.5:
+            repeatable_methods += 1
+        if counter_pct > 0.15:
+            repeatable_methods += 1
+        
+        if repeatable_methods >= 1:
+            raw_score += 1
+            weighted_score += 0.8
+            criteria_met.append("Repeatable patterns")
+            rationale.append(f"✅ {team_name}: Repeatable attacking patterns")
+        
+        return raw_score, weighted_score, criteria_met, rationale
+    
+    @staticmethod
+    def execute_decision_tree(home_data: Dict, away_data: Dict,
+                            home_name: str, away_name: str,
+                            league_avg_xg: float) -> Dict:
+        """Execute v6.0 decision tree to identify structural edges."""
+        audit_log = []
+        decision_steps = []
+        
+        audit_log.append("=" * 70)
+        audit_log.append("🔍 BRUTBALL v6.0 - EDGE DETECTION ENGINE")
+        audit_log.append("=" * 70)
+        audit_log.append(f"Match: {home_name} vs {away_name}")
+        audit_log.append("")
+        
+        # Step 1: Identify potential controller
+        audit_log.append("STEP 1: CONTROL CRITERIA EVALUATION")
+        
+        home_score, home_weighted, home_criteria, home_rationale = BrutballEdgeEngine.evaluate_control_criteria(
+            home_data, away_data, is_home=True, team_name=home_name
+        )
+        
+        away_score, away_weighted, away_criteria, away_rationale = BrutballEdgeEngine.evaluate_control_criteria(
+            away_data, home_data, is_home=False, team_name=away_name
+        )
+        
+        audit_log.extend(home_rationale)
+        audit_log.extend(away_rationale)
+        
+        # Determine favorite (by position)
+        home_pos = home_data.get('season_position', 10)
+        away_pos = away_data.get('season_position', 10)
+        favorite = home_name if home_pos < away_pos else away_name
+        underdog = away_name if favorite == home_name else home_name
+        
+        # Get xG values
+        home_xg = home_data.get('home_xg_per_match', 0)
+        away_xg = away_data.get('away_xg_per_match', 0)
+        combined_xg = home_xg + away_xg
+        
+        # Determine controller for v6.0 logic
+        controller = None
+        if home_score >= 2 and away_score >= 2:
+            if home_weighted > away_weighted:
+                controller = home_name
+            else:
+                controller = away_name
+        elif home_score >= 2 and home_score > away_score:
+            controller = home_name
+        elif away_score >= 2 and away_score > home_score:
+            controller = away_name
+        
+        # Step 2: Apply v6.0 decision logic
+        audit_log.append("")
+        audit_log.append("STEP 2: DECISION LOGIC APPLICATION")
+        
+        primary_action = "UNDER 2.5"  # Default conservative
+        confidence = 5.0
+        secondary_logic = ""
+        stake_pct = 1.0
+        
+        if controller:
+            # Controller exists
+            opponent = away_name if controller == home_name else home_name
+            is_underdog = controller == underdog
+            
+            if combined_xg >= 2.8 and max(home_xg, away_xg) >= 1.6:
+                # Goals environment present
+                primary_action = f"BACK {controller} & OVER 2.5"
+                confidence = 7.5
+                secondary_logic = f"Controller + goals environment"
+                
+                if is_underdog:
+                    confidence -= 0.5
+                    secondary_logic += " (underdog controller)"
+            else:
+                # No goals environment
+                primary_action = f"BACK {controller}"
+                confidence = 8.0
+                secondary_logic = "Clean win expected (likely UNDER)"
+            
+            # Confidence-based stake
+            if confidence >= 8.0:
+                stake_pct = 2.5
+            elif confidence >= 7.0:
+                stake_pct = 2.0
+            elif confidence >= 6.0:
+                stake_pct = 1.5
+            else:
+                stake_pct = 1.0
+                
+        elif combined_xg >= 2.8:
+            # No controller but goals environment
+            primary_action = "OVER 2.5"
+            confidence = 6.0
+            secondary_logic = "Goals only - no clear controller"
+            stake_pct = 1.0
+        
+        else:
+            # No controller, no goals
+            primary_action = "UNDER 2.5"
+            confidence = 5.5
+            secondary_logic = "Low-scoring match expected"
+            stake_pct = 0.5
+        
+        # Ensure reasonable confidence bounds
+        confidence = max(5.0, min(confidence, 9.0))
+        
+        audit_log.append(f"• Primary Action: {primary_action}")
+        audit_log.append(f"• Confidence: {confidence:.1f}/10")
+        audit_log.append(f"• Stake: {stake_pct:.1f}% (EDGE MODE)")
+        if secondary_logic:
+            audit_log.append(f"• Logic: {secondary_logic}")
+        
+        audit_log.append("=" * 70)
+        
+        return {
+            'primary_action': primary_action,
+            'confidence': confidence,
+            'stake_pct': stake_pct,
+            'secondary_logic': secondary_logic,
+            'audit_log': audit_log,
+            'decision_steps': [
+                f"1. Control evaluation: {controller if controller else 'No clear controller'}",
+                f"2. Combined xG: {combined_xg:.2f} ({'≥2.8' if combined_xg >= 2.8 else '<2.8'})",
+                f"3. Max xG: {max(home_xg, away_xg):.2f} ({'≥1.6' if max(home_xg, away_xg) >= 1.6 else '<1.6'})",
+                f"4. Decision: {primary_action} (Confidence: {confidence:.1f}/10)"
+            ],
+            'key_metrics': {
+                'home_xg': home_xg,
+                'away_xg': away_xg,
+                'combined_xg': combined_xg,
+                'controller': controller,
+                'favorite': favorite,
+                'underdog': underdog
+            },
+            'mode': 'EDGE_MODE'
+        }
+
+# =================== v6.1.1 STATE LOCK AUTHORITY ENGINE ===================
+class BrutballStateLockEngine:
+    """
+    BRUTBALL v6.1.1 - STATE LOCK AUTHORITY ENGINE
+    Governance layer: detects structural inevitability
     """
     
     @staticmethod
     def evaluate_quiet_control(team_data: Dict, opponent_data: Dict,
                               is_home: bool, team_name: str) -> Tuple[int, float, List[str], List[str]]:
-        """
-        GATE 1: Evaluate Quiet Control.
-        Returns: (raw_score, weighted_score, criteria_met, rationale)
-        """
+        """GATE 1: Evaluate Quiet Control."""
         rationale = []
         criteria_met = []
         raw_score = 0
@@ -339,10 +587,7 @@ class BrutballCanonicalEngine:
     @staticmethod
     def check_directional_dominance(controller_xg: float, opponent_xg: float,
                                    controller_name: str, opponent_name: str) -> Tuple[bool, float, List[str]]:
-        """
-        GATE 2: Check directional dominance (LAW 2).
-        Control Delta must exceed DIRECTION_THRESHOLD.
-        """
+        """GATE 2: Check directional dominance (LAW 2)."""
         rationale = []
         control_delta = controller_xg - opponent_xg
         
@@ -363,10 +608,7 @@ class BrutballCanonicalEngine:
     @staticmethod
     def check_state_flip_capacity(opponent_data: Dict, is_home: bool,
                                  opponent_name: str, league_avg_xg: float) -> Tuple[int, List[str]]:
-        """
-        GATE 3: Check state-flip capacity.
-        Opponent must fail ≥2 of 4 escalation checks.
-        """
+        """GATE 3: Check state-flip capacity."""
         rationale = []
         failures = 0
         check_details = []
@@ -434,10 +676,7 @@ class BrutballCanonicalEngine:
     @staticmethod
     def check_enforcement_capacity(controller_data: Dict, is_home: bool,
                                   controller_name: str) -> Tuple[int, List[str]]:
-        """
-        GATE 4: Check enforcement without urgency (LAW 3).
-        Must have ≥2 independent enforcement methods.
-        """
+        """GATE 4: Check enforcement without urgency (LAW 3)."""
         rationale = []
         enforce_methods = 0
         method_details = []
@@ -518,29 +757,23 @@ class BrutballCanonicalEngine:
         return enforce_methods, rationale
     
     @classmethod
-    def execute_canonical_gates(cls, home_data: Dict, away_data: Dict,
-                               home_name: str, away_name: str,
-                               league_avg_xg: float) -> Dict:
-        """
-        Execute canonical gate sequence. No status resolution. Direction mandatory.
-        Includes v6.1.2 mutual control refinement.
-        Returns STATE LOCKED declaration or NO DECLARATION.
-        """
+    def execute_state_lock_evaluation(cls, home_data: Dict, away_data: Dict,
+                                     home_name: str, away_name: str,
+                                     league_avg_xg: float) -> Dict:
+        """Execute STATE LOCK evaluation."""
         system_log = []
         gates_passed = 0
         total_gates = 4
         
         system_log.append("=" * 70)
-        system_log.append("🔐 BRUTBALL v6.1.2 - CANONICAL STATE LOCK")
+        system_log.append("🔐 BRUTBALL v6.1.1 - STATE LOCK AUTHORITY ENGINE")
         system_log.append("=" * 70)
         system_log.append(f"MATCH: {home_name} vs {away_name}")
-        system_log.append(f"SYSTEM TIME: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}")
         system_log.append("")
         
         # =================== GATE 1: QUIET CONTROL ===================
         system_log.append("GATE 1: QUIET CONTROL IDENTIFICATION")
         
-        # Evaluate both teams
         home_score, home_weighted, home_criteria, home_rationale = cls.evaluate_quiet_control(
             home_data, away_data, is_home=True, team_name=home_name
         )
@@ -556,19 +789,16 @@ class BrutballCanonicalEngine:
         controller = None
         controller_criteria = []
         
-        # v6.1.2 REFINEMENT: Check for mutual control
+        # v6.1.2: Check for mutual control
         both_meet_control = (home_score >= CONTROL_CRITERIA_REQUIRED and 
                             away_score >= CONTROL_CRITERIA_REQUIRED)
         
         if both_meet_control:
             weighted_diff = abs(home_weighted - away_weighted)
             
-            # Check if weighted difference is too small (mutual control)
             if weighted_diff <= QUIET_CONTROL_SEPARATION_THRESHOLD:
-                system_log.append(f"⚠️ v6.1.2 REFINEMENT: Mutual control detected")
-                system_log.append(f"  • Home weighted score: {home_weighted:.2f}")
-                system_log.append(f"  • Away weighted score: {away_weighted:.2f}")
-                system_log.append(f"  • Difference: {weighted_diff:.2f} ≤ {QUIET_CONTROL_SEPARATION_THRESHOLD}")
+                system_log.append(f"⚠️ v6.1.2: Mutual control detected")
+                system_log.append(f"  • Weighted difference: {weighted_diff:.2f} ≤ {QUIET_CONTROL_SEPARATION_THRESHOLD}")
                 system_log.append("• NO SINGLE CONTROLLER → NO DECLARATION")
                 system_log.append("⚠️ SYSTEM SILENT")
                 
@@ -578,21 +808,17 @@ class BrutballCanonicalEngine:
                     'system_log': system_log,
                     'reason': f"v6.1.2: Mutual control (weighted difference ≤ {QUIET_CONTROL_SEPARATION_THRESHOLD})",
                     'capital_authorized': False,
-                    'gates_passed': gates_passed,
-                    'total_gates': total_gates,
-                    'mutual_control': True,
-                    'weighted_diff': weighted_diff
+                    'mutual_control': True
                 }
             
-            # Clear weighted advantage exists
             if home_weighted > away_weighted:
                 controller = home_name
                 controller_criteria = home_criteria
-                system_log.append(f"• Controller: {home_name} (weighted advantage: {home_weighted:.2f} > {away_weighted:.2f})")
+                system_log.append(f"• Controller: {home_name} (weighted advantage)")
             else:
                 controller = away_name
                 controller_criteria = away_criteria
-                system_log.append(f"• Controller: {away_name} (weighted advantage: {away_weighted:.2f} > {home_weighted:.2f})")
+                system_log.append(f"• Controller: {away_name} (weighted advantage)")
         
         elif home_score >= CONTROL_CRITERIA_REQUIRED and home_score > away_score:
             controller = home_name
@@ -606,8 +832,6 @@ class BrutballCanonicalEngine:
         
         else:
             system_log.append("❌ GATE 1 FAILED: No Quiet Control identified")
-            system_log.append(f"  • {home_name}: {home_score}/4 criteria (need {CONTROL_CRITERIA_REQUIRED}+)")
-            system_log.append(f"  • {away_name}: {away_score}/4 criteria (need {CONTROL_CRITERIA_REQUIRED}+)")
             system_log.append("⚠️ SYSTEM SILENT")
             
             return {
@@ -615,9 +839,7 @@ class BrutballCanonicalEngine:
                 'state_locked': False,
                 'system_log': system_log,
                 'reason': f"No team meets {CONTROL_CRITERIA_REQUIRED}+ control criteria",
-                'capital_authorized': False,
-                'gates_passed': gates_passed,
-                'total_gates': total_gates
+                'capital_authorized': False
             }
         
         gates_passed += 1
@@ -627,14 +849,12 @@ class BrutballCanonicalEngine:
         system_log.append("")
         system_log.append("GATE 2: DIRECTIONAL DOMINANCE (LAW 2)")
         
-        # Determine opponent and get xG values
         opponent = away_name if controller == home_name else home_name
         is_controller_home = controller == home_name
         
         controller_xg = home_data.get('home_xg_per_match', 0) if is_controller_home else away_data.get('away_xg_per_match', 0)
         opponent_xg = away_data.get('away_xg_per_match', 0) if is_controller_home else home_data.get('home_xg_per_match', 0)
         
-        # Check directional dominance
         has_direction, control_delta, direction_rationale = cls.check_directional_dominance(
             controller_xg, opponent_xg, controller, opponent
         )
@@ -648,12 +868,7 @@ class BrutballCanonicalEngine:
                 'state_locked': False,
                 'system_log': system_log,
                 'reason': f"LAW 2 VIOLATION: Insufficient directional dominance (Δ = {control_delta:+.2f} ≤ {DIRECTION_THRESHOLD})",
-                'capital_authorized': False,
-                'gates_passed': gates_passed,
-                'total_gates': total_gates,
-                'law_violations': ["LAW 2: Insufficient directional dominance"],
-                'controller': controller,
-                'control_delta': control_delta
+                'capital_authorized': False
             }
         
         gates_passed += 1
@@ -663,11 +878,9 @@ class BrutballCanonicalEngine:
         system_log.append("")
         system_log.append("GATE 3: STATE-FLIP CAPACITY")
         
-        # Get opponent data
         opponent_data = away_data if opponent == away_name else home_data
         is_opponent_home = opponent == home_name
         
-        # Check state-flip capacity
         failures, flip_rationale = cls.check_state_flip_capacity(
             opponent_data, is_opponent_home, opponent, league_avg_xg
         )
@@ -675,7 +888,6 @@ class BrutballCanonicalEngine:
         
         if failures < STATE_FLIP_FAILURES_REQUIRED:
             system_log.append("❌ GATE 3 FAILED: Opponent retains escalation paths")
-            system_log.append(f"  • Failures: {failures}/{STATE_FLIP_FAILURES_REQUIRED} required")
             system_log.append("⚠️ SYSTEM SILENT")
             
             return {
@@ -683,12 +895,7 @@ class BrutballCanonicalEngine:
                 'state_locked': False,
                 'system_log': system_log,
                 'reason': f"Opponent retains state-flip capacity ({failures}/{STATE_FLIP_FAILURES_REQUIRED} failures)",
-                'capital_authorized': False,
-                'gates_passed': gates_passed,
-                'total_gates': total_gates,
-                'controller': controller,
-                'control_delta': control_delta,
-                'state_flip_failures': failures
+                'capital_authorized': False
             }
         
         gates_passed += 1
@@ -698,10 +905,8 @@ class BrutballCanonicalEngine:
         system_log.append("")
         system_log.append("GATE 4: ENFORCEMENT WITHOUT URGENCY (LAW 3)")
         
-        # Get controller data
         controller_data = home_data if controller == home_name else away_data
         
-        # Check enforcement capacity
         enforce_methods, enforce_rationale = cls.check_enforcement_capacity(
             controller_data, is_controller_home, controller
         )
@@ -709,7 +914,6 @@ class BrutballCanonicalEngine:
         
         if enforce_methods < ENFORCEMENT_METHODS_REQUIRED:
             system_log.append("❌ GATE 4 FAILED: Insufficient enforcement capacity")
-            system_log.append(f"  • Methods: {enforce_methods}/{ENFORCEMENT_METHODS_REQUIRED} required")
             system_log.append("⚠️ SYSTEM SILENT")
             
             return {
@@ -717,14 +921,7 @@ class BrutballCanonicalEngine:
                 'state_locked': False,
                 'system_log': system_log,
                 'reason': f"LAW 3 VIOLATION: Insufficient enforcement capacity ({enforce_methods}/{ENFORCEMENT_METHODS_REQUIRED} methods)",
-                'capital_authorized': False,
-                'gates_passed': gates_passed,
-                'total_gates': total_gates,
-                'controller': controller,
-                'control_delta': control_delta,
-                'state_flip_failures': failures,
-                'enforce_methods': enforce_methods,
-                'law_violations': ["LAW 3: Insufficient enforcement methods"]
+                'capital_authorized': False
             }
         
         gates_passed += 1
@@ -736,7 +933,6 @@ class BrutballCanonicalEngine:
         system_log.append("🔒 STATE LOCK DECLARATION")
         system_log.append("=" * 70)
         
-        # Generate appropriate declaration
         if opponent_xg < 1.1:
             declaration = f"🔒 STATE LOCKED\n{opponent} lacks chase capacity\n{controller} can win at walking pace"
         elif control_delta > 0.5:
@@ -748,13 +944,12 @@ class BrutballCanonicalEngine:
         
         system_log.append(declaration)
         system_log.append("")
-        system_log.append("💰 CAPITAL AUTHORIZED")
+        system_log.append("💰 CAPITAL AUTHORIZATION: GRANTED")
         system_log.append(f"• All {total_gates}/{total_gates} gates passed")
-        system_log.append(f"• Control Delta: {control_delta:+.2f} (threshold: >{DIRECTION_THRESHOLD})")
+        system_log.append(f"• Control Delta: {control_delta:+.2f} > {DIRECTION_THRESHOLD}")
         system_log.append(f"• State-Flip Failures: {failures}/4")
         system_log.append(f"• Enforcement Methods: {enforce_methods}/{ENFORCEMENT_METHODS_REQUIRED}+")
         system_log.append("• Match outcome structurally constrained")
-        system_log.append("• Opponent agency eliminated")
         system_log.append("=" * 70)
         
         return {
@@ -763,24 +958,102 @@ class BrutballCanonicalEngine:
             'system_log': system_log,
             'reason': "All canonical gates passed. State structurally locked.",
             'capital_authorized': True,
-            'gates_passed': gates_passed,
-            'total_gates': total_gates,
             'controller': controller,
-            'controller_criteria': controller_criteria,
-            'opponent': opponent,
             'control_delta': control_delta,
             'state_flip_failures': failures,
             'enforce_methods': enforce_methods,
             'key_metrics': {
                 'controller_xg': controller_xg,
-                'opponent_xg': opponent_xg,
-                'league_avg_xg': league_avg_xg
-            },
-            'team_context': {
-                'home': home_name,
-                'away': away_name,
-                'home_pos': home_data.get('season_position', 10),
-                'away_pos': away_data.get('season_position', 10)
+                'opponent_xg': opponent_xg
+            }
+        }
+
+# =================== INTEGRATED BRUTBALL ARCHITECTURE ===================
+class BrutballIntegratedArchitecture:
+    """
+    BRUTBALL INTEGRATED ARCHITECTURE
+    Two-engine system: v6.0 (Edge Detection) + v6.1.1 (State Lock Authority)
+    """
+    
+    @staticmethod
+    def execute_two_engine_analysis(home_data: Dict, away_data: Dict,
+                                   home_name: str, away_name: str,
+                                   league_avg_xg: float) -> Dict:
+        """Execute both engines and combine results."""
+        
+        # Run v6.0 Edge Detection Engine
+        edge_result = BrutballEdgeEngine.execute_decision_tree(
+            home_data, away_data, home_name, away_name, league_avg_xg
+        )
+        
+        # Run v6.1.1 State Lock Authority Engine
+        state_lock_result = BrutballStateLockEngine.execute_state_lock_evaluation(
+            home_data, away_data, home_name, away_name, league_avg_xg
+        )
+        
+        # Determine capital mode and final stake
+        if state_lock_result['state_locked']:
+            capital_mode = 'LOCK_MODE'
+            final_stake = edge_result['stake_pct'] * CAPITAL_MULTIPLIERS['LOCK_MODE']
+            capital_authorization = "AUTHORIZED (STATE LOCKED)"
+            system_verdict = "STRUCTURAL INEVITABILITY DETECTED"
+        else:
+            capital_mode = 'EDGE_MODE'
+            final_stake = edge_result['stake_pct'] * CAPITAL_MULTIPLIERS['EDGE_MODE']
+            capital_authorization = "STANDARD (v6.0 EDGE)"
+            system_verdict = "STRUCTURAL EDGE DETECTED"
+        
+        # Create integrated system log
+        system_log = []
+        system_log.append("=" * 70)
+        system_log.append("⚖️ BRUTBALL INTEGRATED ARCHITECTURE")
+        system_log.append("=" * 70)
+        system_log.append(f"ARCHITECTURE: Two-Engine System")
+        system_log.append(f"  • Layer 1: v6.0 Edge Detection Engine")
+        system_log.append(f"  • Layer 2: v6.1.1 State Lock Authority Engine")
+        system_log.append("")
+        
+        system_log.append("🔍 v6.0 EDGE DETECTION RESULT")
+        system_log.append(f"  • Action: {edge_result['primary_action']}")
+        system_log.append(f"  • Confidence: {edge_result['confidence']:.1f}/10")
+        system_log.append(f"  • Base Stake: {edge_result['stake_pct']:.1f}%")
+        system_log.append("")
+        
+        system_log.append("🔐 v6.1.1 STATE LOCK EVALUATION")
+        if state_lock_result['state_locked']:
+            system_log.append("  • Result: STATE LOCKED")
+            system_log.append(f"  • Declaration: {state_lock_result['declaration']}")
+            system_log.append("  • Capital Authorization: GRANTED")
+        else:
+            system_log.append("  • Result: NO DECLARATION")
+            system_log.append(f"  • Reason: {state_lock_result['reason']}")
+            system_log.append("  • Capital Authorization: STANDARD (v6.0 edge preserved)")
+        system_log.append("")
+        
+        system_log.append("💰 INTEGRATED CAPITAL DECISION")
+        system_log.append(f"  • Capital Mode: {capital_mode}")
+        system_log.append(f"  • Stake Multiplier: {CAPITAL_MULTIPLIERS[capital_mode]:.1f}x")
+        system_log.append(f"  • Final Stake: {final_stake:.2f}%")
+        system_log.append(f"  • Authorization: {capital_authorization}")
+        system_log.append("")
+        system_log.append(f"🎯 SYSTEM VERDICT: {system_verdict}")
+        system_log.append("=" * 70)
+        
+        return {
+            'architecture': 'Two-Engine System',
+            'v6_result': edge_result,
+            'v61_result': state_lock_result,
+            'capital_mode': capital_mode,
+            'final_stake': final_stake,
+            'system_verdict': system_verdict,
+            'system_log': system_log,
+            'integrated_output': {
+                'primary_action': edge_result['primary_action'],
+                'state_locked': state_lock_result['state_locked'],
+                'capital_authorized': capital_authorization,
+                'stake_multiplier': CAPITAL_MULTIPLIERS[capital_mode],
+                'final_stake_pct': final_stake,
+                'edge_confidence': edge_result['confidence']
             }
         }
 
@@ -878,35 +1151,47 @@ def main():
     """Main application function."""
     
     # Header
-    st.markdown('<div class="system-header">🔐 BRUTBALL v6.1.2 – CANONICAL STATE LOCK</div>', unsafe_allow_html=True)
+    st.markdown('<div class="system-header">⚖️ BRUTBALL v6.1.2 - TWO ENGINE ARCHITECTURE</div>', unsafe_allow_html=True)
     
     st.markdown("""
     <div class="system-subheader">
-        <p><strong>Logically complete • No status resolution • Direction mandatory • Mutual control detection</strong></p>
-        <p>STATE LOCKED or NO DECLARATION – silence is discipline • v6.1.2 refinement included</p>
+        <p><strong>Layer 1: v6.0 Edge Detection • Layer 2: v6.1.1 State Lock Authority • Integrated Capital Logic</strong></p>
+        <p>EDGE MODE (v6.0 only) vs LOCK MODE (v6.0 + v6.1.1 STATE LOCKED)</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Architecture diagram
+    st.markdown("""
+    <div class="architecture-diagram">
+        <h4>🏗️ SYSTEM ARCHITECTURE</h4>
+        <div style="margin: 1rem 0;">
+            <span class="engine-indicator engine-v61">v6.1.1 STATE LOCK AUTHORITY</span>
+            <div style="margin: 0.5rem; font-size: 1.5rem;">↑</div>
+            <div style="font-size: 0.9rem; color: #6B7280;">Governance Layer<br>Permission-granting only</div>
+        </div>
+        <div style="margin: 1rem 0;">
+            <span class="engine-indicator engine-v6">v6.0 EDGE DETECTION</span>
+            <div style="margin: 0.5rem; font-size: 0.9rem; color: #6B7280;">Heuristic Layer<br>Continuous operation</div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
     
     # System constants display
-    with st.expander("🔒 SYSTEM CONSTANTS (IMMUTABLE)", expanded=False):
-        col1, col2, col3, col4, col5 = st.columns(5)
+    with st.expander("🔧 SYSTEM CONFIGURATION", expanded=False):
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Direction Threshold", f"> {DIRECTION_THRESHOLD}", "LAW 2")
+            st.metric("Edge Mode Multiplier", f"{CAPITAL_MULTIPLIERS['EDGE_MODE']}x", "v6.0 only")
         with col2:
-            st.metric("Enforcement Methods", f"≥ {ENFORCEMENT_METHODS_REQUIRED}", "LAW 3")
+            st.metric("Lock Mode Multiplier", f"{CAPITAL_MULTIPLIERS['LOCK_MODE']}x", "STATE LOCKED")
         with col3:
-            st.metric("Control Criteria", f"≥ {CONTROL_CRITERIA_REQUIRED}", "GATE 1")
+            st.metric("Direction Threshold", f"> {DIRECTION_THRESHOLD}", "LAW 2")
         with col4:
-            st.metric("State-Flip Failures", f"≥ {STATE_FLIP_FAILURES_REQUIRED}", "GATE 3")
-        with col5:
-            st.metric("Mutual Control Δ", f"≤ {QUIET_CONTROL_SEPARATION_THRESHOLD}", "v6.1.2")
+            st.metric("Enforcement Methods", f"≥ {ENFORCEMENT_METHODS_REQUIRED}", "LAW 3")
         
         st.markdown('<div class="law-display">', unsafe_allow_html=True)
-        st.markdown("**🔒 SYSTEM LAWS**")
-        st.markdown("1. **LAW 1:** Status resolution → NO DECLARATION")
-        st.markdown("2. **LAW 2:** Direction Δ ≤ 0.25 → NO DECLARATION")  
-        st.markdown("3. **LAW 3:** Enforcement methods < 2 → NO DECLARATION")
-        st.markdown("4. **v6.1.2:** Mutual control (Δ ≤ 0.1) → NO DECLARATION")
+        st.markdown("**🎯 OPERATIONAL MODES**")
+        st.markdown("1. **EDGE MODE:** v6.0 edge detection only • Normal variance • 1.0x stake")
+        st.markdown("2. **LOCK MODE:** v6.0 + v6.1.1 STATE LOCKED • Structural inevitability • 2.0x stake")
         st.markdown('</div>', unsafe_allow_html=True)
     
     # Initialize session state
@@ -950,7 +1235,7 @@ def main():
         away_team = st.selectbox("Away Team", away_options)
     
     # Execute analysis
-    if st.button("🔒 EXECUTE CANONICAL GATES", type="primary", use_container_width=True):
+    if st.button("⚡ EXECUTE TWO-ENGINE ANALYSIS", type="primary", use_container_width=True):
         
         # Get data
         home_data = df[df['team'] == home_team].iloc[0].to_dict()
@@ -962,195 +1247,187 @@ def main():
         else:
             league_avg_xg = 1.3
         
-        # Execute canonical gates
-        result = BrutballCanonicalEngine.execute_canonical_gates(
+        # Execute integrated architecture
+        result = BrutballIntegratedArchitecture.execute_two_engine_analysis(
             home_data, away_data, home_team, away_team, league_avg_xg
         )
         
         st.markdown("---")
         
         # Display results
-        st.markdown("### 🔍 SYSTEM VERDICT")
+        st.markdown("### 🎯 INTEGRATED SYSTEM VERDICT")
         
-        if result['state_locked']:
-            # STATE LOCKED DECLARATION
+        # Capital mode display
+        capital_mode = result['capital_mode']
+        capital_display = "LOCK MODE" if capital_mode == 'LOCK_MODE' else "EDGE MODE"
+        capital_color = "#16A34A" if capital_mode == 'LOCK_MODE' else "#3B82F6"
+        capital_bg = "linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)" if capital_mode == 'LOCK_MODE' else "linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)"
+        
+        st.markdown(f"""
+        <div class="capital-mode-box {'lock-mode' if capital_mode == 'LOCK_MODE' else 'edge-mode'}">
+            <h2 style="margin: 0; font-size: 2rem;">{capital_display}</h2>
+            <div style="font-size: 1.2rem; margin-top: 0.5rem;">
+                Stake: <strong>{result['final_stake']:.2f}%</strong> ({result['v6_result']['stake_pct']:.1f}% × {CAPITAL_MULTIPLIERS[capital_mode]:.1f}x)
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # v6.0 Edge Detection Display
+        st.markdown("#### 🔍 v6.0 EDGE DETECTION RESULT")
+        
+        v6_result = result['v6_result']
+        st.markdown(f"""
+        <div class="edge-analysis-display">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="color: #1E40AF; margin: 0;">{v6_result['primary_action']}</h3>
+                    <p style="color: #6B7280; margin: 0.5rem 0 0 0;">{v6_result['secondary_logic']}</p>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 1.5rem; font-weight: 800; color: #3B82F6;">{v6_result['confidence']:.1f}/10</div>
+                    <div style="font-size: 0.9rem; color: #6B7280;">Confidence</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # v6.1.1 State Lock Display
+        st.markdown("#### 🔐 v6.1.1 STATE LOCK EVALUATION")
+        
+        v61_result = result['v61_result']
+        
+        if v61_result['state_locked']:
             st.markdown(f"""
             <div class="state-locked-display">
-                <div style="font-size: 1.2rem; color: #6B7280; margin-bottom: 1rem;">SYSTEM DECLARATION</div>
-                <h1 style="color: #16A34A; margin: 1rem 0; font-size: 2.5rem; font-weight: 800;">STATE LOCKED</h1>
-                <div style="font-size: 1.3rem; color: #059669; margin-bottom: 1.5rem; font-weight: 600; line-height: 1.4;">
-                    {result['declaration'].split('\\n')[1] if '\\n' in result['declaration'] else ''}
+                <h3 style="color: #16A34A; margin: 0 0 1rem 0;">STATE LOCKED</h3>
+                <div style="font-size: 1.2rem; color: #059669; margin-bottom: 0.5rem;">
+                    {v61_result['declaration'].split('\\n')[1] if '\\n' in v61_result['declaration'] else ''}
                 </div>
-                <div style="font-size: 1.1rem; color: #374151; margin-bottom: 2rem; line-height: 1.4;">
-                    {result['declaration'].split('\\n')[2] if len(result['declaration'].split('\\n')) > 2 else ''}
-                </div>
-                <div style="background: #16A34A; color: white; padding: 0.75rem 2rem; border-radius: 30px; display: inline-block; font-weight: 700; font-size: 1.1rem;">
-                    CAPITAL AUTHORIZED
+                <div style="color: #374151;">
+                    {v61_result['declaration'].split('\\n')[2] if len(v61_result['declaration'].split('\\n')) > 2 else ''}
                 </div>
             </div>
             """, unsafe_allow_html=True)
             
-            # Gate sequence results
-            st.markdown("#### 🚪 CANONICAL GATE SEQUENCE")
-            
-            gate_steps = [
-                f"GATE 1: Quiet Control → {result['controller']}",
-                f"GATE 2: Directional Dominance → Δ = {result['control_delta']:+.2f}",
-                f"GATE 3: State-Flip Capacity → {result['state_flip_failures']}/4 failures",
-                f"GATE 4: Enforcement Capacity → {result['enforce_methods']}/2+ methods"
-            ]
-            
-            for i, step in enumerate(gate_steps):
-                st.markdown(f"""
-                <div class="gate-step">
-                    <div style="color: #16A34A; font-weight: 600;">✅ {step}</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Capital authorization
             st.markdown("""
             <div class="capital-authorized">
-                <h3 style="margin: 0; color: white;">💰 CAPITAL AUTHORIZATION ACTIVE</h3>
+                <h3 style="margin: 0; color: white;">💰 CAPITAL AUTHORIZATION: GRANTED</h3>
                 <p style="margin: 0.5rem 0 0 0; color: #D1FAE5; font-size: 0.95rem;">
-                    All canonical gates passed. System has declared STATE LOCKED.
+                    Structural inevitability detected • LOCK MODE activated • 2.0x stake multiplier
                 </p>
             </div>
             """, unsafe_allow_html=True)
             
-            # Structural metrics
-            st.markdown("#### 📊 STRUCTURAL METRICS")
-            col1, col2 = st.columns(2)
+            # Gate sequence
+            st.markdown("##### 🚪 STATE LOCK GATE SEQUENCE")
+            gates = [
+                f"GATE 1: Quiet Control → {v61_result['controller']}",
+                f"GATE 2: Directional Dominance → Δ = {v61_result['control_delta']:+.2f}",
+                f"GATE 3: State-Flip Capacity → {v61_result['state_flip_failures']}/4 failures",
+                f"GATE 4: Enforcement Capacity → {v61_result['enforce_methods']}/2+ methods"
+            ]
             
-            with col1:
-                st.markdown('<div style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #E5E7EB;">', unsafe_allow_html=True)
-                st.markdown("**Directional Analysis**")
+            for gate in gates:
+                st.markdown(f'<div class="gate-passed">{gate}</div>', unsafe_allow_html=True)
                 
-                controller_xg = result['key_metrics']['controller_xg']
-                opponent_xg = result['key_metrics']['opponent_xg']
-                control_delta = result['control_delta']
-                
-                st.markdown(f"""
-                <div class="metric-row metric-row-controller">
-                    <span>🎯 {result['controller']}:</span>
-                    <span><strong>{controller_xg:.2f}</strong></span>
-                    <span class="status-badge status-success">Controller</span>
-                </div>
-                
-                <div class="metric-row">
-                    <span>⚫ {result['opponent']}:</span>
-                    <span><strong>{opponent_xg:.2f}</strong></span>
-                    <span class="status-badge status-neutral">Opponent</span>
-                </div>
-                
-                <div class="metric-row" style="background: #EFF6FF;">
-                    <span>📈 Control Delta:</span>
-                    <span><strong>{control_delta:+.2f}</strong></span>
-                    <span class="status-badge status-success">> {DIRECTION_THRESHOLD}</span>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                st.markdown('</div>', unsafe_allow_html=True)
-            
-            with col2:
-                st.markdown('<div style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #E5E7EB;">', unsafe_allow_html=True)
-                st.markdown("**Capacity Analysis**")
-                
-                st.markdown(f"""
-                <div class="metric-row">
-                    <span>🔓 State-Flip Failures:</span>
-                    <span><strong>{result['state_flip_failures']}/4</strong></span>
-                    <span class="status-badge {'status-success' if result['state_flip_failures'] >= 2 else 'status-warning'}">
-                        ≥{STATE_FLIP_FAILURES_REQUIRED}
-                    </span>
-                </div>
-                
-                <div class="metric-row">
-                    <span>🛡️ Enforcement Methods:</span>
-                    <span><strong>{result['enforce_methods']}/2+</strong></span>
-                    <span class="status-badge {'status-success' if result['enforce_methods'] >= 2 else 'status-danger'}">
-                        LAW 3
-                    </span>
-                </div>
-                
-                <div class="metric-row">
-                    <span>🏆 Quiet Control Criteria:</span>
-                    <span><strong>{len(result['controller_criteria'])}/4</strong></span>
-                    <span class="status-badge {'status-success' if len(result['controller_criteria']) >= 2 else 'status-warning'}">
-                        ≥{CONTROL_CRITERIA_REQUIRED}
-                    </span>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                st.markdown('</div>', unsafe_allow_html=True)
-            
         else:
-            # NO DECLARATION
             st.markdown(f"""
             <div class="no-declaration-display">
-                <div style="font-size: 1.2rem; color: #6B7280; margin-bottom: 1rem;">SYSTEM DECLARATION</div>
-                <h1 style="color: #6B7280; margin: 1rem 0; font-size: 2.5rem; font-weight: 800;">NO DECLARATION</h1>
-                <div style="font-size: 1.1rem; color: #374151; margin-bottom: 2rem; line-height: 1.4;">
-                    {result['reason']}
-                </div>
-                <div style="background: #6B7280; color: white; padding: 0.75rem 2rem; border-radius: 30px; display: inline-block; font-weight: 700; font-size: 1.1rem;">
-                    SYSTEM SILENT
+                <h3 style="color: #6B7280; margin: 0 0 1rem 0;">NO DECLARATION</h3>
+                <div style="color: #374151;">
+                    {v61_result['reason']}
                 </div>
             </div>
             """, unsafe_allow_html=True)
             
-            # No capital authorization
             st.markdown("""
             <div class="no-capital">
-                <h3 style="margin: 0; color: white;">🚫 CAPITAL NOT AUTHORIZED</h3>
+                <h3 style="margin: 0; color: white;">🔒 CAPITAL AUTHORIZATION: STANDARD</h3>
                 <p style="margin: 0.5rem 0 0 0; color: #E5E7EB; font-size: 0.95rem;">
-                    System has not declared STATE LOCKED. No capital deployment permitted.
+                    v6.0 edge preserved • EDGE MODE active • 1.0x stake multiplier
                 </p>
             </div>
             """, unsafe_allow_html=True)
             
-            # Gate failures
-            if result.get('gates_passed', 0) > 0:
-                st.markdown("#### 🚫 GATE FAILURE ANALYSIS")
-                
-                gates_passed = result.get('gates_passed', 0)
-                total_gates = result.get('total_gates', 4)
-                
-                st.markdown(f"**Gates passed:** {gates_passed}/{total_gates}")
-                
-                # Show mutual control alert if applicable
-                if result.get('mutual_control'):
-                    st.markdown("""
-                    <div class="mutual-control-alert">
-                        <h4 style="color: #D97706; margin: 0;">v6.1.2 REFINEMENT: MUTUAL CONTROL DETECTED</h4>
-                        <p style="color: #92400E; margin: 0.5rem 0;">
-                            Both teams meet Quiet Control criteria with insufficient separation
-                        </p>
-                        <p style="color: #92400E; margin: 0; font-size: 0.9rem;">
-                            Weighted difference: {:.2f} ≤ {}
-                        </p>
-                    </div>
-                    """.format(result.get('weighted_diff', 0), QUIET_CONTROL_SEPARATION_THRESHOLD), unsafe_allow_html=True)
-                
-                if result.get('law_violations'):
-                    st.markdown('<div class="law-violation">', unsafe_allow_html=True)
-                    st.markdown("**LAW VIOLATIONS DETECTED:**")
-                    for violation in result['law_violations']:
-                        st.markdown(f"• {violation}")
-                    st.markdown('</div>', unsafe_allow_html=True)
-                
-                # Show controller info if identified
-                if result.get('controller'):
-                    st.markdown(f"""
-                    <div class="no-control-indicator">
-                        <h4 style="color: #6B7280; margin: 0;">CONTROLLER IDENTIFIED: {result['controller']}</h4>
-                        <p style="color: #6B7280; margin: 0.5rem 0;">
-                            But canonical gates not fully satisfied
-                        </p>
-                    </div>
-                    """, unsafe_allow_html=True)
+            if v61_result.get('mutual_control'):
+                st.markdown("""
+                <div class="mutual-control-alert">
+                    <h4 style="color: #D97706; margin: 0;">v6.1.2 REFINEMENT: MUTUAL CONTROL DETECTED</h4>
+                    <p style="color: #92400E; margin: 0.5rem 0;">
+                        Both teams meet Quiet Control criteria with insufficient separation
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # Key metrics
+        st.markdown("#### 📊 KEY METRICS")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown('<div style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #E5E7EB;">', unsafe_allow_html=True)
+            st.markdown("**v6.0 Edge Detection**")
+            
+            v6_metrics = v6_result['key_metrics']
+            st.markdown(f"""
+            <div class="metric-row metric-row-edge">
+                <span>Primary Action:</span>
+                <span><strong>{v6_result['primary_action']}</strong></span>
+            </div>
+            <div class="metric-row">
+                <span>Confidence:</span>
+                <span><strong>{v6_result['confidence']:.1f}/10</strong></span>
+            </div>
+            <div class="metric-row">
+                <span>Base Stake:</span>
+                <span><strong>{v6_result['stake_pct']:.1f}%</strong></span>
+            </div>
+            <div class="metric-row">
+                <span>Controller:</span>
+                <span><strong>{v6_metrics['controller'] if v6_metrics['controller'] else 'None'}</strong></span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown('<div style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #E5E7EB;">', unsafe_allow_html=True)
+            st.markdown("**v6.1.1 State Lock**")
+            
+            if v61_result['state_locked']:
+                st.markdown(f"""
+                <div class="metric-row metric-row-controller">
+                    <span>Controller:</span>
+                    <span><strong>{v61_result['controller']}</strong></span>
+                </div>
+                <div class="metric-row">
+                    <span>Control Delta:</span>
+                    <span><strong>{v61_result['control_delta']:+.2f}</strong></span>
+                </div>
+                <div class="metric-row">
+                    <span>State-Flip Failures:</span>
+                    <span><strong>{v61_result['state_flip_failures']}/4</strong></span>
+                </div>
+                <div class="metric-row">
+                    <span>Enforcement Methods:</span>
+                    <span><strong>{v61_result['enforce_methods']}/2+</strong></span>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div class="metric-row">
+                    <span>Result:</span>
+                    <span><strong>NO DECLARATION</strong></span>
+                </div>
+                <div class="metric-row">
+                    <span>Reason:</span>
+                    <span style="color: #DC2626;"><strong>{v61_result['reason'].split(':')[-1].strip()}</strong></span>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
         
         # System log
-        with st.expander("📋 VIEW SYSTEM LOG", expanded=True):
+        with st.expander("📋 VIEW INTEGRATED SYSTEM LOG", expanded=True):
             st.markdown('<div class="system-log">', unsafe_allow_html=True)
             for line in result['system_log']:
                 st.text(line)
@@ -1158,47 +1435,66 @@ def main():
         
         # Export
         st.markdown("---")
-        st.markdown("#### 📤 Export System Verdict")
+        st.markdown("#### 📤 Export Integrated Analysis")
         
-        export_text = f"""BRUTBALL v6.1.2 - CANONICAL STATE LOCK VERDICT
+        export_text = f"""BRUTBALL v6.1.2 - TWO ENGINE ARCHITECTURE ANALYSIS
 ===========================================
 League: {selected_league}
 Match: {home_team} vs {away_team}
-System Time: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
+Analysis Time: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-SYSTEM DECLARATION:
-{result['declaration'] if result['state_locked'] else 'NO DECLARATION'}
+ARCHITECTURE SUMMARY:
+• System: Two-Engine Architecture
+• Layer 1: v6.0 Edge Detection Engine
+• Layer 2: v6.1.1 State Lock Authority Engine
+• Capital Mode: {capital_display}
 
-CAPITAL AUTHORIZATION: {'AUTHORIZED' if result['state_locked'] else 'NOT AUTHORIZED'}
+v6.0 EDGE DETECTION RESULT:
+• Primary Action: {v6_result['primary_action']}
+• Confidence: {v6_result['confidence']:.1f}/10
+• Base Stake: {v6_result['stake_pct']:.1f}%
+• Secondary Logic: {v6_result['secondary_logic']}
 
-REASON:
-{result['reason']}
+v6.1.1 STATE LOCK EVALUATION:
+• Result: {'STATE LOCKED' if v61_result['state_locked'] else 'NO DECLARATION'}
+{'• Declaration: ' + v61_result['declaration'] if v61_result['state_locked'] else '• Reason: ' + v61_result['reason']}
+• Capital Authorization: {'GRANTED (LOCK MODE)' if v61_result['state_locked'] else 'STANDARD (EDGE MODE)'}
 
-GATE SEQUENCE RESULTS:
-Gates passed: {result.get('gates_passed', 0)}/{result.get('total_gates', 4)}
-{'v6.1.2: Mutual control detected' if result.get('mutual_control') else result.get('law_violations', ['No law violations'])[0] if result.get('law_violations') else 'All laws satisfied'}
+INTEGRATED CAPITAL DECISION:
+• Final Capital Mode: {capital_display}
+• Stake Multiplier: {CAPITAL_MULTIPLIERS[capital_mode]:.1f}x
+• Final Stake: {result['final_stake']:.2f}%
+• System Verdict: {result['system_verdict']}
 
-{'CONTROLLER:' if result.get('controller') else ''}
-{result.get('controller', 'N/A')}
-{', '.join(result.get('controller_criteria', [])) if result.get('controller_criteria') else ''}
+KEY METRICS:
+v6.0:
+  • Controller: {v6_metrics.get('controller', 'None')}
+  • Favorite: {v6_metrics.get('favorite', 'N/A')}
+  • Underdog: {v6_metrics.get('underdog', 'N/A')}
+  • Home xG: {v6_metrics.get('home_xg', 0):.2f}
+  • Away xG: {v6_metrics.get('away_xg', 0):.2f}
+  • Combined xG: {v6_metrics.get('combined_xg', 0):.2f}
 
-{'KEY METRICS:' if result.get('key_metrics') else ''}
-{''.join([f'{k}: {v:.2f}\\n' for k, v in result.get('key_metrics', {}).items()])}
+{'v6.1.1:' if v61_result['state_locked'] else ''}
+{'  • Controller: ' + v61_result['controller'] if v61_result['state_locked'] else ''}
+{'  • Control Delta: ' + f"{v61_result['control_delta']:+.2f}" if v61_result['state_locked'] else ''}
+{'  • State-Flip Failures: ' + f"{v61_result['state_flip_failures']}/4" if v61_result['state_locked'] else ''}
+{'  • Enforcement Methods: ' + f"{v61_result['enforce_methods']}/2+" if v61_result['state_locked'] else ''}
 
-SYSTEM LOG:
+INTEGRATED SYSTEM LOG:
 {chr(10).join(result['system_log'])}
 
 ===========================================
-BRUTBALL v6.1.2 - Canonical State Lock Engine
-Logically complete • No status resolution • Direction mandatory
-v6.1.2 mutual control detection • Silence is discipline
-Capital flows only on STATE LOCKED
+BRUTBALL v6.1.2 - Two Engine Architecture
+Layer 1: v6.0 Edge Detection (heuristic)
+Layer 2: v6.1.1 State Lock Authority (governance)
+Capital flows differently based on structural certainty
         """
         
         st.download_button(
-            label="📥 Download System Verdict",
+            label="📥 Download Integrated Analysis",
             data=export_text,
-            file_name=f"brutball_v6.1.2_verdict_{selected_league.replace(' ', '_')}_{home_team}_vs_{away_team}.txt",
+            file_name=f"brutball_v6.1.2_integrated_{selected_league.replace(' ', '_')}_{home_team}_vs_{away_team}.txt",
             mime="text/plain",
             use_container_width=True
         )
@@ -1207,10 +1503,10 @@ Capital flows only on STATE LOCKED
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; color: #6B7280; font-size: 0.9rem; padding: 1rem;">
-        <p><strong>BRUTBALL v6.1.2 – Canonical State Lock Engine</strong></p>
-        <p>Logically complete • No status resolution • Direction mandatory • Mutual control detection</p>
-        <p>STATE LOCKED or NO DECLARATION – silence is not failure, silence is discipline</p>
-        <p>v6.0: Found edges • v6.1: Defined inevitability • v6.1.2: Enforces truth</p>
+        <p><strong>BRUTBALL v6.1.2 – Two Engine Architecture</strong></p>
+        <p>Layer 1: v6.0 Edge Detection Engine • Layer 2: v6.1.1 State Lock Authority Engine</p>
+        <p>EDGE MODE (normal variance) • LOCK MODE (structural inevitability)</p>
+        <p>Governance layer sits above, never replaces, heuristic layer</p>
     </div>
     """, unsafe_allow_html=True)
 
