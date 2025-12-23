@@ -1303,7 +1303,7 @@ def main():
                 <div style="font-size: 1.2rem; color: #059669; margin-bottom: 0.5rem;">
                     {v61_result['declaration'].split('\\n')[1] if '\\n' in v61_result['declaration'] else ''}
                 </div>
-                <div style="color: #374151">
+                <div style="color: #374151;">
                     {v61_result['declaration'].split('\\n')[2] if len(v61_result['declaration'].split('\\n')) > 2 else ''}
                 </div>
             </div>
