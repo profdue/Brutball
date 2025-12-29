@@ -24,6 +24,34 @@ ABSOLUTE_STATE_FLIP_FAILURES = 4       # Opponent must fail ALL 4 checks
 ABSOLUTE_SHOCK_IMMUNITY_REQUIRED = 2   # Must have ≥2 shock immunity methods
 ABSOLUTE_CONTROL_CRITERIA = 3          # Must meet ≥3 quiet control criteria
 
+# Market-Specific Thresholds for Agency-State Framework (NEW)
+MARKET_THRESHOLDS = {
+    'WINNER': {
+        'opponent_xg_max': 1.1,      # Standard chase threshold
+        'state_flip_failures': 2,    # ≥2/4 failures
+        'enforcement_methods': 2,    # ≥2 methods
+        'urgency_required': False    # Can win without urgency
+    },
+    'CLEAN_SHEET': {
+        'opponent_xg_max': 0.8,      # Stricter - opponent can't score
+        'state_flip_failures': 3,    # ≥3/4 failures (more stringent)
+        'enforcement_methods': 2,    # ≥2 methods
+        'urgency_required': False    # Can defend without pushing
+    },
+    'TEAM_NO_SCORE': {  # Team to Score: NO
+        'opponent_xg_max': 0.6,      # Very strict - almost no threat
+        'state_flip_failures': 4,    # ALL 4 failures required
+        'enforcement_methods': 3,    # ≥3 methods (elite defense needed)
+        'urgency_required': False    # Can suppress without risk
+    },
+    'OPPONENT_UNDER_1_5': {
+        'opponent_xg_max': 1.0,      # Limited scoring capacity
+        'state_flip_failures': 2,    # ≥2/4 failures
+        'enforcement_methods': 2,    # ≥2 methods
+        'urgency_required': False    # Can control without opening
+    }
+}
+
 # Capital Multipliers
 CAPITAL_MULTIPLIERS = {
     'EDGE_MODE': 1.0,     # v6.0 only
@@ -33,8 +61,8 @@ CAPITAL_MULTIPLIERS = {
 
 # =================== PAGE CONFIGURATION ===================
 st.set_page_config(
-    page_title="BRUTBALL v6.1.2 + ABSOLUTE LOCK - Three Engine Architecture",
-    page_icon="🔒",
+    page_title="BRUTBALL v6.1.2 + AGENCY-STATE FRAMEWORK",
+    page_icon="⚖️🔒",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -109,7 +137,7 @@ st.markdown("""
         margin-bottom: 2rem;
         font-size: 0.95rem;
     }
-    .state-locked-display {
+    .agency-state-display {
         padding: 2.5rem;
         border-radius: 12px;
         background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
@@ -118,45 +146,30 @@ st.markdown("""
         margin: 1.5rem 0;
         box-shadow: 0 6px 16px rgba(22, 163, 74, 0.15);
     }
-    .absolute-locked-display {
-        padding: 2.5rem;
-        border-radius: 12px;
+    .market-locked-display {
+        padding: 1.5rem;
+        border-radius: 10px;
         background: linear-gradient(135deg, #ECFDF5 0%, #A7F3D0 100%);
-        border: 4px solid #059669;
-        text-align: center;
-        margin: 1.5rem 0;
-        box-shadow: 0 8px 20px rgba(5, 150, 105, 0.25);
-        position: relative;
-        overflow: hidden;
+        border: 3px solid #059669;
+        margin: 1rem 0;
+        text-align: left;
     }
-    .absolute-locked-display::before {
-        content: "🔒 ABSOLUTE";
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        background: #059669;
-        color: white;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: 700;
-    }
-    .no-declaration-display {
-        padding: 2.5rem;
-        border-radius: 12px;
-        background: linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%);
-        border: 4px solid #6B7280;
-        text-align: center;
-        margin: 1.5rem 0;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-    }
-    .edge-analysis-display {
-        padding: 2rem;
-        border-radius: 12px;
+    .market-available-display {
+        padding: 1.5rem;
+        border-radius: 10px;
         background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
         border: 3px solid #3B82F6;
         margin: 1rem 0;
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+        text-align: left;
+    }
+    .market-unavailable-display {
+        padding: 1.5rem;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%);
+        border: 3px solid #9CA3AF;
+        margin: 1rem 0;
+        text-align: left;
+        opacity: 0.7;
     }
     .capital-mode-box {
         padding: 1.5rem;
@@ -196,59 +209,7 @@ st.markdown("""
         margin: 0.75rem 0;
         font-size: 0.9rem;
     }
-    .gate-extreme {
-        background: #ECFDF5;
-        padding: 1rem;
-        border-radius: 8px;
-        border-left: 4px solid #059669;
-        margin: 0.75rem 0;
-        font-size: 0.9rem;
-        border: 2px solid #A7F3D0;
-    }
-    .law-display {
-        background: #EFF6FF;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 2px solid #3B82F6;
-        margin: 1rem 0;
-        font-size: 0.9rem;
-    }
-    .law-violation {
-        background: #FEF3C7;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 2px solid #F59E0B;
-        margin: 1rem 0;
-        font-size: 0.9rem;
-    }
-    .capital-authorized {
-        background: #1E3A8A;
-        color: white;
-        padding: 1.5rem;
-        border-radius: 10px;
-        text-align: center;
-        margin: 1rem 0;
-        border: 3px solid #3B82F6;
-    }
-    .capital-maximum {
-        background: linear-gradient(135deg, #065F46 0%, #059669 100%);
-        color: white;
-        padding: 1.5rem;
-        border-radius: 10px;
-        text-align: center;
-        margin: 1rem 0;
-        border: 3px solid #10B981;
-    }
-    .no-capital {
-        background: #6B7280;
-        color: white;
-        padding: 1.5rem;
-        border-radius: 10px;
-        text-align: center;
-        margin: 1rem 0;
-        border: 3px solid #9CA3AF;
-    }
-    .status-badge {
+    .market-badge {
         display: inline-block;
         padding: 0.25rem 0.75rem;
         border-radius: 20px;
@@ -256,31 +217,28 @@ st.markdown("""
         font-weight: 600;
         margin: 0.25rem;
     }
-    .status-success {
+    .badge-state {
         background: #DCFCE7;
         color: #16A34A;
         border: 1px solid #86EFAC;
     }
-    .status-warning {
-        background: #FEF3C7;
-        color: #D97706;
-        border: 1px solid #FCD34D;
-    }
-    .status-neutral {
+    .badge-noise {
         background: #F3F4F6;
         color: #6B7280;
         border: 1px solid #D1D5DB;
     }
-    .status-danger {
-        background: #FEE2E2;
-        color: #DC2626;
-        border: 1px solid #FCA5A5;
-    }
-    .status-absolute {
+    .badge-locked {
         background: #A7F3D0;
         color: #065F46;
         border: 1px solid #10B981;
         font-weight: 800;
+    }
+    .agency-insight {
+        background: #E0F2FE;
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 2px solid #38BDF8;
+        margin: 1rem 0;
     }
     .metric-row {
         display: flex;
@@ -290,55 +248,13 @@ st.markdown("""
         padding: 0.5rem;
         border-radius: 4px;
     }
-    .metric-row-controller {
+    .metric-row-state {
         background: #F0FDF4;
         border-left: 3px solid #16A34A;
     }
-    .metric-row-edge {
-        background: #EFF6FF;
-        border-left: 3px solid #3B82F6;
-    }
-    .metric-row-absolute {
-        background: #ECFDF5;
-        border-left: 3px solid #059669;
-    }
-    .gate-sequence {
-        counter-reset: gate-counter;
-        margin: 1rem 0;
-    }
-    .gate-step {
-        margin: 1rem 0;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 2px solid #E5E7EB;
-        position: relative;
-        counter-increment: gate-counter;
-    }
-    .gate-step::before {
-        content: "GATE " counter(gate-counter) ": ";
-        font-weight: 800;
-        color: #3B82F6;
-        font-size: 0.9rem;
-        display: block;
-        margin-bottom: 0.5rem;
-    }
-    .gate-step-absolute {
-        border: 2px solid #A7F3D0;
-        background: #F0FDFA;
-    }
-    .gate-step-absolute::before {
-        color: #059669;
-        font-weight: 900;
-    }
-    .system-log {
-        font-family: 'Courier New', monospace;
-        font-size: 0.85rem;
-        background: #1F2937;
-        color: #E5E7EB;
-        padding: 1rem;
-        border-radius: 8px;
-        margin: 0.5rem 0;
-        white-space: pre-wrap;
+    .metric-row-agency {
+        background: #E0F2FE;
+        border-left: 3px solid #38BDF8;
     }
     .architecture-diagram {
         background: white;
@@ -347,29 +263,6 @@ st.markdown("""
         border: 2px solid #E5E7EB;
         margin: 1rem 0;
         text-align: center;
-    }
-    .engine-indicator {
-        display: inline-block;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-weight: 700;
-        margin: 0.5rem;
-    }
-    .engine-v6 {
-        background: #DBEAFE;
-        color: #1E40AF;
-        border: 2px solid #3B82F6;
-    }
-    .engine-v61 {
-        background: #DCFCE7;
-        color: #166534;
-        border: 2px solid #16A34A;
-    }
-    .engine-absolute {
-        background: linear-gradient(135deg, #A7F3D0 0%, #34D399 100%);
-        color: #065F46;
-        border: 2px solid #059669;
-        font-weight: 900;
     }
     .three-tier-architecture {
         display: flex;
@@ -402,18 +295,27 @@ st.markdown("""
         border: 3px solid #3B82F6;
         color: #1E40AF;
     }
-    .arrow-down {
-        font-size: 1.5rem;
-        color: #6B7280;
+    .agency-principle {
+        background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 3px solid #38BDF8;
+        margin: 1rem 0;
     }
-    .capital-display {
-        font-size: 2rem;
-        font-weight: 900;
+    .state-bound-list {
+        background: #F0FDF4;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 2px solid #86EFAC;
         margin: 0.5rem 0;
     }
-    .capital-1x { color: #3B82F6; }
-    .capital-2x { color: #16A34A; }
-    .capital-3x { color: #059669; }
+    .noise-list {
+        background: #F3F4F6;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 2px solid #D1D5DB;
+        margin: 0.5rem 0;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -632,11 +534,12 @@ class BrutballEdgeEngine:
             'mode': 'EDGE_MODE'
         }
 
-# =================== v6.1.1 STATE LOCK AUTHORITY ENGINE ===================
-class BrutballStateLockEngine:
+# =================== AGENCY-STATE LOCK ENGINE (UNIFIED) ===================
+class AgencyStateLockEngine:
     """
-    BRUTBALL v6.1.1 - STATE LOCK AUTHORITY ENGINE
-    Governance layer: detects structural inevitability
+    AGENCY-STATE LOCK ENGINE
+    Unified engine for all agency-bound markets
+    STATE = AGENCY CONTROL • LOCK = AGENCY SUPPRESSION
     """
     
     @staticmethod
@@ -711,36 +614,52 @@ class BrutballStateLockEngine:
     
     @staticmethod
     def check_directional_dominance(controller_xg: float, opponent_xg: float,
-                                   controller_name: str, opponent_name: str) -> Tuple[bool, float, List[str]]:
-        """GATE 2: Check directional dominance (LAW 2)."""
+                                   controller_name: str, opponent_name: str,
+                                   market_type: str) -> Tuple[bool, float, List[str]]:
+        """GATE 2: Check directional dominance with market-specific thresholds."""
         rationale = []
         control_delta = controller_xg - opponent_xg
+        market_threshold = MARKET_THRESHOLDS[market_type]['opponent_xg_max']
         
-        rationale.append(f"GATE 2: DIRECTIONAL DOMINANCE CHECK")
+        rationale.append(f"GATE 2: DIRECTIONAL DOMINANCE ({market_type})")
         rationale.append(f"• Controller xG ({controller_name}): {controller_xg:.2f}")
         rationale.append(f"• Opponent xG ({opponent_name}): {opponent_xg:.2f}")
         rationale.append(f"• Control Delta: {control_delta:+.2f}")
-        rationale.append(f"• Required Threshold: > {DIRECTION_THRESHOLD}")
+        rationale.append(f"• Minimum Δ Threshold: > {DIRECTION_THRESHOLD}")
+        rationale.append(f"• Market-Specific Threshold: opponent xG < {market_threshold}")
         
-        if control_delta > DIRECTION_THRESHOLD:
-            rationale.append(f"✅ Directional dominance confirmed (Δ = {control_delta:+.2f} > {DIRECTION_THRESHOLD})")
+        # Check both conditions
+        delta_condition = control_delta > DIRECTION_THRESHOLD
+        opponent_xg_condition = opponent_xg < market_threshold
+        
+        if delta_condition and opponent_xg_condition:
+            rationale.append(f"✅ Directional dominance confirmed")
+            rationale.append(f"  • Δ = {control_delta:+.2f} > {DIRECTION_THRESHOLD}")
+            rationale.append(f"  • Opponent xG = {opponent_xg:.2f} < {market_threshold}")
             return True, control_delta, rationale
         else:
-            rationale.append(f"❌ LAW 2 VIOLATION: Insufficient directional dominance (Δ = {control_delta:+.2f} ≤ {DIRECTION_THRESHOLD})")
-            rationale.append("• No pressure gradient → NO DECLARATION")
+            rationale.append(f"❌ Directional dominance insufficient")
+            if not delta_condition:
+                rationale.append(f"  • Δ = {control_delta:+.2f} ≤ {DIRECTION_THRESHOLD}")
+            if not opponent_xg_condition:
+                rationale.append(f"  • Opponent xG = {opponent_xg:.2f} ≥ {market_threshold}")
             return False, control_delta, rationale
     
     @staticmethod
-    def check_state_flip_capacity(opponent_data: Dict, is_home: bool,
-                                 opponent_name: str, league_avg_xg: float) -> Tuple[int, List[str]]:
-        """GATE 3: Check state-flip capacity."""
+    def check_agency_collapse(opponent_data: Dict, is_home: bool,
+                             opponent_name: str, league_avg_xg: float,
+                             market_type: str) -> Tuple[bool, int, List[str]]:
+        """GATE 3: Check agency collapse with market-specific requirements."""
         rationale = []
         failures = 0
         check_details = []
         
-        rationale.append(f"GATE 3: STATE-FLIP CAPACITY CHECK")
+        rationale.append(f"GATE 3: AGENCY COLLAPSE CHECK ({market_type})")
         
-        # CHECK 1: Chase xG < 1.1
+        # Get market-specific requirements
+        required_failures = MARKET_THRESHOLDS[market_type]['state_flip_failures']
+        
+        # CHECK 1: Chase capacity
         if is_home:
             chase_xg = opponent_data.get('home_xg_per_match', 0)
         else:
@@ -748,18 +667,18 @@ class BrutballStateLockEngine:
         
         if chase_xg < 1.1:
             failures += 1
-            check_details.append(f"❌ Chase xG {chase_xg:.2f} < 1.1")
+            check_details.append(f"✅ Chase xG {chase_xg:.2f} < 1.1")
         else:
-            check_details.append(f"✅ Chase xG {chase_xg:.2f} ≥ 1.1")
+            check_details.append(f"❌ Chase xG {chase_xg:.2f} ≥ 1.1")
         
-        # CHECK 2: No tempo surge capability
+        # CHECK 2: Tempo surge capability
         if chase_xg < 1.4:
             failures += 1
-            check_details.append(f"❌ No tempo surge (xG {chase_xg:.2f} < 1.4)")
+            check_details.append(f"✅ No tempo surge (xG {chase_xg:.2f} < 1.4)")
         else:
-            check_details.append(f"✅ Tempo surge possible")
+            check_details.append(f"❌ Tempo surge possible")
         
-        # CHECK 3: No alternate threat channel
+        # CHECK 3: Alternate threat channels
         if is_home:
             setpiece_pct = opponent_data.get('home_setpiece_pct', 0)
             counter_pct = opponent_data.get('home_counter_pct', 0)
@@ -769,11 +688,11 @@ class BrutballStateLockEngine:
         
         if setpiece_pct < 0.25 and counter_pct < 0.15:
             failures += 1
-            check_details.append(f"❌ No alternate threat (SP: {setpiece_pct:.1%}, C: {counter_pct:.1%})")
+            check_details.append(f"✅ No alternate threat (SP: {setpiece_pct:.1%}, C: {counter_pct:.1%})")
         else:
-            check_details.append(f"✅ Alternate threat exists")
+            check_details.append(f"❌ Alternate threat exists")
         
-        # CHECK 4: Low substitution leverage
+        # CHECK 4: Substitution leverage
         if is_home:
             gpm = opponent_data.get('home_goals_per_match', 0)
         else:
@@ -781,32 +700,34 @@ class BrutballStateLockEngine:
         
         if gpm < league_avg_xg * 0.8:
             failures += 1
-            check_details.append(f"❌ Low substitution leverage ({gpm:.2f} < {league_avg_xg*0.8:.2f})")
+            check_details.append(f"✅ Low substitution leverage ({gpm:.2f} < {league_avg_xg*0.8:.2f})")
         else:
-            check_details.append(f"✅ Adequate bench impact")
+            check_details.append(f"❌ Adequate bench impact")
         
         # Add all check details
         for detail in check_details:
             rationale.append(f"  • {detail}")
         
-        # Summary
-        if failures >= STATE_FLIP_FAILURES_REQUIRED:
-            rationale.append(f"✅ State-flip capacity absent ({failures}/4 checks failed)")
+        # Check market-specific requirements
+        if failures >= required_failures:
+            rationale.append(f"✅ AGENCY COLLAPSE: {failures}/{required_failures}+ failures")
+            return True, failures, rationale
         else:
-            rationale.append(f"❌ State-flip capacity retained ({failures}/4 checks failed)")
-            rationale.append(f"• Requires ≥{STATE_FLIP_FAILURES_REQUIRED} failures")
-        
-        return failures, rationale
+            rationale.append(f"❌ Insufficient agency collapse: {failures}/{required_failures} failures")
+            return False, failures, rationale
     
     @staticmethod
-    def check_enforcement_capacity(controller_data: Dict, is_home: bool,
-                                  controller_name: str) -> Tuple[int, List[str]]:
-        """GATE 4: Check enforcement without urgency (LAW 3)."""
+    def check_non_urgent_enforcement(controller_data: Dict, is_home: bool,
+                                    controller_name: str, market_type: str) -> Tuple[bool, int, List[str]]:
+        """GATE 4: Check non-urgent enforcement with market-specific requirements."""
         rationale = []
         enforce_methods = 0
         method_details = []
         
-        rationale.append(f"GATE 4: ENFORCEMENT CAPACITY CHECK")
+        rationale.append(f"GATE 4: NON-URGENT ENFORCEMENT ({market_type})")
+        
+        # Get market-specific requirements
+        required_methods = MARKET_THRESHOLDS[market_type]['enforcement_methods']
         
         if is_home:
             # METHOD 1: Defensive solidity at home
@@ -837,6 +758,18 @@ class BrutballStateLockEngine:
                 method_details.append(f"✅ Consistent threat (xG: {xg_per_match:.2f})")
             else:
                 method_details.append(f"❌ Requires xG spikes")
+            
+            # METHOD 4: Ball retention capability
+            # Using goals/xG ratio as proxy for control
+            goals_scored = controller_data.get('home_goals_scored', 0)
+            xg_for = controller_data.get('home_xg_for', 0)
+            efficiency = goals_scored / max(xg_for, 0.1)
+            
+            if efficiency > 0.85:
+                enforce_methods += 1
+                method_details.append(f"✅ Efficient finishing ({efficiency:.1%}) reduces urgency")
+            else:
+                method_details.append(f"❌ Requires volume scoring")
         
         else:  # Away team
             # METHOD 1: Defensive solidity away
@@ -867,31 +800,41 @@ class BrutballStateLockEngine:
                 method_details.append(f"✅ Consistent away threat (xG: {xg_per_match:.2f})")
             else:
                 method_details.append(f"❌ Requires exceptional away performance")
+            
+            # METHOD 4: Away efficiency
+            goals_scored = controller_data.get('away_goals_scored', 0)
+            xg_for = controller_data.get('away_xg_for', 0)
+            efficiency = goals_scored / max(xg_for, 0.1)
+            
+            if efficiency > 0.9:
+                enforce_methods += 1
+                method_details.append(f"✅ Elite away finishing ({efficiency:.1%})")
+            else:
+                method_details.append(f"❌ Away efficiency concerns")
         
         # Add all method details
         for detail in method_details:
             rationale.append(f"  • {detail}")
         
-        # Check LAW 3 compliance
-        if enforce_methods >= ENFORCEMENT_METHODS_REQUIRED:
-            rationale.append(f"✅ LAW 3 SATISFIED: Redundant enforcement ({enforce_methods}/{ENFORCEMENT_METHODS_REQUIRED}+ methods)")
+        # Check market-specific requirements
+        if enforce_methods >= required_methods:
+            rationale.append(f"✅ NON-URGENT ENFORCEMENT: {enforce_methods}/{required_methods}+ methods")
+            return True, enforce_methods, rationale
         else:
-            rationale.append(f"❌ LAW 3 VIOLATION: Insufficient enforcement ({enforce_methods}/{ENFORCEMENT_METHODS_REQUIRED} methods)")
-            rationale.append(f"• Requires ≥{ENFORCEMENT_METHODS_REQUIRED} independent methods")
-        
-        return enforce_methods, rationale
+            rationale.append(f"❌ Insufficient enforcement: {enforce_methods}/{required_methods} methods")
+            return False, enforce_methods, rationale
     
     @classmethod
-    def execute_state_lock_evaluation(cls, home_data: Dict, away_data: Dict,
-                                     home_name: str, away_name: str,
-                                     league_avg_xg: float) -> Dict:
-        """Execute STATE LOCK evaluation."""
+    def evaluate_market_state_lock(cls, home_data: Dict, away_data: Dict,
+                                 home_name: str, away_name: str,
+                                 league_avg_xg: float, market_type: str) -> Dict:
+        """Evaluate STATE LOCK for a specific market type."""
         system_log = []
         gates_passed = 0
         total_gates = 4
         
         system_log.append("=" * 70)
-        system_log.append("🔐 BRUTBALL v6.1.1 - STATE LOCK AUTHORITY ENGINE")
+        system_log.append(f"🔐 AGENCY-STATE LOCK EVALUATION: {market_type}")
         system_log.append("=" * 70)
         system_log.append(f"MATCH: {home_name} vs {away_name}")
         system_log.append("")
@@ -912,7 +855,6 @@ class BrutballStateLockEngine:
         
         # Determine controller WITHOUT status resolution
         controller = None
-        controller_criteria = []
         
         # v6.1.2: Check for mutual control
         both_meet_control = (home_score >= CONTROL_CRITERIA_REQUIRED and 
@@ -924,11 +866,11 @@ class BrutballStateLockEngine:
             if weighted_diff <= QUIET_CONTROL_SEPARATION_THRESHOLD:
                 system_log.append(f"⚠️ v6.1.2: Mutual control detected")
                 system_log.append(f"  • Weighted difference: {weighted_diff:.2f} ≤ {QUIET_CONTROL_SEPARATION_THRESHOLD}")
-                system_log.append("• NO SINGLE CONTROLLER → NO DECLARATION")
+                system_log.append("• NO SINGLE CONTROLLER → NO STATE LOCK")
                 system_log.append("⚠️ SYSTEM SILENT")
                 
                 return {
-                    'declaration': None,
+                    'market': market_type,
                     'state_locked': False,
                     'system_log': system_log,
                     'reason': f"v6.1.2: Mutual control (weighted difference ≤ {QUIET_CONTROL_SEPARATION_THRESHOLD})",
@@ -938,21 +880,17 @@ class BrutballStateLockEngine:
             
             if home_weighted > away_weighted:
                 controller = home_name
-                controller_criteria = home_criteria
                 system_log.append(f"• Controller: {home_name} (weighted advantage)")
             else:
                 controller = away_name
-                controller_criteria = away_criteria
                 system_log.append(f"• Controller: {away_name} (weighted advantage)")
         
         elif home_score >= CONTROL_CRITERIA_REQUIRED and home_score > away_score:
             controller = home_name
-            controller_criteria = home_criteria
             system_log.append(f"• Controller: {home_name} ({home_score}/4 criteria)")
             
         elif away_score >= CONTROL_CRITERIA_REQUIRED and away_score > home_score:
             controller = away_name
-            controller_criteria = away_criteria
             system_log.append(f"• Controller: {away_name} ({away_score}/4 criteria)")
         
         else:
@@ -960,7 +898,7 @@ class BrutballStateLockEngine:
             system_log.append("⚠️ SYSTEM SILENT")
             
             return {
-                'declaration': None,
+                'market': market_type,
                 'state_locked': False,
                 'system_log': system_log,
                 'reason': f"No team meets {CONTROL_CRITERIA_REQUIRED}+ control criteria",
@@ -972,7 +910,7 @@ class BrutballStateLockEngine:
         
         # =================== GATE 2: DIRECTIONAL DOMINANCE ===================
         system_log.append("")
-        system_log.append("GATE 2: DIRECTIONAL DOMINANCE (LAW 2)")
+        system_log.append("GATE 2: DIRECTIONAL DOMINANCE")
         
         opponent = away_name if controller == home_name else home_name
         is_controller_home = controller == home_name
@@ -981,7 +919,7 @@ class BrutballStateLockEngine:
         opponent_xg = away_data.get('away_xg_per_match', 0) if is_controller_home else home_data.get('home_xg_per_match', 0)
         
         has_direction, control_delta, direction_rationale = cls.check_directional_dominance(
-            controller_xg, opponent_xg, controller, opponent
+            controller_xg, opponent_xg, controller, opponent, market_type
         )
         system_log.extend(direction_rationale)
         
@@ -989,718 +927,204 @@ class BrutballStateLockEngine:
             system_log.append("⚠️ SYSTEM SILENT")
             
             return {
-                'declaration': None,
+                'market': market_type,
                 'state_locked': False,
                 'system_log': system_log,
-                'reason': f"LAW 2 VIOLATION: Insufficient directional dominance (Δ = {control_delta:+.2f} ≤ {DIRECTION_THRESHOLD})",
+                'reason': f"Directional dominance insufficient for {market_type}",
                 'capital_authorized': False
             }
         
         gates_passed += 1
         system_log.append(f"✅ GATE 2 PASSED: Directional dominance confirmed (Δ = {control_delta:+.2f})")
         
-        # =================== GATE 3: STATE-FLIP CAPACITY ===================
+        # =================== GATE 3: AGENCY COLLAPSE ===================
         system_log.append("")
-        system_log.append("GATE 3: STATE-FLIP CAPACITY")
+        system_log.append("GATE 3: AGENCY COLLAPSE")
         
         opponent_data = away_data if opponent == away_name else home_data
         is_opponent_home = opponent == home_name
         
-        failures, flip_rationale = cls.check_state_flip_capacity(
-            opponent_data, is_opponent_home, opponent, league_avg_xg
+        agency_collapsed, failures, collapse_rationale = cls.check_agency_collapse(
+            opponent_data, is_opponent_home, opponent, league_avg_xg, market_type
         )
-        system_log.extend(flip_rationale)
+        system_log.extend(collapse_rationale)
         
-        if failures < STATE_FLIP_FAILURES_REQUIRED:
-            system_log.append("❌ GATE 3 FAILED: Opponent retains escalation paths")
+        if not agency_collapsed:
+            required_failures = MARKET_THRESHOLDS[market_type]['state_flip_failures']
+            system_log.append(f"❌ GATE 3 FAILED: Insufficient agency collapse ({failures}/{required_failures})")
             system_log.append("⚠️ SYSTEM SILENT")
             
             return {
-                'declaration': None,
+                'market': market_type,
                 'state_locked': False,
                 'system_log': system_log,
-                'reason': f"Opponent retains state-flip capacity ({failures}/{STATE_FLIP_FAILURES_REQUIRED} failures)",
+                'reason': f"Insufficient agency collapse for {market_type} ({failures}/{required_failures})",
                 'capital_authorized': False
             }
         
         gates_passed += 1
-        system_log.append(f"✅ GATE 3 PASSED: State-flip capacity absent ({failures}/4 failures)")
+        system_log.append(f"✅ GATE 3 PASSED: Agency collapse confirmed ({failures}/4 failures)")
         
-        # =================== GATE 4: ENFORCEMENT CAPACITY ===================
+        # =================== GATE 4: NON-URGENT ENFORCEMENT ===================
         system_log.append("")
-        system_log.append("GATE 4: ENFORCEMENT WITHOUT URGENCY (LAW 3)")
+        system_log.append("GATE 4: NON-URGENT ENFORCEMENT")
         
         controller_data = home_data if controller == home_name else away_data
         
-        enforce_methods, enforce_rationale = cls.check_enforcement_capacity(
-            controller_data, is_controller_home, controller
+        can_enforce, enforce_methods, enforce_rationale = cls.check_non_urgent_enforcement(
+            controller_data, is_controller_home, controller, market_type
         )
         system_log.extend(enforce_rationale)
         
-        if enforce_methods < ENFORCEMENT_METHODS_REQUIRED:
-            system_log.append("❌ GATE 4 FAILED: Insufficient enforcement capacity")
+        if not can_enforce:
+            required_methods = MARKET_THRESHOLDS[market_type]['enforcement_methods']
+            system_log.append(f"❌ GATE 4 FAILED: Insufficient enforcement capacity ({enforce_methods}/{required_methods})")
             system_log.append("⚠️ SYSTEM SILENT")
             
             return {
-                'declaration': None,
+                'market': market_type,
                 'state_locked': False,
                 'system_log': system_log,
-                'reason': f"LAW 3 VIOLATION: Insufficient enforcement capacity ({enforce_methods}/{ENFORCEMENT_METHODS_REQUIRED} methods)",
+                'reason': f"Insufficient enforcement capacity for {market_type} ({enforce_methods}/{required_methods})",
                 'capital_authorized': False
             }
         
         gates_passed += 1
-        system_log.append(f"✅ GATE 4 PASSED: Redundant enforcement confirmed ({enforce_methods}/2+ methods)")
+        system_log.append(f"✅ GATE 4 PASSED: Non-urgent enforcement confirmed ({enforce_methods}/2+ methods)")
         
         # =================== STATE LOCK DECLARATION ===================
         system_log.append("")
         system_log.append("=" * 70)
-        system_log.append("🔒 STATE LOCK DECLARATION")
+        system_log.append(f"🔒 {market_type} STATE LOCK DECLARATION")
         system_log.append("=" * 70)
         
-        if opponent_xg < 1.1:
-            declaration = f"🔒 STATE LOCKED\n{opponent} lacks chase capacity\n{controller} can win at walking pace"
-        elif control_delta > 0.5:
-            declaration = f"🔒 STATE LOCKED\nStructural dominance established\n{controller} never forced into urgency"
-        elif failures >= 3:
-            declaration = f"🔒 STATE LOCKED\n{opponent} has no credible escalation\n{controller} controls all restart leverage"
-        else:
-            declaration = f"🔒 STATE LOCKED\n{opponent} cannot disrupt state structure\n{controller} maintains coercive tempo"
+        # Market-specific declarations
+        declarations = {
+            'WINNER': f"🔒 WINNER LOCKED\n{controller} cannot lose\n{opponent} has no agency to change result",
+            'CLEAN_SHEET': f"🔒 CLEAN SHEET LOCKED\n{controller} will not concede\n{opponent} has no scoring agency",
+            'TEAM_NO_SCORE': f"🔒 TEAM NO SCORE LOCKED\n{opponent} will not score\nScoring agency structurally suppressed",
+            'OPPONENT_UNDER_1_5': f"🔒 OPPONENT UNDER 1.5 LOCKED\n{opponent} cannot score >1 goal\nAgency limited to minimal threat"
+        }
+        
+        declaration = declarations.get(market_type, f"🔒 STATE LOCKED\n{controller} controls {market_type} state")
         
         system_log.append(declaration)
         system_log.append("")
         system_log.append("💰 CAPITAL AUTHORIZATION: GRANTED")
         system_log.append(f"• All {total_gates}/{total_gates} gates passed")
-        system_log.append(f"• Control Delta: {control_delta:+.2f} > {DIRECTION_THRESHOLD}")
-        system_log.append(f"• State-Flip Failures: {failures}/4")
-        system_log.append(f"• Enforcement Methods: {enforce_methods}/{ENFORCEMENT_METHODS_REQUIRED}+")
-        system_log.append("• Match outcome structurally constrained")
+        system_log.append(f"• Control Delta: {control_delta:+.2f}")
+        system_log.append(f"• Agency Collapse: {failures}/4 failures")
+        system_log.append(f"• Enforcement Methods: {enforce_methods}/2+")
+        system_log.append(f"• Market: {market_type} structurally controlled")
         system_log.append("=" * 70)
         
         return {
-            'declaration': declaration,
+            'market': market_type,
             'state_locked': True,
+            'declaration': declaration,
             'system_log': system_log,
-            'reason': "All canonical gates passed. State structurally locked.",
+            'reason': f"All agency-state gates passed for {market_type}",
             'capital_authorized': True,
             'controller': controller,
+            'opponent': opponent,
             'control_delta': control_delta,
-            'state_flip_failures': failures,
+            'agency_failures': failures,
             'enforce_methods': enforce_methods,
             'key_metrics': {
                 'controller_xg': controller_xg,
                 'opponent_xg': opponent_xg
             }
         }
+    
+    @classmethod
+    def evaluate_all_markets(cls, home_data: Dict, away_data: Dict,
+                           home_name: str, away_name: str,
+                           league_avg_xg: float) -> Dict:
+        """Evaluate STATE LOCK for all agency-bound markets."""
+        
+        markets_to_evaluate = ['WINNER', 'CLEAN_SHEET', 'TEAM_NO_SCORE', 'OPPONENT_UNDER_1_5']
+        
+        results = {}
+        locked_markets = []
+        
+        for market in markets_to_evaluate:
+            result = cls.evaluate_market_state_lock(
+                home_data, away_data, home_name, away_name, league_avg_xg, market
+            )
+            results[market] = result
+            
+            if result['state_locked']:
+                locked_markets.append({
+                    'market': market,
+                    'controller': result['controller'],
+                    'delta': result['control_delta'],
+                    'reason': result['reason']
+                })
+        
+        # Determine strongest market (highest delta)
+        strongest_market = None
+        strongest_delta = 0
+        
+        for market, result in results.items():
+            if result['state_locked'] and result['control_delta'] > strongest_delta:
+                strongest_delta = result['control_delta']
+                strongest_market = market
+        
+        return {
+            'all_results': results,
+            'locked_markets': locked_markets,
+            'strongest_market': strongest_market,
+            'strongest_delta': strongest_delta,
+            'total_markets': len(markets_to_evaluate),
+            'locked_count': len(locked_markets)
+        }
 
-# =================== ABSOLUTE LOCK ENGINE (NEW) ===================
+# =================== ABSOLUTE LOCK ENGINE ===================
 class BrutballAbsoluteLockEngine:
-    """
-    BRUTBALL ABSOLUTE LOCK ENGINE
-    Certainty layer: detects structural impossibility of failure
-    """
-    
-    @staticmethod
-    def check_extreme_directional_dominance(controller_xg: float, opponent_xg: float,
-                                          controller_name: str, opponent_name: str,
-                                          control_delta: float) -> Tuple[bool, List[str]]:
-        """GATE 5: Check extreme directional dominance."""
-        rationale = []
-        
-        rationale.append(f"GATE 5: EXTREME DIRECTIONAL DOMINANCE")
-        rationale.append(f"• Controller xG ({controller_name}): {controller_xg:.2f}")
-        rationale.append(f"• Opponent xG ({opponent_name}): {opponent_xg:.2f}")
-        rationale.append(f"• Current Delta: {control_delta:+.2f}")
-        rationale.append(f"• Absolute Threshold: > {ABSOLUTE_DIRECTION_THRESHOLD}")
-        
-        if control_delta > ABSOLUTE_DIRECTION_THRESHOLD:
-            rationale.append(f"✅ EXTREME dominance confirmed (Δ = {control_delta:+.2f} > {ABSOLUTE_DIRECTION_THRESHOLD})")
-            return True, rationale
-        else:
-            rationale.append(f"❌ Insufficient for Absolute Lock (Δ = {control_delta:+.2f} ≤ {ABSOLUTE_DIRECTION_THRESHOLD})")
-            rationale.append(f"• Requires overwhelming force gradient")
-            return False, rationale
-    
-    @staticmethod
-    def check_complete_state_flip_elimination(opponent_data: Dict, is_home: bool,
-                                            opponent_name: str, league_avg_xg: float) -> Tuple[bool, List[str]]:
-        """GATE 6: Check complete state-flip elimination."""
-        rationale = []
-        failures = 0
-        check_details = []
-        
-        rationale.append(f"GATE 6: COMPLETE STATE-FLIP ELIMINATION")
-        
-        # CHECK 1: Severely limited chase xG
-        if is_home:
-            chase_xg = opponent_data.get('home_xg_per_match', 0)
-        else:
-            chase_xg = opponent_data.get('away_xg_per_match', 0)
-        
-        if chase_xg < 0.8:  # Stricter than 1.1
-            failures += 1
-            check_details.append(f"✅ Severely limited chase (xG: {chase_xg:.2f} < 0.8)")
-        else:
-            check_details.append(f"❌ Chase capacity retained ({chase_xg:.2f} ≥ 0.8)")
-        
-        # CHECK 2: No tempo surge capability (absolute)
-        if chase_xg < 1.2:  # Stricter than 1.4
-            failures += 1
-            check_details.append(f"✅ No tempo surge possible (xG: {chase_xg:.2f} < 1.2)")
-        else:
-            check_details.append(f"❌ Tempo surge possible")
-        
-        # CHECK 3: No alternate threat AND historical proof of inability
-        if is_home:
-            setpiece_pct = opponent_data.get('home_setpiece_pct', 0)
-            counter_pct = opponent_data.get('home_counter_pct', 0)
-        else:
-            setpiece_pct = opponent_data.get('away_setpiece_pct', 0)
-            counter_pct = opponent_data.get('away_counter_pct', 0)
-        
-        if setpiece_pct < 0.20 and counter_pct < 0.10:  # Stricter thresholds
-            failures += 1
-            check_details.append(f"✅ No alternate threat channels")
-        else:
-            check_details.append(f"❌ Alternate threat exists")
-        
-        # CHECK 4: Severely limited substitution leverage
-        if is_home:
-            gpm = opponent_data.get('home_goals_per_match', 0)
-        else:
-            gpm = opponent_data.get('away_goals_per_match', 0)
-        
-        if gpm < league_avg_xg * 0.6:  # Stricter than 0.8
-            failures += 1
-            check_details.append(f"✅ Severely limited bench impact")
-        else:
-            check_details.append(f"❌ Bench could influence")
-        
-        # Add all check details
-        for detail in check_details:
-            rationale.append(f"  • {detail}")
-        
-        # Summary
-        if failures == ABSOLUTE_STATE_FLIP_FAILURES:
-            rationale.append(f"✅ COMPLETE elimination: Opponent fails ALL 4 checks")
-            return True, rationale
-        else:
-            rationale.append(f"❌ Not completely eliminated ({failures}/4 failures)")
-            rationale.append(f"• Requires ALL {ABSOLUTE_STATE_FLIP_FAILURES}/4 failures for Absolute Lock")
-            return False, rationale
-    
-    @staticmethod
-    def check_redundant_enforcement(controller_data: Dict, is_home: bool,
-                                   controller_name: str) -> Tuple[bool, int, List[str]]:
-        """GATE 7: Check redundant enforcement."""
-        rationale = []
-        enforce_methods = 0
-        method_details = []
-        
-        rationale.append(f"GATE 7: REDUNDANT ENFORCEMENT")
-        
-        if is_home:
-            # METHOD 1: Elite defensive solidity at home
-            goals_conceded = controller_data.get('home_goals_conceded', 0)
-            matches_played = controller_data.get('home_matches_played', 1)
-            gcp_match = goals_conceded / matches_played
-            
-            if gcp_match < 1.0:  # Elite threshold
-                enforce_methods += 1
-                method_details.append(f"✅ Elite defense (concedes {gcp_match:.2f}/match < 1.0)")
-            else:
-                method_details.append(f"❌ Not elite defensively")
-            
-            # METHOD 2: Multiple scoring channels
-            setpiece_pct = controller_data.get('home_setpiece_pct', 0)
-            counter_pct = controller_data.get('home_counter_pct', 0)
-            
-            if setpiece_pct > 0.30 and counter_pct > 0.20:  # Both required
-                enforce_methods += 1
-                method_details.append(f"✅ Multiple scoring channels (SP: {setpiece_pct:.1%}, C: {counter_pct:.1%})")
-            else:
-                method_details.append(f"❌ Insufficient channel diversity")
-            
-            # METHOD 3: Elite consistency at home
-            xg_per_match = controller_data.get('home_xg_per_match', 0)
-            if xg_per_match > 1.6:  # Elite threshold
-                enforce_methods += 1
-                method_details.append(f"✅ Elite consistency (xG: {xg_per_match:.2f} > 1.6)")
-            else:
-                method_details.append(f"❌ Not elite in attack")
-            
-            # METHOD 4: Historical proof of maintaining advantage
-            # This would require historical data - for now we check win rate
-            win_rate = controller_data.get('home_win_rate', 0)
-            if win_rate > 0.7:
-                enforce_methods += 1
-                method_details.append(f"✅ Proven winner (win rate: {win_rate:.0%})")
-            else:
-                method_details.append(f"❌ Not proven to maintain leads")
-        
-        else:  # Away team
-            # METHOD 1: Elite defensive solidity away
-            goals_conceded = controller_data.get('away_goals_conceded', 0)
-            matches_played = controller_data.get('away_matches_played', 1)
-            gcp_match = goals_conceded / matches_played
-            
-            if gcp_match < 1.1:  # Elite away threshold
-                enforce_methods += 1
-                method_details.append(f"✅ Elite away defense ({gcp_match:.2f}/match)")
-            else:
-                method_details.append(f"❌ Away defensive concerns")
-            
-            # METHOD 2: Away scoring versatility (absolute)
-            setpiece_pct = controller_data.get('away_setpiece_pct', 0)
-            counter_pct = controller_data.get('away_counter_pct', 0)
-            
-            if setpiece_pct > 0.25 or counter_pct > 0.15:  # Absolute threshold
-                enforce_methods += 1
-                method_details.append(f"✅ Absolute away versatility")
-            else:
-                method_details.append(f"❌ Limited away scoring")
-            
-            # METHOD 3: Elite away consistency
-            xg_per_match = controller_data.get('away_xg_per_match', 0)
-            if xg_per_match > 1.4:  # Elite away threshold
-                enforce_methods += 1
-                method_details.append(f"✅ Elite away threat (xG: {xg_per_match:.2f})")
-            else:
-                method_details.append(f"❌ Requires exceptional away performance")
-            
-            # METHOD 4: Historical proof away
-            win_rate = controller_data.get('away_win_rate', 0)
-            if win_rate > 0.6:
-                enforce_methods += 1
-                method_details.append(f"✅ Proven away winner ({win_rate:.0%})")
-            else:
-                method_details.append(f"❌ Not proven away")
-        
-        # Add all method details
-        for detail in method_details:
-            rationale.append(f"  • {detail}")
-        
-        # Check Absolute Lock requirement
-        if enforce_methods >= ABSOLUTE_ENFORCEMENT_REQUIRED:
-            rationale.append(f"✅ ABSOLUTE ENFORCEMENT: {enforce_methods}/{ABSOLUTE_ENFORCEMENT_REQUIRED}+ methods")
-            return True, enforce_methods, rationale
-        else:
-            rationale.append(f"❌ Insufficient for Absolute Lock ({enforce_methods}/{ABSOLUTE_ENFORCEMENT_REQUIRED} methods)")
-            return False, enforce_methods, rationale
-    
-    @staticmethod
-    def check_shock_immunity(controller_data: Dict, is_home: bool,
-                            controller_name: str) -> Tuple[bool, int, List[str]]:
-        """GATE 8: Check shock immunity."""
-        rationale = []
-        immunity_methods = 0
-        method_details = []
-        
-        rationale.append(f"GATE 8: SHOCK IMMUNITY")
-        
-        # METHOD 1: Early Concession Resilience
-        # Check if team has historical data showing wins after conceding first
-        # For now, use high win rate as proxy
-        if is_home:
-            win_rate = controller_data.get('home_win_rate', 0)
-        else:
-            win_rate = controller_data.get('away_win_rate', 0)
-        
-        if win_rate > 0.65:
-            immunity_methods += 1
-            method_details.append(f"✅ High win rate ({win_rate:.0%}) suggests resilience")
-        else:
-            method_details.append(f"❌ Limited comeback evidence")
-        
-        # METHOD 2: Adverse Scenario Handling
-        # Check if team rarely loses when leading
-        # Using goals conceded as proxy for defensive stability
-        if is_home:
-            goals_conceded = controller_data.get('home_goals_conceded', 0)
-            matches_played = controller_data.get('home_matches_played', 1)
-        else:
-            goals_conceded = controller_data.get('away_goals_conceded', 0)
-            matches_played = controller_data.get('away_matches_played', 1)
-        
-        gcp_match = goals_conceded / matches_played
-        if gcp_match < 1.0:
-            immunity_methods += 1
-            method_details.append(f"✅ Defensive solidity ({gcp_match:.2f}/match)")
-        else:
-            method_details.append(f"❌ Defensive vulnerability")
-        
-        # METHOD 3: Player Absence Resilience
-        # Check squad depth via goals from different sources
-        if is_home:
-            setpiece_goals = controller_data.get('home_goals_setpiece_for', 0)
-            openplay_goals = controller_data.get('home_goals_openplay_for', 0)
-            counter_goals = controller_data.get('home_goals_counter_for', 0)
-        else:
-            setpiece_goals = controller_data.get('away_goals_setpiece_for', 0)
-            openplay_goals = controller_data.get('away_goals_openplay_for', 0)
-            counter_goals = controller_data.get('away_goals_counter_for', 0)
-        
-        total_goals = setpiece_goals + openplay_goals + counter_goals
-        if total_goals > 0:
-            diverse_sources = (setpiece_goals > 0) + (openplay_goals > 0) + (counter_goals > 0)
-            if diverse_sources >= 2:
-                immunity_methods += 1
-                method_details.append(f"✅ Multiple goal sources ({diverse_sources}/3)")
-            else:
-                method_details.append(f"❌ Limited goal sources")
-        else:
-            method_details.append(f"❌ Insufficient goal data")
-        
-        # METHOD 4: Referee/Incident Immunity
-        # Using penalty data as proxy
-        if is_home:
-            penalties_for = controller_data.get('home_goals_penalty_for', 0)
-            penalties_against = controller_data.get('home_goals_penalty_against', 0)
-        else:
-            penalties_for = controller_data.get('away_goals_penalty_for', 0)
-            penalties_against = controller_data.get('away_goals_penalty_against', 0)
-        
-        # Teams that aren't penalty-dependent and don't concede many
-        if penalties_against == 0:
-            immunity_methods += 1
-            method_details.append(f"✅ Doesn't concede penalties")
-        else:
-            method_details.append(f"⚠️ Penalty vulnerability")
-        
-        # Add all method details
-        for detail in method_details:
-            rationale.append(f"  • {detail}")
-        
-        # Check Absolute Lock requirement
-        if immunity_methods >= ABSOLUTE_SHOCK_IMMUNITY_REQUIRED:
-            rationale.append(f"✅ SHOCK IMMUNITY: {immunity_methods}/{ABSOLUTE_SHOCK_IMMUNITY_REQUIRED}+ methods")
-            return True, immunity_methods, rationale
-        else:
-            rationale.append(f"❌ Insufficient shock immunity ({immunity_methods}/{ABSOLUTE_SHOCK_IMMUNITY_REQUIRED} methods)")
-            return False, immunity_methods, rationale
-    
-    @staticmethod
-    def check_historical_confirmation(controller_data: Dict, controller_name: str,
-                                     is_home: bool) -> Tuple[bool, List[str]]:
-        """GATE 9: Check historical confirmation."""
-        rationale = []
-        
-        rationale.append(f"GATE 9: HISTORICAL CONFIRMATION")
-        
-        # In a real implementation, this would check historical database
-        # For now, we use current season data as proxy
-        
-        if is_home:
-            # Check home dominance
-            home_wins = controller_data.get('home_wins', 0)
-            home_matches = controller_data.get('home_matches_played', 1)
-            home_win_rate = home_wins / home_matches
-            
-            if home_win_rate > 0.7:
-                rationale.append(f"✅ Elite home record ({home_win_rate:.0%} win rate)")
-                rationale.append(f"• Consistent home dominance this season")
-                return True, rationale
-            else:
-                rationale.append(f"❌ Not historically dominant at home ({home_win_rate:.0%})")
-                rationale.append(f"• Requires elite historical performance")
-                return False, rationale
-        else:
-            # Check away dominance
-            away_wins = controller_data.get('away_wins', 0)
-            away_matches = controller_data.get('away_matches_played', 1)
-            away_win_rate = away_wins / away_matches
-            
-            if away_win_rate > 0.6:
-                rationale.append(f"✅ Elite away record ({away_win_rate:.0%} win rate)")
-                rationale.append(f"• Proven away performer this season")
-                return True, rationale
-            else:
-                rationale.append(f"❌ Not historically dominant away ({away_win_rate:.0%})")
-                rationale.append(f"• Requires exceptional away performance")
-                return False, rationale
-    
-    @staticmethod
-    def check_match_specific_validation(controller_data: Dict, opponent_data: Dict,
-                                       controller_name: str, opponent_name: str,
-                                       is_home: bool) -> Tuple[bool, List[str]]:
-        """GATE 10: Check match-specific validation."""
-        rationale = []
-        
-        rationale.append(f"GATE 10: MATCH-SPECIFIC VALIDATION")
-        
-        # Check 1: No key player absences
-        # In real implementation, check injury news
-        # For now, assume full squad
-        rationale.append(f"✅ Assumption: No key player absences")
-        
-        # Check 2: No tactical mismatches
-        # Compare styles - for Absolute Lock, controller should have clear style advantage
-        if is_home:
-            controller_xg = controller_data.get('home_xg_per_match', 0)
-            opponent_xg = opponent_data.get('away_xg_per_match', 0)
-        else:
-            controller_xg = controller_data.get('away_xg_per_match', 0)
-            opponent_xg = opponent_data.get('home_xg_per_match', 0)
-        
-        if controller_xg > opponent_xg * 1.5:
-            rationale.append(f"✅ Clear tactical advantage (xG ratio: {controller_xg/opponent_xg:.2f}x)")
-        else:
-            rationale.append(f"❌ Insufficient tactical mismatch")
-            return False, rationale
-        
-        # Check 3: No external factors
-        # For Absolute Lock, assume optimal conditions
-        rationale.append(f"✅ Assumption: Optimal external conditions")
-        
-        # Check 4: No historical anomalies
-        # Check if teams have played before with weird results
-        # For now, assume no anomalies for Absolute Lock
-        rationale.append(f"✅ Assumption: No historical anomalies")
-        
-        rationale.append(f"✅ ALL match-specific conditions validated")
-        return True, rationale
+    """Absolute Lock Engine (for completeness, though not focus of agency-state)"""
     
     @classmethod
     def execute_absolute_lock_evaluation(cls, home_data: Dict, away_data: Dict,
                                         home_name: str, away_name: str,
                                         league_avg_xg: float,
                                         state_lock_result: Dict) -> Dict:
-        """Execute ABSOLUTE LOCK evaluation (ONLY if STATE LOCKED passed)."""
-        
-        if not state_lock_result['state_locked']:
-            return {
-                'absolute_locked': False,
-                'system_log': ["ABSOLUTE LOCK NOT EVALUATED: State Lock not achieved"],
-                'reason': "Prerequisite not met: STATE LOCKED required",
-                'capital_authorized': False
-            }
-        
-        system_log = []
-        gates_passed = 0
-        total_gates = 6  # Gates 5-10 (Gates 1-4 already passed in State Lock)
-        
-        system_log.append("=" * 70)
-        system_log.append("🔐🔒 BRUTBALL - ABSOLUTE LOCK ENGINE")
-        system_log.append("=" * 70)
-        system_log.append(f"PREREQUISITE MET: STATE LOCKED → {state_lock_result['controller']}")
-        system_log.append(f"Now evaluating ABSOLUTE LOCK criteria (Gates 5-10)")
-        system_log.append("")
-        
-        controller = state_lock_result['controller']
-        opponent = away_name if controller == home_name else home_name
-        is_controller_home = controller == home_name
-        
-        controller_data = home_data if controller == home_name else away_data
-        opponent_data = away_data if opponent == away_name else home_data
-        
-        controller_xg = state_lock_result['key_metrics']['controller_xg']
-        opponent_xg = state_lock_result['key_metrics']['opponent_xg']
-        control_delta = state_lock_result['control_delta']
-        
-        # =================== GATE 5: EXTREME DIRECTIONAL DOMINANCE ===================
-        system_log.append("GATE 5: EXTREME DIRECTIONAL DOMINANCE")
-        extreme_direction, gate5_log = cls.check_extreme_directional_dominance(
-            controller_xg, opponent_xg, controller, opponent, control_delta
-        )
-        system_log.extend(gate5_log)
-        
-        if not extreme_direction:
-            system_log.append("❌ GATE 5 FAILED: Insufficient for Absolute Lock")
-            system_log.append("⚠️ ABSOLUTE LOCK NOT GRANTED")
-            
-            return {
-                'absolute_locked': False,
-                'system_log': system_log,
-                'reason': f"GATE 5: Insufficient directional dominance (Δ = {control_delta:+.2f} ≤ {ABSOLUTE_DIRECTION_THRESHOLD})",
-                'capital_authorized': False
-            }
-        
-        gates_passed += 1
-        system_log.append(f"✅ GATE 5 PASSED: Extreme dominance (Δ = {control_delta:+.2f} > {ABSOLUTE_DIRECTION_THRESHOLD})")
-        
-        # =================== GATE 6: COMPLETE STATE-FLIP ELIMINATION ===================
-        system_log.append("")
-        system_log.append("GATE 6: COMPLETE STATE-FLIP ELIMINATION")
-        complete_elimination, gate6_log = cls.check_complete_state_flip_elimination(
-            opponent_data, not is_controller_home, opponent, league_avg_xg
-        )
-        system_log.extend(gate6_log)
-        
-        if not complete_elimination:
-            system_log.append("❌ GATE 6 FAILED: Opponent retains some escalation capacity")
-            system_log.append("⚠️ ABSOLUTE LOCK NOT GRANTED")
-            
-            return {
-                'absolute_locked': False,
-                'system_log': system_log,
-                'reason': "GATE 6: Opponent not completely eliminated",
-                'capital_authorized': False
-            }
-        
-        gates_passed += 1
-        system_log.append(f"✅ GATE 6 PASSED: Complete state-flip elimination")
-        
-        # =================== GATE 7: REDUNDANT ENFORCEMENT ===================
-        system_log.append("")
-        system_log.append("GATE 7: REDUNDANT ENFORCEMENT")
-        redundant_enforcement, enforce_count, gate7_log = cls.check_redundant_enforcement(
-            controller_data, is_controller_home, controller
-        )
-        system_log.extend(gate7_log)
-        
-        if not redundant_enforcement:
-            system_log.append(f"❌ GATE 7 FAILED: Insufficient enforcement ({enforce_count}/{ABSOLUTE_ENFORCEMENT_REQUIRED})")
-            system_log.append("⚠️ ABSOLUTE LOCK NOT GRANTED")
-            
-            return {
-                'absolute_locked': False,
-                'system_log': system_log,
-                'reason': f"GATE 7: Insufficient redundant enforcement ({enforce_count}/{ABSOLUTE_ENFORCEMENT_REQUIRED})",
-                'capital_authorized': False
-            }
-        
-        gates_passed += 1
-        system_log.append(f"✅ GATE 7 PASSED: Redundant enforcement ({enforce_count}/{ABSOLUTE_ENFORCEMENT_REQUIRED}+)")
-        
-        # =================== GATE 8: SHOCK IMMUNITY ===================
-        system_log.append("")
-        system_log.append("GATE 8: SHOCK IMMUNITY")
-        shock_immunity, immunity_count, gate8_log = cls.check_shock_immunity(
-            controller_data, is_controller_home, controller
-        )
-        system_log.extend(gate8_log)
-        
-        if not shock_immunity:
-            system_log.append(f"❌ GATE 8 FAILED: Insufficient shock immunity ({immunity_count}/{ABSOLUTE_SHOCK_IMMUNITY_REQUIRED})")
-            system_log.append("⚠️ ABSOLUTE LOCK NOT GRANTED")
-            
-            return {
-                'absolute_locked': False,
-                'system_log': system_log,
-                'reason': f"GATE 8: Insufficient shock immunity ({immunity_count}/{ABSOLUTE_SHOCK_IMMUNITY_REQUIRED})",
-                'capital_authorized': False
-            }
-        
-        gates_passed += 1
-        system_log.append(f"✅ GATE 8 PASSED: Shock immunity ({immunity_count}/{ABSOLUTE_SHOCK_IMMUNITY_REQUIRED}+)")
-        
-        # =================== GATE 9: HISTORICAL CONFIRMATION ===================
-        system_log.append("")
-        system_log.append("GATE 9: HISTORICAL CONFIRMATION")
-        historical_confirmed, gate9_log = cls.check_historical_confirmation(
-            controller_data, controller, is_controller_home
-        )
-        system_log.extend(gate9_log)
-        
-        if not historical_confirmed:
-            system_log.append("❌ GATE 9 FAILED: Historical performance insufficient")
-            system_log.append("⚠️ ABSOLUTE LOCK NOT GRANTED")
-            
-            return {
-                'absolute_locked': False,
-                'system_log': system_log,
-                'reason': "GATE 9: Insufficient historical confirmation",
-                'capital_authorized': False
-            }
-        
-        gates_passed += 1
-        system_log.append(f"✅ GATE 9 PASSED: Historical confirmation")
-        
-        # =================== GATE 10: MATCH-SPECIFIC VALIDATION ===================
-        system_log.append("")
-        system_log.append("GATE 10: MATCH-SPECIFIC VALIDATION")
-        match_validated, gate10_log = cls.check_match_specific_validation(
-            controller_data, opponent_data, controller, opponent, is_controller_home
-        )
-        system_log.extend(gate10_log)
-        
-        if not match_validated:
-            system_log.append("❌ GATE 10 FAILED: Match-specific issues detected")
-            system_log.append("⚠️ ABSOLUTE LOCK NOT GRANTED")
-            
-            return {
-                'absolute_locked': False,
-                'system_log': system_log,
-                'reason': "GATE 10: Match-specific validation failed",
-                'capital_authorized': False
-            }
-        
-        gates_passed += 1
-        system_log.append(f"✅ GATE 10 PASSED: Match-specific validation")
-        
-        # =================== ABSOLUTE LOCK DECLARATION ===================
-        system_log.append("")
-        system_log.append("=" * 70)
-        system_log.append("🔒🔐🔒 ABSOLUTE LOCK DECLARATION")
-        system_log.append("=" * 70)
-        
-        declaration = f"🔒🔐🔒 ABSOLUTE LOCK\nStructural impossibility of failure\n{controller} cannot lose this match\n{opponent} has ZERO credible paths to victory"
-        
-        system_log.append(declaration)
-        system_log.append("")
-        system_log.append("💰 MAXIMUM CAPITAL AUTHORIZATION: GRANTED")
-        system_log.append(f"• All {total_gates}/{total_gates} Absolute Lock gates passed")
-        system_log.append(f"• Plus all 4 State Lock gates previously passed")
-        system_log.append(f"• Total gates: 10/10")
-        system_log.append(f"• Control Delta: {control_delta:+.2f} (Extreme: > {ABSOLUTE_DIRECTION_THRESHOLD})")
-        system_log.append(f"• Enforcement Methods: {enforce_count}/{ABSOLUTE_ENFORCEMENT_REQUIRED}+")
-        system_log.append(f"• Shock Immunity Methods: {immunity_count}/{ABSOLUTE_SHOCK_IMMUNITY_REQUIRED}+")
-        system_log.append("• Match outcome: Structurally impossible for controller to lose")
-        system_log.append("=" * 70)
-        
+        """Absolute Lock evaluation - kept for completeness."""
         return {
-            'declaration': declaration,
-            'absolute_locked': True,
-            'system_log': system_log,
-            'reason': "All 10 gates passed. Absolute structural certainty achieved.",
-            'capital_authorized': True,
-            'controller': controller,
-            'control_delta': control_delta,
-            'enforce_methods': enforce_count,
-            'immunity_methods': immunity_count,
-            'gates_passed': gates_passed,
-            'total_gates': total_gates
+            'absolute_locked': False,
+            'system_log': ["ABSOLUTE LOCK: Focus on agency-state markets"],
+            'reason': "Focusing on agency-bound markets",
+            'capital_authorized': False
         }
 
 # =================== INTEGRATED BRUTBALL ARCHITECTURE ===================
 class BrutballIntegratedArchitecture:
     """
     BRUTBALL INTEGRATED ARCHITECTURE
-    Three-engine system: v6.0 (Edge Detection) + v6.1.1 (State Lock) + Absolute Lock
+    v6.0 Edge Detection + Agency-State Lock Engine
     """
     
     @staticmethod
-    def execute_three_engine_analysis(home_data: Dict, away_data: Dict,
+    def execute_agency_state_analysis(home_data: Dict, away_data: Dict,
                                      home_name: str, away_name: str,
                                      league_avg_xg: float) -> Dict:
-        """Execute all three engines and combine results."""
+        """Execute agency-state analysis."""
         
-        # Run v6.0 Edge Detection Engine (ALWAYS)
+        # Run v6.0 Edge Detection Engine
         edge_result = BrutballEdgeEngine.execute_decision_tree(
             home_data, away_data, home_name, away_name, league_avg_xg
         )
         
-        # Run v6.1.1 State Lock Authority Engine
-        state_lock_result = BrutballStateLockEngine.execute_state_lock_evaluation(
+        # Run Agency-State Lock Evaluation for all markets
+        agency_state_result = AgencyStateLockEngine.evaluate_all_markets(
             home_data, away_data, home_name, away_name, league_avg_xg
         )
         
-        # Run Absolute Lock Engine (ONLY if State Locked)
-        absolute_lock_result = BrutballAbsoluteLockEngine.execute_absolute_lock_evaluation(
-            home_data, away_data, home_name, away_name, league_avg_xg, state_lock_result
-        )
-        
-        # Determine capital mode and final stake
-        if absolute_lock_result['absolute_locked']:
-            capital_mode = 'ABSOLUTE_MODE'
-            final_stake = edge_result['stake_pct'] * CAPITAL_MULTIPLIERS['ABSOLUTE_MODE']
-            capital_authorization = "MAXIMUM AUTHORIZED (ABSOLUTE LOCK)"
-            system_verdict = "STRUCTURAL IMPOSSIBILITY OF FAILURE DETECTED"
-        elif state_lock_result['state_locked']:
+        # Determine capital mode
+        if agency_state_result['locked_count'] > 0:
             capital_mode = 'LOCK_MODE'
             final_stake = edge_result['stake_pct'] * CAPITAL_MULTIPLIERS['LOCK_MODE']
-            capital_authorization = "AUTHORIZED (STATE LOCKED)"
-            system_verdict = "STRUCTURAL INEVITABILITY DETECTED"
+            capital_authorization = "AUTHORIZED (AGENCY-STATE LOCKED)"
+            system_verdict = "AGENCY-STATE CONTROL DETECTED"
         else:
             capital_mode = 'EDGE_MODE'
             final_stake = edge_result['stake_pct'] * CAPITAL_MULTIPLIERS['EDGE_MODE']
@@ -1710,12 +1134,11 @@ class BrutballIntegratedArchitecture:
         # Create integrated system log
         system_log = []
         system_log.append("=" * 70)
-        system_log.append("⚖️🔒 BRUTBALL THREE-TIER ARCHITECTURE")
+        system_log.append("⚖️🔒 BRUTBALL AGENCY-STATE ARCHITECTURE")
         system_log.append("=" * 70)
-        system_log.append(f"ARCHITECTURE: Three-Engine System")
-        system_log.append(f"  • Tier 1: v6.0 Edge Detection Engine (heuristic)")
-        system_log.append(f"  • Tier 2: v6.1.1 State Lock Authority Engine (governance)")
-        system_log.append(f"  • Tier 3: Absolute Lock Engine (certainty)")
+        system_log.append(f"ARCHITECTURE: Unified Agency-State Framework")
+        system_log.append(f"  • Tier 1: v6.0 Edge Detection Engine")
+        system_log.append(f"  • Tier 2: Agency-State Lock Engine (Unified)")
         system_log.append("")
         
         system_log.append("🔍 v6.0 EDGE DETECTION RESULT")
@@ -1724,37 +1147,22 @@ class BrutballIntegratedArchitecture:
         system_log.append(f"  • Base Stake: {edge_result['stake_pct']:.1f}%")
         system_log.append("")
         
-        system_log.append("🔐 v6.1.1 STATE LOCK EVALUATION")
-        if state_lock_result['state_locked']:
-            system_log.append("  • Result: STATE LOCKED")
-            system_log.append(f"  • Controller: {state_lock_result['controller']}")
-            system_log.append(f"  • Control Delta: {state_lock_result['control_delta']:+.2f}")
+        system_log.append("🔐 AGENCY-STATE MARKET EVALUATION")
+        system_log.append(f"  • Markets Evaluated: {agency_state_result['total_markets']}")
+        system_log.append(f"  • Markets Locked: {agency_state_result['locked_count']}")
+        
+        if agency_state_result['locked_count'] > 0:
+            system_log.append(f"  • Strongest Market: {agency_state_result['strongest_market']}")
+            system_log.append(f"  • Controller: {agency_state_result['all_results'][agency_state_result['strongest_market']]['controller']}")
             system_log.append("  • Capital Authorization: GRANTED")
         else:
-            system_log.append("  • Result: NO DECLARATION")
-            system_log.append(f"  • Reason: {state_lock_result['reason']}")
+            system_log.append("  • No agency-state markets locked")
             system_log.append("  • Capital Authorization: STANDARD")
-        system_log.append("")
-        
-        system_log.append("🔒 ABSOLUTE LOCK EVALUATION")
-        if state_lock_result['state_locked']:
-            if absolute_lock_result['absolute_locked']:
-                system_log.append("  • Result: ABSOLUTE LOCK")
-                system_log.append(f"  • Gates Passed: {absolute_lock_result['gates_passed']}/{absolute_lock_result['total_gates']}")
-                system_log.append(f"  • Total Gates: 10/10 (All tiers)")
-                system_log.append("  • Maximum Capital Authorization: GRANTED")
-            else:
-                system_log.append("  • Result: NO ABSOLUTE LOCK")
-                system_log.append(f"  • Reason: {absolute_lock_result['reason']}")
-                system_log.append("  • Falls back to STATE LOCKED")
-        else:
-            system_log.append("  • Result: NOT EVALUATED (State Lock prerequisite not met)")
         system_log.append("")
         
         system_log.append("💰 INTEGRATED CAPITAL DECISION")
         system_log.append(f"  • Capital Mode: {capital_mode}")
         system_log.append(f"  • Stake Multiplier: {CAPITAL_MULTIPLIERS[capital_mode]:.1f}x")
-        system_log.append(f"  • Base Stake: {edge_result['stake_pct']:.1f}%")
         system_log.append(f"  • Final Stake: {final_stake:.2f}%")
         system_log.append(f"  • Authorization: {capital_authorization}")
         system_log.append("")
@@ -1762,18 +1170,17 @@ class BrutballIntegratedArchitecture:
         system_log.append("=" * 70)
         
         return {
-            'architecture': 'Three-Engine System',
+            'architecture': 'Agency-State Framework',
             'v6_result': edge_result,
-            'v61_result': state_lock_result,
-            'absolute_result': absolute_lock_result,
+            'agency_state_result': agency_state_result,
             'capital_mode': capital_mode,
             'final_stake': final_stake,
             'system_verdict': system_verdict,
             'system_log': system_log,
             'integrated_output': {
                 'primary_action': edge_result['primary_action'],
-                'state_locked': state_lock_result['state_locked'],
-                'absolute_locked': absolute_lock_result['absolute_locked'],
+                'locked_markets': agency_state_result['locked_markets'],
+                'strongest_market': agency_state_result['strongest_market'],
                 'capital_authorized': capital_authorization,
                 'stake_multiplier': CAPITAL_MULTIPLIERS[capital_mode],
                 'final_stake_pct': final_stake,
@@ -1883,76 +1290,97 @@ def main():
     """Main application function."""
     
     # Header
-    st.markdown('<div class="system-header">⚖️🔒 BRUTBALL v6.1.2 + ABSOLUTE LOCK - THREE ENGINE ARCHITECTURE</div>', unsafe_allow_html=True)
+    st.markdown('<div class="system-header">⚖️🔒 BRUTBALL AGENCY-STATE FRAMEWORK</div>', unsafe_allow_html=True)
     
     st.markdown("""
     <div class="system-subheader">
-        <p><strong>Three-Tier System: Edge Detection • State Lock Authority • Absolute Lock</strong></p>
-        <p>EDGE MODE (1.0x) • LOCK MODE (2.0x) • ABSOLUTE MODE (3.0x)</p>
-        <p>Progressive certainty: Probabilistic → Inevitable → Impossible</p>
+        <p><strong>STATE = AGENCY CONTROL • LOCK = AGENCY SUPPRESSION</strong></p>
+        <p>Unified logic for Winner • Clean Sheet • Team No Score • Opponent Under</p>
+        <p>Same 4 Gates • Market-specific thresholds • No new heuristics</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Agency-State Principles
+    st.markdown("""
+    <div class="agency-principle">
+        <h4>🧠 AGENCY-STATE CORE PRINCIPLES</h4>
+        <div style="margin: 1rem 0;">
+            <div class="state-bound-list">
+                <strong>✅ STATE-BOUND MARKETS (Agency-Suppressible):</strong>
+                <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                    <li><strong>Winner</strong> - Opponent cannot change result</li>
+                    <li><strong>Clean Sheet</strong> - Opponent cannot score</li>
+                    <li><strong>Team to Score: NO</strong> - Team cannot act on goal</li>
+                    <li><strong>Opponent Under X</strong> - Opponent agency limited</li>
+                </ul>
+            </div>
+            <div class="noise-list">
+                <strong>❌ NON-STATE MARKETS (Emergent Noise):</strong>
+                <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                    <li>Totals (Over/Under) - Mutual agency required</li>
+                    <li>Both Teams to Score - Both must act</li>
+                    <li>Correct Score - Joint agency chaos</li>
+                    <li>Draw - Requires mutual inability</li>
+                </ul>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
     
     # Architecture diagram
     st.markdown("""
     <div class="architecture-diagram">
-        <h4>🏗️ THREE-TIER ARCHITECTURE</h4>
+        <h4>🏗️ AGENCY-STATE ARCHITECTURE</h4>
         <div class="three-tier-architecture">
-            <div class="tier-level tier-3">
-                <div style="font-size: 1.2rem; font-weight: 900;">TIER 3: ABSOLUTE LOCK ENGINE</div>
-                <div style="font-size: 0.9rem;">Certainty Layer • Vanishing rarity • 3.0x</div>
-                <div class="capital-display capital-3x">3.0x</div>
-                <span class="engine-indicator engine-absolute">ABSOLUTE LOCK</span>
-            </div>
-            <div class="arrow-down">↓</div>
             <div class="tier-level tier-2">
-                <div style="font-size: 1.1rem; font-weight: 700;">TIER 2: STATE LOCK AUTHORITY</div>
-                <div style="font-size: 0.9rem;">Governance Layer • Rare • 2.0x</div>
-                <div class="capital-display capital-2x">2.0x</div>
-                <span class="engine-indicator engine-v61">STATE LOCKED</span>
+                <div style="font-size: 1.1rem; font-weight: 700;">AGENCY-STATE LOCK ENGINE</div>
+                <div style="font-size: 0.9rem;">Unified logic for all state-bound markets</div>
+                <div style="font-size: 0.85rem; color: #059669; margin-top: 0.5rem;">
+                    Same 4 Gates • Market-specific thresholds
+                </div>
+                <span class="market-badge badge-state">Winner</span>
+                <span class="market-badge badge-state">Clean Sheet</span>
+                <span class="market-badge badge-state">Team No Score</span>
+                <span class="market-badge badge-state">Opponent Under</span>
             </div>
             <div class="arrow-down">↓</div>
             <div class="tier-level tier-1">
-                <div style="font-size: 1rem;">TIER 1: EDGE DETECTION</div>
-                <div style="font-size: 0.9rem;">Heuristic Layer • Always • 1.0x</div>
-                <div class="capital-display capital-1x">1.0x</div>
-                <span class="engine-indicator engine-v6">EDGE MODE</span>
+                <div style="font-size: 1rem;">v6.0 EDGE DETECTION</div>
+                <div style="font-size: 0.9rem;">Identifies structural controllers</div>
+                <div style="font-size: 0.85rem; color: #3B82F6; margin-top: 0.5rem;">
+                    Provides base stake and action
+                </div>
             </div>
-        </div>
-        <div style="margin-top: 1rem; color: #6B7280; font-size: 0.9rem;">
-            <p><strong>Asymmetric Authority:</strong> Higher tiers only add permissions, never remove</p>
-            <p><strong>Frequency:</strong> ~85% Edge • ~14% State Lock • ~1% Absolute Lock</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
     
     # System constants display
-    with st.expander("🔧 SYSTEM CONFIGURATION", expanded=False):
+    with st.expander("🔧 MARKET-SPECIFIC THRESHOLDS", expanded=False):
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Edge Mode", f"{CAPITAL_MULTIPLIERS['EDGE_MODE']}x", "v6.0 only")
+            st.markdown("**WINNER**")
+            st.metric("Opponent xG", "< 1.1", "Standard")
+            st.metric("Agency Collapse", "≥2/4", "Failures")
         with col2:
-            st.metric("Lock Mode", f"{CAPITAL_MULTIPLIERS['LOCK_MODE']}x", "STATE LOCKED")
+            st.markdown("**CLEAN SHEET**")
+            st.metric("Opponent xG", "< 0.8", "Stricter")
+            st.metric("Agency Collapse", "≥3/4", "More stringent")
         with col3:
-            st.metric("Absolute Mode", f"{CAPITAL_MULTIPLIERS['ABSOLUTE_MODE']}x", "ABSOLUTE LOCK")
+            st.markdown("**TEAM NO SCORE**")
+            st.metric("Opponent xG", "< 0.6", "Very strict")
+            st.metric("Agency Collapse", "4/4", "All required")
         with col4:
-            st.metric("Direction Δ", f"> {ABSOLUTE_DIRECTION_THRESHOLD}", "Absolute Threshold")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Enforcement Methods", f"≥ {ABSOLUTE_ENFORCEMENT_REQUIRED}", "Absolute Lock")
-        with col2:
-            st.metric("State-Flip Failures", f"{ABSOLUTE_STATE_FLIP_FAILURES}/4", "All required")
-        with col3:
-            st.metric("Shock Immunity", f"≥ {ABSOLUTE_SHOCK_IMMUNITY_REQUIRED}", "Absolute Lock")
-        with col4:
-            st.metric("Control Criteria", f"≥ {ABSOLUTE_CONTROL_CRITERIA}", "Absolute Lock")
+            st.markdown("**OPPONENT UNDER 1.5**")
+            st.metric("Opponent xG", "< 1.0", "Limited capacity")
+            st.metric("Agency Collapse", "≥2/4", "Failures")
         
         st.markdown('<div class="law-display">', unsafe_allow_html=True)
-        st.markdown("**🎯 OPERATIONAL MODES**")
-        st.markdown("1. **EDGE MODE:** v6.0 edge detection only • Normal variance • 1.0x stake")
-        st.markdown("2. **LOCK MODE:** v6.0 + v6.1.1 STATE LOCKED • Structural inevitability • 2.0x stake")
-        st.markdown("3. **ABSOLUTE MODE:** v6.0 + v6.1.1 + Absolute Lock • Structural impossibility • 3.0x stake")
+        st.markdown("**🎯 UNIFIED LOGIC (Same 4 Gates)**")
+        st.markdown("1. **GATE 1:** Quiet Control Identification")
+        st.markdown("2. **GATE 2:** Directional Dominance (Δ > 0.25 + opponent xG < threshold)")
+        st.markdown("3. **GATE 3:** Agency Collapse (opponent fails escalation checks)")
+        st.markdown("4. **GATE 4:** Non-Urgent Enforcement (controller can protect without risk)")
         st.markdown('</div>', unsafe_allow_html=True)
     
     # Initialize session state
@@ -1996,7 +1424,7 @@ def main():
         away_team = st.selectbox("Away Team", away_options)
     
     # Execute analysis
-    if st.button("⚡ EXECUTE THREE-ENGINE ANALYSIS", type="primary", use_container_width=True):
+    if st.button("⚡ EXECUTE AGENCY-STATE ANALYSIS", type="primary", use_container_width=True):
         
         # Get data
         home_data = df[df['team'] == home_team].iloc[0].to_dict()
@@ -2008,8 +1436,8 @@ def main():
         else:
             league_avg_xg = 1.3
         
-        # Execute integrated architecture
-        result = BrutballIntegratedArchitecture.execute_three_engine_analysis(
+        # Execute agency-state analysis
+        result = BrutballIntegratedArchitecture.execute_agency_state_analysis(
             home_data, away_data, home_team, away_team, league_avg_xg
         )
         
@@ -2020,18 +1448,8 @@ def main():
         
         # Capital mode display
         capital_mode = result['capital_mode']
-        if capital_mode == 'ABSOLUTE_MODE':
-            capital_display = "ABSOLUTE MODE"
-            capital_class = "absolute-mode"
-            capital_color = "#065F46"
-        elif capital_mode == 'LOCK_MODE':
-            capital_display = "LOCK MODE"
-            capital_class = "lock-mode"
-            capital_color = "#166534"
-        else:
-            capital_display = "EDGE MODE"
-            capital_class = "edge-mode"
-            capital_color = "#1E40AF"
+        capital_display = "LOCK MODE" if capital_mode == 'LOCK_MODE' else "EDGE MODE"
+        capital_class = "lock-mode" if capital_mode == 'LOCK_MODE' else "edge-mode"
         
         st.markdown(f"""
         <div class="capital-mode-box {capital_class}">
@@ -2039,8 +1457,8 @@ def main():
             <div style="font-size: 1.2rem; margin-top: 0.5rem;">
                 Stake: <strong>{result['final_stake']:.2f}%</strong> ({result['v6_result']['stake_pct']:.1f}% × {CAPITAL_MULTIPLIERS[capital_mode]:.1f}x)
             </div>
-            <div style="font-size: 0.9rem; margin-top: 0.5rem; color: {capital_color};">
-                {'STRUCTURAL IMPOSSIBILITY' if capital_mode == 'ABSOLUTE_MODE' else 'STRUCTURAL INEVITABILITY' if capital_mode == 'LOCK_MODE' else 'STRUCTURAL EDGE'}
+            <div style="font-size: 0.9rem; margin-top: 0.5rem; color: {'#166534' if capital_mode == 'LOCK_MODE' else '#1E40AF'};">
+                {result['system_verdict']}
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -2064,128 +1482,104 @@ def main():
         </div>
         """, unsafe_allow_html=True)
         
-        # v6.1.1 State Lock Display
-        st.markdown("#### 🔐 v6.1.1 STATE LOCK EVALUATION")
+        # Agency-State Market Evaluation
+        st.markdown("#### 🔐 AGENCY-STATE MARKET EVALUATION")
         
-        v61_result = result['v61_result']
+        agency_result = result['agency_state_result']
         
-        if v61_result['state_locked']:
+        if agency_result['locked_count'] > 0:
             st.markdown(f"""
-            <div class="state-locked-display">
-                <h3 style="color: #16A34A; margin: 0 0 1rem 0;">STATE LOCKED</h3>
+            <div class="agency-state-display">
+                <h3 style="color: #16A34A; margin: 0 0 1rem 0;">AGENCY-STATE CONTROL DETECTED</h3>
                 <div style="font-size: 1.2rem; color: #059669; margin-bottom: 0.5rem;">
-                    {v61_result['declaration'].split('\\n')[1] if '\\n' in v61_result['declaration'] else ''}
+                    {agency_result['locked_count']} market(s) structurally locked
                 </div>
-                <div style="color: #374151;">
-                    {v61_result['declaration'].split('\\n')[2] if len(v61_result['declaration'].split('\\n')) > 2 else ''}
+                <div style="color: #374151; margin-bottom: 1rem;">
+                    Strongest market: <strong>{agency_result['strongest_market']}</strong>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;">
+            """, unsafe_allow_html=True)
+            
+            for market in ['WINNER', 'CLEAN_SHEET', 'TEAM_NO_SCORE', 'OPPONENT_UNDER_1_5']:
+                market_result = agency_result['all_results'][market]
+                if market_result['state_locked']:
+                    st.markdown(f'<span class="market-badge badge-locked">{market}</span>', unsafe_allow_html=True)
+                else:
+                    st.markdown(f'<span class="market-badge badge-state">{market}</span>', unsafe_allow_html=True)
+            
+            st.markdown("""
                 </div>
             </div>
             """, unsafe_allow_html=True)
+            
+            # Individual Market Details
+            st.markdown("##### 📊 MARKET-SPECIFIC DETAILS")
+            
+            for market in ['WINNER', 'CLEAN_SHEET', 'TEAM_NO_SCORE', 'OPPONENT_UNDER_1_5']:
+                market_result = agency_result['all_results'][market]
+                
+                if market_result['state_locked']:
+                    st.markdown(f"""
+                    <div class="market-locked-display">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div>
+                                <h4 style="color: #059669; margin: 0 0 0.5rem 0;">🔒 {market}</h4>
+                                <div style="color: #374151; font-size: 0.9rem;">
+                                    Controller: <strong>{market_result['controller']}</strong><br>
+                                    Δ: <strong>{market_result['control_delta']:+.2f}</strong> | Agency Failures: <strong>{market_result['agency_failures']}/4</strong>
+                                </div>
+                            </div>
+                            <span class="market-badge badge-locked">LOCKED</span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div class="market-available-display">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div>
+                                <h4 style="color: #3B82F6; margin: 0 0 0.5rem 0;">{market}</h4>
+                                <div style="color: #6B7280; font-size: 0.9rem;">
+                                    {market_result['reason']}
+                                </div>
+                            </div>
+                            <span class="market-badge badge-state">AVAILABLE</span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # Capital authorization
+            st.markdown("""
+            <div class="gate-passed">
+                <h3 style="margin: 0; color: #166534;">💰 CAPITAL AUTHORIZATION: GRANTED</h3>
+                <p style="margin: 0.5rem 0 0 0; color: #374151;">
+                    Agency-state control detected • 2.0x stake multiplier • Focus on strongest market
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+            
         else:
             st.markdown(f"""
             <div class="no-declaration-display">
-                <h3 style="color: #6B7280; margin: 0 0 1rem 0;">NO DECLARATION</h3>
+                <h3 style="color: #6B7280; margin: 0 0 1rem 0;">NO AGENCY-STATE CONTROL</h3>
                 <div style="color: #374151;">
-                    {v61_result['reason']}
+                    No markets meet agency-suppression criteria
                 </div>
             </div>
             """, unsafe_allow_html=True)
-        
-        # Absolute Lock Display (if State Locked)
-        absolute_result = result['absolute_result']
-        
-        if v61_result['state_locked']:
-            st.markdown("#### 🔒 ABSOLUTE LOCK EVALUATION")
             
-            if absolute_result['absolute_locked']:
-                st.markdown(f"""
-                <div class="absolute-locked-display">
-                    <h3 style="color: #065F46; margin: 0 0 1rem 0; font-size: 2rem;">ABSOLUTE LOCK</h3>
-                    <div style="font-size: 1.3rem; color: #059669; margin-bottom: 0.5rem; font-weight: 700;">
-                        Structural impossibility of failure
-                    </div>
-                    <div style="color: #374151; font-size: 1.1rem;">
-                        {absolute_result['controller']} cannot lose this match
-                    </div>
-                    <div style="color: #6B7280; margin-top: 1rem;">
-                        Opponent has ZERO credible paths to victory
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                st.markdown("""
-                <div class="capital-maximum">
-                    <h3 style="margin: 0; color: white; font-size: 1.5rem;">💰 MAXIMUM CAPITAL AUTHORIZATION: GRANTED</h3>
-                    <p style="margin: 0.5rem 0 0 0; color: #A7F3D0; font-size: 1rem;">
-                        Absolute structural certainty • 3.0x stake multiplier • Vanishing rarity
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Absolute Lock Gate Sequence
-                st.markdown("##### 🚪 ABSOLUTE LOCK GATE SEQUENCE (Gates 5-10)")
-                gates = [
-                    f"GATE 5: Extreme Directional Dominance → Δ = {absolute_result['control_delta']:+.2f} > {ABSOLUTE_DIRECTION_THRESHOLD}",
-                    f"GATE 6: Complete State-Flip Elimination → Opponent fails ALL 4 checks",
-                    f"GATE 7: Redundant Enforcement → {absolute_result['enforce_methods']}/{ABSOLUTE_ENFORCEMENT_REQUIRED}+ methods",
-                    f"GATE 8: Shock Immunity → {absolute_result['immunity_methods']}/{ABSOLUTE_SHOCK_IMMUNITY_REQUIRED}+ methods",
-                    f"GATE 9: Historical Confirmation → Elite performance validated",
-                    f"GATE 10: Match-Specific Validation → All conditions optimal"
-                ]
-                
-                for gate in gates:
-                    st.markdown(f'<div class="gate-extreme">{gate}</div>', unsafe_allow_html=True)
-                    
-            else:
-                st.markdown(f"""
-                <div class="no-declaration-display">
-                    <h3 style="color: #6B7280; margin: 0 0 1rem 0;">NO ABSOLUTE LOCK</h3>
-                    <div style="color: #374151;">
-                        {absolute_result['reason']}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                st.markdown("""
-                <div class="no-capital">
-                    <h3 style="margin: 0; color: white;">🔒 CAPITAL AUTHORIZATION: STATE LOCKED</h3>
-                    <p style="margin: 0.5rem 0 0 0; color: #E5E7EB; font-size: 0.95rem;">
-                        Falls back to STATE LOCKED • 2.0x stake multiplier
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-        
-        # Capital authorization summary
-        st.markdown("#### 💰 CAPITAL AUTHORIZATION SUMMARY")
-        
-        if capital_mode == 'ABSOLUTE_MODE':
-            st.markdown('<div class="gate-extreme">', unsafe_allow_html=True)
-            st.markdown("**MAXIMUM CAPITAL: 3.0x MULTIPLIER**")
-            st.markdown(f"• Base Stake: {v6_result['stake_pct']:.1f}% (v6.0 edge)")
-            st.markdown(f"• Multiplier: 3.0x (ABSOLUTE LOCK)")
-            st.markdown(f"• Final Stake: {result['final_stake']:.2f}%")
-            st.markdown(f"• Rationale: Structural impossibility of failure detected")
-            st.markdown('</div>', unsafe_allow_html=True)
-        elif capital_mode == 'LOCK_MODE':
-            st.markdown('<div class="gate-passed">', unsafe_allow_html=True)
-            st.markdown("**ELEVATED CAPITAL: 2.0x MULTIPLIER**")
-            st.markdown(f"• Base Stake: {v6_result['stake_pct']:.1f}% (v6.0 edge)")
-            st.markdown(f"• Multiplier: 2.0x (STATE LOCKED)")
-            st.markdown(f"• Final Stake: {result['final_stake']:.2f}%")
-            st.markdown(f"• Rationale: Structural inevitability detected")
-            st.markdown('</div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="gate-failed">', unsafe_allow_html=True)
-            st.markdown("**STANDARD CAPITAL: 1.0x MULTIPLIER**")
-            st.markdown(f"• Base Stake: {v6_result['stake_pct']:.1f}% (v6.0 edge)")
-            st.markdown(f"• Multiplier: 1.0x (EDGE MODE)")
-            st.markdown(f"• Final Stake: {result['final_stake']:.2f}%")
-            st.markdown(f"• Rationale: Structural edge only")
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown("""
+            <div class="gate-failed">
+                <h3 style="margin: 0; color: #DC2626;">🔒 CAPITAL AUTHORIZATION: STANDARD</h3>
+                <p style="margin: 0.5rem 0 0 0; color: #374151;">
+                    v6.0 edge preserved • 1.0x stake multiplier • No agency-state locks
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
         
         # Key metrics
         st.markdown("#### 📊 KEY METRICS")
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         
         with col1:
             st.markdown('<div style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #E5E7EB;">', unsafe_allow_html=True)
@@ -2193,7 +1587,7 @@ def main():
             
             v6_metrics = v6_result['key_metrics']
             st.markdown(f"""
-            <div class="metric-row metric-row-edge">
+            <div class="metric-row metric-row-state">
                 <span>Primary Action:</span>
                 <span><strong>{v6_result['primary_action']}</strong></span>
             </div>
@@ -2215,89 +1609,49 @@ def main():
         
         with col2:
             st.markdown('<div style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #E5E7EB;">', unsafe_allow_html=True)
-            st.markdown("**v6.1.1 State Lock**")
+            st.markdown("**Agency-State Analysis**")
             
-            if v61_result['state_locked']:
-                st.markdown(f"""
-                <div class="metric-row metric-row-controller">
-                    <span>Result:</span>
-                    <span><strong>STATE LOCKED</strong></span>
-                </div>
-                <div class="metric-row">
-                    <span>Controller:</span>
-                    <span><strong>{v61_result['controller']}</strong></span>
-                </div>
-                <div class="metric-row">
-                    <span>Control Delta:</span>
-                    <span><strong>{v61_result['control_delta']:+.2f}</strong></span>
-                </div>
-                <div class="metric-row">
-                    <span>State-Flip Failures:</span>
-                    <span><strong>{v61_result['state_flip_failures']}/4</strong></span>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
+            st.markdown(f"""
+            <div class="metric-row metric-row-agency">
+                <span>Markets Evaluated:</span>
+                <span><strong>{agency_result['total_markets']}</strong></span>
+            </div>
+            <div class="metric-row">
+                <span>Markets Locked:</span>
+                <span><strong>{agency_result['locked_count']}</strong></span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if agency_result['locked_count'] > 0:
                 st.markdown(f"""
                 <div class="metric-row">
-                    <span>Result:</span>
-                    <span><strong>NO DECLARATION</strong></span>
+                    <span>Strongest Market:</span>
+                    <span><strong>{agency_result['strongest_market']}</strong></span>
                 </div>
                 <div class="metric-row">
-                    <span>Reason:</span>
-                    <span style="color: #DC2626;"><strong>{v61_result['reason'].split(':')[-1].strip()}</strong></span>
+                    <span>Strongest Δ:</span>
+                    <span><strong>{agency_result['strongest_delta']:+.2f}</strong></span>
                 </div>
                 """, unsafe_allow_html=True)
             
             st.markdown('</div>', unsafe_allow_html=True)
         
-        with col3:
-            st.markdown('<div style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #E5E7EB;">', unsafe_allow_html=True)
-            st.markdown("**Absolute Lock**")
-            
-            if v61_result['state_locked']:
-                if absolute_result['absolute_locked']:
-                    st.markdown(f"""
-                    <div class="metric-row metric-row-absolute">
-                        <span>Result:</span>
-                        <span><strong>ABSOLUTE LOCK</strong></span>
-                    </div>
-                    <div class="metric-row">
-                        <span>Extreme Delta:</span>
-                        <span><strong>{absolute_result['control_delta']:+.2f}</strong></span>
-                    </div>
-                    <div class="metric-row">
-                        <span>Enforcement Methods:</span>
-                        <span><strong>{absolute_result['enforce_methods']}/{ABSOLUTE_ENFORCEMENT_REQUIRED}+</strong></span>
-                    </div>
-                    <div class="metric-row">
-                        <span>Shock Immunity:</span>
-                        <span><strong>{absolute_result['immunity_methods']}/{ABSOLUTE_SHOCK_IMMUNITY_REQUIRED}+</strong></span>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div class="metric-row">
-                        <span>Result:</span>
-                        <span><strong>NO ABSOLUTE LOCK</strong></span>
-                    </div>
-                    <div class="metric-row">
-                        <span>Reason:</span>
-                        <span style="color: #DC2626;"><strong>{absolute_result['reason'].split(':')[-1].strip()}</strong></span>
-                    </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.markdown(f"""
-                <div class="metric-row">
-                    <span>Result:</span>
-                    <span><strong>NOT EVALUATED</strong></span>
-                </div>
-                <div class="metric-row">
-                    <span>Prerequisite:</span>
-                    <span><strong>STATE LOCKED required</strong></span>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
+        # Agency Insight
+        st.markdown("#### 🧠 AGENCY INSIGHT")
+        
+        st.markdown("""
+        <div class="agency-insight">
+            <h4 style="color: #0C4A6E; margin: 0 0 1rem 0;">STATE = AGENCY CONTROL • LOCK = AGENCY SUPPRESSION</h4>
+            <p style="color: #374151; margin: 0;">
+                Markets are locked when one team's agency to affect the outcome is structurally suppressed. 
+                This occurs through the same 4 gates across all state-bound markets, with only threshold adjustments.
+            </p>
+            <div style="margin-top: 1rem; padding: 1rem; background: #F0F9FF; border-radius: 6px;">
+                <strong>Why totals/BTTS cannot be locked:</strong> They require mutual agency - both teams must act. 
+                No single team can suppress the joint agency required for these outcomes.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         
         # System log
         with st.expander("📋 VIEW INTEGRATED SYSTEM LOG", expanded=True):
@@ -2308,21 +1662,20 @@ def main():
         
         # Export
         st.markdown("---")
-        st.markdown("#### 📤 Export Three-Engine Analysis")
+        st.markdown("#### 📤 Export Agency-State Analysis")
         
-        export_text = f"""BRUTBALL THREE-TIER ARCHITECTURE ANALYSIS
+        export_text = f"""BRUTBALL AGENCY-STATE FRAMEWORK ANALYSIS
 ===========================================
 League: {selected_league}
 Match: {home_team} vs {away_team}
 Analysis Time: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 ARCHITECTURE SUMMARY:
-• System: Three-Engine Architecture
-• Tier 1: v6.0 Edge Detection Engine (heuristic)
-• Tier 2: v6.1.1 State Lock Authority Engine (governance)
-• Tier 3: Absolute Lock Engine (certainty)
+• Framework: Unified Agency-State Logic
+• Core Principle: STATE = AGENCY CONTROL • LOCK = AGENCY SUPPRESSION
+• State-Bound Markets: Winner • Clean Sheet • Team No Score • Opponent Under
+• Non-State Markets: Totals • BTTS • Correct Score • Draw
 • Capital Mode: {capital_display}
-• Frequency Distribution: ~85% Edge • ~14% State Lock • ~1% Absolute Lock
 
 v6.0 EDGE DETECTION RESULT:
 • Primary Action: {v6_result['primary_action']}
@@ -2330,18 +1683,24 @@ v6.0 EDGE DETECTION RESULT:
 • Base Stake: {v6_result['stake_pct']:.1f}%
 • Secondary Logic: {v6_result['secondary_logic']}
 
-v6.1.1 STATE LOCK EVALUATION:
-• Result: {'STATE LOCKED' if v61_result['state_locked'] else 'NO DECLARATION'}
-{'• Controller: ' + v61_result['controller'] if v61_result['state_locked'] else ''}
-{'• Control Delta: ' + f"{v61_result['control_delta']:+.2f}" if v61_result['state_locked'] else ''}
-{'• State-Flip Failures: ' + f"{v61_result['state_flip_failures']}/4" if v61_result['state_locked'] else ''}
-• Reason: {v61_result['reason'] if not v61_result['state_locked'] else 'All 4 gates passed'}
+AGENCY-STATE MARKET EVALUATION:
+• Markets Evaluated: {agency_result['total_markets']}
+• Markets Locked: {agency_result['locked_count']}
+• Strongest Market: {agency_result['strongest_market'] if agency_result['locked_count'] > 0 else 'None'}
 
-ABSOLUTE LOCK EVALUATION:
-• Prerequisite Met: {'YES' if v61_result['state_locked'] else 'NO (State Lock required)'}
-{'• Result: ' + ('ABSOLUTE LOCK' if absolute_result['absolute_locked'] else 'NO ABSOLUTE LOCK') if v61_result['state_locked'] else '• Not evaluated'}
-{'• Gates Passed: ' + f"{absolute_result['gates_passed']}/{absolute_result['total_gates']}" if v61_result['state_locked'] and 'gates_passed' in absolute_result else ''}
-{'• Reason: ' + absolute_result['reason'] if v61_result['state_locked'] and not absolute_result['absolute_locked'] else ''}
+MARKET-SPECIFIC RESULTS:"""
+        
+        for market in ['WINNER', 'CLEAN_SHEET', 'TEAM_NO_SCORE', 'OPPONENT_UNDER_1_5']:
+            market_result = agency_result['all_results'][market]
+            export_text += f"""
+{market}:
+  • State Locked: {'YES' if market_result['state_locked'] else 'NO'}
+  {'  • Controller: ' + market_result['controller'] if market_result['state_locked'] else ''}
+  {'  • Control Delta: ' + f"{market_result.get('control_delta', 0):+.2f}" if market_result['state_locked'] else ''}
+  {'  • Agency Failures: ' + f"{market_result.get('agency_failures', 0)}/4" if market_result['state_locked'] else ''}
+  {'  • Reason: ' + market_result['reason'] if not market_result['state_locked'] else ''}"""
+        
+        export_text += f"""
 
 INTEGRATED CAPITAL DECISION:
 • Final Capital Mode: {capital_display}
@@ -2351,42 +1710,26 @@ INTEGRATED CAPITAL DECISION:
 • Authorization: {result['integrated_output']['capital_authorized']}
 • System Verdict: {result['system_verdict']}
 
-KEY METRICS:
-v6.0:
-  • Controller: {v6_metrics.get('controller', 'None')}
-  • Favorite: {v6_metrics.get('favorite', 'N/A')}
-  • Underdog: {v6_metrics.get('underdog', 'N/A')}
-  • Home xG: {v6_metrics.get('home_xg', 0):.2f}
-  • Away xG: {v6_metrics.get('away_xg', 0):.2f}
-  • Combined xG: {v6_metrics.get('combined_xg', 0):.2f}
-
-v6.1.1:
-  {'  • Controller: ' + v61_result['controller'] if v61_result['state_locked'] else '  • No controller'}
-  {'  • Control Delta: ' + f"{v61_result['control_delta']:+.2f}" if v61_result['state_locked'] else ''}
-  {'  • State-Flip Failures: ' + f"{v61_result['state_flip_failures']}/4" if v61_result['state_locked'] else ''}
-  {'  • Enforcement Methods: ' + f"{v61_result['enforce_methods']}/2+" if v61_result['state_locked'] else ''}
-
-ABSOLUTE LOCK:
-  {'  • Result: ' + ('ABSOLUTE LOCK' if absolute_result['absolute_locked'] else 'NO ABSOLUTE LOCK') if v61_result['state_locked'] else '  • Not evaluated'}
-  {'  • Extreme Delta: ' + f"{absolute_result.get('control_delta', 0):+.2f}" if v61_result['state_locked'] and absolute_result['absolute_locked'] else ''}
-  {'  • Enforcement Methods: ' + f"{absolute_result.get('enforce_methods', 0)}/{ABSOLUTE_ENFORCEMENT_REQUIRED}+" if v61_result['state_locked'] and absolute_result['absolute_locked'] else ''}
-  {'  • Shock Immunity: ' + f"{absolute_result.get('immunity_methods', 0)}/{ABSOLUTE_SHOCK_IMMUNITY_REQUIRED}+" if v61_result['state_locked'] and absolute_result['absolute_locked'] else ''}
+AGENCY-STATE INSIGHTS:
+• State-bound markets can be locked when opponent's agency is suppressed
+• Non-state markets require mutual agency and cannot be structurally locked
+• Same 4 gates apply to all state-bound markets with threshold adjustments
+• Time decay protects agency-bound outcomes but not mutual agency outcomes
 
 INTEGRATED SYSTEM LOG:
 {chr(10).join(result['system_log'])}
 
 ===========================================
-BRUTBALL THREE-TIER ARCHITECTURE
-Tier 1: v6.0 Edge Detection (probabilistic)
-Tier 2: v6.1.1 State Lock Authority (inevitability)
-Tier 3: Absolute Lock Engine (impossibility)
-Capital flows proportionally to structural certainty
+BRUTBALL AGENCY-STATE FRAMEWORK
+STATE = AGENCY CONTROL
+LOCK = AGENCY SUPPRESSION
+Unified logic for all state-bound markets
         """
         
         st.download_button(
-            label="📥 Download Three-Engine Analysis",
+            label="📥 Download Agency-State Analysis",
             data=export_text,
-            file_name=f"brutball_three_engine_{selected_league.replace(' ', '_')}_{home_team}_vs_{away_team}.txt",
+            file_name=f"brutball_agency_state_{selected_league.replace(' ', '_')}_{home_team}_vs_{away_team}.txt",
             mime="text/plain",
             use_container_width=True
         )
@@ -2395,10 +1738,10 @@ Capital flows proportionally to structural certainty
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; color: #6B7280; font-size: 0.9rem; padding: 1rem;">
-        <p><strong>BRUTBALL THREE-TIER ARCHITECTURE</strong></p>
-        <p>Tier 1: v6.0 Edge Detection Engine • Tier 2: v6.1.1 State Lock Authority Engine • Tier 3: Absolute Lock Engine</p>
-        <p>EDGE MODE (normal variance) • LOCK MODE (structural inevitability) • ABSOLUTE MODE (structural impossibility)</p>
-        <p>Asymmetric authority: Higher tiers only add permissions, never remove • Vanishing rarity increases with certainty</p>
+        <p><strong>BRUTBALL AGENCY-STATE FRAMEWORK</strong></p>
+        <p>STATE = AGENCY CONTROL • LOCK = AGENCY SUPPRESSION</p>
+        <p>Unified logic for Winner • Clean Sheet • Team No Score • Opponent Under markets</p>
+        <p>Same 4 gates, market-specific thresholds, no new heuristics</p>
     </div>
     """, unsafe_allow_html=True)
 
