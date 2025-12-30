@@ -17,7 +17,7 @@ ENFORCEMENT_METHODS_REQUIRED = 2  # LAW 3: Redundant enforcement
 STATE_FLIP_FAILURES_REQUIRED = 2  # Opponent fails ≥2 escalation checks
 QUIET_CONTROL_SEPARATION_THRESHOLD = 0.1  # v6.1.2 mutual control
 
-# Totals Lock Constants (NEW) - STRICT BINARY GATE
+# Totals Lock Constants (CRITICAL: Strict binary gate)
 TOTALS_LOCK_THRESHOLD = 1.2    # Last 5 matches avg goals ≤ 1.2 for both teams
 UNDER_GOALS_THRESHOLD = 2.5    # Lock for Under 2.5 goals
 
@@ -46,28 +46,28 @@ MARKET_THRESHOLDS = {
         'state_flip_failures': 2,    # ≥2/4 failures
         'enforcement_methods': 2,    # ≥2 methods
         'urgency_required': False    # Can control without opening
-    },
-    'TOTALS_UNDER_2_5': {  # NEW: Totals Lock - STRICT BINARY
-        'home_goals_threshold': TOTALS_LOCK_THRESHOLD,  # ≤ 1.2 avg goals LAST 5
-        'away_goals_threshold': TOTALS_LOCK_THRESHOLD,  # ≤ 1.2 avg goals LAST 5
-        'both_teams_required': True,  # BOTH must meet threshold
-        'trend_based': True,          # Trend-based, not agency-suppression
-        'capital_multiplier': 2.0,    # Same as LOCK_MODE
-        'strict_binary': True         # NO multipliers, NO smoothing
     }
+}
+
+# Totals Lock has special thresholds
+TOTALS_LOCK_CONFIG = {
+    'home_goals_threshold': TOTALS_LOCK_THRESHOLD,  # ≤ 1.2 avg goals
+    'away_goals_threshold': TOTALS_LOCK_THRESHOLD,  # ≤ 1.2 avg goals
+    'both_teams_required': True,  # BOTH must meet threshold
+    'trend_based': True,          # Trend-based, not agency-suppression
+    'capital_multiplier': 2.0     # Same as LOCK_MODE
 }
 
 # Capital Multipliers
 CAPITAL_MULTIPLIERS = {
     'EDGE_MODE': 1.0,     # v6.0 only
-    'LOCK_MODE': 2.0,     # v6.0 + Agency-State LOCKED
-    'ABSOLUTE_MODE': 3.0  # For future Absolute Lock
+    'LOCK_MODE': 2.0,     # v6.0 + Agency-State LOCKED or Totals Lock
 }
 
 # =================== PAGE CONFIGURATION ===================
 st.set_page_config(
-    page_title="BRUTBALL v6.1.2 + TOTALS LOCK (FIXED)",
-    page_icon="⚖️🔒✅",
+    page_title="BRUTBALL v6.1.2 + TOTALS LOCK",
+    page_icon="⚖️🔒📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -142,23 +142,78 @@ st.markdown("""
         margin-bottom: 2rem;
         font-size: 0.95rem;
     }
-    .totals-lock-strict {
+    .agency-state-display {
         padding: 2.5rem;
         border-radius: 12px;
-        background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
-        border: 4px solid #D97706;
+        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+        border: 4px solid #16A34A;
         text-align: center;
         margin: 1.5rem 0;
-        box-shadow: 0 6px 16px rgba(217, 119, 6, 0.15);
+        box-shadow: 0 6px 16px rgba(22, 163, 74, 0.15);
     }
-    .strict-binary-gate {
-        background: #FFFBEB;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 3px solid #D97706;
+    .totals-lock-display {
+        padding: 2.5rem;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
+        border: 4px solid #0EA5E9;
+        text-align: center;
+        margin: 1.5rem 0;
+        box-shadow: 0 6px 16px rgba(14, 165, 233, 0.15);
+    }
+    .market-locked-display {
+        padding: 1.5rem;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #ECFDF5 0%, #A7F3D0 100%);
+        border: 3px solid #059669;
         margin: 1rem 0;
-        font-family: 'Courier New', monospace;
-        font-size: 0.9rem;
+        text-align: left;
+    }
+    .market-totals-locked {
+        padding: 1.5rem;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
+        border: 3px solid #0EA5E9;
+        margin: 1rem 0;
+        text-align: left;
+    }
+    .market-available-display {
+        padding: 1.5rem;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+        border: 3px solid #3B82F6;
+        margin: 1rem 0;
+        text-align: left;
+    }
+    .market-unavailable-display {
+        padding: 1.5rem;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%);
+        border: 3px solid #9CA3AF;
+        margin: 1rem 0;
+        text-align: left;
+        opacity: 0.7;
+    }
+    .capital-mode-box {
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+        text-align: center;
+        font-weight: 700;
+    }
+    .edge-mode {
+        background: #EFF6FF;
+        color: #1E40AF;
+        border: 3px solid #3B82F6;
+    }
+    .lock-mode {
+        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+        color: #166534;
+        border: 3px solid #16A34A;
+    }
+    .totals-lock-mode {
+        background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
+        color: #0C4A6E;
+        border: 3px solid #0EA5E9;
     }
     .gate-passed {
         background: #F0FDF4;
@@ -176,6 +231,14 @@ st.markdown("""
         margin: 0.75rem 0;
         font-size: 0.9rem;
     }
+    .trend-check {
+        background: #E0F2FE;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #0EA5E9;
+        margin: 0.75rem 0;
+        font-size: 0.9rem;
+    }
     .market-badge {
         display: inline-block;
         padding: 0.25rem 0.75rem;
@@ -184,20 +247,170 @@ st.markdown("""
         font-weight: 600;
         margin: 0.25rem;
     }
-    .badge-strict {
-        background: #FEF3C7;
-        color: #92400E;
-        border: 2px solid #D97706;
+    .badge-state {
+        background: #DCFCE7;
+        color: #16A34A;
+        border: 1px solid #86EFAC;
+    }
+    .badge-totals {
+        background: #BAE6FD;
+        color: #0C4A6E;
+        border: 1px solid #7DD3FC;
+    }
+    .badge-locked {
+        background: #A7F3D0;
+        color: #065F46;
+        border: 1px solid #10B981;
         font-weight: 800;
     }
-    .data-validation {
-        background: #ECFDF5;
+    .badge-totals-locked {
+        background: #7DD3FC;
+        color: #0C4A6E;
+        border: 1px solid #38BDF8;
+        font-weight: 800;
+    }
+    .badge-noise {
+        background: #F3F4F6;
+        color: #6B7280;
+        border: 1px solid #D1D5DB;
+    }
+    .agency-insight {
+        background: #E0F2FE;
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 2px solid #38BDF8;
+        margin: 1rem 0;
+    }
+    .totals-insight {
+        background: #F0F9FF;
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 2px solid #0EA5E9;
+        margin: 1rem 0;
+    }
+    .metric-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 0.5rem 0;
+        padding: 0.5rem;
+        border-radius: 4px;
+    }
+    .metric-row-state {
+        background: #F0FDF4;
+        border-left: 3px solid #16A34A;
+    }
+    .metric-row-totals {
+        background: #E0F2FE;
+        border-left: 3px solid #0EA5E9;
+    }
+    .metric-row-agency {
+        background: #E0F2FE;
+        border-left: 3px solid #38BDF8;
+    }
+    .architecture-diagram {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 2px solid #E5E7EB;
+        margin: 1rem 0;
+        text-align: center;
+    }
+    .three-tier-architecture {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 2rem 0;
+    }
+    .tier-level {
+        width: 300px;
         padding: 1rem;
         border-radius: 8px;
-        border: 2px solid #10B981;
+        text-align: center;
+        position: relative;
+    }
+    .tier-3 {
+        background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
+        border: 3px solid #0EA5E9;
+        color: #0C4A6E;
+        font-weight: 900;
+    }
+    .tier-2 {
+        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+        border: 3px solid #16A34A;
+        color: #166534;
+        font-weight: 700;
+    }
+    .tier-1 {
+        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+        border: 3px solid #3B82F6;
+        color: #1E40AF;
+    }
+    .state-principle {
+        background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 3px solid #38BDF8;
         margin: 1rem 0;
-        font-family: 'Courier New', monospace;
+    }
+    .state-bound-list {
+        background: #F0FDF4;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 2px solid #86EFAC;
+        margin: 0.5rem 0;
+    }
+    .totals-lock-list {
+        background: #E0F2FE;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 2px solid #7DD3FC;
+        margin: 0.5rem 0;
+    }
+    .noise-list {
+        background: #F3F4F6;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 2px solid #D1D5DB;
+        margin: 0.5rem 0;
+    }
+    .trend-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
         font-size: 0.85rem;
+        font-weight: 600;
+        margin: 0.25rem;
+    }
+    .trend-good {
+        background: #DCFCE7;
+        color: #16A34A;
+        border: 1px solid #86EFAC;
+    }
+    .trend-poor {
+        background: #FEF3C7;
+        color: #D97706;
+        border: 1px solid #FCD34D;
+    }
+    .binary-gate {
+        background: #F0F9FF;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 3px solid #0EA5E9;
+        margin: 1rem 0;
+        text-align: center;
+        font-weight: 700;
+    }
+    .strict-binary {
+        background: #FFEDD5;
+        padding: 0.5rem;
+        border-radius: 6px;
+        border: 2px solid #F97316;
+        margin: 0.5rem 0;
+        text-align: center;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -285,6 +498,7 @@ class BrutballEdgeEngine:
                             league_avg_xg: float) -> Dict:
         """Execute v6.0 decision tree to identify structural edges."""
         audit_log = []
+        decision_steps = []
         
         audit_log.append("=" * 70)
         audit_log.append("🔍 BRUTBALL v6.0 - EDGE DETECTION ENGINE")
@@ -305,6 +519,12 @@ class BrutballEdgeEngine:
         
         audit_log.extend(home_rationale)
         audit_log.extend(away_rationale)
+        
+        # Determine favorite (by position)
+        home_pos = home_data.get('season_position', 10)
+        away_pos = away_data.get('season_position', 10)
+        favorite = home_name if home_pos < away_pos else away_name
+        underdog = away_name if favorite == home_name else home_name
         
         # Get xG values
         home_xg = home_data.get('home_xg_per_match', 0)
@@ -333,13 +553,19 @@ class BrutballEdgeEngine:
         stake_pct = 1.0
         
         if controller:
+            # Controller exists
             opponent = away_name if controller == home_name else home_name
+            is_underdog = controller == underdog
             
             if combined_xg >= 2.8 and max(home_xg, away_xg) >= 1.6:
                 # Goals environment present
                 primary_action = f"BACK {controller} & OVER 2.5"
                 confidence = 7.5
                 secondary_logic = f"Controller + goals environment"
+                
+                if is_underdog:
+                    confidence -= 0.5
+                    secondary_logic += " (underdog controller)"
             else:
                 # No goals environment
                 primary_action = f"BACK {controller}"
@@ -387,16 +613,24 @@ class BrutballEdgeEngine:
             'stake_pct': stake_pct,
             'secondary_logic': secondary_logic,
             'audit_log': audit_log,
+            'decision_steps': [
+                f"1. Control evaluation: {controller if controller else 'No clear controller'}",
+                f"2. Combined xG: {combined_xg:.2f} ({'≥2.8' if combined_xg >= 2.8 else '<2.8'})",
+                f"3. Max xG: {max(home_xg, away_xg):.2f} ({'≥1.6' if max(home_xg, away_xg) >= 1.6 else '<1.6'})",
+                f"4. Decision: {primary_action} (Confidence: {confidence:.1f}/10)"
+            ],
             'key_metrics': {
                 'home_xg': home_xg,
                 'away_xg': away_xg,
                 'combined_xg': combined_xg,
                 'controller': controller,
+                'favorite': favorite,
+                'underdog': underdog
             },
             'mode': 'EDGE_MODE'
         }
 
-# =================== AGENCY-STATE LOCK ENGINE (UNIFIED) ===================
+# =================== AGENCY-STATE LOCK ENGINE ===================
 class AgencyStateLockEngine:
     """
     AGENCY-STATE LOCK ENGINE
@@ -475,75 +709,244 @@ class AgencyStateLockEngine:
         return raw_score, weighted_score, criteria_met, rationale
     
     @staticmethod
-    def check_totals_lock_condition(home_data: Dict, away_data: Dict,
-                                   home_name: str, away_name: str) -> Tuple[bool, Dict, List[str]]:
-        """Check Totals Lock condition with ACTUAL last 5 data - STRICT BINARY GATE."""
+    def check_directional_dominance(controller_xg: float, opponent_xg: float,
+                                   controller_name: str, opponent_name: str,
+                                   market_type: str) -> Tuple[bool, float, List[str]]:
+        """GATE 2: Check directional dominance with market-specific thresholds."""
         rationale = []
+        control_delta = controller_xg - opponent_xg
         
-        rationale.append(f"🔍 TOTALS LOCK CONDITION CHECK (STRICT BINARY)")
-        rationale.append(f"• Metric: goals_scored_last_5 / 5")
-        rationale.append(f"• Threshold: ≤ {TOTALS_LOCK_THRESHOLD}")
-        rationale.append(f"• Condition: BOTH teams must pass")
-        rationale.append(f"• Gate: Strict binary (NO multipliers, NO smoothing)")
-        rationale.append("")
-        
-        # GET ACTUAL LAST 5 DATA FROM CSV - CORRECT METRIC
-        home_last5_goals = home_data.get('goals_scored_last_5', 0)
-        away_last5_goals = away_data.get('goals_scored_last_5', 0)
-        
-        # Calculate actual averages
-        home_last5_avg = home_last5_goals / 5
-        away_last5_avg = away_last5_goals / 5
-        
-        rationale.append(f"📊 ACTUAL LAST 5 DATA FROM CSV:")
-        rationale.append(f"• {home_name}: goals_scored_last_5 = {home_last5_goals} → {home_last5_avg:.2f}/match")
-        rationale.append(f"• {away_name}: goals_scored_last_5 = {away_last5_goals} → {away_last5_avg:.2f}/match")
-        rationale.append("")
-        rationale.append(f"📏 THRESHOLD CHECK (≤ {TOTALS_LOCK_THRESHOLD}):")
-        
-        # STRICT BINARY GATE - NO MULTIPLIERS
-        home_passes = home_last5_avg <= TOTALS_LOCK_THRESHOLD
-        away_passes = away_last5_avg <= TOTALS_LOCK_THRESHOLD
-        
-        rationale.append(f"• {home_name}: {home_last5_avg:.2f} {'≤' if home_passes else '>'} {TOTALS_LOCK_THRESHOLD} → {'✅ PASS' if home_passes else '❌ FAIL'}")
-        rationale.append(f"• {away_name}: {away_last5_avg:.2f} {'≤' if away_passes else '>'} {TOTALS_LOCK_THRESHOLD} → {'✅ PASS' if away_passes else '❌ FAIL'}")
-        
-        # BOTH TEAMS MUST PASS - BINARY AND GATE
-        totals_lock_condition = home_passes and away_passes
-        
-        rationale.append("")
-        if totals_lock_condition:
-            rationale.append(f"✅ TOTALS LOCK CONDITION MET: Both teams ≤ {TOTALS_LOCK_THRESHOLD}")
-            rationale.append(f"• Structural certainty: Total goals ≤ {UNDER_GOALS_THRESHOLD}")
+        # MARKET-SPECIFIC THRESHOLDS
+        if market_type == 'WINNER':
+            market_threshold = 1.1
+        elif market_type == 'CLEAN_SHEET':
+            market_threshold = 0.8
+        elif market_type == 'TEAM_NO_SCORE':
+            market_threshold = 0.6
+        elif market_type == 'OPPONENT_UNDER_1_5':
+            market_threshold = 1.0
         else:
-            rationale.append(f"❌ TOTALS LOCK CONDITION NOT MET")
-            if not home_passes:
-                rationale.append(f"  • {home_name}: {home_last5_avg:.2f} > {TOTALS_LOCK_THRESHOLD} (threshold violated)")
-            if not away_passes:
-                rationale.append(f"  • {away_name}: {away_last5_avg:.2f} > {TOTALS_LOCK_THRESHOLD} (threshold violated)")
-            rationale.append(f"• Totals Lock requires BOTH teams ≤ {TOTALS_LOCK_THRESHOLD}")
+            market_threshold = 1.1  # Default
         
-        # DATA VALIDATION CHECK
-        rationale.append("")
-        rationale.append("🔍 DATA VALIDATION:")
-        rationale.append(f"CSV Column Used: 'goals_scored_last_5'")
-        rationale.append(f"Home value: {home_last5_goals}")
-        rationale.append(f"Away value: {away_last5_goals}")
-        rationale.append(f"Calculation: value / 5")
-        rationale.append(f"No season averages used")
-        rationale.append(f"No multipliers applied")
+        rationale.append(f"GATE 2: DIRECTIONAL DOMINANCE ({market_type})")
+        rationale.append(f"• Controller xG ({controller_name}): {controller_xg:.2f}")
+        rationale.append(f"• Opponent xG ({opponent_name}): {opponent_xg:.2f}")
+        rationale.append(f"• Control Delta: {control_delta:+.2f}")
+        rationale.append(f"• Minimum Δ Threshold: > {DIRECTION_THRESHOLD}")
+        rationale.append(f"• Market-Specific Threshold: opponent xG < {market_threshold}")
         
-        return totals_lock_condition, {
-            'home_last5_goals': home_last5_goals,
-            'away_last5_goals': away_last5_goals,
-            'home_last5_avg': home_last5_avg,
-            'away_last5_avg': away_last5_avg,
-            'home_passes': home_passes,
-            'away_passes': away_passes,
-            'threshold': TOTALS_LOCK_THRESHOLD,
-            'calculation': 'goals_scored_last_5 / 5',
-            'strict_binary': True
-        }, rationale
+        # Check both conditions
+        delta_condition = control_delta > DIRECTION_THRESHOLD
+        opponent_xg_condition = opponent_xg < market_threshold
+        
+        if delta_condition and opponent_xg_condition:
+            rationale.append(f"✅ Directional dominance confirmed")
+            rationale.append(f"  • Δ = {control_delta:+.2f} > {DIRECTION_THRESHOLD}")
+            rationale.append(f"  • Opponent xG = {opponent_xg:.2f} < {market_threshold}")
+            return True, control_delta, rationale
+        else:
+            rationale.append(f"❌ Directional dominance insufficient")
+            if not delta_condition:
+                rationale.append(f"  • Δ = {control_delta:+.2f} ≤ {DIRECTION_THRESHOLD}")
+            if not opponent_xg_condition:
+                rationale.append(f"  • Opponent xG = {opponent_xg:.2f} ≥ {market_threshold}")
+            return False, control_delta, rationale
+    
+    @staticmethod
+    def check_agency_collapse(opponent_data: Dict, is_home: bool,
+                             opponent_name: str, league_avg_xg: float,
+                             market_type: str) -> Tuple[bool, int, List[str]]:
+        """GATE 3: Check agency collapse with market-specific requirements."""
+        rationale = []
+        failures = 0
+        check_details = []
+        
+        rationale.append(f"GATE 3: AGENCY COLLAPSE CHECK ({market_type})")
+        
+        # MARKET-SPECIFIC REQUIREMENTS
+        if market_type == 'WINNER':
+            required_failures = 2
+        elif market_type == 'CLEAN_SHEET':
+            required_failures = 3
+        elif market_type == 'TEAM_NO_SCORE':
+            required_failures = 4
+        elif market_type == 'OPPONENT_UNDER_1_5':
+            required_failures = 2
+        else:
+            required_failures = 2
+        
+        # CHECK 1: Chase capacity
+        if is_home:
+            chase_xg = opponent_data.get('home_xg_per_match', 0)
+        else:
+            chase_xg = opponent_data.get('away_xg_per_match', 0)
+        
+        if chase_xg < 1.1:
+            failures += 1
+            check_details.append(f"✅ Chase xG {chase_xg:.2f} < 1.1")
+        else:
+            check_details.append(f"❌ Chase xG {chase_xg:.2f} ≥ 1.1")
+        
+        # CHECK 2: Tempo surge capability
+        if chase_xg < 1.4:
+            failures += 1
+            check_details.append(f"✅ No tempo surge (xG {chase_xg:.2f} < 1.4)")
+        else:
+            check_details.append(f"❌ Tempo surge possible")
+        
+        # CHECK 3: Alternate threat channels
+        if is_home:
+            setpiece_pct = opponent_data.get('home_setpiece_pct', 0)
+            counter_pct = opponent_data.get('home_counter_pct', 0)
+        else:
+            setpiece_pct = opponent_data.get('away_setpiece_pct', 0)
+            counter_pct = opponent_data.get('away_counter_pct', 0)
+        
+        if setpiece_pct < 0.25 and counter_pct < 0.15:
+            failures += 1
+            check_details.append(f"✅ No alternate threat (SP: {setpiece_pct:.1%}, C: {counter_pct:.1%})")
+        else:
+            check_details.append(f"❌ Alternate threat exists")
+        
+        # CHECK 4: Substitution leverage
+        if is_home:
+            gpm = opponent_data.get('home_goals_per_match', 0)
+        else:
+            gpm = opponent_data.get('away_goals_per_match', 0)
+        
+        if gpm < league_avg_xg * 0.8:
+            failures += 1
+            check_details.append(f"✅ Low substitution leverage ({gpm:.2f} < {league_avg_xg*0.8:.2f})")
+        else:
+            check_details.append(f"❌ Adequate bench impact")
+        
+        # Add all check details
+        for detail in check_details:
+            rationale.append(f"  • {detail}")
+        
+        # Check market-specific requirements
+        if failures >= required_failures:
+            rationale.append(f"✅ AGENCY COLLAPSE: {failures}/{required_failures}+ failures")
+            return True, failures, rationale
+        else:
+            rationale.append(f"❌ Insufficient agency collapse: {failures}/{required_failures} failures")
+            return False, failures, rationale
+    
+    @staticmethod
+    def check_non_urgent_enforcement(controller_data: Dict, is_home: bool,
+                                    controller_name: str, market_type: str) -> Tuple[bool, int, List[str]]:
+        """GATE 4: Check non-urgent enforcement with market-specific requirements."""
+        rationale = []
+        enforce_methods = 0
+        method_details = []
+        
+        rationale.append(f"GATE 4: NON-URGENT ENFORCEMENT ({market_type})")
+        
+        # MARKET-SPECIFIC REQUIREMENTS
+        if market_type == 'WINNER':
+            required_methods = 2
+        elif market_type == 'CLEAN_SHEET':
+            required_methods = 2
+        elif market_type == 'TEAM_NO_SCORE':
+            required_methods = 3
+        elif market_type == 'OPPONENT_UNDER_1_5':
+            required_methods = 2
+        else:
+            required_methods = 2
+        
+        if is_home:
+            # METHOD 1: Defensive solidity at home
+            goals_conceded = controller_data.get('home_goals_conceded', 0)
+            matches_played = controller_data.get('home_matches_played', 1)
+            gcp_match = goals_conceded / matches_played
+            
+            if gcp_match < 1.2:
+                enforce_methods += 1
+                method_details.append(f"✅ Can defend lead (concedes {gcp_match:.2f}/match)")
+            else:
+                method_details.append(f"❌ Defensive concerns ({gcp_match:.2f}/match)")
+            
+            # METHOD 2: Alternate scoring at home
+            setpiece_pct = controller_data.get('home_setpiece_pct', 0)
+            counter_pct = controller_data.get('home_counter_pct', 0)
+            
+            if setpiece_pct > 0.25 or counter_pct > 0.15:
+                enforce_methods += 1
+                method_details.append(f"✅ Alternate scoring (SP: {setpiece_pct:.1%}, C: {counter_pct:.1%})")
+            else:
+                method_details.append(f"❌ Limited alternate scoring")
+            
+            # METHOD 3: Consistent threat at home
+            xg_per_match = controller_data.get('home_xg_per_match', 0)
+            if xg_per_match > 1.3:
+                enforce_methods += 1
+                method_details.append(f"✅ Consistent threat (xG: {xg_per_match:.2f})")
+            else:
+                method_details.append(f"❌ Requires xG spikes")
+            
+            # METHOD 4: Ball retention capability
+            goals_scored = controller_data.get('home_goals_scored', 0)
+            xg_for = controller_data.get('home_xg_for', 0)
+            efficiency = goals_scored / max(xg_for, 0.1)
+            
+            if efficiency > 0.85:
+                enforce_methods += 1
+                method_details.append(f"✅ Efficient finishing ({efficiency:.1%}) reduces urgency")
+            else:
+                method_details.append(f"❌ Requires volume scoring")
+        
+        else:  # Away team
+            # METHOD 1: Defensive solidity away
+            goals_conceded = controller_data.get('away_goals_conceded', 0)
+            matches_played = controller_data.get('away_matches_played', 1)
+            gcp_match = goals_conceded / matches_played
+            
+            if gcp_match < 1.3:
+                enforce_methods += 1
+                method_details.append(f"✅ Can defend away ({gcp_match:.2f}/match)")
+            else:
+                method_details.append(f"❌ Defensive concerns away")
+            
+            # METHOD 2: Away scoring versatility
+            setpiece_pct = controller_data.get('away_setpiece_pct', 0)
+            counter_pct = controller_data.get('away_counter_pct', 0)
+            
+            if setpiece_pct > 0.2 or counter_pct > 0.12:
+                enforce_methods += 1
+                method_details.append(f"✅ Away scoring versatility")
+            else:
+                method_details.append(f"❌ Limited away scoring")
+            
+            # METHOD 3: Away consistency
+            xg_per_match = controller_data.get('away_xg_per_match', 0)
+            if xg_per_match > 1.2:
+                enforce_methods += 1
+                method_details.append(f"✅ Consistent away threat (xG: {xg_per_match:.2f})")
+            else:
+                method_details.append(f"❌ Requires exceptional away performance")
+            
+            # METHOD 4: Away efficiency
+            goals_scored = controller_data.get('away_goals_scored', 0)
+            xg_for = controller_data.get('away_xg_for', 0)
+            efficiency = goals_scored / max(xg_for, 0.1)
+            
+            if efficiency > 0.9:
+                enforce_methods += 1
+                method_details.append(f"✅ Elite away finishing ({efficiency:.1%})")
+            else:
+                method_details.append(f"❌ Away efficiency concerns")
+        
+        # Add all method details
+        for detail in method_details:
+            rationale.append(f"  • {detail}")
+        
+        # Check market-specific requirements
+        if enforce_methods >= required_methods:
+            rationale.append(f"✅ NON-URGENT ENFORCEMENT: {enforce_methods}/{required_methods}+ methods")
+            return True, enforce_methods, rationale
+        else:
+            rationale.append(f"❌ Insufficient enforcement: {enforce_methods}/{required_methods} methods")
+            return False, enforce_methods, rationale
     
     @classmethod
     def evaluate_market_state_lock(cls, home_data: Dict, away_data: Dict,
@@ -558,226 +961,536 @@ class AgencyStateLockEngine:
         system_log.append(f"MATCH: {home_name} vs {away_name}")
         system_log.append("")
         
-        # =================== SPECIAL CASE: TOTALS LOCK ===================
-        if market_type == 'TOTALS_UNDER_2_5':
-            system_log.append("🎯 SPECIAL CASE: TOTALS LOCK (Trend-Based)")
-            system_log.append("• Logic: Both teams exhibit low-offense trends")
-            system_log.append(f"• Condition: Last 5 matches avg goals ≤ {TOTALS_LOCK_THRESHOLD} for both teams")
-            system_log.append("• Gate: Strict binary (NO multipliers, NO smoothing)")
-            system_log.append("• CSV Column: goals_scored_last_5")
-            system_log.append("")
+        # =================== GATE 1: QUIET CONTROL ===================
+        system_log.append("GATE 1: QUIET CONTROL IDENTIFICATION")
+        
+        home_score, home_weighted, home_criteria, home_rationale = cls.evaluate_quiet_control(
+            home_data, away_data, is_home=True, team_name=home_name
+        )
+        
+        away_score, away_weighted, away_criteria, away_rationale = cls.evaluate_quiet_control(
+            away_data, home_data, is_home=False, team_name=away_name
+        )
+        
+        system_log.extend(home_rationale)
+        system_log.extend(away_rationale)
+        
+        # Determine controller WITHOUT status resolution
+        controller = None
+        
+        # v6.1.2: Check for mutual control
+        both_meet_control = (home_score >= CONTROL_CRITERIA_REQUIRED and 
+                            away_score >= CONTROL_CRITERIA_REQUIRED)
+        
+        if both_meet_control:
+            weighted_diff = abs(home_weighted - away_weighted)
             
-            totals_lock_condition, trend_data, trend_rationale = cls.check_totals_lock_condition(
-                home_data, away_data, home_name, away_name
-            )
-            system_log.extend(trend_rationale)
-            
-            if totals_lock_condition:
-                system_log.append("")
-                system_log.append("=" * 70)
-                system_log.append(f"🔒 TOTALS LOCK DECLARATION (STRICT)")
-                system_log.append("=" * 70)
-                
-                declaration = f"🔒 TOTALS LOCKED\nTotal goals ≤ {UNDER_GOALS_THRESHOLD}\nBoth teams exhibit sustained low-offense trends\nStructural certainty for UNDER\nSTRICT BINARY GATE: Both ≤ {TOTALS_LOCK_THRESHOLD}"
-                
-                system_log.append(declaration)
-                system_log.append("")
-                system_log.append("💰 CAPITAL AUTHORIZATION: GRANTED")
-                system_log.append(f"• Trend Condition: BOTH teams last 5 avg goals ≤ {TOTALS_LOCK_THRESHOLD}")
-                system_log.append(f"• {home_name}: {trend_data['home_last5_avg']:.2f} goals/match (last 5)")
-                system_log.append(f"• {away_name}: {trend_data['away_last5_avg']:.2f} goals/match (last 5)")
-                system_log.append("• Gate: Strict binary (no multipliers)")
-                system_log.append("• Match: Structurally low-scoring")
-                system_log.append("=" * 70)
-                
-                return {
-                    'market': market_type,
-                    'state_locked': True,
-                    'declaration': declaration,
-                    'system_log': system_log,
-                    'reason': f"Totals Lock condition met (both teams ≤ {TOTALS_LOCK_THRESHOLD} avg goals - STRICT)",
-                    'capital_authorized': True,
-                    'trend_based': True,
-                    'trend_data': trend_data,
-                    'key_metrics': trend_data,
-                    'strict_binary': True
-                }
-            else:
-                system_log.append("❌ TOTALS LOCK NOT APPLICABLE")
-                system_log.append("• Threshold condition not met")
-                system_log.append("⚠️ FALLBACK TO EDGE MODE FOR TOTALS")
+            if weighted_diff <= QUIET_CONTROL_SEPARATION_THRESHOLD:
+                system_log.append(f"⚠️ v6.1.2: Mutual control detected")
+                system_log.append(f"  • Weighted difference: {weighted_diff:.2f} ≤ {QUIET_CONTROL_SEPARATION_THRESHOLD}")
+                system_log.append("• NO SINGLE CONTROLLER → NO STATE LOCK")
+                system_log.append("⚠️ SYSTEM SILENT")
                 
                 return {
                     'market': market_type,
                     'state_locked': False,
                     'system_log': system_log,
-                    'reason': f"Totals Lock condition not met",
+                    'reason': f"v6.1.2: Mutual control (weighted difference ≤ {QUIET_CONTROL_SEPARATION_THRESHOLD})",
                     'capital_authorized': False,
-                    'trend_based': True,
-                    'strict_binary': True
+                    'mutual_control': True
                 }
+            
+            if home_weighted > away_weighted:
+                controller = home_name
+                system_log.append(f"• Controller: {home_name} (weighted advantage)")
+            else:
+                controller = away_name
+                system_log.append(f"• Controller: {away_name} (weighted advantage)")
         
-        # =================== STANDARD AGENCY-STATE MARKETS ===================
-        # (Keeping existing logic for other markets)
-        system_log.append("🎯 STANDARD AGENCY-STATE MARKET")
-        system_log.append("• Logic: Agency suppression of one team")
+        elif home_score >= CONTROL_CRITERIA_REQUIRED and home_score > away_score:
+            controller = home_name
+            system_log.append(f"• Controller: {home_name} ({home_score}/4 criteria)")
+            
+        elif away_score >= CONTROL_CRITERIA_REQUIRED and away_score > home_score:
+            controller = away_name
+            system_log.append(f"• Controller: {away_name} ({away_score}/4 criteria)")
+        
+        else:
+            system_log.append("❌ GATE 1 FAILED: No Quiet Control identified")
+            system_log.append("⚠️ SYSTEM SILENT")
+            
+            return {
+                'market': market_type,
+                'state_locked': False,
+                'system_log': system_log,
+                'reason': f"No team meets {CONTROL_CRITERIA_REQUIRED}+ control criteria",
+                'capital_authorized': False
+            }
+        
+        system_log.append(f"✅ GATE 1 PASSED: Quiet Control → {controller}")
+        
+        # =================== GATE 2: DIRECTIONAL DOMINANCE ===================
         system_log.append("")
+        system_log.append("GATE 2: DIRECTIONAL DOMINANCE")
         
-        # ... existing agency-state logic for other markets ...
+        opponent = away_name if controller == home_name else home_name
+        is_controller_home = controller == home_name
+        
+        controller_xg = home_data.get('home_xg_per_match', 0) if is_controller_home else away_data.get('away_xg_per_match', 0)
+        opponent_xg = away_data.get('away_xg_per_match', 0) if is_controller_home else home_data.get('home_xg_per_match', 0)
+        
+        has_direction, control_delta, direction_rationale = cls.check_directional_dominance(
+            controller_xg, opponent_xg, controller, opponent, market_type
+        )
+        system_log.extend(direction_rationale)
+        
+        if not has_direction:
+            system_log.append("⚠️ SYSTEM SILENT")
+            
+            return {
+                'market': market_type,
+                'state_locked': False,
+                'system_log': system_log,
+                'reason': f"Directional dominance insufficient for {market_type}",
+                'capital_authorized': False
+            }
+        
+        system_log.append(f"✅ GATE 2 PASSED: Directional dominance confirmed (Δ = {control_delta:+.2f})")
+        
+        # =================== GATE 3: AGENCY COLLAPSE ===================
+        system_log.append("")
+        system_log.append("GATE 3: AGENCY COLLAPSE")
+        
+        opponent_data = away_data if opponent == away_name else home_data
+        is_opponent_home = opponent == home_name
+        
+        agency_collapsed, failures, collapse_rationale = cls.check_agency_collapse(
+            opponent_data, is_opponent_home, opponent, league_avg_xg, market_type
+        )
+        system_log.extend(collapse_rationale)
+        
+        if not agency_collapsed:
+            # Get required failures for this market
+            if market_type == 'WINNER':
+                required = 2
+            elif market_type == 'CLEAN_SHEET':
+                required = 3
+            elif market_type == 'TEAM_NO_SCORE':
+                required = 4
+            else:
+                required = 2
+                
+            system_log.append(f"❌ GATE 3 FAILED: Insufficient agency collapse ({failures}/{required})")
+            system_log.append("⚠️ SYSTEM SILENT")
+            
+            return {
+                'market': market_type,
+                'state_locked': False,
+                'system_log': system_log,
+                'reason': f"Insufficient agency collapse for {market_type} ({failures}/{required})",
+                'capital_authorized': False
+            }
+        
+        system_log.append(f"✅ GATE 3 PASSED: Agency collapse confirmed ({failures}/4 failures)")
+        
+        # =================== GATE 4: NON-URGENT ENFORCEMENT ===================
+        system_log.append("")
+        system_log.append("GATE 4: NON-URGENT ENFORCEMENT")
+        
+        controller_data = home_data if controller == home_name else away_data
+        
+        can_enforce, enforce_methods, enforce_rationale = cls.check_non_urgent_enforcement(
+            controller_data, is_controller_home, controller, market_type
+        )
+        system_log.extend(enforce_rationale)
+        
+        if not can_enforce:
+            # Get required methods for this market
+            if market_type == 'TEAM_NO_SCORE':
+                required = 3
+            else:
+                required = 2
+                
+            system_log.append(f"❌ GATE 4 FAILED: Insufficient enforcement capacity ({enforce_methods}/{required})")
+            system_log.append("⚠️ SYSTEM SILENT")
+            
+            return {
+                'market': market_type,
+                'state_locked': False,
+                'system_log': system_log,
+                'reason': f"Insufficient enforcement capacity for {market_type} ({enforce_methods}/{required})",
+                'capital_authorized': False
+            }
+        
+        system_log.append(f"✅ GATE 4 PASSED: Non-urgent enforcement confirmed ({enforce_methods}/2+ methods)")
+        
+        # =================== STATE LOCK DECLARATION ===================
+        system_log.append("")
+        system_log.append("=" * 70)
+        system_log.append(f"🔒 {market_type} STATE LOCK DECLARATION")
+        system_log.append("=" * 70)
+        
+        # Market-specific declarations
+        declarations = {
+            'WINNER': f"🔒 WINNER LOCKED\n{controller} cannot lose\n{opponent} has no agency to change result",
+            'CLEAN_SHEET': f"🔒 CLEAN SHEET LOCKED\n{controller} will not concede\n{opponent} has no scoring agency",
+            'TEAM_NO_SCORE': f"🔒 TEAM NO SCORE LOCKED\n{opponent} will not score\nScoring agency structurally suppressed",
+            'OPPONENT_UNDER_1_5': f"🔒 OPPONENT UNDER 1.5 LOCKED\n{opponent} cannot score >1 goal\nAgency limited to minimal threat"
+        }
+        
+        declaration = declarations.get(market_type, f"🔒 STATE LOCKED\n{controller} controls {market_type} state")
+        
+        system_log.append(declaration)
+        system_log.append("")
+        system_log.append("💰 CAPITAL AUTHORIZATION: GRANTED")
+        system_log.append(f"• All 4/4 gates passed")
+        system_log.append(f"• Control Delta: {control_delta:+.2f}")
+        system_log.append(f"• Agency Collapse: {failures}/4 failures")
+        system_log.append(f"• Enforcement Methods: {enforce_methods}/2+")
+        system_log.append(f"• Market: {market_type} structurally controlled")
+        system_log.append("=" * 70)
         
         return {
             'market': market_type,
-            'state_locked': False,
+            'state_locked': True,
+            'declaration': declaration,
             'system_log': system_log,
-            'reason': f"Agency-state logic for {market_type} (not implemented in this fix)",
-            'capital_authorized': False
+            'reason': f"All agency-state gates passed for {market_type}",
+            'capital_authorized': True,
+            'controller': controller,
+            'opponent': opponent,
+            'control_delta': control_delta,
+            'agency_failures': failures,
+            'enforce_methods': enforce_methods,
+            'key_metrics': {
+                'controller_xg': controller_xg,
+                'opponent_xg': opponent_xg
+            }
         }
+
+# =================== TOTALS LOCK ENGINE ===================
+class TotalsLockEngine:
+    """
+    TOTALS LOCK ENGINE
+    Special case: Totals ≤ 2.5 (Dual low-offense trend)
+    Binary gate: Both teams last 5 avg goals ≤ 1.2
+    """
+    
+    @staticmethod
+    def check_totals_lock_condition(home_data: Dict, away_data: Dict,
+                                   home_name: str, away_name: str) -> Tuple[bool, Dict, List[str]]:
+        """Check Totals Lock condition (STRICT BINARY GATE)."""
+        rationale = []
+        
+        rationale.append("=" * 70)
+        rationale.append(f"🎯 TOTALS LOCK ENGINE - BINARY GATE")
+        rationale.append("=" * 70)
+        rationale.append(f"MATCH: {home_name} vs {away_name}")
+        rationale.append("")
+        rationale.append(f"CONDITION: Both teams' last 5 matches average goals ≤ {TOTALS_LOCK_THRESHOLD}")
+        rationale.append("")
+        
+        # CRITICAL: Use only goals_scored_last_5 / 5
+        home_last5_goals = home_data.get('goals_scored_last_5', 0)
+        away_last5_goals = away_data.get('goals_scored_last_5', 0)
+        
+        # Calculate averages
+        home_last5_avg = home_last5_goals / 5 if home_last5_goals > 0 else 0
+        away_last5_avg = away_last5_goals / 5 if away_last5_goals > 0 else 0
+        
+        rationale.append(f"📊 LAST 5 MATCHES DATA:")
+        rationale.append(f"• {home_name}: {home_last5_goals} goals in last 5 → {home_last5_avg:.2f} avg")
+        rationale.append(f"• {away_name}: {away_last5_goals} goals in last 5 → {away_last5_avg:.2f} avg")
+        rationale.append("")
+        
+        # STRICT BINARY CHECKS
+        rationale.append("⚖️ STRICT BINARY CHECKS:")
+        rationale.append(f"• {home_name} ≤ {TOTALS_LOCK_THRESHOLD}? {'✅ YES' if home_last5_avg <= TOTALS_LOCK_THRESHOLD else '❌ NO'}")
+        rationale.append(f"• {away_name} ≤ {TOTALS_LOCK_THRESHOLD}? {'✅ YES' if away_last5_avg <= TOTALS_LOCK_THRESHOLD else '❌ NO'}")
+        rationale.append("")
+        
+        # Check both conditions
+        home_passes = home_last5_avg <= TOTALS_LOCK_THRESHOLD
+        away_passes = away_last5_avg <= TOTALS_LOCK_THRESHOLD
+        totals_lock_condition = home_passes and away_passes
+        
+        if totals_lock_condition:
+            rationale.append("✅ TOTALS LOCK CONDITION MET!")
+            rationale.append(f"• Both teams ≤ {TOTALS_LOCK_THRESHOLD} avg goals (last 5)")
+            rationale.append(f"• Structural certainty: Total goals ≤ {UNDER_GOALS_THRESHOLD}")
+            rationale.append("• Logic: Dual low-offense trend creates scoring incapacity")
+        else:
+            rationale.append("❌ TOTALS LOCK CONDITION NOT MET")
+            if not home_passes:
+                rationale.append(f"  • {home_name}: {home_last5_avg:.2f} > {TOTALS_LOCK_THRESHOLD}")
+            if not away_passes:
+                rationale.append(f"  • {away_name}: {away_last5_avg:.2f} > {TOTALS_LOCK_THRESHOLD}")
+            rationale.append("  • NO dual low-offense trend")
+        
+        rationale.append("=" * 70)
+        
+        return totals_lock_condition, {
+            'home_last5_goals': home_last5_goals,
+            'away_last5_goals': away_last5_goals,
+            'home_last5_avg': home_last5_avg,
+            'away_last5_avg': away_last5_avg,
+            'home_passes': home_passes,
+            'away_passes': away_passes
+        }, rationale
     
     @classmethod
-    def evaluate_all_markets(cls, home_data: Dict, away_data: Dict,
-                           home_name: str, away_name: str,
-                           league_avg_xg: float) -> Dict:
-        """Evaluate STATE LOCK for all markets including Totals Lock."""
+    def evaluate_totals_lock(cls, home_data: Dict, away_data: Dict,
+                           home_name: str, away_name: str) -> Dict:
+        """Evaluate Totals Lock for Under 2.5 goals."""
         
-        # For now, just evaluate Totals Lock (primary focus of fix)
-        markets_to_evaluate = ['TOTALS_UNDER_2_5']
+        system_log = []
         
-        results = {}
-        locked_markets = []
+        system_log.append("=" * 70)
+        system_log.append("🎯 TOTALS LOCK ENGINE - TREND-BASED")
+        system_log.append("=" * 70)
+        system_log.append(f"LOGIC: Bilateral scoring agency suppression via trend")
+        system_log.append(f"CONDITION: Both teams last 5 avg goals ≤ {TOTALS_LOCK_THRESHOLD}")
+        system_log.append(f"DECLARATION: Totals ≤ {UNDER_GOALS_THRESHOLD} structurally certain")
+        system_log.append("")
         
-        for market in markets_to_evaluate:
-            result = cls.evaluate_market_state_lock(
-                home_data, away_data, home_name, away_name, league_avg_xg, market
-            )
-            results[market] = result
+        totals_lock_condition, trend_data, trend_rationale = cls.check_totals_lock_condition(
+            home_data, away_data, home_name, away_name
+        )
+        system_log.extend(trend_rationale)
+        
+        if totals_lock_condition:
+            declaration = f"🔒 TOTALS ≤{UNDER_GOALS_THRESHOLD} LOCKED\nDual low-offense trend confirmed\nBoth teams ≤ {TOTALS_LOCK_THRESHOLD} avg goals (last 5)\nStructural scoring incapacity"
             
-            if result['state_locked']:
-                locked_markets.append({
-                    'market': market,
-                    'type': 'trend_based',
-                    'reason': result['reason'],
-                    'strict_binary': result.get('strict_binary', False)
-                })
-        
-        # Determine if Totals Lock is active
-        has_totals_lock = results.get('TOTALS_UNDER_2_5', {}).get('state_locked', False)
-        strongest_market = 'TOTALS_UNDER_2_5' if has_totals_lock else None
-        
-        return {
-            'all_results': results,
-            'locked_markets': locked_markets,
-            'strongest_market': strongest_market,
-            'total_markets': len(markets_to_evaluate),
-            'locked_count': len(locked_markets),
-            'has_totals_lock': has_totals_lock,
-            'strict_binary': results.get('TOTALS_UNDER_2_5', {}).get('strict_binary', False)
-        }
+            system_log.append("")
+            system_log.append("💰 CAPITAL AUTHORIZATION: GRANTED")
+            system_log.append(f"• Trend Condition: BOTH teams last 5 avg goals ≤ {TOTALS_LOCK_THRESHOLD}")
+            system_log.append(f"• {home_name}: {trend_data['home_last5_avg']:.2f}")
+            system_log.append(f"• {away_name}: {trend_data['away_last5_avg']:.2f}")
+            system_log.append(f"• Match: Structurally low-scoring ≤ {UNDER_GOALS_THRESHOLD}")
+            system_log.append("=" * 70)
+            
+            return {
+                'market': 'TOTALS_UNDER_2_5',
+                'state_locked': True,
+                'declaration': declaration,
+                'system_log': system_log,
+                'reason': f"Totals Lock condition met (both teams ≤ {TOTALS_LOCK_THRESHOLD} avg goals)",
+                'capital_authorized': True,
+                'trend_based': True,
+                'trend_data': trend_data,
+                'key_metrics': trend_data
+            }
+        else:
+            system_log.append("❌ TOTALS LOCK NOT APPLICABLE")
+            system_log.append("⚠️ FALLBACK TO EDGE MODE FOR TOTALS")
+            system_log.append("=" * 70)
+            
+            return {
+                'market': 'TOTALS_UNDER_2_5',
+                'state_locked': False,
+                'system_log': system_log,
+                'reason': f"Totals Lock condition not met",
+                'capital_authorized': False,
+                'trend_based': True
+            }
 
 # =================== INTEGRATED BRUTBALL ARCHITECTURE ===================
 class BrutballIntegratedArchitecture:
     """
     BRUTBALL INTEGRATED ARCHITECTURE
-    v6.0 Edge Detection + Totals Lock (FIXED)
+    v6.0 Edge Detection + Agency-State Lock Engine + Totals Lock Engine
+    Three-Tier System with Specialized Market Logic
     """
     
     @staticmethod
-    def execute_totals_lock_analysis(home_data: Dict, away_data: Dict,
-                                   home_name: str, away_name: str,
-                                   league_avg_xg: float) -> Dict:
-        """Execute analysis with FIXED Totals Lock."""
+    def execute_integrated_analysis(home_data: Dict, away_data: Dict,
+                                  home_name: str, away_name: str,
+                                  league_avg_xg: float) -> Dict:
+        """Execute complete three-tier integrated analysis."""
         
-        # Run v6.0 Edge Detection Engine
-        edge_result = BrutballEdgeEngine.execute_decision_tree(
+        integrated_log = []
+        integrated_log.append("=" * 80)
+        integrated_log.append("⚖️🔒📊 BRUTBALL INTEGRATED ARCHITECTURE")
+        integrated_log.append("=" * 80)
+        integrated_log.append("THREE-TIER SYSTEM WITH SPECIALIZED MARKET LOGIC")
+        integrated_log.append("TIER 1: v6.0 Edge Detection Engine (Heuristic)")
+        integrated_log.append("TIER 2: Agency-State Lock Engine (Agency-Based)")
+        integrated_log.append("TIER 3: Totals Lock Engine (Trend-Based)")
+        integrated_log.append(f"MATCH: {home_name} vs {away_name}")
+        integrated_log.append("=" * 80)
+        
+        # =================== TIER 1: v6.0 EDGE DETECTION ===================
+        integrated_log.append("")
+        integrated_log.append("🎯 TIER 1: v6.0 EDGE DETECTION ENGINE")
+        integrated_log.append("-" * 40)
+        
+        v6_result = BrutballEdgeEngine.execute_decision_tree(
             home_data, away_data, home_name, away_name, league_avg_xg
         )
         
-        # Run Totals Lock Evaluation with FIXED logic
-        totals_lock_result = AgencyStateLockEngine.evaluate_all_markets(
-            home_data, away_data, home_name, away_name, league_avg_xg
+        # Add key v6.0 results to integrated log
+        integrated_log.append(f"• Primary Action: {v6_result['primary_action']}")
+        integrated_log.append(f"• Confidence: {v6_result['confidence']:.1f}/10")
+        integrated_log.append(f"• Base Stake: {v6_result['stake_pct']:.1f}%")
+        integrated_log.append(f"• Mode: EDGE_MODE (1.0x multiplier)")
+        
+        # =================== TIER 2: AGENCY-STATE LOCKS ===================
+        integrated_log.append("")
+        integrated_log.append("🔐 TIER 2: AGENCY-STATE LOCK ENGINE")
+        integrated_log.append("-" * 40)
+        integrated_log.append("MARKETS: Winner • Clean Sheet • Team No Score • Opponent Under 1.5")
+        integrated_log.append("LOGIC: 4 Gates (Quiet Control, Direction, Agency Collapse, Enforcement)")
+        
+        # Evaluate all agency-state markets
+        agency_markets = ['WINNER', 'CLEAN_SHEET', 'TEAM_NO_SCORE', 'OPPONENT_UNDER_1_5']
+        agency_results = {}
+        agency_locked_markets = []
+        
+        for market in agency_markets:
+            result = AgencyStateLockEngine.evaluate_market_state_lock(
+                home_data, away_data, home_name, away_name, league_avg_xg, market
+            )
+            agency_results[market] = result
+            
+            if result['state_locked']:
+                agency_locked_markets.append({
+                    'market': market,
+                    'controller': result['controller'],
+                    'delta': result['control_delta'],
+                    'agency_failures': result['agency_failures']
+                })
+        
+        # Track agency-state results
+        agency_lock_count = len(agency_locked_markets)
+        has_agency_lock = agency_lock_count > 0
+        
+        integrated_log.append(f"• Markets Evaluated: {len(agency_markets)}")
+        integrated_log.append(f"• Markets Locked: {agency_lock_count}")
+        
+        if has_agency_lock:
+            strongest_market = max(agency_locked_markets, key=lambda x: x['delta'])
+            integrated_log.append(f"• Strongest Lock: {strongest_market['market']} (Δ={strongest_market['delta']:+.2f})")
+            integrated_log.append(f"• Controller: {strongest_market['controller']}")
+        else:
+            integrated_log.append("• No Agency-State Locks Detected")
+        
+        # =================== TIER 3: TOTALS LOCK ===================
+        integrated_log.append("")
+        integrated_log.append("📊 TIER 3: TOTALS LOCK ENGINE")
+        integrated_log.append("-" * 40)
+        integrated_log.append(f"MARKET: Totals ≤ {UNDER_GOALS_THRESHOLD} ONLY")
+        integrated_log.append(f"LOGIC: Dual low-offense trend (BOTH teams ≤ {TOTALS_LOCK_THRESHOLD} avg goals)")
+        
+        # Evaluate Totals Lock
+        totals_result = TotalsLockEngine.evaluate_totals_lock(
+            home_data, away_data, home_name, away_name
         )
+        
+        has_totals_lock = totals_result['state_locked']
+        
+        if has_totals_lock:
+            integrated_log.append(f"✅ TOTALS LOCK DETECTED!")
+            integrated_log.append(f"• {home_name}: {totals_result['trend_data']['home_last5_avg']:.2f} avg goals")
+            integrated_log.append(f"• {away_name}: {totals_result['trend_data']['away_last5_avg']:.2f} avg goals")
+            integrated_log.append(f"• Both ≤ {TOTALS_LOCK_THRESHOLD} → Structural scoring incapacity")
+        else:
+            integrated_log.append("❌ NO TOTALS LOCK")
+            integrated_log.append(f"• Condition: BOTH teams must be ≤ {TOTALS_LOCK_THRESHOLD}")
+        
+        # =================== INTEGRATED CAPITAL DECISION ===================
+        integrated_log.append("")
+        integrated_log.append("💰 INTEGRATED CAPITAL DECISION")
+        integrated_log.append("-" * 40)
         
         # Determine capital mode
-        if totals_lock_result['has_totals_lock']:
+        if has_agency_lock or has_totals_lock:
             capital_mode = 'LOCK_MODE'
-            final_stake = edge_result['stake_pct'] * CAPITAL_MULTIPLIERS['LOCK_MODE']
-            capital_authorization = "AUTHORIZED (TOTALS LOCK - STRICT)"
-            system_verdict = "DUAL LOW-OFFENSE STATE DETECTED (STRICT)"
+            multiplier = CAPITAL_MULTIPLIERS['LOCK_MODE']
+            final_stake = v6_result['stake_pct'] * multiplier
+            
+            if has_totals_lock:
+                capital_reason = "TOTALS LOCK (Trend-Based)"
+                system_verdict = "DUAL LOW-OFFENSE STATE DETECTED"
+            else:
+                capital_reason = "AGENCY-STATE LOCK"
+                system_verdict = "AGENCY-STATE CONTROL DETECTED"
         else:
             capital_mode = 'EDGE_MODE'
-            final_stake = edge_result['stake_pct'] * CAPITAL_MULTIPLIERS['EDGE_MODE']
-            capital_authorization = "STANDARD (v6.0 EDGE)"
-            system_verdict = "NO TOTALS LOCK"
+            multiplier = CAPITAL_MULTIPLIERS['EDGE_MODE']
+            final_stake = v6_result['stake_pct'] * multiplier
+            capital_reason = "v6.0 EDGE ONLY"
+            system_verdict = "STRUCTURAL EDGE DETECTED"
         
-        # Create integrated system log
-        system_log = []
-        system_log.append("=" * 70)
-        system_log.append("⚖️🔒✅ BRUTBALL TOTALS LOCK (FIXED)")
-        system_log.append("=" * 70)
-        system_log.append(f"ARCHITECTURE: v6.0 Edge + Totals Lock (STRICT BINARY)")
-        system_log.append(f"  • Metric: goals_scored_last_5 / 5")
-        system_log.append(f"  • Threshold: ≤ {TOTALS_LOCK_THRESHOLD}")
-        system_log.append(f"  • Gate: Strict binary (NO multipliers)")
-        system_log.append(f"  • Condition: BOTH teams must pass")
-        system_log.append("")
+        integrated_log.append(f"• Capital Mode: {capital_mode}")
+        integrated_log.append(f"• Stake Multiplier: {multiplier:.1f}x")
+        integrated_log.append(f"• Base Stake: {v6_result['stake_pct']:.1f}%")
+        integrated_log.append(f"• Final Stake: {final_stake:.2f}%")
+        integrated_log.append(f"• Reason: {capital_reason}")
+        integrated_log.append("")
+        integrated_log.append(f"🎯 SYSTEM VERDICT: {system_verdict}")
+        integrated_log.append("=" * 80)
         
-        system_log.append("🔍 v6.0 EDGE DETECTION RESULT")
-        system_log.append(f"  • Action: {edge_result['primary_action']}")
-        system_log.append(f"  • Confidence: {edge_result['confidence']:.1f}/10")
-        system_log.append(f"  • Base Stake: {edge_result['stake_pct']:.1f}%")
-        system_log.append("")
+        # =================== PREPARE INTEGRATED OUTPUT ===================
+        # Determine strongest market for display
+        strongest_market_info = None
+        if has_agency_lock:
+            strongest_agency = max(agency_locked_markets, key=lambda x: x['delta'])
+            strongest_market_info = {
+                'market': strongest_agency['market'],
+                'type': 'agency',
+                'controller': strongest_agency['controller'],
+                'delta': strongest_agency['delta']
+            }
+        elif has_totals_lock:
+            strongest_market_info = {
+                'market': 'TOTALS_UNDER_2_5',
+                'type': 'totals',
+                'controller': 'BOTH_TEAMS',
+                'delta': 0
+            }
         
-        system_log.append("🔐 TOTALS LOCK EVALUATION (FIXED)")
-        system_log.append(f"  • CSV Column: goals_scored_last_5")
+        # Prepare market status summary
+        market_status = {}
+        for market in agency_markets:
+            market_status[market] = {
+                'locked': agency_results[market]['state_locked'],
+                'controller': agency_results[market].get('controller'),
+                'reason': agency_results[market]['reason']
+            }
         
-        totals_result = totals_lock_result['all_results']['TOTALS_UNDER_2_5']
-        trend_data = totals_result.get('trend_data', {})
-        
-        system_log.append(f"  • {home_name} last 5 goals: {trend_data.get('home_last5_goals', 0)}")
-        system_log.append(f"  • {away_name} last 5 goals: {trend_data.get('away_last5_goals', 0)}")
-        system_log.append(f"  • {home_name} avg: {trend_data.get('home_last5_avg', 0):.2f}/match")
-        system_log.append(f"  • {away_name} avg: {trend_data.get('away_last5_avg', 0):.2f}/match")
-        
-        if totals_lock_result['has_totals_lock']:
-            system_log.append(f"  • Result: TOTALS LOCKED (Both ≤ {TOTALS_LOCK_THRESHOLD})")
-            system_log.append("  • Capital Authorization: GRANTED")
-        else:
-            system_log.append(f"  • Result: NO TOTALS LOCK")
-            system_log.append(f"  • Reason: {totals_result['reason']}")
-            system_log.append("  • Capital Authorization: STANDARD")
-        system_log.append("")
-        
-        system_log.append("💰 CAPITAL DECISION")
-        system_log.append(f"  • Capital Mode: {capital_mode}")
-        system_log.append(f"  • Stake Multiplier: {CAPITAL_MULTIPLIERS[capital_mode]:.1f}x")
-        system_log.append(f"  • Final Stake: {final_stake:.2f}%")
-        system_log.append(f"  • Authorization: {capital_authorization}")
-        system_log.append("")
-        system_log.append(f"🎯 SYSTEM VERDICT: {system_verdict}")
-        system_log.append("=" * 70)
+        market_status['TOTALS_UNDER_2_5'] = {
+            'locked': has_totals_lock,
+            'controller': 'BOTH_TEAMS' if has_totals_lock else None,
+            'reason': totals_result['reason']
+        }
         
         return {
-            'architecture': 'Totals Lock (Fixed)',
-            'v6_result': edge_result,
-            'totals_lock_result': totals_lock_result,
+            'architecture': 'Three-Tier Integrated',
+            'v6_result': v6_result,
+            'agency_results': agency_results,
+            'totals_result': totals_result,
+            'agency_locked_markets': agency_locked_markets,
+            'has_agency_lock': has_agency_lock,
+            'has_totals_lock': has_totals_lock,
             'capital_mode': capital_mode,
+            'stake_multiplier': multiplier,
             'final_stake': final_stake,
             'system_verdict': system_verdict,
-            'system_log': system_log,
-            'integrated_output': {
-                'primary_action': edge_result['primary_action'],
-                'has_totals_lock': totals_lock_result['has_totals_lock'],
-                'capital_authorized': capital_authorization,
-                'stake_multiplier': CAPITAL_MULTIPLIERS[capital_mode],
-                'final_stake_pct': final_stake,
-                'edge_confidence': edge_result['confidence'],
-                'strict_binary': True
+            'strongest_market': strongest_market_info,
+            'market_status': market_status,
+            'integrated_log': integrated_log,
+            'key_metrics': {
+                'home_last5_avg': totals_result['trend_data']['home_last5_avg'] if 'trend_data' in totals_result else 0,
+                'away_last5_avg': totals_result['trend_data']['away_last5_avg'] if 'trend_data' in totals_result else 0,
+                'home_xg': home_data.get('home_xg_per_match', 0),
+                'away_xg': away_data.get('away_xg_per_match', 0)
             }
         }
 
 # =================== DATA LOADING ===================
 @st.cache_data(ttl=3600, show_spinner="Loading league data...")
 def load_and_prepare_data(league_name: str) -> Optional[pd.DataFrame]:
-    """Load and prepare data with correct CSV headings."""
+    """Load and prepare data with your CSV structure."""
     try:
         if league_name not in LEAGUES:
             st.error(f"❌ Unknown league: {league_name}")
@@ -786,6 +1499,7 @@ def load_and_prepare_data(league_name: str) -> Optional[pd.DataFrame]:
         league_config = LEAGUES[league_name]
         filename = league_config['filename']
         
+        # Try multiple possible file locations
         data_sources = [
             f'leagues/{filename}',
             f'./leagues/{filename}',
@@ -805,7 +1519,7 @@ def load_and_prepare_data(league_name: str) -> Optional[pd.DataFrame]:
             st.error(f"❌ Failed to load data for {league_config['display_name']}")
             return None
         
-        # Calculate derived metrics using correct CSV headings
+        # Calculate derived metrics
         df = calculate_derived_metrics(df)
         
         # Store metadata
@@ -821,27 +1535,60 @@ def load_and_prepare_data(league_name: str) -> Optional[pd.DataFrame]:
         return None
 
 def calculate_derived_metrics(df: pd.DataFrame) -> pd.DataFrame:
-    """Calculate all derived metrics using correct CSV headings."""
+    """Calculate all derived metrics from your CSV structure."""
     
-    # Calculate per-match averages using CSV headings
+    # Goals scored (from CSV structure)
+    df['home_goals_scored'] = (
+        df['home_goals_openplay_for'].fillna(0) +
+        df['home_goals_counter_for'].fillna(0) +
+        df['home_goals_setpiece_for'].fillna(0) +
+        df['home_goals_penalty_for'].fillna(0) +
+        df['home_goals_owngoal_for'].fillna(0)
+    )
+    
+    df['away_goals_scored'] = (
+        df['away_goals_openplay_for'].fillna(0) +
+        df['away_goals_counter_for'].fillna(0) +
+        df['away_goals_setpiece_for'].fillna(0) +
+        df['away_goals_penalty_for'].fillna(0) +
+        df['away_goals_owngoal_for'].fillna(0)
+    )
+    
+    # Goals conceded (from CSV structure)
+    df['home_goals_conceded'] = (
+        df['home_goals_openplay_against'].fillna(0) +
+        df['home_goals_counter_against'].fillna(0) +
+        df['home_goals_setpiece_against'].fillna(0) +
+        df['home_goals_penalty_against'].fillna(0) +
+        df['home_goals_owngoal_against'].fillna(0)
+    )
+    
+    df['away_goals_conceded'] = (
+        df['away_goals_openplay_against'].fillna(0) +
+        df['away_goals_counter_against'].fillna(0) +
+        df['away_goals_setpiece_against'].fillna(0) +
+        df['away_goals_penalty_against'].fillna(0) +
+        df['away_goals_owngoal_against'].fillna(0)
+    )
+    
+    # Per-match averages
     df['home_goals_per_match'] = df['home_goals_scored'] / df['home_matches_played'].replace(0, np.nan)
     df['away_goals_per_match'] = df['away_goals_scored'] / df['away_matches_played'].replace(0, np.nan)
     
     df['home_xg_per_match'] = df['home_xg_for'] / df['home_matches_played'].replace(0, np.nan)
     df['away_xg_per_match'] = df['away_xg_for'] / df['away_matches_played'].replace(0, np.nan)
     
-    # Calculate LAST 5 averages (already in CSV as totals, need per-match)
-    df['home_last5_avg_goals'] = df['goals_scored_last_5'] / 5
-    df['away_last5_avg_goals'] = df['goals_scored_last_5'] / 5  # Note: CSV has total last 5, not split home/away
+    # Goal type percentages (for home)
+    df['home_total_goals_for'] = df['home_goals_scored'].replace(0, np.nan)
+    df['home_counter_pct'] = df['home_goals_counter_for'] / df['home_total_goals_for']
+    df['home_setpiece_pct'] = df['home_goals_setpiece_for'] / df['home_total_goals_for']
+    df['home_openplay_pct'] = df['home_goals_openplay_for'] / df['home_total_goals_for']
     
-    # Goal type percentages
-    for prefix in ['home', 'away']:
-        goals_col = f'{prefix}_goals_scored'
-        if goals_col in df.columns:
-            for method in ['counter', 'setpiece', 'openplay']:
-                col = f'{prefix}_goals_{method}_for'
-                if col in df.columns:
-                    df[f'{prefix}_{method}_pct'] = df[col] / df[goals_col].replace(0, np.nan)
+    # Goal type percentages (for away)
+    df['away_total_goals_for'] = df['away_goals_scored'].replace(0, np.nan)
+    df['away_counter_pct'] = df['away_goals_counter_for'] / df['away_total_goals_for']
+    df['away_setpiece_pct'] = df['away_goals_setpiece_for'] / df['away_total_goals_for']
+    df['away_openplay_pct'] = df['away_goals_openplay_for'] / df['away_total_goals_for']
     
     # Fill NaN
     for col in df.columns:
@@ -855,34 +1602,131 @@ def main():
     """Main application function."""
     
     # Header
-    st.markdown('<div class="system-header">⚖️🔒✅ BRUTBALL TOTALS LOCK (FIXED)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="system-header">⚖️🔒📊 BRUTBALL INTEGRATED ARCHITECTURE</div>', unsafe_allow_html=True)
     
     st.markdown("""
     <div class="system-subheader">
-        <p><strong>STRICT BINARY GATE FIXED • NO MULTIPLIERS • ACTUAL CSV DATA</strong></p>
-        <p>Metric: goals_scored_last_5 / 5 • Threshold: ≤ 1.2 • Condition: BOTH teams must pass</p>
+        <p><strong>THREE-TIER SYSTEM WITH SPECIALIZED MARKET LOGIC</strong></p>
+        <p>Tier 1: v6.0 Edge Detection (Heuristic) • Tier 2: Agency-State Lock (Agency-Based) • Tier 3: Totals Lock (Trend-Based)</p>
+        <p>Agency Markets: Winner • Clean Sheet • Team No Score • Opponent Under 1.5</p>
+        <p>Totals Lock: Under 2.5 ONLY (Both teams ≤ 1.2 avg goals last 5)</p>
     </div>
     """, unsafe_allow_html=True)
     
-    # Strict Binary Gate Display
+    # State Principles
     st.markdown("""
-    <div class="totals-lock-strict">
-        <h3 style="color: #92400E; margin: 0 0 1rem 0;">✅ TOTALS LOCK FIXED - STRICT BINARY GATE</h3>
+    <div class="state-principle">
+        <h4>🧠 SYSTEM ARCHITECTURE & MARKET LOGIC</h4>
         <div style="margin: 1rem 0;">
-            <div class="strict-binary-gate">
-                home_last5_avg = goals_scored_last_5 / 5<br>
-                away_last5_avg = goals_scored_last_5 / 5<br>
-                <br>
-                home_passes = home_last5_avg ≤ 1.2<br>
-                away_passes = away_last5_avg ≤ 1.2<br>
-                <br>
-                totals_lock = home_passes AND away_passes<br>
-                <br>
-                <strong>NO multipliers • NO smoothing • NO season averages</strong>
+            <div class="state-bound-list">
+                <strong>✅ TIER 2: AGENCY-STATE LOCKS (4 Gates)</strong>
+                <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                    <li><strong>Gate 1:</strong> Quiet Control Identification (≥2 criteria)</li>
+                    <li><strong>Gate 2:</strong> Directional Dominance (Δ > 0.25 + market thresholds)</li>
+                    <li><strong>Gate 3:</strong> Agency Collapse (opponent fails escalation checks)</li>
+                    <li><strong>Gate 4:</strong> Non-Urgent Enforcement (can protect outcome)</li>
+                    <li><strong>Markets:</strong> Winner, Clean Sheet, Team No Score, Opponent Under 1.5</li>
+                </ul>
+            </div>
+            <div class="totals-lock-list">
+                <strong>✅ TIER 3: TOTALS LOCK (Binary Gate)</strong>
+                <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                    <li><strong>Condition:</strong> BOTH teams last 5 avg goals ≤ 1.2</li>
+                    <li><strong>Market:</strong> Totals ≤2.5 ONLY</li>
+                    <li><strong>Logic:</strong> Dual low-offense trend → structural scoring incapacity</li>
+                    <li><strong>Data:</strong> goals_scored_last_5 / 5 ONLY (no season averages)</li>
+                </ul>
+            </div>
+            <div class="noise-list">
+                <strong>❌ NON-STATE MARKETS (Emergent Noise)</strong>
+                <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                    <li>Totals Over 2.5 - Requires mutual agency</li>
+                    <li>Both Teams to Score - Mutual scoring needed</li>
+                    <li>Correct Score - Joint agency chaos</li>
+                    <li>Draw - Mutual inability</li>
+                </ul>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Architecture diagram
+    st.markdown("""
+    <div class="architecture-diagram">
+        <h4>🏗️ THREE-TIER ARCHITECTURE</h4>
+        <div class="three-tier-architecture">
+            <div class="tier-level tier-3">
+                <div style="font-size: 1.1rem; font-weight: 700;">TIER 3: TOTALS LOCK ENGINE</div>
+                <div style="font-size: 0.9rem;">Trend-Based • Dual Low-Offense</div>
+                <div style="font-size: 0.85rem; color: #0C4A6E; margin-top: 0.5rem;">
+                    Binary Gate: Both teams ≤ 1.2 avg goals (last 5)
+                </div>
+                <div style="margin-top: 0.5rem;">
+                    <span class="market-badge badge-totals-locked">Totals ≤2.5 ONLY</span>
+                </div>
+            </div>
+            <div class="arrow-down" style="font-size: 1.5rem; font-weight: 800;">↓</div>
+            <div class="tier-level tier-2">
+                <div style="font-size: 1.1rem; font-weight: 700;">TIER 2: AGENCY-STATE LOCK ENGINE</div>
+                <div style="font-size: 0.9rem;">Agency-Based • 4 Gates</div>
+                <div style="font-size: 0.85rem; color: #059669; margin-top: 0.5rem;">
+                    Quiet Control → Direction → Agency Collapse → Enforcement
+                </div>
+                <div style="margin-top: 0.5rem;">
+                    <span class="market-badge badge-state">Winner</span>
+                    <span class="market-badge badge-state">Clean Sheet</span>
+                    <span class="market-badge badge-state">Team No Score</span>
+                    <span class="market-badge badge-state">Opponent Under 1.5</span>
+                </div>
+            </div>
+            <div class="arrow-down" style="font-size: 1.5rem; font-weight: 800;">↓</div>
+            <div class="tier-level tier-1">
+                <div style="font-size: 1rem;">TIER 1: v6.0 EDGE DETECTION</div>
+                <div style="font-size: 0.9rem;">Heuristic • 4 Control Criteria</div>
+                <div style="font-size: 0.85rem; color: #3B82F6; margin-top: 0.5rem;">
+                    Always runs • Provides base stake and action
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Strict binary gate warning
+    st.markdown("""
+    <div class="binary-gate">
+        <h4>⚖️ TOTALS LOCK: STRICT BINARY GATE</h4>
+        <div class="strict-binary">
+            <strong>CONDITION:</strong> BOTH teams' last 5 matches average goals ≤ 1.2<br>
+            <strong>DATA SOURCE:</strong> goals_scored_last_5 / 5 ONLY<br>
+            <strong>NO SMOOTHING:</strong> 1.21 > 1.20 = NO LOCK<br>
+            <strong>NO EXCEPTIONS:</strong> BOTH must pass
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # System constants display
+    with st.expander("🔧 SYSTEM CONFIGURATION", expanded=False):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown("**AGENCY-STATE THRESHOLDS**")
+            st.metric("Winner", "Opponent xG < 1.1", "≥2/4 failures")
+            st.metric("Clean Sheet", "Opponent xG < 0.8", "≥3/4 failures")
+        with col2:
+            st.markdown("**AGENCY-STATE THRESHOLDS**")
+            st.metric("Team No Score", "Opponent xG < 0.6", "4/4 failures")
+            st.metric("Opponent Under 1.5", "Opponent xG < 1.0", "≥2/4 failures")
+        with col3:
+            st.markdown("**TOTALS LOCK & CAPITAL**")
+            st.metric("Totals Lock", "≤ 1.2 avg goals", "Both teams")
+            st.metric("Edge Mode", "1.0x multiplier", "v6.0 only")
+            st.metric("Lock Mode", "2.0x multiplier", "Any lock")
+        
+        st.markdown('<div class="law-display">', unsafe_allow_html=True)
+        st.markdown("**🎯 MARKET LOGIC SUMMARY**")
+        st.markdown("**Agency-Based Locks:** Same 4 gates (Quiet Control, Direction, Agency Collapse, Enforcement)")
+        st.markdown("**Totals Lock:** Binary gate (both teams ≤ 1.2 avg goals last 5 matches)")
+        st.markdown("**Capital:** 2.0x for ANY lock (agency or totals), 1.0x otherwise")
+        st.markdown('</div>', unsafe_allow_html=True)
     
     # Initialize session state
     if 'selected_league' not in st.session_state:
@@ -925,190 +1769,403 @@ def main():
         away_team = st.selectbox("Away Team", away_options)
     
     # Execute analysis
-    if st.button("⚡ EXECUTE TOTALS LOCK ANALYSIS (FIXED)", type="primary", use_container_width=True):
+    if st.button("⚡ EXECUTE INTEGRATED ANALYSIS", type="primary", use_container_width=True):
         
         # Get data
         home_data = df[df['team'] == home_team].iloc[0].to_dict()
         away_data = df[df['team'] == away_team].iloc[0].to_dict()
         
-        # Calculate league average
+        # Calculate league average xG
         if 'home_xg_per_match' in df.columns and 'away_xg_per_match' in df.columns:
             league_avg_xg = (df['home_xg_per_match'].mean() + df['away_xg_per_match'].mean()) / 2
         else:
             league_avg_xg = 1.3
         
-        # Execute fixed analysis
-        result = BrutballIntegratedArchitecture.execute_totals_lock_analysis(
+        # Execute integrated analysis
+        result = BrutballIntegratedArchitecture.execute_integrated_analysis(
             home_data, away_data, home_team, away_team, league_avg_xg
         )
         
         st.markdown("---")
         
         # Display results
-        st.markdown("### 🎯 TOTALS LOCK ANALYSIS (FIXED)")
+        st.markdown("### 🎯 INTEGRATED SYSTEM VERDICT")
         
-        # Get results
-        totals_lock_result = result['totals_lock_result']
-        totals_data = totals_lock_result['all_results']['TOTALS_UNDER_2_5'].get('trend_data', {})
+        # Capital mode display
+        capital_mode = result['capital_mode']
+        if result['has_totals_lock']:
+            capital_display = "TOTALS LOCK MODE"
+            capital_class = "totals-lock-mode"
+            capital_color = "#0C4A6E"
+        elif capital_mode == 'LOCK_MODE':
+            capital_display = "LOCK MODE"
+            capital_class = "lock-mode"
+            capital_color = "#166534"
+        else:
+            capital_display = "EDGE MODE"
+            capital_class = "edge-mode"
+            capital_color = "#1E40AF"
         
-        # Data Validation Display
-        st.markdown("""
-        <div class="data-validation">
-            <h4 style="color: #065F46; margin: 0 0 1rem 0;">📊 DATA VALIDATION</h4>
-            <div style="font-family: 'Courier New', monospace;">
-                CSV Column Used: goals_scored_last_5<br>
-                Home ({home_team}): {home_goals} goals in last 5<br>
-                Away ({away_team}): {away_goals} goals in last 5<br>
-                Calculation: goals / 5<br>
-                Threshold: ≤ {threshold}<br>
-                Gate: Strict binary (no multipliers)
+        st.markdown(f"""
+        <div class="capital-mode-box {capital_class}">
+            <h2 style="margin: 0; font-size: 2rem;">{capital_display}</h2>
+            <div style="font-size: 1.2rem; margin-top: 0.5rem;">
+                Stake: <strong>{result['final_stake']:.2f}%</strong> ({result['v6_result']['stake_pct']:.1f}% × {result['stake_multiplier']:.1f}x)
+            </div>
+            <div style="font-size: 0.9rem; margin-top: 0.5rem; color: {capital_color};">
+                {result['system_verdict']}
             </div>
         </div>
-        """.format(
-            home_team=home_team,
-            away_team=away_team,
-            home_goals=totals_data.get('home_last5_goals', 'N/A'),
-            away_goals=totals_data.get('away_last5_goals', 'N/A'),
-            threshold=TOTALS_LOCK_THRESHOLD
-        ), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
         
-        # Threshold Check Display
-        st.markdown("### 📏 THRESHOLD CHECK (STRICT)")
+        # v6.0 Edge Detection Display
+        st.markdown("#### 🔍 TIER 1: v6.0 EDGE DETECTION")
         
-        home_passes = totals_data.get('home_passes', False)
-        away_passes = totals_data.get('away_passes', False)
-        
-        if home_passes:
-            st.markdown(f"""
-            <div class="gate-passed">
-                <h4 style="color: #16A34A; margin: 0;">{home_team}</h4>
-                <div style="margin: 0.5rem 0;">
-                    Last 5 goals: {totals_data.get('home_last5_goals', 0)}<br>
-                    Average: {totals_data.get('home_last5_avg', 0):.2f}/match<br>
-                    Status: ✅ PASSES (≤ {TOTALS_LOCK_THRESHOLD})
+        v6_result = result['v6_result']
+        st.markdown(f"""
+        <div class="edge-analysis-display">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h3 style="color: #1E40AF; margin: 0;">{v6_result['primary_action']}</h3>
+                    <p style="color: #6B7280; margin: 0.5rem 0 0 0;">{v6_result['secondary_logic']}</p>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 1.5rem; font-weight: 800; color: #3B82F6;">{v6_result['confidence']:.1f}/10</div>
+                    <div style="font-size: 0.9rem; color: #6B7280;">Confidence</div>
                 </div>
             </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-            <div class="gate-failed">
-                <h4 style="color: #DC2626; margin: 0;">{home_team}</h4>
-                <div style="margin: 0.5rem 0;">
-                    Last 5 goals: {totals_data.get('home_last5_goals', 0)}<br>
-                    Average: {totals_data.get('home_last5_avg', 0):.2f}/match<br>
-                    Status: ❌ FAILS (> {TOTALS_LOCK_THRESHOLD})
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+        </div>
+        """, unsafe_allow_html=True)
         
-        if away_passes:
-            st.markdown(f"""
-            <div class="gate-passed">
-                <h4 style="color: #16A34A; margin: 0;">{away_team}</h4>
-                <div style="margin: 0.5rem 0;">
-                    Last 5 goals: {totals_data.get('away_last5_goals', 0)}<br>
-                    Average: {totals_data.get('away_last5_avg', 0):.2f}/match<br>
-                    Status: ✅ PASSES (≤ {TOTALS_LOCK_THRESHOLD})
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-            <div class="gate-failed">
-                <h4 style="color: #DC2626; margin: 0;">{away_team}</h4>
-                <div style="margin: 0.5rem 0;">
-                    Last 5 goals: {totals_data.get('away_last5_goals', 0)}<br>
-                    Average: {totals_data.get('away_last5_avg', 0):.2f}/match<br>
-                    Status: ❌ FAILS (> {TOTALS_LOCK_THRESHOLD})
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+        # Agency-State Market Evaluation
+        st.markdown("#### 🔐 TIER 2: AGENCY-STATE LOCKS")
         
-        # Final Decision
-        if totals_lock_result['has_totals_lock']:
+        if result['has_agency_lock']:
+            strongest = result['strongest_market']
+            st.markdown(f"""
+            <div class="agency-state-display">
+                <h3 style="color: #16A34A; margin: 0 0 1rem 0;">AGENCY-STATE CONTROL DETECTED</h3>
+                <div style="font-size: 1.2rem; color: #059669; margin-bottom: 0.5rem;">
+                    {len(result['agency_locked_markets'])} market(s) structurally locked
+                </div>
+                <div style="color: #374151; margin-bottom: 1rem;">
+                    Strongest lock: <strong>{strongest['market']}</strong> (Δ = {strongest['delta']:+.2f})
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;">
+            """, unsafe_allow_html=True)
+            
+            for market_info in result['agency_locked_markets']:
+                st.markdown(f'<span class="market-badge badge-locked">{market_info["market"]}</span>', unsafe_allow_html=True)
+            
             st.markdown("""
-            <div class="totals-lock-strict">
-                <h3 style="color: #92400E; margin: 0 0 1rem 0;">✅ TOTALS LOCK ACTIVE</h3>
-                <p style="color: #374151; margin: 0.5rem 0;">
-                    Both teams ≤ {threshold} avg goals (last 5)<br>
-                    Structural certainty for UNDER {under_goals}<br>
-                    Capital: 2.0x multiplier authorized
-                </p>
-                <span class="market-badge badge-strict">TOTALS ≤{under_goals} LOCKED</span>
+                </div>
             </div>
-            """.format(
-                threshold=TOTALS_LOCK_THRESHOLD,
-                under_goals=UNDER_GOALS_THRESHOLD
-            ), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
         else:
-            st.markdown("""
-            <div class="gate-failed">
-                <h3 style="color: #DC2626; margin: 0 0 1rem 0;">❌ NO TOTALS LOCK</h3>
-                <p style="color: #374151; margin: 0.5rem 0;">
-                    Condition not met: Both teams must be ≤ {threshold}<br>
-                    Falls back to Edge Mode<br>
-                    Capital: 1.0x multiplier only
-                </p>
+            st.markdown(f"""
+            <div class="no-declaration-display">
+                <h3 style="color: #6B7280; margin: 0 0 1rem 0;">NO AGENCY-STATE LOCKS DETECTED</h3>
+                <div style="color: #374151;">
+                    No markets meet agency-suppression criteria
+                </div>
             </div>
-            """.format(threshold=TOTALS_LOCK_THRESHOLD), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
+        
+        # Totals Lock Display
+        st.markdown("#### 📊 TIER 3: TOTALS LOCK")
+        
+        if result['has_totals_lock']:
+            trend_data = result['totals_result']['trend_data']
+            st.markdown(f"""
+            <div class="totals-lock-display">
+                <h3 style="color: #0EA5E9; margin: 0 0 1rem 0;">TOTALS LOCK DETECTED</h3>
+                <div style="font-size: 1.2rem; color: #0284C7; margin-bottom: 0.5rem;">
+                    Dual Low-Offense Trend Confirmed
+                </div>
+                <div style="color: #374151; margin-bottom: 1rem;">
+                    Both teams exhibit sustained low-scoring trends
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;">
+                    <span class="market-badge badge-totals-locked">TOTALS ≤2.5 LOCKED</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Show trend data
+            st.markdown(f"""
+            <div class="trend-check">
+                <h4 style="color: #0C4A6E; margin: 0 0 0.5rem 0;">📊 LAST 5 MATCHES TREND DATA</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                    <div>
+                        <div style="font-weight: 600; color: #374151;">{home_team}</div>
+                        <div style="font-size: 1.5rem; color: #0EA5E9; font-weight: 700;">{trend_data['home_last5_avg']:.2f}</div>
+                        <div style="font-size: 0.9rem; color: #6B7280;">avg goals (last 5)</div>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; color: #374151;">{away_team}</div>
+                        <div style="font-size: 1.5rem; color: #0EA5E9; font-weight: 700;">{trend_data['away_last5_avg']:.2f}</div>
+                        <div style="font-size: 0.9rem; color: #6B7280;">avg goals (last 5)</div>
+                    </div>
+                </div>
+                <div style="margin-top: 1rem; padding: 0.75rem; background: #F0F9FF; border-radius: 6px;">
+                    <strong>Condition Met:</strong> Both ≤ {TOTALS_LOCK_THRESHOLD} avg goals (last 5 matches)
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div class="no-declaration-display">
+                <h3 style="color: #6B7280; margin: 0 0 1rem 0;">NO TOTALS LOCK DETECTED</h3>
+                <div style="color: #374151;">
+                    {result['totals_result']['reason']}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Market Details
+        st.markdown("##### 📊 MARKET STATUS SUMMARY")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**Agency Markets**")
+            for market in ['WINNER', 'CLEAN_SHEET', 'TEAM_NO_SCORE', 'OPPONENT_UNDER_1_5']:
+                status = result['market_status'][market]
+                if status['locked']:
+                    st.markdown(f"""
+                    <div class="gate-passed">
+                        ✅ <strong>{market}</strong> - LOCKED
+                        <div style="font-size: 0.85rem; margin-top: 0.25rem;">
+                            Controller: {status['controller']}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div class="gate-failed">
+                        ❌ <strong>{market}</strong> - NOT LOCKED
+                        <div style="font-size: 0.85rem; margin-top: 0.25rem;">
+                            {status['reason']}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("**Totals Market**")
+            status = result['market_status']['TOTALS_UNDER_2_5']
+            if status['locked']:
+                st.markdown(f"""
+                <div class="trend-check">
+                    ✅ <strong>TOTALS ≤2.5</strong> - LOCKED
+                    <div style="font-size: 0.85rem; margin-top: 0.25rem;">
+                        Dual low-offense trend confirmed
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div class="gate-failed">
+                    ❌ <strong>TOTALS ≤2.5</strong> - NOT LOCKED
+                    <div style="font-size: 0.85rem; margin-top: 0.25rem;">
+                        {status['reason']}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Non-state markets
+            st.markdown("**Non-State Markets**")
+            st.markdown("""
+            <div class="noise-list">
+                ❌ Totals Over 2.5 - Mutual agency needed<br>
+                ❌ Both Teams to Score - Mutual scoring<br>
+                ❌ Correct Score - Joint chaos<br>
+                ❌ Draw - Mutual inability
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Key metrics
+        st.markdown("#### 📊 KEY METRICS")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown('<div style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #E5E7EB;">', unsafe_allow_html=True)
+            st.markdown("**v6.0 Edge Detection**")
+            
+            v6_metrics = v6_result['key_metrics']
+            st.markdown(f"""
+            <div class="metric-row metric-row-state">
+                <span>Primary Action:</span>
+                <span><strong>{v6_result['primary_action']}</strong></span>
+            </div>
+            <div class="metric-row">
+                <span>Confidence:</span>
+                <span><strong>{v6_result['confidence']:.1f}/10</strong></span>
+            </div>
+            <div class="metric-row">
+                <span>Base Stake:</span>
+                <span><strong>{v6_result['stake_pct']:.1f}%</strong></span>
+            </div>
+            <div class="metric-row">
+                <span>Controller:</span>
+                <span><strong>{v6_metrics['controller'] if v6_metrics['controller'] else 'None'}</strong></span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown('<div style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #E5E7EB;">', unsafe_allow_html=True)
+            st.markdown("**Agency-State Analysis**")
+            
+            st.markdown(f"""
+            <div class="metric-row metric-row-agency">
+                <span>Markets Evaluated:</span>
+                <span><strong>4</strong></span>
+            </div>
+            <div class="metric-row">
+                <span>Markets Locked:</span>
+                <span><strong>{len(result['agency_locked_markets'])}</strong></span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if result['has_agency_lock']:
+                strongest = result['strongest_market']
+                st.markdown(f"""
+                <div class="metric-row">
+                    <span>Strongest Market:</span>
+                    <span><strong>{strongest['market']}</strong></span>
+                </div>
+                <div class="metric-row">
+                    <span>Strongest Δ:</span>
+                    <span><strong>{strongest['delta']:+.2f}</strong></span>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown('<div style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #E5E7EB;">', unsafe_allow_html=True)
+            st.markdown("**Totals Lock Status**")
+            
+            if result['has_totals_lock']:
+                trend_data = result['totals_result']['trend_data']
+                
+                st.markdown(f"""
+                <div class="metric-row metric-row-totals">
+                    <span>Status:</span>
+                    <span><strong>TOTALS LOCKED</strong></span>
+                </div>
+                <div class="metric-row">
+                    <span>{home_team} (last 5):</span>
+                    <span><strong>{trend_data['home_last5_avg']:.2f}</strong></span>
+                </div>
+                <div class="metric-row">
+                    <span>{away_team} (last 5):</span>
+                    <span><strong>{trend_data['away_last5_avg']:.2f}</strong></span>
+                </div>
+                <div class="metric-row">
+                    <span>Condition:</span>
+                    <span><strong>Both ≤ {TOTALS_LOCK_THRESHOLD}</strong></span>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div class="metric-row">
+                    <span>Status:</span>
+                    <span><strong>NO TOTALS LOCK</strong></span>
+                </div>
+                <div class="metric-row">
+                    <span>Condition:</span>
+                    <span><strong>Requires dual low-offense</strong></span>
+                </div>
+                <div class="metric-row">
+                    <span>Threshold:</span>
+                    <span><strong>Both ≤ {TOTALS_LOCK_THRESHOLD}</strong></span>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
         
         # System log
-        with st.expander("📋 VIEW SYSTEM LOG", expanded=True):
-            st.code('\n'.join(result['system_log']), language='text')
+        with st.expander("📋 VIEW INTEGRATED SYSTEM LOG", expanded=True):
+            st.markdown('<div class="system-log">', unsafe_allow_html=True)
+            for line in result['integrated_log']:
+                st.text(line)
+            st.markdown('</div>', unsafe_allow_html=True)
         
         # Export
         st.markdown("---")
-        st.markdown("#### 📤 Export Analysis")
+        st.markdown("#### 📤 Export Integrated Analysis")
         
-        export_text = f"""BRUTBALL TOTALS LOCK ANALYSIS (FIXED)
+        export_text = f"""BRUTBALL INTEGRATED ARCHITECTURE - ANALYSIS REPORT
 ===========================================
 League: {selected_league}
 Match: {home_team} vs {away_team}
 Analysis Time: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-TOTALS LOCK CONFIGURATION:
-• Metric: goals_scored_last_5 / 5
-• Threshold: ≤ {TOTALS_LOCK_THRESHOLD}
-• Gate: Strict binary (NO multipliers)
-• Condition: BOTH teams must pass
+ARCHITECTURE SUMMARY:
+• Framework: Three-Tier Integrated System
+• Tier 1: v6.0 Edge Detection Engine (Heuristic)
+• Tier 2: Agency-State Lock Engine (Agency-Based, 4 Gates)
+• Tier 3: Totals Lock Engine (Trend-Based, Binary Gate)
+• Core Principle: STATE = AGENCY CONTROL • LOCK = AGENCY SUPPRESSION
 
-DATA VALIDATION:
-• CSV Column Used: goals_scored_last_5
-• {home_team}: {totals_data.get('home_last5_goals', 0)} goals in last 5
-• {away_team}: {totals_data.get('away_last5_goals', 0)} goals in last 5
-• Calculation: value / 5
-• No season averages used
-• No multipliers applied
+TIER 1: v6.0 EDGE DETECTION RESULT:
+• Primary Action: {v6_result['primary_action']}
+• Confidence: {v6_result['confidence']:.1f}/10
+• Base Stake: {v6_result['stake_pct']:.1f}%
+• Secondary Logic: {v6_result['secondary_logic']}
 
-THRESHOLD CHECKS:
-{home_team}:
-  • Last 5 goals: {totals_data.get('home_last5_goals', 0)}
-  • Average: {totals_data.get('home_last5_avg', 0):.2f}/match
-  • Passes ≤ {TOTALS_LOCK_THRESHOLD}: {'YES' if home_passes else 'NO'}
+TIER 2: AGENCY-STATE LOCKS:
+• Markets Evaluated: 4 (Winner, Clean Sheet, Team No Score, Opponent Under 1.5)
+• Markets Locked: {len(result['agency_locked_markets'])}
+• Strongest Market: {result['strongest_market']['market'] if result['strongest_market'] and result['strongest_market']['type'] == 'agency' else 'None'}
 
-{away_team}:
-  • Last 5 goals: {totals_data.get('away_last5_goals', 0)}
-  • Average: {totals_data.get('away_last5_avg', 0):.2f}/match
-  • Passes ≤ {TOTALS_LOCK_THRESHOLD}: {'YES' if away_passes else 'NO'}
+MARKET STATUS (Agency):
+"""
+        
+        for market in ['WINNER', 'CLEAN_SHEET', 'TEAM_NO_SCORE', 'OPPONENT_UNDER_1_5']:
+            status = result['market_status'][market]
+            export_text += f"{market}: {'LOCKED' if status['locked'] else 'NOT LOCKED'} - {status['reason']}\n"
+        
+        export_text += f"""
 
-FINAL DECISION:
-• Totals Lock Active: {'YES' if totals_lock_result['has_totals_lock'] else 'NO'}
-• Capital Multiplier: {CAPITAL_MULTIPLIERS[result['capital_mode']]:.1f}x
+TIER 3: TOTALS LOCK:
+• Market: Totals ≤{UNDER_GOALS_THRESHOLD} ONLY
+• Condition: BOTH teams last 5 avg goals ≤ {TOTALS_LOCK_THRESHOLD}
+• Status: {'LOCKED' if result['has_totals_lock'] else 'NOT LOCKED'}
+• {home_team} (last 5): {result['key_metrics']['home_last5_avg']:.2f} avg goals
+• {away_team} (last 5): {result['key_metrics']['away_last5_avg']:.2f} avg goals
+• Reason: {result['totals_result']['reason']}
+
+INTEGRATED CAPITAL DECISION:
+• Final Capital Mode: {capital_display}
+• Stake Multiplier: {result['stake_multiplier']:.1f}x
+• Base Stake: {v6_result['stake_pct']:.1f}%
 • Final Stake: {result['final_stake']:.2f}%
 • System Verdict: {result['system_verdict']}
 
-SYSTEM LOG:
-{chr(10).join(result['system_log'])}
+TOTALS LOCK LOGIC DETAILS:
+• Binary Gate: goals_scored_last_5 / 5 ONLY
+• No smoothing: 1.21 > 1.20 = NO LOCK
+• Empirical threshold derived from successful matches
+• Different from agency locks: Trend-based vs agency-suppression
+• Structural scoring incapacity when both teams suppress offense
+
+INTEGRATED SYSTEM LOG:
+{chr(10).join(result['integrated_log'])}
 
 ===========================================
-BRUTBALL TOTALS LOCK (FIXED)
-STRICT BINARY GATE • NO MULTIPLIERS • ACTUAL CSV DATA
+BRUTBALL INTEGRATED ARCHITECTURE
+Three-Tier System with Specialized Market Logic
+Tier 1: v6.0 Edge Detection • Tier 2: Agency-State Lock • Tier 3: Totals Lock
+Capital: 2.0x for any lock (agency or totals), 1.0x otherwise
         """
         
         st.download_button(
-            label="📥 Download Analysis",
+            label="📥 Download Integrated Analysis",
             data=export_text,
-            file_name=f"brutball_totals_lock_fixed_{selected_league.replace(' ', '_')}_{home_team}_vs_{away_team}.txt",
+            file_name=f"brutball_integrated_{selected_league.replace(' ', '_')}_{home_team}_vs_{away_team}.txt",
             mime="text/plain",
             use_container_width=True
         )
@@ -1117,9 +2174,10 @@ STRICT BINARY GATE • NO MULTIPLIERS • ACTUAL CSV DATA
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; color: #6B7280; font-size: 0.9rem; padding: 1rem;">
-        <p><strong>BRUTBALL TOTALS LOCK (FIXED)</strong></p>
-        <p>Metric: goals_scored_last_5 / 5 • Threshold: ≤ 1.2 • Condition: BOTH teams must pass</p>
-        <p>STRICT BINARY GATE • NO MULTIPLIERS • ACTUAL CSV DATA</p>
+        <p><strong>BRUTBALL INTEGRATED ARCHITECTURE</strong></p>
+        <p>Tier 1: v6.0 Edge Detection (Heuristic) • Tier 2: Agency-State Lock (Agency-Based) • Tier 3: Totals Lock (Trend-Based)</p>
+        <p>Agency Markets: Winner • Clean Sheet • Team No Score • Opponent Under 1.5</p>
+        <p>Totals Lock: Under 2.5 ONLY (Both teams ≤ 1.2 avg goals last 5)</p>
     </div>
     """, unsafe_allow_html=True)
 
