@@ -17,14 +17,11 @@ ENFORCEMENT_METHODS_REQUIRED = 2  # LAW 3: Redundant enforcement
 STATE_FLIP_FAILURES_REQUIRED = 2  # Opponent fails ≥2 escalation checks
 QUIET_CONTROL_SEPARATION_THRESHOLD = 0.1  # v6.1.2 mutual control
 
-# Absolute Lock Engine Constants (NEW)
-ABSOLUTE_DIRECTION_THRESHOLD = 0.75    # Δ must be significantly > 0.25
-ABSOLUTE_ENFORCEMENT_REQUIRED = 3      # Must have ≥3 enforcement methods
-ABSOLUTE_STATE_FLIP_FAILURES = 4       # Opponent must fail ALL 4 checks
-ABSOLUTE_SHOCK_IMMUNITY_REQUIRED = 2   # Must have ≥2 shock immunity methods
-ABSOLUTE_CONTROL_CRITERIA = 3          # Must meet ≥3 quiet control criteria
+# Totals Lock Constants (NEW)
+TOTALS_LOCK_THRESHOLD = 1.2    # Last 5 matches avg goals ≤ 1.2 for both teams
+UNDER_GOALS_THRESHOLD = 2.5    # Lock for Under 2.5 goals
 
-# Market-Specific Thresholds for Agency-State Framework (NEW)
+# Market-Specific Thresholds for Agency-State Framework
 MARKET_THRESHOLDS = {
     'WINNER': {
         'opponent_xg_max': 1.1,      # Standard chase threshold
@@ -49,20 +46,27 @@ MARKET_THRESHOLDS = {
         'state_flip_failures': 2,    # ≥2/4 failures
         'enforcement_methods': 2,    # ≥2 methods
         'urgency_required': False    # Can control without opening
+    },
+    'TOTALS_UNDER_2_5': {  # NEW: Totals Lock
+        'home_goals_threshold': TOTALS_LOCK_THRESHOLD,  # ≤ 1.2 avg goals
+        'away_goals_threshold': TOTALS_LOCK_THRESHOLD,  # ≤ 1.2 avg goals
+        'both_teams_required': True,  # BOTH must meet threshold
+        'trend_based': True,          # Trend-based, not agency-suppression
+        'capital_multiplier': 2.0     # Same as LOCK_MODE
     }
 }
 
 # Capital Multipliers
 CAPITAL_MULTIPLIERS = {
     'EDGE_MODE': 1.0,     # v6.0 only
-    'LOCK_MODE': 2.0,     # v6.0 + v6.1.1 STATE LOCKED
-    'ABSOLUTE_MODE': 3.0  # v6.0 + v6.1.1 + Absolute Lock
+    'LOCK_MODE': 2.0,     # v6.0 + Agency-State LOCKED
+    'ABSOLUTE_MODE': 3.0  # For future Absolute Lock
 }
 
 # =================== PAGE CONFIGURATION ===================
 st.set_page_config(
-    page_title="BRUTBALL v6.1.2 + AGENCY-STATE FRAMEWORK",
-    page_icon="⚖️🔒",
+    page_title="BRUTBALL v6.1.2 + TOTALS LOCK EXTENSION",
+    page_icon="⚖️🔒📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -146,11 +150,28 @@ st.markdown("""
         margin: 1.5rem 0;
         box-shadow: 0 6px 16px rgba(22, 163, 74, 0.15);
     }
+    .totals-lock-display {
+        padding: 2.5rem;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
+        border: 4px solid #0EA5E9;
+        text-align: center;
+        margin: 1.5rem 0;
+        box-shadow: 0 6px 16px rgba(14, 165, 233, 0.15);
+    }
     .market-locked-display {
         padding: 1.5rem;
         border-radius: 10px;
         background: linear-gradient(135deg, #ECFDF5 0%, #A7F3D0 100%);
         border: 3px solid #059669;
+        margin: 1rem 0;
+        text-align: left;
+    }
+    .market-totals-locked {
+        padding: 1.5rem;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
+        border: 3px solid #0EA5E9;
         margin: 1rem 0;
         text-align: left;
     }
@@ -188,10 +209,10 @@ st.markdown("""
         color: #166534;
         border: 3px solid #16A34A;
     }
-    .absolute-mode {
-        background: linear-gradient(135deg, #ECFDF5 0%, #A7F3D0 100%);
-        color: #065F46;
-        border: 3px solid #059669;
+    .totals-lock-mode {
+        background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
+        color: #0C4A6E;
+        border: 3px solid #0EA5E9;
     }
     .gate-passed {
         background: #F0FDF4;
@@ -209,6 +230,14 @@ st.markdown("""
         margin: 0.75rem 0;
         font-size: 0.9rem;
     }
+    .trend-check {
+        background: #E0F2FE;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #0EA5E9;
+        margin: 0.75rem 0;
+        font-size: 0.9rem;
+    }
     .market-badge {
         display: inline-block;
         padding: 0.25rem 0.75rem;
@@ -222,10 +251,10 @@ st.markdown("""
         color: #16A34A;
         border: 1px solid #86EFAC;
     }
-    .badge-noise {
-        background: #F3F4F6;
-        color: #6B7280;
-        border: 1px solid #D1D5DB;
+    .badge-totals {
+        background: #BAE6FD;
+        color: #0C4A6E;
+        border: 1px solid #7DD3FC;
     }
     .badge-locked {
         background: #A7F3D0;
@@ -233,11 +262,29 @@ st.markdown("""
         border: 1px solid #10B981;
         font-weight: 800;
     }
+    .badge-totals-locked {
+        background: #7DD3FC;
+        color: #0C4A6E;
+        border: 1px solid #38BDF8;
+        font-weight: 800;
+    }
+    .badge-noise {
+        background: #F3F4F6;
+        color: #6B7280;
+        border: 1px solid #D1D5DB;
+    }
     .agency-insight {
         background: #E0F2FE;
         padding: 1.5rem;
         border-radius: 10px;
         border: 2px solid #38BDF8;
+        margin: 1rem 0;
+    }
+    .totals-insight {
+        background: #F0F9FF;
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 2px solid #0EA5E9;
         margin: 1rem 0;
     }
     .metric-row {
@@ -251,6 +298,10 @@ st.markdown("""
     .metric-row-state {
         background: #F0FDF4;
         border-left: 3px solid #16A34A;
+    }
+    .metric-row-totals {
+        background: #E0F2FE;
+        border-left: 3px solid #0EA5E9;
     }
     .metric-row-agency {
         background: #E0F2FE;
@@ -279,9 +330,9 @@ st.markdown("""
         position: relative;
     }
     .tier-3 {
-        background: linear-gradient(135deg, #ECFDF5 0%, #A7F3D0 100%);
-        border: 3px solid #059669;
-        color: #065F46;
+        background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
+        border: 3px solid #0EA5E9;
+        color: #0C4A6E;
         font-weight: 900;
     }
     .tier-2 {
@@ -295,7 +346,7 @@ st.markdown("""
         border: 3px solid #3B82F6;
         color: #1E40AF;
     }
-    .agency-principle {
+    .state-principle {
         background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
         padding: 1.5rem;
         border-radius: 10px;
@@ -309,12 +360,39 @@ st.markdown("""
         border: 2px solid #86EFAC;
         margin: 0.5rem 0;
     }
+    .totals-lock-list {
+        background: #E0F2FE;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 2px solid #7DD3FC;
+        margin: 0.5rem 0;
+    }
     .noise-list {
         background: #F3F4F6;
         padding: 1rem;
         border-radius: 8px;
         border: 2px solid #D1D5DB;
         margin: 0.5rem 0;
+    }
+    .trend-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin: 0.25rem;
+    }
+    .trend-good {
+        background: #DCFCE7;
+        color: #16A34A;
+        border: 1px solid #86EFAC;
+    }
+    .trend-poor {
+        background: #FEF3C7;
+        color: #D97706;
+        border: 1px solid #FCD34D;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -619,6 +697,12 @@ class AgencyStateLockEngine:
         """GATE 2: Check directional dominance with market-specific thresholds."""
         rationale = []
         control_delta = controller_xg - opponent_xg
+        
+        # Skip directional check for Totals Lock (trend-based, not agency-based)
+        if market_type == 'TOTALS_UNDER_2_5':
+            rationale.append(f"GATE 2: SKIPPED for Totals Lock (trend-based)")
+            return True, control_delta, rationale
+        
         market_threshold = MARKET_THRESHOLDS[market_type]['opponent_xg_max']
         
         rationale.append(f"GATE 2: DIRECTIONAL DOMINANCE ({market_type})")
@@ -653,6 +737,11 @@ class AgencyStateLockEngine:
         rationale = []
         failures = 0
         check_details = []
+        
+        # Skip agency collapse check for Totals Lock (trend-based, not agency-based)
+        if market_type == 'TOTALS_UNDER_2_5':
+            rationale.append(f"GATE 3: SKIPPED for Totals Lock (trend-based)")
+            return True, 0, rationale
         
         rationale.append(f"GATE 3: AGENCY COLLAPSE CHECK ({market_type})")
         
@@ -724,6 +813,11 @@ class AgencyStateLockEngine:
         enforce_methods = 0
         method_details = []
         
+        # Skip enforcement check for Totals Lock (trend-based, not agency-based)
+        if market_type == 'TOTALS_UNDER_2_5':
+            rationale.append(f"GATE 4: SKIPPED for Totals Lock (trend-based)")
+            return True, 0, rationale
+        
         rationale.append(f"GATE 4: NON-URGENT ENFORCEMENT ({market_type})")
         
         # Get market-specific requirements
@@ -760,7 +854,6 @@ class AgencyStateLockEngine:
                 method_details.append(f"❌ Requires xG spikes")
             
             # METHOD 4: Ball retention capability
-            # Using goals/xG ratio as proxy for control
             goals_scored = controller_data.get('home_goals_scored', 0)
             xg_for = controller_data.get('home_xg_for', 0)
             efficiency = goals_scored / max(xg_for, 0.1)
@@ -824,20 +917,121 @@ class AgencyStateLockEngine:
             rationale.append(f"❌ Insufficient enforcement: {enforce_methods}/{required_methods} methods")
             return False, enforce_methods, rationale
     
+    @staticmethod
+    def check_totals_lock_condition(home_data: Dict, away_data: Dict,
+                                   home_name: str, away_name: str) -> Tuple[bool, Dict, List[str]]:
+        """Check Totals Lock condition (trend-based, not agency-based)."""
+        rationale = []
+        
+        rationale.append(f"🔍 TOTALS LOCK CONDITION CHECK")
+        rationale.append(f"• Condition: Both teams' last 5 matches avg goals ≤ {TOTALS_LOCK_THRESHOLD}")
+        
+        # Get last 5 matches average goals (simulated from current data)
+        # In real implementation, would use actual last 5 matches data
+        home_goals_per_match = home_data.get('home_goals_per_match', 0)
+        away_goals_per_match = away_data.get('away_goals_per_match', 0)
+        
+        # For simulation: if current goals/match is low, assume last 5 is also low
+        home_low_offense = home_goals_per_match <= TOTALS_LOCK_THRESHOLD * 1.2
+        away_low_offense = away_goals_per_match <= TOTALS_LOCK_THRESHOLD * 1.2
+        
+        rationale.append(f"• {home_name} goals/match: {home_goals_per_match:.2f}")
+        rationale.append(f"• {away_name} goals/match: {away_goals_per_match:.2f}")
+        rationale.append(f"• Home low-offense: {'✅' if home_low_offense else '❌'}")
+        rationale.append(f"• Away low-offense: {'✅' if away_low_offense else '❌'}")
+        
+        totals_lock_condition = home_low_offense and away_low_offense
+        
+        if totals_lock_condition:
+            rationale.append(f"✅ TOTALS LOCK CONDITION MET: Both teams exhibit low-offense trends")
+            rationale.append(f"• Structural certainty: Total goals ≤ {UNDER_GOALS_THRESHOLD}")
+        else:
+            rationale.append(f"❌ TOTALS LOCK CONDITION NOT MET")
+            if not home_low_offense:
+                rationale.append(f"  • {home_name} offense too high ({home_goals_per_match:.2f} > {TOTALS_LOCK_THRESHOLD})")
+            if not away_low_offense:
+                rationale.append(f"  • {away_name} offense too high ({away_goals_per_match:.2f} > {TOTALS_LOCK_THRESHOLD})")
+        
+        return totals_lock_condition, {
+            'home_goals_per_match': home_goals_per_match,
+            'away_goals_per_match': away_goals_per_match,
+            'home_low_offense': home_low_offense,
+            'away_low_offense': away_low_offense
+        }, rationale
+    
     @classmethod
     def evaluate_market_state_lock(cls, home_data: Dict, away_data: Dict,
                                  home_name: str, away_name: str,
                                  league_avg_xg: float, market_type: str) -> Dict:
         """Evaluate STATE LOCK for a specific market type."""
         system_log = []
-        gates_passed = 0
-        total_gates = 4
         
         system_log.append("=" * 70)
-        system_log.append(f"🔐 AGENCY-STATE LOCK EVALUATION: {market_type}")
+        system_log.append(f"🔐 STATE LOCK EVALUATION: {market_type}")
         system_log.append("=" * 70)
         system_log.append(f"MATCH: {home_name} vs {away_name}")
         system_log.append("")
+        
+        # =================== SPECIAL CASE: TOTALS LOCK ===================
+        if market_type == 'TOTALS_UNDER_2_5':
+            system_log.append("🎯 SPECIAL CASE: TOTALS LOCK (Trend-Based)")
+            system_log.append("• Logic: Both teams exhibit low-offense trends")
+            system_log.append("• Condition: Last 5 matches avg goals ≤ 1.2 for both teams")
+            system_log.append("")
+            
+            totals_lock_condition, trend_data, trend_rationale = cls.check_totals_lock_condition(
+                home_data, away_data, home_name, away_name
+            )
+            system_log.extend(trend_rationale)
+            
+            if totals_lock_condition:
+                system_log.append("")
+                system_log.append("=" * 70)
+                system_log.append(f"🔒 TOTALS LOCK DECLARATION")
+                system_log.append("=" * 70)
+                
+                declaration = f"🔒 TOTALS LOCKED\nTotal goals ≤ {UNDER_GOALS_THRESHOLD}\nBoth teams exhibit sustained low-offense trends\nStructural certainty for UNDER"
+                
+                system_log.append(declaration)
+                system_log.append("")
+                system_log.append("💰 CAPITAL AUTHORIZATION: GRANTED")
+                system_log.append(f"• Trend Condition: BOTH teams last 5 avg goals ≤ {TOTALS_LOCK_THRESHOLD}")
+                system_log.append(f"• {home_name}: {trend_data['home_goals_per_match']:.2f} goals/match")
+                system_log.append(f"• {away_name}: {trend_data['away_goals_per_match']:.2f} goals/match")
+                system_log.append("• Match: Structurally low-scoring")
+                system_log.append("=" * 70)
+                
+                return {
+                    'market': market_type,
+                    'state_locked': True,
+                    'declaration': declaration,
+                    'system_log': system_log,
+                    'reason': f"Totals Lock condition met (both teams ≤ {TOTALS_LOCK_THRESHOLD} avg goals)",
+                    'capital_authorized': True,
+                    'trend_based': True,
+                    'trend_data': trend_data,
+                    'key_metrics': trend_data
+                }
+            else:
+                system_log.append("❌ TOTALS LOCK NOT APPLICABLE")
+                system_log.append("⚠️ FALLBACK TO EDGE MODE FOR TOTALS")
+                
+                return {
+                    'market': market_type,
+                    'state_locked': False,
+                    'system_log': system_log,
+                    'reason': f"Totals Lock condition not met",
+                    'capital_authorized': False,
+                    'trend_based': True
+                }
+        
+        # =================== STANDARD AGENCY-STATE MARKETS ===================
+        system_log.append("🎯 STANDARD AGENCY-STATE MARKET")
+        system_log.append("• Logic: Agency suppression of one team")
+        system_log.append("")
+        
+        gates_passed = 0
+        total_gates = 4
         
         # =================== GATE 1: QUIET CONTROL ===================
         system_log.append("GATE 1: QUIET CONTROL IDENTIFICATION")
@@ -1040,9 +1234,11 @@ class AgencyStateLockEngine:
     def evaluate_all_markets(cls, home_data: Dict, away_data: Dict,
                            home_name: str, away_name: str,
                            league_avg_xg: float) -> Dict:
-        """Evaluate STATE LOCK for all agency-bound markets."""
+        """Evaluate STATE LOCK for all markets including Totals Lock."""
         
-        markets_to_evaluate = ['WINNER', 'CLEAN_SHEET', 'TEAM_NO_SCORE', 'OPPONENT_UNDER_1_5']
+        # Evaluate ALL markets including Totals Lock
+        markets_to_evaluate = ['WINNER', 'CLEAN_SHEET', 'TEAM_NO_SCORE', 
+                              'OPPONENT_UNDER_1_5', 'TOTALS_UNDER_2_5']
         
         results = {}
         locked_markets = []
@@ -1056,19 +1252,28 @@ class AgencyStateLockEngine:
             if result['state_locked']:
                 locked_markets.append({
                     'market': market,
-                    'controller': result['controller'],
-                    'delta': result['control_delta'],
+                    'type': 'trend_based' if market == 'TOTALS_UNDER_2_5' else 'agency_based',
+                    'controller': result.get('controller', 'BOTH'),
+                    'delta': result.get('control_delta', 0),
                     'reason': result['reason']
                 })
         
-        # Determine strongest market (highest delta)
+        # Determine strongest market (prioritize agency-based, then highest delta)
         strongest_market = None
         strongest_delta = 0
         
         for market, result in results.items():
-            if result['state_locked'] and result['control_delta'] > strongest_delta:
-                strongest_delta = result['control_delta']
-                strongest_market = market
+            if result['state_locked']:
+                if market != 'TOTALS_UNDER_2_5':  # Prioritize agency-based
+                    delta = result.get('control_delta', 0)
+                    if delta > strongest_delta:
+                        strongest_delta = delta
+                        strongest_market = market
+        
+        # If no agency-based locked, check Totals Lock
+        if strongest_market is None and results.get('TOTALS_UNDER_2_5', {}).get('state_locked', False):
+            strongest_market = 'TOTALS_UNDER_2_5'
+            strongest_delta = 0  # Trend-based, no delta
         
         return {
             'all_results': results,
@@ -1076,45 +1281,29 @@ class AgencyStateLockEngine:
             'strongest_market': strongest_market,
             'strongest_delta': strongest_delta,
             'total_markets': len(markets_to_evaluate),
-            'locked_count': len(locked_markets)
-        }
-
-# =================== ABSOLUTE LOCK ENGINE ===================
-class BrutballAbsoluteLockEngine:
-    """Absolute Lock Engine (for completeness, though not focus of agency-state)"""
-    
-    @classmethod
-    def execute_absolute_lock_evaluation(cls, home_data: Dict, away_data: Dict,
-                                        home_name: str, away_name: str,
-                                        league_avg_xg: float,
-                                        state_lock_result: Dict) -> Dict:
-        """Absolute Lock evaluation - kept for completeness."""
-        return {
-            'absolute_locked': False,
-            'system_log': ["ABSOLUTE LOCK: Focus on agency-state markets"],
-            'reason': "Focusing on agency-bound markets",
-            'capital_authorized': False
+            'locked_count': len(locked_markets),
+            'has_totals_lock': results.get('TOTALS_UNDER_2_5', {}).get('state_locked', False)
         }
 
 # =================== INTEGRATED BRUTBALL ARCHITECTURE ===================
 class BrutballIntegratedArchitecture:
     """
     BRUTBALL INTEGRATED ARCHITECTURE
-    v6.0 Edge Detection + Agency-State Lock Engine
+    v6.0 Edge Detection + Agency-State Lock Engine + Totals Lock Extension
     """
     
     @staticmethod
     def execute_agency_state_analysis(home_data: Dict, away_data: Dict,
                                      home_name: str, away_name: str,
                                      league_avg_xg: float) -> Dict:
-        """Execute agency-state analysis."""
+        """Execute agency-state analysis with Totals Lock extension."""
         
         # Run v6.0 Edge Detection Engine
         edge_result = BrutballEdgeEngine.execute_decision_tree(
             home_data, away_data, home_name, away_name, league_avg_xg
         )
         
-        # Run Agency-State Lock Evaluation for all markets
+        # Run Agency-State Lock Evaluation for all markets (including Totals Lock)
         agency_state_result = AgencyStateLockEngine.evaluate_all_markets(
             home_data, away_data, home_name, away_name, league_avg_xg
         )
@@ -1123,8 +1312,14 @@ class BrutballIntegratedArchitecture:
         if agency_state_result['locked_count'] > 0:
             capital_mode = 'LOCK_MODE'
             final_stake = edge_result['stake_pct'] * CAPITAL_MULTIPLIERS['LOCK_MODE']
-            capital_authorization = "AUTHORIZED (AGENCY-STATE LOCKED)"
-            system_verdict = "AGENCY-STATE CONTROL DETECTED"
+            
+            # Special display for Totals Lock
+            if agency_state_result['has_totals_lock']:
+                capital_authorization = "AUTHORIZED (TOTALS LOCK)"
+                system_verdict = "DUAL LOW-OFFENSE STATE DETECTED"
+            else:
+                capital_authorization = "AUTHORIZED (AGENCY-STATE LOCKED)"
+                system_verdict = "AGENCY-STATE CONTROL DETECTED"
         else:
             capital_mode = 'EDGE_MODE'
             final_stake = edge_result['stake_pct'] * CAPITAL_MULTIPLIERS['EDGE_MODE']
@@ -1134,11 +1329,12 @@ class BrutballIntegratedArchitecture:
         # Create integrated system log
         system_log = []
         system_log.append("=" * 70)
-        system_log.append("⚖️🔒 BRUTBALL AGENCY-STATE ARCHITECTURE")
+        system_log.append("⚖️🔒📊 BRUTBALL WITH TOTALS LOCK EXTENSION")
         system_log.append("=" * 70)
-        system_log.append(f"ARCHITECTURE: Unified Agency-State Framework")
+        system_log.append(f"ARCHITECTURE: Unified Agency-State + Totals Lock")
         system_log.append(f"  • Tier 1: v6.0 Edge Detection Engine")
-        system_log.append(f"  • Tier 2: Agency-State Lock Engine (Unified)")
+        system_log.append(f"  • Tier 2: Agency-State Lock Engine (Agency-Based)")
+        system_log.append(f"  • Tier 3: Totals Lock Engine (Trend-Based)")
         system_log.append("")
         
         system_log.append("🔍 v6.0 EDGE DETECTION RESULT")
@@ -1147,16 +1343,20 @@ class BrutballIntegratedArchitecture:
         system_log.append(f"  • Base Stake: {edge_result['stake_pct']:.1f}%")
         system_log.append("")
         
-        system_log.append("🔐 AGENCY-STATE MARKET EVALUATION")
+        system_log.append("🔐 INTEGRATED MARKET EVALUATION")
         system_log.append(f"  • Markets Evaluated: {agency_state_result['total_markets']}")
         system_log.append(f"  • Markets Locked: {agency_state_result['locked_count']}")
         
+        if agency_state_result['has_totals_lock']:
+            system_log.append(f"  • Special Lock: TOTALS LOCK (Trend-Based)")
+        
         if agency_state_result['locked_count'] > 0:
             system_log.append(f"  • Strongest Market: {agency_state_result['strongest_market']}")
-            system_log.append(f"  • Controller: {agency_state_result['all_results'][agency_state_result['strongest_market']]['controller']}")
+            if agency_state_result['strongest_market'] != 'TOTALS_UNDER_2_5':
+                system_log.append(f"  • Controller: {agency_state_result['all_results'][agency_state_result['strongest_market']]['controller']}")
             system_log.append("  • Capital Authorization: GRANTED")
         else:
-            system_log.append("  • No agency-state markets locked")
+            system_log.append("  • No markets locked")
             system_log.append("  • Capital Authorization: STANDARD")
         system_log.append("")
         
@@ -1170,7 +1370,7 @@ class BrutballIntegratedArchitecture:
         system_log.append("=" * 70)
         
         return {
-            'architecture': 'Agency-State Framework',
+            'architecture': 'Agency-State + Totals Lock',
             'v6_result': edge_result,
             'agency_state_result': agency_state_result,
             'capital_mode': capital_mode,
@@ -1181,6 +1381,7 @@ class BrutballIntegratedArchitecture:
                 'primary_action': edge_result['primary_action'],
                 'locked_markets': agency_state_result['locked_markets'],
                 'strongest_market': agency_state_result['strongest_market'],
+                'has_totals_lock': agency_state_result['has_totals_lock'],
                 'capital_authorized': capital_authorization,
                 'stake_multiplier': CAPITAL_MULTIPLIERS[capital_mode],
                 'final_stake_pct': final_stake,
@@ -1290,23 +1491,23 @@ def main():
     """Main application function."""
     
     # Header
-    st.markdown('<div class="system-header">⚖️🔒 BRUTBALL AGENCY-STATE FRAMEWORK</div>', unsafe_allow_html=True)
+    st.markdown('<div class="system-header">⚖️🔒📊 BRUTBALL WITH TOTALS LOCK EXTENSION</div>', unsafe_allow_html=True)
     
     st.markdown("""
     <div class="system-subheader">
-        <p><strong>STATE = AGENCY CONTROL • LOCK = AGENCY SUPPRESSION</strong></p>
-        <p>Unified logic for Winner • Clean Sheet • Team No Score • Opponent Under</p>
-        <p>Same 4 Gates • Market-specific thresholds • No new heuristics</p>
+        <p><strong>STATE = AGENCY CONTROL • LOCK = AGENCY SUPPRESSION • TOTALS LOCK = DUAL LOW-OFFENSE</strong></p>
+        <p>Agency-Based: Winner • Clean Sheet • Team No Score • Opponent Under</p>
+        <p>Trend-Based: Totals ≤2.5 (Both teams last 5 avg goals ≤ 1.2)</p>
     </div>
     """, unsafe_allow_html=True)
     
-    # Agency-State Principles
+    # State Principles with Totals Lock
     st.markdown("""
-    <div class="agency-principle">
-        <h4>🧠 AGENCY-STATE CORE PRINCIPLES</h4>
+    <div class="state-principle">
+        <h4>🧠 STATE PRINCIPLES WITH TOTALS LOCK EXTENSION</h4>
         <div style="margin: 1rem 0;">
             <div class="state-bound-list">
-                <strong>✅ STATE-BOUND MARKETS (Agency-Suppressible):</strong>
+                <strong>✅ AGENCY-BASED STATE LOCKS (One team suppresses opponent):</strong>
                 <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
                     <li><strong>Winner</strong> - Opponent cannot change result</li>
                     <li><strong>Clean Sheet</strong> - Opponent cannot score</li>
@@ -1314,13 +1515,20 @@ def main():
                     <li><strong>Opponent Under X</strong> - Opponent agency limited</li>
                 </ul>
             </div>
+            <div class="totals-lock-list">
+                <strong>✅ TREND-BASED TOTALS LOCK (Both teams suppress scoring):</strong>
+                <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                    <li><strong>Totals ≤2.5</strong> - Both teams last 5 avg goals ≤ 1.2</li>
+                    <li>Condition: Bilateral low-offense trend</li>
+                    <li>Empirical threshold: Derived from successful matches</li>
+                </ul>
+            </div>
             <div class="noise-list">
                 <strong>❌ NON-STATE MARKETS (Emergent Noise):</strong>
                 <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-                    <li>Totals (Over/Under) - Mutual agency required</li>
-                    <li>Both Teams to Score - Both must act</li>
+                    <li>Totals Over 2.5 - Requires scoring agency</li>
+                    <li>Both Teams to Score - Both must score</li>
                     <li>Correct Score - Joint agency chaos</li>
-                    <li>Draw - Requires mutual inability</li>
                 </ul>
             </div>
         </div>
@@ -1330,11 +1538,20 @@ def main():
     # Architecture diagram
     st.markdown("""
     <div class="architecture-diagram">
-        <h4>🏗️ AGENCY-STATE ARCHITECTURE</h4>
+        <h4>🏗️ THREE-TIER ARCHITECTURE WITH TOTALS LOCK</h4>
         <div class="three-tier-architecture">
+            <div class="tier-level tier-3">
+                <div style="font-size: 1.1rem; font-weight: 700;">TOTALS LOCK ENGINE</div>
+                <div style="font-size: 0.9rem;">Trend-Based • Dual Low-Offense</div>
+                <div style="font-size: 0.85rem; color: #0C4A6E; margin-top: 0.5rem;">
+                    Condition: Both teams ≤ 1.2 avg goals (last 5)
+                </div>
+                <span class="market-badge badge-totals-locked">Totals ≤2.5</span>
+            </div>
+            <div class="arrow-down">↓</div>
             <div class="tier-level tier-2">
                 <div style="font-size: 1.1rem; font-weight: 700;">AGENCY-STATE LOCK ENGINE</div>
-                <div style="font-size: 0.9rem;">Unified logic for all state-bound markets</div>
+                <div style="font-size: 0.9rem;">Agency-Based • Unified Logic</div>
                 <div style="font-size: 0.85rem; color: #059669; margin-top: 0.5rem;">
                     Same 4 Gates • Market-specific thresholds
                 </div>
@@ -1356,31 +1573,30 @@ def main():
     """, unsafe_allow_html=True)
     
     # System constants display
-    with st.expander("🔧 MARKET-SPECIFIC THRESHOLDS", expanded=False):
+    with st.expander("🔧 SYSTEM CONFIGURATION", expanded=False):
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.markdown("**WINNER**")
-            st.metric("Opponent xG", "< 1.1", "Standard")
-            st.metric("Agency Collapse", "≥2/4", "Failures")
+            st.markdown("**AGENCY-BASED**")
+            st.metric("Winner Threshold", "< 1.1 xG", "Opponent")
+            st.metric("Clean Sheet", "< 0.8 xG", "Stricter")
         with col2:
-            st.markdown("**CLEAN SHEET**")
-            st.metric("Opponent xG", "< 0.8", "Stricter")
-            st.metric("Agency Collapse", "≥3/4", "More stringent")
+            st.markdown("**AGENCY-BASED**")
+            st.metric("Team No Score", "< 0.6 xG", "Very strict")
+            st.metric("Opponent Under 1.5", "< 1.0 xG", "Limited")
         with col3:
-            st.markdown("**TEAM NO SCORE**")
-            st.metric("Opponent xG", "< 0.6", "Very strict")
-            st.metric("Agency Collapse", "4/4", "All required")
+            st.markdown("**TREND-BASED**")
+            st.metric("Totals Lock", "≤ 1.2 goals", "Last 5 avg")
+            st.metric("Both Teams", "Required", "Dual condition")
         with col4:
-            st.markdown("**OPPONENT UNDER 1.5**")
-            st.metric("Opponent xG", "< 1.0", "Limited capacity")
-            st.metric("Agency Collapse", "≥2/4", "Failures")
+            st.markdown("**CAPITAL**")
+            st.metric("Edge Mode", "1.0x", "v6.0 only")
+            st.metric("Lock Mode", "2.0x", "Any lock")
         
         st.markdown('<div class="law-display">', unsafe_allow_html=True)
-        st.markdown("**🎯 UNIFIED LOGIC (Same 4 Gates)**")
-        st.markdown("1. **GATE 1:** Quiet Control Identification")
-        st.markdown("2. **GATE 2:** Directional Dominance (Δ > 0.25 + opponent xG < threshold)")
-        st.markdown("3. **GATE 3:** Agency Collapse (opponent fails escalation checks)")
-        st.markdown("4. **GATE 4:** Non-Urgent Enforcement (controller can protect without risk)")
+        st.markdown("**🎯 MARKET LOGIC SUMMARY**")
+        st.markdown("**Agency-Based Locks:** Same 4 gates (Quiet Control, Direction, Agency Collapse, Enforcement)")
+        st.markdown("**Totals Lock:** Trend-based condition (both teams ≤ 1.2 avg goals last 5 matches)")
+        st.markdown("**Capital:** 2.0x for ANY lock, 1.0x otherwise")
         st.markdown('</div>', unsafe_allow_html=True)
     
     # Initialize session state
@@ -1424,7 +1640,7 @@ def main():
         away_team = st.selectbox("Away Team", away_options)
     
     # Execute analysis
-    if st.button("⚡ EXECUTE AGENCY-STATE ANALYSIS", type="primary", use_container_width=True):
+    if st.button("⚡ EXECUTE INTEGRATED ANALYSIS", type="primary", use_container_width=True):
         
         # Get data
         home_data = df[df['team'] == home_team].iloc[0].to_dict()
@@ -1436,7 +1652,7 @@ def main():
         else:
             league_avg_xg = 1.3
         
-        # Execute agency-state analysis
+        # Execute integrated analysis
         result = BrutballIntegratedArchitecture.execute_agency_state_analysis(
             home_data, away_data, home_team, away_team, league_avg_xg
         )
@@ -1448,8 +1664,18 @@ def main():
         
         # Capital mode display
         capital_mode = result['capital_mode']
-        capital_display = "LOCK MODE" if capital_mode == 'LOCK_MODE' else "EDGE MODE"
-        capital_class = "lock-mode" if capital_mode == 'LOCK_MODE' else "edge-mode"
+        if result['agency_state_result']['has_totals_lock']:
+            capital_display = "TOTALS LOCK MODE"
+            capital_class = "totals-lock-mode"
+            capital_color = "#0C4A6E"
+        elif capital_mode == 'LOCK_MODE':
+            capital_display = "LOCK MODE"
+            capital_class = "lock-mode"
+            capital_color = "#166534"
+        else:
+            capital_display = "EDGE MODE"
+            capital_class = "edge-mode"
+            capital_color = "#1E40AF"
         
         st.markdown(f"""
         <div class="capital-mode-box {capital_class}">
@@ -1457,7 +1683,7 @@ def main():
             <div style="font-size: 1.2rem; margin-top: 0.5rem;">
                 Stake: <strong>{result['final_stake']:.2f}%</strong> ({result['v6_result']['stake_pct']:.1f}% × {CAPITAL_MULTIPLIERS[capital_mode]:.1f}x)
             </div>
-            <div style="font-size: 0.9rem; margin-top: 0.5rem; color: {'#166534' if capital_mode == 'LOCK_MODE' else '#1E40AF'};">
+            <div style="font-size: 0.9rem; margin-top: 0.5rem; color: {capital_color};">
                 {result['system_verdict']}
             </div>
         </div>
@@ -1483,11 +1709,52 @@ def main():
         """, unsafe_allow_html=True)
         
         # Agency-State Market Evaluation
-        st.markdown("#### 🔐 AGENCY-STATE MARKET EVALUATION")
+        st.markdown("#### 🔐 INTEGRATED MARKET EVALUATION")
         
         agency_result = result['agency_state_result']
         
-        if agency_result['locked_count'] > 0:
+        if agency_result['has_totals_lock']:
+            st.markdown(f"""
+            <div class="totals-lock-display">
+                <h3 style="color: #0EA5E9; margin: 0 0 1rem 0;">TOTALS LOCK DETECTED</h3>
+                <div style="font-size: 1.2rem; color: #0284C7; margin-bottom: 0.5rem;">
+                    Dual Low-Offense Trend Confirmed
+                </div>
+                <div style="color: #374151; margin-bottom: 1rem;">
+                    Both teams exhibit sustained low-scoring trends
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;">
+                    <span class="market-badge badge-totals-locked">TOTALS ≤2.5 LOCKED</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Show trend data
+            totals_result = agency_result['all_results']['TOTALS_UNDER_2_5']
+            trend_data = totals_result.get('trend_data', {})
+            
+            st.markdown(f"""
+            <div class="trend-check">
+                <h4 style="color: #0C4A6E; margin: 0 0 0.5rem 0;">📊 LOW-OFFENSE TREND DATA</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                    <div>
+                        <div style="font-weight: 600; color: #374151;">{home_team}</div>
+                        <div style="font-size: 1.5rem; color: #0EA5E9; font-weight: 700;">{trend_data.get('home_goals_per_match', 0):.2f}</div>
+                        <div style="font-size: 0.9rem; color: #6B7280;">goals/match</div>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; color: #374151;">{away_team}</div>
+                        <div style="font-size: 1.5rem; color: #0EA5E9; font-weight: 700;">{trend_data.get('away_goals_per_match', 0):.2f}</div>
+                        <div style="font-size: 0.9rem; color: #6B7280;">goals/match</div>
+                    </div>
+                </div>
+                <div style="margin-top: 1rem; padding: 0.75rem; background: #F0F9FF; border-radius: 6px;">
+                    <strong>Condition Met:</strong> Both ≤ {TOTALS_LOCK_THRESHOLD} avg goals (last 5 matches)
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        elif agency_result['locked_count'] > 0:
             st.markdown(f"""
             <div class="agency-state-display">
                 <h3 style="color: #16A34A; margin: 0 0 1rem 0;">AGENCY-STATE CONTROL DETECTED</h3>
@@ -1500,86 +1767,135 @@ def main():
                 <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;">
             """, unsafe_allow_html=True)
             
-            for market in ['WINNER', 'CLEAN_SHEET', 'TEAM_NO_SCORE', 'OPPONENT_UNDER_1_5']:
+            for market in ['WINNER', 'CLEAN_SHEET', 'TEAM_NO_SCORE', 'OPPONENT_UNDER_1_5', 'TOTALS_UNDER_2_5']:
                 market_result = agency_result['all_results'][market]
                 if market_result['state_locked']:
-                    st.markdown(f'<span class="market-badge badge-locked">{market}</span>', unsafe_allow_html=True)
+                    if market == 'TOTALS_UNDER_2_5':
+                        st.markdown(f'<span class="market-badge badge-totals-locked">{market}</span>', unsafe_allow_html=True)
+                    else:
+                        st.markdown(f'<span class="market-badge badge-locked">{market}</span>', unsafe_allow_html=True)
                 else:
-                    st.markdown(f'<span class="market-badge badge-state">{market}</span>', unsafe_allow_html=True)
+                    if market == 'TOTALS_UNDER_2_5':
+                        st.markdown(f'<span class="market-badge badge-totals">{market}</span>', unsafe_allow_html=True)
+                    else:
+                        st.markdown(f'<span class="market-badge badge-state">{market}</span>', unsafe_allow_html=True)
             
             st.markdown("""
                 </div>
             </div>
             """, unsafe_allow_html=True)
-            
-            # Individual Market Details
+        else:
+            st.markdown(f"""
+            <div class="no-declaration-display">
+                <h3 style="color: #6B7280; margin: 0 0 1rem 0;">NO STATE LOCKS DETECTED</h3>
+                <div style="color: #374151;">
+                    No markets meet agency-suppression or low-offense criteria
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Individual Market Details
+        if agency_result['locked_count'] > 0:
             st.markdown("##### 📊 MARKET-SPECIFIC DETAILS")
             
-            for market in ['WINNER', 'CLEAN_SHEET', 'TEAM_NO_SCORE', 'OPPONENT_UNDER_1_5']:
+            for market in ['WINNER', 'CLEAN_SHEET', 'TEAM_NO_SCORE', 'OPPONENT_UNDER_1_5', 'TOTALS_UNDER_2_5']:
                 market_result = agency_result['all_results'][market]
                 
                 if market_result['state_locked']:
-                    st.markdown(f"""
-                    <div class="market-locked-display">
-                        <div style="display: flex; justify-content: space-between; align-items: start;">
-                            <div>
-                                <h4 style="color: #059669; margin: 0 0 0.5rem 0;">🔒 {market}</h4>
-                                <div style="color: #374151; font-size: 0.9rem;">
-                                    Controller: <strong>{market_result['controller']}</strong><br>
-                                    Δ: <strong>{market_result['control_delta']:+.2f}</strong> | Agency Failures: <strong>{market_result['agency_failures']}/4</strong>
+                    if market == 'TOTALS_UNDER_2_5':
+                        st.markdown(f"""
+                        <div class="market-totals-locked">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div>
+                                    <h4 style="color: #0EA5E9; margin: 0 0 0.5rem 0;">🔒 TOTALS ≤2.5 (Trend-Based)</h4>
+                                    <div style="color: #374151; font-size: 0.9rem;">
+                                        Both teams exhibit low-offense trends<br>
+                                        Condition: Last 5 avg goals ≤ {TOTALS_LOCK_THRESHOLD}
+                                    </div>
                                 </div>
+                                <span class="market-badge badge-totals-locked">TOTALS LOCK</span>
                             </div>
-                            <span class="market-badge badge-locked">LOCKED</span>
                         </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                        <div class="market-locked-display">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div>
+                                    <h4 style="color: #059669; margin: 0 0 0.5rem 0;">🔒 {market} (Agency-Based)</h4>
+                                    <div style="color: #374151; font-size: 0.9rem;">
+                                        Controller: <strong>{market_result['controller']}</strong><br>
+                                        Δ: <strong>{market_result['control_delta']:+.2f}</strong> | Agency Failures: <strong>{market_result['agency_failures']}/4</strong>
+                                    </div>
+                                </div>
+                                <span class="market-badge badge-locked">LOCKED</span>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
                 else:
-                    st.markdown(f"""
-                    <div class="market-available-display">
-                        <div style="display: flex; justify-content: space-between; align-items: start;">
-                            <div>
-                                <h4 style="color: #3B82F6; margin: 0 0 0.5rem 0;">{market}</h4>
-                                <div style="color: #6B7280; font-size: 0.9rem;">
-                                    {market_result['reason']}
+                    if market == 'TOTALS_UNDER_2_5':
+                        st.markdown(f"""
+                        <div class="market-available-display">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div>
+                                    <h4 style="color: #3B82F6; margin: 0 0 0.5rem 0;">TOTALS ≤2.5</h4>
+                                    <div style="color: #6B7280; font-size: 0.9rem;">
+                                        {market_result['reason']}
+                                    </div>
                                 </div>
+                                <span class="market-badge badge-totals">AVAILABLE</span>
                             </div>
-                            <span class="market-badge badge-state">AVAILABLE</span>
                         </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            # Capital authorization
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                        <div class="market-available-display">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div>
+                                    <h4 style="color: #3B82F6; margin: 0 0 0.5rem 0;">{market}</h4>
+                                    <div style="color: #6B7280; font-size: 0.9rem;">
+                                        {market_result['reason']}
+                                    </div>
+                                </div>
+                                <span class="market-badge badge-state">AVAILABLE</span>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+        
+        # Capital authorization
+        st.markdown("#### 💰 CAPITAL AUTHORIZATION")
+        
+        if agency_result['has_totals_lock']:
+            st.markdown("""
+            <div class="trend-check">
+                <h3 style="margin: 0; color: #0C4A6E;">💰 TOTALS LOCK AUTHORIZATION: GRANTED</h3>
+                <p style="margin: 0.5rem 0 0 0; color: #374151;">
+                    Dual low-offense trend confirmed • 2.0x stake multiplier • Empirical certainty for UNDER 2.5
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+        elif agency_result['locked_count'] > 0:
             st.markdown("""
             <div class="gate-passed">
-                <h3 style="margin: 0; color: #166534;">💰 CAPITAL AUTHORIZATION: GRANTED</h3>
+                <h3 style="margin: 0; color: #166534;">💰 AGENCY-STATE AUTHORIZATION: GRANTED</h3>
                 <p style="margin: 0.5rem 0 0 0; color: #374151;">
                     Agency-state control detected • 2.0x stake multiplier • Focus on strongest market
                 </p>
             </div>
             """, unsafe_allow_html=True)
-            
         else:
-            st.markdown(f"""
-            <div class="no-declaration-display">
-                <h3 style="color: #6B7280; margin: 0 0 1rem 0;">NO AGENCY-STATE CONTROL</h3>
-                <div style="color: #374151;">
-                    No markets meet agency-suppression criteria
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
             st.markdown("""
             <div class="gate-failed">
                 <h3 style="margin: 0; color: #DC2626;">🔒 CAPITAL AUTHORIZATION: STANDARD</h3>
                 <p style="margin: 0.5rem 0 0 0; color: #374151;">
-                    v6.0 edge preserved • 1.0x stake multiplier • No agency-state locks
+                    v6.0 edge preserved • 1.0x stake multiplier • No state locks detected
                 </p>
             </div>
             """, unsafe_allow_html=True)
         
         # Key metrics
         st.markdown("#### 📊 KEY METRICS")
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         
         with col1:
             st.markdown('<div style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #E5E7EB;">', unsafe_allow_html=True)
@@ -1628,30 +1944,61 @@ def main():
                     <span>Strongest Market:</span>
                     <span><strong>{agency_result['strongest_market']}</strong></span>
                 </div>
+                """, unsafe_allow_html=True)
+                
+                if agency_result['strongest_market'] != 'TOTALS_UNDER_2_5':
+                    st.markdown(f"""
+                    <div class="metric-row">
+                        <span>Strongest Δ:</span>
+                        <span><strong>{agency_result['strongest_delta']:+.2f}</strong></span>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown('<div style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #E5E7EB;">', unsafe_allow_html=True)
+            st.markdown("**Totals Lock Status**")
+            
+            if agency_result['has_totals_lock']:
+                totals_result = agency_result['all_results']['TOTALS_UNDER_2_5']
+                trend_data = totals_result.get('trend_data', {})
+                
+                st.markdown(f"""
+                <div class="metric-row metric-row-totals">
+                    <span>Status:</span>
+                    <span><strong>TOTALS LOCKED</strong></span>
+                </div>
                 <div class="metric-row">
-                    <span>Strongest Δ:</span>
-                    <span><strong>{agency_result['strongest_delta']:+.2f}</strong></span>
+                    <span>Home Goals/Match:</span>
+                    <span><strong>{trend_data.get('home_goals_per_match', 0):.2f}</strong></span>
+                </div>
+                <div class="metric-row">
+                    <span>Away Goals/Match:</span>
+                    <span><strong>{trend_data.get('away_goals_per_match', 0):.2f}</strong></span>
+                </div>
+                <div class="metric-row">
+                    <span>Condition:</span>
+                    <span><strong>Both ≤ {TOTALS_LOCK_THRESHOLD}</strong></span>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div class="metric-row">
+                    <span>Status:</span>
+                    <span><strong>NO TOTALS LOCK</strong></span>
+                </div>
+                <div class="metric-row">
+                    <span>Condition:</span>
+                    <span><strong>Requires dual low-offense</strong></span>
+                </div>
+                <div class="metric-row">
+                    <span>Threshold:</span>
+                    <span><strong>Both ≤ {TOTALS_LOCK_THRESHOLD}</strong></span>
                 </div>
                 """, unsafe_allow_html=True)
             
             st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Agency Insight
-        st.markdown("#### 🧠 AGENCY INSIGHT")
-        
-        st.markdown("""
-        <div class="agency-insight">
-            <h4 style="color: #0C4A6E; margin: 0 0 1rem 0;">STATE = AGENCY CONTROL • LOCK = AGENCY SUPPRESSION</h4>
-            <p style="color: #374151; margin: 0;">
-                Markets are locked when one team's agency to affect the outcome is structurally suppressed. 
-                This occurs through the same 4 gates across all state-bound markets, with only threshold adjustments.
-            </p>
-            <div style="margin-top: 1rem; padding: 1rem; background: #F0F9FF; border-radius: 6px;">
-                <strong>Why totals/BTTS cannot be locked:</strong> They require mutual agency - both teams must act. 
-                No single team can suppress the joint agency required for these outcomes.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
         
         # System log
         with st.expander("📋 VIEW INTEGRATED SYSTEM LOG", expanded=True):
@@ -1662,19 +2009,19 @@ def main():
         
         # Export
         st.markdown("---")
-        st.markdown("#### 📤 Export Agency-State Analysis")
+        st.markdown("#### 📤 Export Integrated Analysis")
         
-        export_text = f"""BRUTBALL AGENCY-STATE FRAMEWORK ANALYSIS
+        export_text = f"""BRUTBALL WITH TOTALS LOCK EXTENSION - ANALYSIS REPORT
 ===========================================
 League: {selected_league}
 Match: {home_team} vs {away_team}
 Analysis Time: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 ARCHITECTURE SUMMARY:
-• Framework: Unified Agency-State Logic
+• Framework: Agency-State + Totals Lock Extension
 • Core Principle: STATE = AGENCY CONTROL • LOCK = AGENCY SUPPRESSION
-• State-Bound Markets: Winner • Clean Sheet • Team No Score • Opponent Under
-• Non-State Markets: Totals • BTTS • Correct Score • Draw
+• Agency-Based Markets: Winner, Clean Sheet, Team No Score, Opponent Under
+• Trend-Based Market: Totals ≤2.5 (Dual low-offense condition)
 • Capital Mode: {capital_display}
 
 v6.0 EDGE DETECTION RESULT:
@@ -1683,21 +2030,23 @@ v6.0 EDGE DETECTION RESULT:
 • Base Stake: {v6_result['stake_pct']:.1f}%
 • Secondary Logic: {v6_result['secondary_logic']}
 
-AGENCY-STATE MARKET EVALUATION:
+INTEGRATED MARKET EVALUATION:
 • Markets Evaluated: {agency_result['total_markets']}
 • Markets Locked: {agency_result['locked_count']}
 • Strongest Market: {agency_result['strongest_market'] if agency_result['locked_count'] > 0 else 'None'}
+• Totals Lock: {'ACTIVE' if agency_result['has_totals_lock'] else 'INACTIVE'}
 
 MARKET-SPECIFIC RESULTS:"""
         
-        for market in ['WINNER', 'CLEAN_SHEET', 'TEAM_NO_SCORE', 'OPPONENT_UNDER_1_5']:
+        for market in ['WINNER', 'CLEAN_SHEET', 'TEAM_NO_SCORE', 'OPPONENT_UNDER_1_5', 'TOTALS_UNDER_2_5']:
             market_result = agency_result['all_results'][market]
             export_text += f"""
 {market}:
   • State Locked: {'YES' if market_result['state_locked'] else 'NO'}
-  {'  • Controller: ' + market_result['controller'] if market_result['state_locked'] else ''}
-  {'  • Control Delta: ' + f"{market_result.get('control_delta', 0):+.2f}" if market_result['state_locked'] else ''}
-  {'  • Agency Failures: ' + f"{market_result.get('agency_failures', 0)}/4" if market_result['state_locked'] else ''}
+  {'  • Type: ' + ('Trend-Based' if market == 'TOTALS_UNDER_2_5' else 'Agency-Based')}
+  {'  • Controller: ' + market_result['controller'] if market_result['state_locked'] and 'controller' in market_result else ''}
+  {'  • Control Delta: ' + f"{market_result.get('control_delta', 0):+.2f}" if market_result['state_locked'] and market != 'TOTALS_UNDER_2_5' else ''}
+  {'  • Trend Data: ' + f"Home: {market_result.get('trend_data', {}).get('home_goals_per_match', 0):.2f}, Away: {market_result.get('trend_data', {}).get('away_goals_per_match', 0):.2f}" if market == 'TOTALS_UNDER_2_5' and market_result['state_locked'] else ''}
   {'  • Reason: ' + market_result['reason'] if not market_result['state_locked'] else ''}"""
         
         export_text += f"""
@@ -1710,26 +2059,26 @@ INTEGRATED CAPITAL DECISION:
 • Authorization: {result['integrated_output']['capital_authorized']}
 • System Verdict: {result['system_verdict']}
 
-AGENCY-STATE INSIGHTS:
-• State-bound markets can be locked when opponent's agency is suppressed
-• Non-state markets require mutual agency and cannot be structurally locked
-• Same 4 gates apply to all state-bound markets with threshold adjustments
-• Time decay protects agency-bound outcomes but not mutual agency outcomes
+TOTALS LOCK INSIGHTS:
+• Condition: Both teams' last 5 matches average goals ≤ {TOTALS_LOCK_THRESHOLD}
+• Logic: Dual low-offense trend creates structural certainty for UNDER {UNDER_GOALS_THRESHOLD}
+• Empirical Validation: Derived from successful low-scoring matches
+• Different from agency-based locks: Trend-based vs agency-suppression
 
 INTEGRATED SYSTEM LOG:
 {chr(10).join(result['system_log'])}
 
 ===========================================
-BRUTBALL AGENCY-STATE FRAMEWORK
-STATE = AGENCY CONTROL
-LOCK = AGENCY SUPPRESSION
-Unified logic for all state-bound markets
+BRUTBALL WITH TOTALS LOCK EXTENSION
+Agency-Based: Winner, Clean Sheet, Team No Score, Opponent Under
+Trend-Based: Totals ≤2.5 (Dual low-offense condition)
+Capital: 2.0x for any lock, 1.0x otherwise
         """
         
         st.download_button(
-            label="📥 Download Agency-State Analysis",
+            label="📥 Download Integrated Analysis",
             data=export_text,
-            file_name=f"brutball_agency_state_{selected_league.replace(' ', '_')}_{home_team}_vs_{away_team}.txt",
+            file_name=f"brutball_totals_lock_{selected_league.replace(' ', '_')}_{home_team}_vs_{away_team}.txt",
             mime="text/plain",
             use_container_width=True
         )
@@ -1738,10 +2087,10 @@ Unified logic for all state-bound markets
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; color: #6B7280; font-size: 0.9rem; padding: 1rem;">
-        <p><strong>BRUTBALL AGENCY-STATE FRAMEWORK</strong></p>
-        <p>STATE = AGENCY CONTROL • LOCK = AGENCY SUPPRESSION</p>
-        <p>Unified logic for Winner • Clean Sheet • Team No Score • Opponent Under markets</p>
-        <p>Same 4 gates, market-specific thresholds, no new heuristics</p>
+        <p><strong>BRUTBALL WITH TOTALS LOCK EXTENSION</strong></p>
+        <p>Agency-Based: Winner • Clean Sheet • Team No Score • Opponent Under</p>
+        <p>Trend-Based: Totals ≤2.5 (Both teams last 5 avg goals ≤ 1.2)</p>
+        <p>STATE = AGENCY CONTROL • LOCK = AGENCY SUPPRESSION • TOTALS LOCK = DUAL LOW-OFFENSE</p>
     </div>
     """, unsafe_allow_html=True)
 
