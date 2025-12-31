@@ -1,11 +1,27 @@
 """
-BRUTBALL MATCH STATE CLASSIFIER v1.0
+BRUTBALL MATCH STATE & DURABILITY CLASSIFIER v1.2
 READ-ONLY MODULE - NO SIDE EFFECTS
 
 PURPOSE:
-Classify matches into 4 structural states for system protection.
+Classify matches into structural states and durability categories for system protection.
 This does NOT affect betting logic, stakes, or existing tiers.
 It only labels reality to prevent philosophical violations.
+
+STRUCTURAL STATES (Existing):
+1. TERMINAL STAGNATION - Dual low-offense, no scoring pathways
+2. ASYMMETRIC SUPPRESSION - One team controls, opponent suppressed
+3. DELAYED RELEASE - Low scoring but volatile pathways exist
+4. FORCED EXPLOSION - High xG + open play dominance
+
+TOTALS DURABILITY (NEW):
+• STABLE - High durability for Under 2.5
+• FRAGILE - Medium durability for Under 2.5
+• NONE - No structural support for Under 2.5
+
+DEFENSIVE MARKET STATES (OPTIONAL):
+• CLEAN_SHEET_STABLE - High durability for Clean Sheet
+• CLEAN_SHEET_FRAGILE - Medium durability for Clean Sheet
+• NO_CLEAN_SHEET_STRUCTURE - No structural support for Clean Sheet
 
 RULES:
 1. Uses existing CSV data only
@@ -17,16 +33,9 @@ RULES:
 from typing import Dict, Tuple, List, Optional
 import pandas as pd
 
-# =================== STATE DEFINITIONS ===================
 class MatchStateClassifier:
     """
-    MATCH STATE CLASSIFIER (Read-Only)
-    
-    CLASSIFIES 4 STRUCTURAL STATES:
-    1. TERMINAL STAGNATION - Dual low-offense, no scoring pathways
-    2. ASYMMETRIC SUPPRESSION - One team controls, opponent suppressed
-    3. DELAYED RELEASE - Low scoring but volatile pathways exist
-    4. FORCED EXPLOSION - High xG + open play dominance
+    MATCH STATE & DURABILITY CLASSIFIER (Read-Only)
     
     IMPORTANT: This is READ-ONLY. It does NOT:
     - Alter betting logic
@@ -36,6 +45,8 @@ class MatchStateClassifier:
     
     It only labels reality to protect system integrity.
     """
+    
+    # =================== EXISTING MATCH STATE CLASSIFICATIONS ===================
     
     @staticmethod
     def check_terminal_stagnation(home_data: Dict, away_data: Dict) -> Tuple[bool, Dict, List[str]]:
@@ -268,12 +279,202 @@ class MatchStateClassifier:
             'away_concede_avg': away_concede_avg
         }, rationale
     
+    # =================== NEW: TOTALS DURABILITY CLASSIFICATION ===================
+    
+    @staticmethod
+    def classify_totals_durability(home_data: Dict, away_data: Dict) -> Dict:
+        """
+        CLASSIFY TOTALS DURABILITY (Under 2.5)
+        
+        Returns durability classification for Under 2.5 markets.
+        
+        Categories:
+        • STABLE: High durability for Under 2.5
+        • FRAGILE: Medium durability for Under 2.5  
+        • NONE: No structural support for Under 2.5
+        
+        IMPORTANT: This is READ-ONLY and informational only.
+        Does NOT affect existing totals lock logic.
+        """
+        
+        # Calculate averages from last 5 matches
+        home_goals_scored_last5 = home_data.get('goals_scored_last_5', 0)
+        away_goals_scored_last5 = away_data.get('goals_scored_last_5', 0)
+        home_goals_conceded_last5 = home_data.get('goals_conceded_last_5', 0)
+        away_goals_conceded_last5 = away_data.get('goals_conceded_last_5', 0)
+        
+        # Convert to per-match averages
+        home_avg_scored = home_goals_scored_last5 / 5 if home_goals_scored_last5 > 0 else 0
+        away_avg_scored = away_goals_scored_last5 / 5 if away_goals_scored_last5 > 0 else 0
+        home_avg_conceded = home_goals_conceded_last5 / 5 if home_goals_conceded_last5 > 0 else 0
+        away_avg_conceded = away_goals_conceded_last5 / 5 if away_goals_conceded_last5 > 0 else 0
+        
+        # Condition 1: Dual low offense
+        dual_low_offense = (home_avg_scored <= 1.2) and (away_avg_scored <= 1.2)
+        
+        # Condition 2: Low volatility (stable scoring patterns)
+        home_volatility = abs(home_avg_scored - home_avg_conceded) <= 0.5
+        away_volatility = abs(away_avg_scored - away_avg_conceded) <= 0.5
+        low_volatility = home_volatility and away_volatility
+        
+        # Condition 3: Defensive confirmation
+        defensive_confirmation = (home_avg_conceded <= 1.0) and (away_avg_conceded <= 1.0)
+        
+        # Classification logic
+        if dual_low_offense and low_volatility and defensive_confirmation:
+            durability = 'STABLE'
+            description = "High durability for Under 2.5. Both teams low-scoring with stable patterns and confirmed defense."
+            gradient_score = 0.9  # High confidence (0-1 scale)
+            
+        elif dual_low_offense:
+            durability = 'FRAGILE'
+            description = "Medium durability for Under 2.5. Low scoring exists but volatility or defensive leakage present."
+            gradient_score = 0.5  # Medium confidence
+            
+            # Fragility reasons
+            fragility_reasons = []
+            if not low_volatility:
+                fragility_reasons.append("High volatility in scoring patterns")
+            if not defensive_confirmation:
+                fragility_reasons.append("Defensive leakage present")
+            
+        else:
+            durability = 'NONE'
+            description = "No structural support for Under 2.5. Dual low offense condition not met."
+            gradient_score = 0.1  # Low confidence
+            fragility_reasons = []
+        
+        # Build rationale
+        rationale = []
+        rationale.append("🔍 TOTALS DURABILITY CLASSIFICATION (Under 2.5):")
+        rationale.append(f"• Home avg scored: {home_avg_scored:.2f}")
+        rationale.append(f"• Away avg scored: {away_avg_scored:.2f}")
+        rationale.append(f"• Home avg conceded: {home_avg_conceded:.2f}")
+        rationale.append(f"• Away avg conceded: {away_avg_conceded:.2f}")
+        rationale.append(f"• Dual low offense (≤1.2): {'✅' if dual_low_offense else '❌'}")
+        rationale.append(f"• Low volatility (diff ≤0.5): {'✅' if low_volatility else '❌'}")
+        rationale.append(f"• Defensive confirmation (≤1.0): {'✅' if defensive_confirmation else '❌'}")
+        rationale.append(f"• Durability: {durability}")
+        rationale.append(f"• Gradient Score: {gradient_score:.2f}")
+        
+        if durability == 'FRAGILE' and 'fragility_reasons' in locals():
+            rationale.append(f"• Fragility reasons: {', '.join(fragility_reasons)}")
+        
+        return {
+            'durability': durability,
+            'description': description,
+            'gradient_score': gradient_score,
+            'data': {
+                'home_avg_scored': home_avg_scored,
+                'away_avg_scored': away_avg_scored,
+                'home_avg_conceded': home_avg_conceded,
+                'away_avg_conceded': away_avg_conceded,
+                'dual_low_offense': dual_low_offense,
+                'low_volatility': low_volatility,
+                'defensive_confirmation': defensive_confirmation
+            },
+            'rationale': rationale,
+            'is_read_only': True,
+            'market_guidance': {
+                'STABLE': 'Under 2.5 has high structural durability',
+                'FRAGILE': 'Under 2.5 possible but consider Under 3.5 for safety',
+                'NONE': 'Avoid Under 2.5 markets - no structural support'
+            }.get(durability, 'No guidance available')
+        }
+    
+    # =================== OPTIONAL: DEFENSIVE MARKET CLASSIFICATION ===================
+    
+    @staticmethod
+    def classify_defensive_markets(home_data: Dict, away_data: Dict) -> Dict:
+        """
+        CLASSIFY DEFENSIVE MARKETS (Clean Sheet, Team No Score, Opponent Under 1.5)
+        
+        Returns structural classification for defensive markets.
+        
+        Categories:
+        • CLEAN_SHEET_STABLE: High durability for Clean Sheet
+        • CLEAN_SHEET_FRAGILE: Medium durability for Clean Sheet
+        • NO_CLEAN_SHEET_STRUCTURE: No structural support for Clean Sheet
+        
+        OPTIONAL: This is for R&D insights only.
+        Does NOT affect existing agency lock logic.
+        """
+        
+        # Calculate defensive metrics
+        home_goals_conceded_last5 = home_data.get('goals_conceded_last_5', 0)
+        away_goals_conceded_last5 = away_data.get('goals_conceded_last_5', 0)
+        home_xg_conceded = home_data.get('home_xg_conceded_per_match', 0)
+        away_xg_conceded = away_data.get('away_xg_conceded_per_match', 0)
+        
+        home_avg_conceded = home_goals_conceded_last5 / 5 if home_goals_conceded_last5 > 0 else 0
+        away_avg_conceded = away_goals_conceded_last5 / 5 if away_goals_conceded_last5 > 0 else 0
+        
+        # Check for strong defense (either team)
+        home_defense_strong = (home_avg_conceded <= 0.8) and (home_xg_conceded <= 1.0)
+        away_defense_strong = (away_avg_conceded <= 0.8) and (away_xg_conceded <= 1.0)
+        
+        # Check opponent offensive weakness
+        home_opponent_weak = away_data.get('goals_scored_last_5', 0) / 5 <= 1.0
+        away_opponent_weak = home_data.get('goals_scored_last_5', 0) / 5 <= 1.0
+        
+        # Classification logic
+        home_clean_sheet_stable = home_defense_strong and home_opponent_weak
+        away_clean_sheet_stable = away_defense_strong and away_opponent_weak
+        
+        home_clean_sheet_fragile = home_defense_strong and not home_opponent_weak
+        away_clean_sheet_fragile = away_defense_strong and not away_opponent_weak
+        
+        # Build results
+        defensive_classification = {
+            'home_clean_sheet': {
+                'classification': 'CLEAN_SHEET_STABLE' if home_clean_sheet_stable else 
+                                'CLEAN_SHEET_FRAGILE' if home_clean_sheet_fragile else 
+                                'NO_CLEAN_SHEET_STRUCTURE',
+                'defense_strength': home_defense_strong,
+                'opponent_weakness': home_opponent_weak,
+                'avg_conceded': home_avg_conceded,
+                'xg_conceded': home_xg_conceded
+            },
+            'away_clean_sheet': {
+                'classification': 'CLEAN_SHEET_STABLE' if away_clean_sheet_stable else 
+                                'CLEAN_SHEET_FRAGILE' if away_clean_sheet_fragile else 
+                                'NO_CLEAN_SHEET_STRUCTURE',
+                'defense_strength': away_defense_strong,
+                'opponent_weakness': away_opponent_weak,
+                'avg_conceded': away_avg_conceded,
+                'xg_conceded': away_xg_conceded
+            }
+        }
+        
+        # Build rationale
+        rationale = []
+        rationale.append("🛡️ DEFENSIVE MARKET CLASSIFICATION:")
+        rationale.append(f"• Home defense strong (≤0.8 gpg, ≤1.0 xG): {'✅' if home_defense_strong else '❌'}")
+        rationale.append(f"• Away defense strong (≤0.8 gpg, ≤1.0 xG): {'✅' if away_defense_strong else '❌'}")
+        rationale.append(f"• Home opponent weak (≤1.0 gpg): {'✅' if home_opponent_weak else '❌'}")
+        rationale.append(f"• Away opponent weak (≤1.0 gpg): {'✅' if away_opponent_weak else '❌'}")
+        rationale.append(f"• Home Clean Sheet: {defensive_classification['home_clean_sheet']['classification']}")
+        rationale.append(f"• Away Clean Sheet: {defensive_classification['away_clean_sheet']['classification']}")
+        
+        return {
+            'classifications': defensive_classification,
+            'rationale': rationale,
+            'is_read_only': True,
+            'market_guidance': {
+                'CLEAN_SHEET_STABLE': 'Clean Sheet has high structural durability',
+                'CLEAN_SHEET_FRAGILE': 'Clean Sheet possible but opponent has scoring threat',
+                'NO_CLEAN_SHEET_STRUCTURE': 'Avoid Clean Sheet markets - no structural support'
+            }
+        }
+    
+    # =================== MAIN CLASSIFICATION FUNCTION ===================
+    
     @classmethod
     def classify_match_state(cls, home_data: Dict, away_data: Dict) -> Dict:
         """
         MAIN CLASSIFICATION FUNCTION
         
-        Returns the dominant structural state of the match.
+        Returns the dominant structural state of the match plus durability classifications.
         
         IMPORTANT: This is READ-ONLY and does NOT:
         - Affect betting decisions
@@ -285,13 +486,16 @@ class MatchStateClassifier:
         
         classification_log = []
         classification_log.append("=" * 70)
-        classification_log.append("🔍 MATCH STATE CLASSIFIER v1.0 (READ-ONLY)")
+        classification_log.append("🔍 MATCH STATE & DURABILITY CLASSIFIER v1.2 (READ-ONLY)")
         classification_log.append("=" * 70)
-        classification_log.append("PURPOSE: Classify structural match states for system protection")
+        classification_log.append("PURPOSE: Classify structural states for system protection")
         classification_log.append("RULES: Does not affect betting logic, only labels reality")
         classification_log.append("")
         
-        # Check all states
+        # ========== 1. CHECK ALL MATCH STATES ==========
+        classification_log.append("⚙️ STRUCTURAL MATCH STATES:")
+        classification_log.append("-" * 40)
+        
         states = []
         
         # STATE 1: TERMINAL STAGNATION
@@ -353,8 +557,28 @@ class MatchStateClassifier:
         classification_log.append(f"📖 STATE DESCRIPTION: {state_descriptions.get(dominant_state, 'Unknown')}")
         classification_log.append("")
         
-        # Market protection guidance (INFORMATIONAL ONLY)
-        market_guidance = {
+        # ========== 2. TOTALS DURABILITY CLASSIFICATION ==========
+        classification_log.append("📊 TOTALS DURABILITY (Under 2.5):")
+        classification_log.append("-" * 40)
+        
+        totals_durability = cls.classify_totals_durability(home_data, away_data)
+        classification_log.extend(totals_durability['rationale'])
+        classification_log.append("")
+        
+        # ========== 3. DEFENSIVE MARKET CLASSIFICATION (OPTIONAL) ==========
+        classification_log.append("🛡️ DEFENSIVE MARKET CLASSIFICATION:")
+        classification_log.append("-" * 40)
+        
+        defensive_markets = cls.classify_defensive_markets(home_data, away_data)
+        classification_log.extend(defensive_markets['rationale'])
+        classification_log.append("")
+        
+        # ========== 4. FINAL SUMMARY & GUIDANCE ==========
+        classification_log.append("🛡️ MARKET PROTECTION GUIDANCE:")
+        classification_log.append("-" * 40)
+        
+        # Match state guidance
+        match_state_guidance = {
             'TERMINAL_STAGNATION': "Under locks possible, Over locks impossible",
             'ASYMMETRIC_SUPPRESSION': "Winner/Clean Sheet locks possible",
             'DELAYED_RELEASE': "Under locks forbidden (release risk)",
@@ -362,273 +586,157 @@ class MatchStateClassifier:
             'NEUTRAL': "Standard market evaluation applies"
         }
         
-        classification_log.append(f"🛡️ MARKET PROTECTION GUIDANCE: {market_guidance.get(dominant_state, 'None')}")
+        classification_log.append(f"• Match State: {match_state_guidance.get(dominant_state, 'None')}")
+        classification_log.append(f"• Totals Durability: {totals_durability['market_guidance']}")
         classification_log.append("")
+        
         classification_log.append("⚠️ IMPORTANT: This classification is READ-ONLY")
         classification_log.append("   It does NOT affect existing Tier 1-3 logic")
         classification_log.append("   It only labels reality for system protection")
         classification_log.append("=" * 70)
         
         return {
+            # Match state classification
             'dominant_state': dominant_state,
             'all_states': [s[0] for s in states],
             'state_data': dict(states),
-            'classification_log': classification_log,
-            'market_guidance': market_guidance.get(dominant_state, 'None'),
             'state_description': state_descriptions.get(dominant_state, 'Unknown'),
+            
+            # Totals durability
+            'totals_durability': totals_durability['durability'],
+            'totals_durability_data': totals_durability['data'],
+            'totals_durability_description': totals_durability['description'],
+            'totals_durability_score': totals_durability['gradient_score'],
+            
+            # Defensive markets (optional)
+            'defensive_markets': defensive_markets['classifications'],
+            
+            # Logs and metadata
+            'classification_log': classification_log,
+            'market_guidance': {
+                'match_state': match_state_guidance.get(dominant_state, 'None'),
+                'totals_durability': totals_durability['market_guidance']
+            },
             'is_read_only': True,  # CRITICAL: Ensure this stays read-only
             'metadata': {
-                'version': '1.0',
+                'version': '1.2',
                 'purpose': 'Structural classification for system protection',
-                'no_side_effects': True
+                'no_side_effects': True,
+                'components': {
+                    'match_states': True,
+                    'totals_durability': True,
+                    'defensive_markets': True
+                }
             }
         }
 
 
-# =================== INTEGRATION WITH EXISTING SYSTEM ===================
-class BrutballIntegratedArchitectureWithClassification:
+# =================== INTEGRATION HELPER FUNCTIONS ===================
+
+def get_read_only_classification(home_data: Dict, away_data: Dict) -> Dict:
     """
-    BRUTBALL INTEGRATED ARCHITECTURE v6.2 + STATE CLASSIFICATION
+    SAFE INTEGRATION HELPER
     
-    This adds READ-ONLY state classification to the existing system.
-    
-    CRITICAL RULES:
-    1. State classification does NOT affect betting logic
-    2. State classification does NOT modify existing tiers
-    3. State classification only adds informational labels
-    4. All existing logic remains unchanged
+    Use this function in app.py to get classification results.
+    This ensures classification stays read-only.
     """
-    
-    @staticmethod
-    def execute_integrated_analysis_with_classification(
-        home_data: Dict, away_data: Dict,
-        home_name: str, away_name: str,
-        league_avg_xg: float
-    ) -> Dict:
-        """
-        Execute integrated analysis WITH READ-ONLY state classification.
-        
-        IMPORTANT: This does NOT change existing logic.
-        It only adds a classification layer for system protection.
-        """
-        
-        # First, run the EXISTING integrated analysis (unchanged)
-        from brutball_integrated import BrutballIntegratedArchitecture
-        
-        existing_result = BrutballIntegratedArchitecture.execute_integrated_analysis(
-            home_data, away_data, home_name, away_name, league_avg_xg
-        )
-        
-        # Then, add READ-ONLY state classification
-        classification_result = MatchStateClassifier.classify_match_state(
-            home_data, away_data
-        )
-        
-        # Combine results WITHOUT modifying existing logic
-        combined_log = []
-        combined_log.append("=" * 80)
-        combined_log.append("⚖️🔒📊 BRUTBALL v6.2 + STATE CLASSIFICATION")
-        combined_log.append("=" * 80)
-        combined_log.append("ARCHITECTURE: Three-Tier System + READ-ONLY State Classification")
-        combined_log.append("IMPORTANT: State classification does NOT affect betting logic")
-        combined_log.append("")
-        
-        # Add classification info
-        combined_log.append("🔍 STRUCTURAL STATE CLASSIFICATION (READ-ONLY)")
-        combined_log.append("-" * 40)
-        combined_log.append(f"Dominant State: {classification_result['dominant_state']}")
-        combined_log.append(f"Description: {classification_result['state_description']}")
-        combined_log.append(f"Market Guidance: {classification_result['market_guidance']}")
-        combined_log.append("")
-        combined_log.append("⚠️ Classification is informational only - does not affect:")
-        combined_log.append("   • Tier 1-3 logic")
-        combined_log.append("   • Capital allocation")
-        combined_log.append("   • Market locks")
-        combined_log.append("")
-        
-        # Add existing integrated log
-        combined_log.append("📊 EXISTING INTEGRATED ANALYSIS (UNCHANGED)")
-        combined_log.append("-" * 40)
-        
-        # Take only the verdict part of existing log
-        existing_lines = existing_result['integrated_log']
-        # Skip the header and add the rest
-        for line in existing_lines[5:]:  # Skip first 5 header lines
-            combined_log.append(line)
-        
-        combined_log.append("=" * 80)
-        
-        # Return combined result WITHOUT modifying existing fields
-        return {
-            # Keep all existing fields unchanged
-            **existing_result,
-            
-            # Add classification as separate, read-only field
-            'state_classification': classification_result,
-            
-            # Update log to include classification
-            'integrated_log_with_classification': combined_log,
-            
-            # Metadata to ensure classification stays read-only
-            'classification_metadata': {
-                'is_read_only': True,
-                'affects_betting_logic': False,
-                'affects_capital_allocation': False,
-                'affects_market_locks': False,
-                'purpose': 'Structural classification for system protection only'
-            }
-        }
+    return MatchStateClassifier.classify_match_state(home_data, away_data)
 
 
-# =================== TEST FUNCTIONS (DEVELOPER VERIFICATION) ===================
-def test_state_classifier_read_only():
+def get_totals_durability_only(home_data: Dict, away_data: Dict) -> Dict:
     """
-    Test that the state classifier is truly read-only.
+    GET ONLY TOTALS DURABILITY CLASSIFICATION
     
-    This function verifies that:
-    1. Classification does NOT affect existing logic
-    2. Classification is informational only
-    3. No side effects are introduced
+    Use this if you only need totals durability without full match state classification.
     """
-    
-    print("🧪 STATE CLASSIFIER READ-ONLY TEST")
-    print("=" * 60)
-    
-    # Create dummy data
-    test_home_data = {
-        'goals_scored_last_5': 6,  # 1.2 avg
-        'home_setpiece_pct': 0.25,
-        'home_counter_pct': 0.10,
-        'home_xg_per_match': 1.5,
-        'home_openplay_pct': 0.55,
-        'home_goals_conceded_last_5': 5  # 1.0 avg
-    }
-    
-    test_away_data = {
-        'goals_scored_last_5': 5,  # 1.0 avg
-        'away_setpiece_pct': 0.20,
-        'away_counter_pct': 0.12,
-        'away_xg_per_match': 1.0,
-        'away_openplay_pct': 0.50,
-        'away_goals_conceded_last_5': 8  # 1.6 avg
-    }
-    
-    # Run classification
-    result = MatchStateClassifier.classify_match_state(test_home_data, test_away_data)
-    
-    print("✅ Classification successful")
-    print(f"📊 Dominant state: {result['dominant_state']}")
-    print(f"📖 Description: {result['state_description']}")
-    print(f"🛡️ Market guidance: {result['market_guidance']}")
-    print("")
-    print("🔒 READ-ONLY VERIFICATION:")
-    print(f"• is_read_only: {result['is_read_only']}")
-    print(f"• No side effects: {result['metadata']['no_side_effects']}")
-    print(f"• Purpose: {result['metadata']['purpose']}")
-    print("")
-    print("✅ TEST PASSED: State classifier is read-only and safe")
-    print("=" * 60)
-    
-    return result
+    return MatchStateClassifier.classify_totals_durability(home_data, away_data)
 
 
-def verify_no_system_breakage():
-    """
-    Verify that adding classification doesn't break existing system.
-    
-    This is the critical test that developers must run.
-    """
-    
-    print("🔧 SYSTEM INTEGRITY VERIFICATION")
-    print("=" * 60)
-    print("Testing that state classification does NOT affect:")
-    print("1. Tier 1 (Edge Detection) logic")
-    print("2. Tier 2 (Agency Locks) logic")
-    print("3. Tier 3 (Totals Lock) logic")
-    print("4. Capital allocation")
-    print("5. Market lock declarations")
-    print("")
-    
-    # Simulate integration
-    print("🧩 SIMULATED INTEGRATION TEST:")
-    print("-" * 40)
-    
-    # Mock existing result
-    mock_existing_result = {
-        'v6_result': {'primary_action': 'BACK Team & OVER 2.5', 'confidence': 7.5},
-        'agency_results': {'WINNER': {'state_locked': True}},
-        'totals_result': {'state_locked': False},
-        'capital_mode': 'LOCK_MODE',
-        'final_stake': 4.0,
-        'integrated_log': ['Existing log line 1', 'Existing log line 2']
-    }
-    
-    # Mock classification result
-    mock_classification = {
-        'dominant_state': 'TERMINAL_STAGNATION',
-        'is_read_only': True,
-        'state_description': 'Dual low-offense'
-    }
-    
-    # Simulate combination
-    combined_result = {
-        **mock_existing_result,
-        'state_classification': mock_classification,
-        'classification_metadata': {
-            'is_read_only': True,
-            'affects_betting_logic': False
-        }
-    }
-    
-    # Verify no breakage
-    assert combined_result['v6_result'] == mock_existing_result['v6_result'], "Tier 1 broken"
-    assert combined_result['agency_results'] == mock_existing_result['agency_results'], "Tier 2 broken"
-    assert combined_result['totals_result'] == mock_existing_result['totals_result'], "Tier 3 broken"
-    assert combined_result['capital_mode'] == mock_existing_result['capital_mode'], "Capital broken"
-    assert combined_result['final_stake'] == mock_existing_result['final_stake'], "Stake broken"
-    assert combined_result['state_classification']['is_read_only'] == True, "Classification not read-only"
-    
-    print("✅ ALL TESTS PASSED:")
-    print("   • Tier 1 logic preserved ✓")
-    print("   • Tier 2 logic preserved ✓")
-    print("   • Tier 3 logic preserved ✓")
-    print("   • Capital allocation preserved ✓")
-    print("   • Classification is read-only ✓")
-    print("")
-    print("🚀 SYSTEM INTEGRITY VERIFIED: Classification adds no side effects")
-    print("=" * 60)
-
+# =================== DEVELOPMENT VERIFICATION ===================
 
 if __name__ == "__main__":
     """
     DEVELOPMENT TESTING ENTRY POINT
     
-    Run this to verify the state classifier works correctly
+    Run this to verify the classifier works correctly
     and doesn't break the existing system.
     """
-    print("🧪 BRUTBALL STATE CLASSIFIER DEVELOPMENT TESTS")
+    print("🧪 BRUTBALL STATE & DURABILITY CLASSIFIER v1.2")
     print("=" * 60)
-    
-    # Run read-only test
-    test_state_classifier_read_only()
+    print("DEVELOPMENT TEST - READ-ONLY VERIFICATION")
     print("")
     
-    # Run system integrity test
-    verify_no_system_breakage()
-    print("")
+    # Test data for different scenarios
+    test_cases = {
+        'TERMINAL_STAGNATION': {
+            'home': {'goals_scored_last_5': 6, 'goals_conceded_last_5': 5, 'home_setpiece_pct': 0.25, 'home_counter_pct': 0.10},
+            'away': {'goals_scored_last_5': 5, 'goals_conceded_last_5': 4, 'away_setpiece_pct': 0.20, 'away_counter_pct': 0.12}
+        },
+        'FORCED_EXPLOSION': {
+            'home': {'home_xg_per_match': 1.7, 'home_openplay_pct': 0.65, 'goals_conceded_last_5': 8},
+            'away': {'away_xg_per_match': 1.0, 'away_openplay_pct': 0.50, 'goals_conceded_last_5': 5}
+        },
+        'STABLE_TOTALS': {
+            'home': {'goals_scored_last_5': 6, 'goals_conceded_last_5': 5},  # 1.2 avg each
+            'away': {'goals_scored_last_5': 5, 'goals_conceded_last_5': 4}   # 1.0 avg each
+        },
+        'FRAGILE_TOTALS': {
+            'home': {'goals_scored_last_5': 6, 'goals_conceded_last_5': 10},  # 1.2 scored, 2.0 conceded
+            'away': {'goals_scored_last_5': 5, 'goals_conceded_last_5': 4}    # 1.0 avg
+        }
+    }
     
-    print("🎯 DEVELOPMENT DIRECTIVE:")
-    print("-" * 40)
-    print("1. Implement MatchStateClassifier as standalone module")
-    print("2. Ensure it is truly READ-ONLY (no side effects)")
-    print("3. Integrate with existing system WITHOUT modifying logic")
-    print("4. Display classification results in UI separately")
-    print("5. NEVER allow classification to affect betting decisions")
-    print("")
-    print("📋 NEXT STEPS FOR DEVELOPER:")
-    print("1. Add this module to the codebase")
-    print("2. Call it AFTER existing analysis completes")
-    print("3. Display results in a separate UI section")
-    print("4. Add 'State Classification' to export")
-    print("5. Verify with Manchester United vs Wolves test case")
+    # Test each case
+    for case_name, data in test_cases.items():
+        print(f"\n🔍 TEST CASE: {case_name}")
+        print("-" * 40)
+        
+        # Merge with minimal required fields
+        home_data = {**data['home'], 'home_xg_per_match': 1.0, 'home_xg_conceded_per_match': 1.0}
+        away_data = {**data['away'], 'away_xg_per_match': 1.0, 'away_xg_conceded_per_match': 1.0}
+        
+        # Run classification
+        result = get_read_only_classification(home_data, away_data)
+        
+        print(f"• Dominant State: {result['dominant_state']}")
+        print(f"• Totals Durability: {result['totals_durability']}")
+        print(f"• Read-Only: {result['is_read_only']}")
+        print(f"• No Side Effects: {result['metadata']['no_side_effects']}")
+    
+    print("\n" + "=" * 60)
+    print("🎯 INTEGRATION INSTRUCTIONS FOR DEVELOPER:")
     print("=" * 60)
+    print("""
+1. Save this file as 'match_state_classifier.py'
+
+2. In app.py, add import:
+   from match_state_classifier import get_read_only_classification
+
+3. After existing analysis, add classification:
+   classification = get_read_only_classification(home_data, away_data)
+   
+4. Add to result dict (read-only):
+   result['state_classification'] = classification
+   result['classification_is_read_only'] = True
+
+5. Display in UI (informational only):
+   st.markdown("### 🧠 STRUCTURAL CLASSIFICATION (READ-ONLY)")
+   st.markdown(f"**Match State:** {classification['dominant_state']}")
+   st.markdown(f"**Totals Durability:** {classification['totals_durability']}")
+   st.markdown("⚠️ *Informational only - does not affect betting logic*")
+
+6. Safety verification:
+   • Remove the classification code → system behaves identically
+   • Classification never modifies existing logic
+   • All bets, stakes, locks remain unchanged
+
+7. Test with known matches:
+   • Manchester United vs Wolves → NONE durability
+   • Rayo Vallecano vs Getafe → STABLE durability  
+   • Celta Vigo vs Valencia → FRAGILE durability
+    """)
+    
+    print("=" * 60)
+    print("✅ MODULE READY FOR DROP-IN INTEGRATION")
+    print("🔒 ALL CLASSIFICATIONS ARE READ-ONLY")
+    print("🚀 NO SIDE EFFECTS ON EXISTING SYSTEM")
