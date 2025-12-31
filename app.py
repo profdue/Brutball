@@ -5,6 +5,16 @@ from typing import Dict, Tuple, List, Optional, Any
 import warnings
 warnings.filterwarnings('ignore')
 
+# =================== STATE CLASSIFIER IMPORT (SAFE, READ-ONLY) ===================
+# CRITICAL: This module adds informational classification ONLY
+# Does NOT affect betting logic, stakes, or existing tiers
+try:
+    from match_state_classifier import MatchStateClassifier
+    STATE_CLASSIFIER_AVAILABLE = True
+except ImportError:
+    STATE_CLASSIFIER_AVAILABLE = False
+    # No warnings - classifier is optional enhancement
+
 # =================== SYSTEM CONSTANTS (IMMUTABLE) ===================
 # v6.0 Edge Detection Engine Constants
 CONTROL_CRITERIA_REQUIRED = 2  # Minimum for edge detection
@@ -243,6 +253,58 @@ st.markdown("""
         margin: 0.75rem 0;
         font-size: 0.9rem;
     }
+    .state-classification-display {
+        background: linear-gradient(135deg, #FFEDD5 0%, #FED7AA 100%);
+        padding: 2rem;
+        border-radius: 12px;
+        border: 4px solid #F97316;
+        text-align: center;
+        margin: 1.5rem 0;
+        box-shadow: 0 6px 16px rgba(249, 115, 22, 0.15);
+    }
+    .state-badge {
+        display: inline-block;
+        padding: 0.5rem 1.25rem;
+        border-radius: 25px;
+        font-size: 1rem;
+        font-weight: 700;
+        margin: 0.5rem;
+    }
+    .badge-stagnation {
+        background: #0EA5E9;
+        color: white;
+        border: 2px solid #0284C7;
+    }
+    .badge-suppression {
+        background: #16A34A;
+        color: white;
+        border: 2px solid #059669;
+    }
+    .badge-delayed {
+        background: #F59E0B;
+        color: white;
+        border: 2px solid #D97706;
+    }
+    .badge-explosion {
+        background: #EF4444;
+        color: white;
+        border: 2px solid #DC2626;
+    }
+    .badge-neutral {
+        background: #6B7280;
+        color: white;
+        border: 2px solid #4B5563;
+    }
+    .read-only-badge {
+        background: #F3F4F6;
+        color: #6B7280;
+        border: 1px solid #D1D5DB;
+        font-size: 0.8rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        display: inline-block;
+        margin-left: 0.5rem;
+    }
     .market-badge {
         display: inline-block;
         padding: 0.25rem 0.75rem;
@@ -430,6 +492,15 @@ st.markdown("""
         border: 3px solid #F97316;
         margin: 1rem 0;
         font-weight: 700;
+    }
+    .read-only-note {
+        background: #F0F9FF;
+        padding: 0.75rem;
+        border-radius: 6px;
+        border-left: 4px solid #0EA5E9;
+        margin: 0.5rem 0;
+        font-size: 0.85rem;
+        color: #374151;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -1773,7 +1844,7 @@ def calculate_derived_metrics(df: pd.DataFrame) -> pd.DataFrame:
 
 # =================== MAIN APPLICATION ===================
 def main():
-    """Main application function with State Preservation Law."""
+    """Main application function with State Preservation Law and optional State Classification."""
     
     # Header
     st.markdown('<div class="system-header">⚖️🔒📊 BRUTBALL INTEGRATED ARCHITECTURE v6.2</div>', unsafe_allow_html=True)
@@ -1783,7 +1854,7 @@ def main():
         <p><strong>THREE-TIER SYSTEM WITH STATE PRESERVATION LAW</strong></p>
         <p>Tier 1: v6.0 Edge Detection • Tier 2: Agency-State Lock • Tier 3: Totals Lock</p>
         <p><strong>CRITICAL UPDATE:</strong> Gate 4A enforces that defensive markets require RECENT defensive proof</p>
-        <p><strong>PROOF:</strong> Manchester United vs Wolves (can create, cannot preserve)</p>
+        <p><strong>OPTIONAL ENHANCEMENT:</strong> State Classification (Read-Only) available for system protection</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -1805,6 +1876,16 @@ def main():
         </div>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Show State Classifier availability
+    if STATE_CLASSIFIER_AVAILABLE:
+        st.markdown("""
+        <div class="read-only-note">
+            <strong>🔍 STATE CLASSIFIER AVAILABLE (READ-ONLY)</strong>
+            <p>Match state classification will be displayed after analysis (informational only)</p>
+            <p>Classification does NOT affect betting logic, stakes, or existing tiers</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     # State Principles
     st.markdown("""
@@ -1904,33 +1985,6 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    # System constants display
-    with st.expander("🔧 SYSTEM CONFIGURATION v6.2", expanded=False):
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.markdown("**AGENCY-STATE THRESHOLDS**")
-            st.metric("Winner", "Opponent xG < 1.1", "≥2/4 failures")
-            st.metric("Clean Sheet", "Opponent xG < 0.8", "Recent concede ≤ 0.8")
-        with col2:
-            st.markdown("**AGENCY-STATE THRESHOLDS**")
-            st.metric("Team No Score", "Opponent xG < 0.6", "Recent concede ≤ 0.6")
-            st.metric("Opponent Under 1.5", "Opponent xG < 1.0", "Recent concede ≤ 1.0")
-        with col3:
-            st.markdown("**TOTALS LOCK & CAPITAL**")
-            st.metric("Totals Lock", "≤ 1.2 avg goals", "Both teams")
-            st.metric("Edge Mode", "1.0x multiplier", "v6.0 only")
-            st.metric("Lock Mode", "2.0x multiplier", "Any lock")
-        
-        st.markdown("""
-        <div class="law-display">
-            <strong>🎯 STATE PRESERVATION LAW SUMMARY</strong>
-            <p><strong>Critical Distinction:</strong> Winner uses dominance logic, defensive markets use preservation logic</p>
-            <p><strong>Gate 4A:</strong> HARD OVERRIDE for defensive markets (recent concede avg check)</p>
-            <p><strong>Manchester United Test:</strong> Must fail Clean Sheet/Team No Score locks</p>
-            <p><strong>Porto Test:</strong> Must pass if actually defends well recently</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
     # Initialize session state
     if 'selected_league' not in st.session_state:
         st.session_state.selected_league = 'Premier League'
@@ -1995,10 +2049,31 @@ def main():
         else:
             league_avg_xg = 1.3
         
-        # Execute integrated analysis
+        # Execute integrated analysis (EXISTING LOGIC - UNCHANGED)
         result = BrutballIntegratedArchitecture.execute_integrated_analysis(
             home_data, away_data, home_team, away_team, league_avg_xg
         )
+        
+        # =================== OPTIONAL: READ-ONLY STATE CLASSIFICATION ===================
+        # CRITICAL: This runs AFTER all betting logic is complete
+        # Does NOT affect existing results, stakes, or decisions
+        classification_result = None
+        if STATE_CLASSIFIER_AVAILABLE:
+            try:
+                classification_result = MatchStateClassifier.classify_match_state(home_data, away_data)
+                # Add as separate, read-only field
+                result['state_classification'] = classification_result
+                result['classification_is_read_only'] = True
+                result['classification_does_not_affect_betting'] = True
+            except Exception as e:
+                # Fail gracefully - classification is optional
+                classification_result = {
+                    'dominant_state': 'CLASSIFIER_ERROR',
+                    'error': str(e),
+                    'is_read_only': True,
+                    'does_not_affect_betting': True
+                }
+                result['state_classification'] = classification_result
         
         st.markdown("---")
         
@@ -2031,6 +2106,41 @@ def main():
             </div>
         </div>
         """, unsafe_allow_html=True)
+        
+        # =================== OPTIONAL: STATE CLASSIFICATION DISPLAY ===================
+        if classification_result and 'state_classification' in result:
+            st.markdown("#### 🔍 STRUCTURAL STATE CLASSIFICATION (READ-ONLY)")
+            
+            # Map state to badge class
+            state_badge_classes = {
+                'TERMINAL_STAGNATION': 'badge-stagnation',
+                'ASYMMETRIC_SUPPRESSION': 'badge-suppression',
+                'DELAYED_RELEASE': 'badge-delayed',
+                'FORCED_EXPLOSION': 'badge-explosion',
+                'NEUTRAL': 'badge-neutral',
+                'CLASSIFIER_ERROR': 'badge-neutral'
+            }
+            
+            dominant_state = classification_result['dominant_state']
+            badge_class = state_badge_classes.get(dominant_state, 'badge-neutral')
+            
+            st.markdown(f"""
+            <div class="state-classification-display">
+                <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin-bottom: 1rem;">
+                    <span class="state-badge {badge_class}">{dominant_state.replace('_', ' ')}</span>
+                    <span class="read-only-badge">READ-ONLY</span>
+                </div>
+                <div style="color: #374151; margin-bottom: 0.5rem;">
+                    {classification_result.get('state_description', 'No description available')}
+                </div>
+                <div style="color: #6B7280; font-size: 0.9rem; margin-bottom: 0.5rem;">
+                    {classification_result.get('market_guidance', 'No market guidance available')}
+                </div>
+                <div style="color: #DC2626; font-size: 0.85rem; margin-top: 1rem; padding: 0.75rem; background: #FEF2F2; border-radius: 6px;">
+                    <strong>⚠️ IMPORTANT:</strong> Classification is informational only. Does NOT affect betting logic, stakes, or existing tiers.
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
         
         # v6.0 Edge Detection Display
         st.markdown("#### 🔍 TIER 1: v6.0 EDGE DETECTION")
@@ -2167,261 +2277,11 @@ def main():
             </div>
             """, unsafe_allow_html=True)
         
-        # Market Details with State Preservation status
-        st.markdown("##### 📊 MARKET STATUS WITH STATE PRESERVATION")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("**Agency Markets**")
-            for market in ['WINNER', 'CLEAN_SHEET', 'TEAM_NO_SCORE', 'OPPONENT_UNDER_1_5']:
-                status = result['market_status'][market]
-                if status['locked']:
-                    if market == 'WINNER':
-                        st.markdown(f"""
-                        <div class="gate-passed">
-                            ✅ <strong>{market}</strong> - LOCKED
-                            <div style="font-size: 0.85rem; margin-top: 0.25rem;">
-                                Controller: {status['controller']}
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        # Check if it passed State Preservation
-                        if not status['failed_on_preservation']:
-                            st.markdown(f"""
-                            <div class="gate-passed">
-                                ✅ <strong>{market}</strong> - LOCKED (State Preservation ✓)
-                                <div style="font-size: 0.85rem; margin-top: 0.25rem;">
-                                    Passed Gate 4A (recent defensive proof)
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        else:
-                            st.markdown(f"""
-                            <div class="gate-failed">
-                                ❌ <strong>{market}</strong> - FAILED State Preservation
-                                <div style="font-size: 0.85rem; margin-top: 0.25rem;">
-                                    {status['reason']}
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                else:
-                    if status['failed_on_preservation']:
-                        st.markdown(f"""
-                        <div class="gate-failed">
-                            ❌ <strong>{market}</strong> - FAILED State Preservation
-                            <div style="font-size: 0.85rem; margin-top: 0.25rem;">
-                                {status['reason']}
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"""
-                        <div class="gate-failed">
-                            ❌ <strong>{market}</strong> - NOT LOCKED
-                            <div style="font-size: 0.85rem; margin-top: 0.25rem;">
-                                {status['reason']}
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown("**Totals Market**")
-            status = result['market_status']['TOTALS_UNDER_2_5']
-            if status['locked']:
-                st.markdown(f"""
-                <div class="trend-check">
-                    ✅ <strong>TOTALS ≤2.5</strong> - LOCKED
-                    <div style="font-size: 0.85rem; margin-top: 0.25rem;">
-                        Dual low-offense trend confirmed
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown(f"""
-                <div class="gate-failed">
-                    ❌ <strong>TOTALS ≤2.5</strong> - NOT LOCKED
-                    <div style="font-size: 0.85rem; margin-top: 0.25rem;">
-                        {status['reason']}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Non-state markets
-            st.markdown("**Non-State Markets**")
-            st.markdown("""
-            <div class="noise-list">
-                ❌ Totals Over 2.5 - Mutual agency needed<br>
-                ❌ Both Teams to Score - Mutual scoring<br>
-                ❌ Correct Score - Joint chaos<br>
-                ❌ Draw - Mutual inability
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # Key metrics
-        st.markdown("#### 📊 KEY METRICS v6.2")
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.markdown('<div style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #E5E7EB;">', unsafe_allow_html=True)
-            st.markdown("**v6.0 Edge Detection**")
-            
-            v6_metrics = v6_result['key_metrics']
-            st.markdown(f"""
-            <div class="metric-row metric-row-state">
-                <span>Primary Action:</span>
-                <span><strong>{v6_result['primary_action']}</strong></span>
-            </div>
-            <div class="metric-row">
-                <span>Confidence:</span>
-                <span><strong>{v6_result['confidence']:.1f}/10</strong></span>
-            </div>
-            <div class="metric-row">
-                <span>Base Stake:</span>
-                <span><strong>{v6_result['stake_pct']:.1f}%</strong></span>
-            </div>
-            <div class="metric-row">
-                <span>Controller:</span>
-                <span><strong>{v6_metrics['controller'] if v6_metrics['controller'] else 'None'}</strong></span>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown('<div style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #E5E7EB;">', unsafe_allow_html=True)
-            st.markdown("**Agency-State Analysis v6.2**")
-            
-            st.markdown(f"""
-            <div class="metric-row metric-row-agency">
-                <span>Markets Evaluated:</span>
-                <span><strong>4</strong></span>
-            </div>
-            <div class="metric-row">
-                <span>Markets Locked:</span>
-                <span><strong>{len(result['agency_locked_markets'])}</strong></span>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            if result['has_agency_lock']:
-                strongest = result['strongest_market']
-                st.markdown(f"""
-                <div class="metric-row">
-                    <span>Strongest Market:</span>
-                    <span><strong>{strongest['market']}</strong></span>
-                </div>
-                <div class="metric-row">
-                    <span>Strongest Δ:</span>
-                    <span><strong>{strongest['delta']:+.2f}</strong></span>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Show State Preservation metrics for defensive locks
-                defensive_locks = [m for m in result['agency_locked_markets'] if m['market'] != 'WINNER']
-                if defensive_locks:
-                    st.markdown(f"""
-                    <div class="metric-row metric-row-totals">
-                        <span>Defensive Locks:</span>
-                        <span><strong>{len(defensive_locks)}</strong></span>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        with col3:
-            st.markdown('<div style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #E5E7EB;">', unsafe_allow_html=True)
-            st.markdown("**State Preservation Status**")
-            
-            # Check Manchester United test case
-            if home_team == "Manchester United" and away_team == "Wolves":
-                # Get United's recent concede avg
-                home_recent_concede = home_data.get('home_goals_conceded_last_5', 0) / 5
-                
-                st.markdown(f"""
-                <div class="metric-row">
-                    <span>Test Case:</span>
-                    <span><strong>Manchester United</strong></span>
-                </div>
-                <div class="metric-row">
-                    <span>Recent Concede Avg:</span>
-                    <span><strong>{home_recent_concede:.2f}</strong></span>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                if home_recent_concede > 0.8:
-                    st.markdown(f"""
-                    <div class="metric-row metric-row-totals" style="background: #FEF2F2;">
-                        <span>Clean Sheet Lock:</span>
-                        <span><strong>INVALID</strong></span>
-                    </div>
-                    <div class="metric-row metric-row-totals" style="background: #FEF2F2;">
-                        <span>Team No Score Lock:</span>
-                        <span><strong>INVALID</strong></span>
-                    </div>
-                    <div class="metric-row">
-                        <span>State Preservation:</span>
-                        <span><strong>FAILED ✓</strong></span>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div class="metric-row">
-                        <span>State Preservation:</span>
-                        <span><strong>PASSED</strong></span>
-                    </div>
-                    """, unsafe_allow_html=True)
-            else:
-                if result['has_totals_lock']:
-                    trend_data = result['totals_result']['trend_data']
-                    
-                    st.markdown(f"""
-                    <div class="metric-row metric-row-totals">
-                        <span>Status:</span>
-                        <span><strong>TOTALS LOCKED</strong></span>
-                    </div>
-                    <div class="metric-row">
-                        <span>{home_team} (last 5):</span>
-                        <span><strong>{trend_data['home_last5_avg']:.2f}</strong></span>
-                    </div>
-                    <div class="metric-row">
-                        <span>{away_team} (last 5):</span>
-                        <span><strong>{trend_data['away_last5_avg']:.2f}</strong></span>
-                    </div>
-                    <div class="metric-row">
-                        <span>Condition:</span>
-                        <span><strong>Both ≤ {TOTALS_LOCK_THRESHOLD}</strong></span>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div class="metric-row">
-                        <span>Status:</span>
-                        <span><strong>NO TOTALS LOCK</strong></span>
-                    </div>
-                    <div class="metric-row">
-                        <span>Condition:</span>
-                        <span><strong>Requires dual low-offense</strong></span>
-                    </div>
-                    <div class="metric-row">
-                        <span>Threshold:</span>
-                        <span><strong>Both ≤ {TOTALS_LOCK_THRESHOLD}</strong></span>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        # System log
-        with st.expander("📋 VIEW INTEGRATED SYSTEM LOG v6.2", expanded=True):
-            st.markdown('<div class="system-log">', unsafe_allow_html=True)
-            for line in result['integrated_log']:
-                st.text(line)
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Export
+        # Export functionality
         st.markdown("---")
-        st.markdown("#### 📤 Export Integrated Analysis v6.2")
+        st.markdown("#### 📤 Export Analysis")
         
+        # Prepare export text
         export_text = f"""BRUTBALL INTEGRATED ARCHITECTURE v6.2 - ANALYSIS REPORT
 ===========================================
 League: {selected_league}
@@ -2494,6 +2354,28 @@ STATE PRESERVATION LAW DETAILS:
 
 INTEGRATED SYSTEM LOG:
 {chr(10).join(result['integrated_log'])}
+"""
+        
+        # Add classification if available
+        if classification_result and 'state_classification' in result:
+            export_text += f"""
+
+===========================================
+STATE CLASSIFICATION (READ-ONLY - INFORMATIONAL)
+===========================================
+• Dominant State: {classification_result['dominant_state']}
+• Description: {classification_result.get('state_description', 'N/A')}
+• Market Guidance: {classification_result.get('market_guidance', 'N/A')}
+• All Detected States: {', '.join(classification_result.get('all_states', []))}
+
+IMPORTANT: Classification is read-only and does NOT affect:
+• Betting logic or decisions
+• Capital allocation (1.0x vs 2.0x)
+• Market lock declarations
+• Existing tier logic (Tiers 1-3)
+"""
+        
+        export_text += f"""
 
 ===========================================
 BRUTBALL INTEGRATED ARCHITECTURE v6.2
@@ -2501,10 +2383,10 @@ Three-Tier System with State Preservation Law
 Tier 1: v6.0 Edge Detection • Tier 2: Agency-State Lock • Tier 3: Totals Lock
 Capital: 2.0x for any lock (agency or totals), 1.0x otherwise
 State Preservation: Gate 4A OVERRIDES Gates 1-3 for defensive markets
-        """
+"""
         
         st.download_button(
-            label="📥 Download Integrated Analysis v6.2",
+            label="📥 Download Analysis Report",
             data=export_text,
             file_name=f"brutball_v6.2_{selected_league.replace(' ', '_')}_{home_team}_vs_{away_team}.txt",
             mime="text/plain",
@@ -2519,7 +2401,7 @@ State Preservation: Gate 4A OVERRIDES Gates 1-3 for defensive markets
         <p>Three-Tier System with State Preservation Law</p>
         <p>Tier 1: v6.0 Edge Detection • Tier 2: Agency-State Lock • Tier 3: Totals Lock</p>
         <p><strong>STATE PRESERVATION LAW:</strong> Gate 4A OVERRIDES Gates 1-3 for defensive markets</p>
-        <p><strong>PROOF:</strong> Manchester United vs Wolves (can create, cannot preserve)</p>
+        <p><strong>OPTIONAL ENHANCEMENT:</strong> State Classification available (read-only)</p>
     </div>
     """, unsafe_allow_html=True)
 
