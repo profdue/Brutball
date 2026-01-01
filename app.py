@@ -1716,72 +1716,70 @@ class BrutballIntegratedArchitecture:
     opponent meets defensive proof criteria (≤ 1.0 avg goals conceded last 5)
     """
     
-    @staticmethod
-    def check_edge_derived_opponent_under_15(home_data: Dict, away_data: Dict,
-                                           home_name: str, away_name: str) -> List[Dict]:
-        """
-        Check for Edge-Derived OPPONENT_UNDER_1_5 locks.
-        These locks are extracted from Tier 1 edge matches when opponent meets
-        defensive proof criteria (≤ 1.0 avg goals conceded last 5).
-        """
-        edge_locks = []
-        
-        # Extract defensive data (last 5 matches)
-        home_concedes_last5 = home_data.get('goals_conceded_last_5', 0)
-        away_concedes_last5 = away_data.get('goals_conceded_last_5', 0)
-        
-        # Calculate averages
-        home_avg_concedes = home_concedes_last5 / 5 if home_concedes_last5 > 0 else 0
-        away_avg_concedes = away_concedes_last5 / 5 if away_concedes_last5 > 0 else 0
-        
-        # Defensive proof check function
-        def defensive_proof(avg_conceded: float) -> bool:
-            """Check if opponent meets defensive proof for Under 1.5"""
-            return avg_conceded <= 1.0
-        
-        # BACKING HOME: check if AWAY team meets defensive proof
-        if defensive_proof(away_avg_concedes):
-            edge_locks.append({
-                'market': 'OPPONENT_UNDER_1_5',
-                'type': 'edge_derived',
-                'source': 'TIER_1_EDGE',
-                'backing': home_name,
-                'opponent': away_name,
-                'perspective': 'BACKING_HOME',
-                'reason': f"Edge-Derived Lock: {away_name} concedes {away_avg_concedes:.2f} avg goals (last 5) ≤ 1.0",
-                'details': f"{away_name} defensive proof: {away_avg_concedes:.2f} avg conceded ≤ 1.0",
-                'metrics': {
-                    'opponent_avg_conceded': away_avg_concedes,
-                    'threshold': 1.0,
-                    'data_source': 'last_5_matches'
-                },
-                'capital_authorized': True,
-                'state_locked': True,
-                'declaration': f"🔓 EDGE-DERIVED: BACK {home_name} → {away_name} UNDER 1.5\n{away_name} concedes {away_avg_concedes:.2f} avg (last 5) ≤ 1.0"
-            })
-        
-        # BACKING AWAY: check if HOME team meets defensive proof
-        if defensive_proof(home_avg_concedes):
-            edge_locks.append({
-                'market': 'OPPONENT_UNDER_1_5',
-                'type': 'edge_derived',
-                'source': 'TIER_1_EDGE',
-                'backing': away_name,
-                'opponent': home_name,
-                'perspective': 'BACKING_AWAY',
-                'reason': f"Edge-Derived Lock: {home_name} concedes {home_avg_concedes:.2f} avg goals (last 5) ≤ 1.0",
-                'details': f"{home_name} defensive proof: {home_avg_concedes:.2f} avg conceded ≤ 1.0",
-                'metrics': {
-                    'opponent_avg_conceded': home_avg_concedes,
-                    'threshold': 1.0,
-                    'data_source': 'last_5_matches'
-                },
-                'capital_authorized': True,
-                'state_locked': True,
-                'declaration': f"🔓 EDGE-DERIVED: BACK {away_name} → {home_name} UNDER 1.5\n{home_name} concedes {home_avg_concedes:.2f} avg (last 5) ≤ 1.0"
-            })
-        
-        return edge_locks
+    @staticmethod@staticmethod
+def check_edge_derived_under_15(home_data: Dict, away_data: Dict,
+                              home_name: str, away_name: str) -> List[Dict]:
+    """
+    EDGE-DERIVED UNDER 1.5 LOCKS (Tier 1+)
+    
+    Binary Gate: Extract actionable UNDER 1.5 locks from Tier 1 Edge Detection matches.
+    
+    Condition: Team concedes ≤ 1.0 avg goals (last 5 matches)
+    
+    NO "opponent/backing" confusion - locks are applied directly to the team that qualifies.
+    NO Tier 2 gates required - only defensive proof check.
+    
+    Returns list of actionable UNDER 1.5 locks.
+    """
+    edge_locks = []
+    
+    # Extract defensive data (LAST 5 MATCHES ONLY)
+    home_concedes_last5 = home_data.get('goals_conceded_last_5', 0)
+    away_concedes_last5 = away_data.get('goals_conceded_last_5', 0)
+    
+    # Calculate averages (last 5 matches)
+    home_avg_concedes = home_concedes_last5 / 5 if home_concedes_last5 > 0 else 0
+    away_avg_concedes = away_concedes_last5 / 5 if away_concedes_last5 > 0 else 0
+    
+    # =================== BINARY GATE: DEFENSIVE PROOF CHECK ===================
+    # CRITICAL: Only last 5 matches data, no season averages
+    DEFENSIVE_PROOF_THRESHOLD = 1.0
+    
+    # Check Home team for UNDER 1.5 lock
+    if home_avg_concedes <= DEFENSIVE_PROOF_THRESHOLD:
+        edge_locks.append({
+            'team': home_name,
+            'market': 'UNDER_1_5',  # CLEAR: Team's own UNDER 1.5
+            'lock_type': 'UNDER_1_5',
+            'type': 'edge_derived',
+            'source': 'TIER_1_EDGE_DERIVED',
+            'defense_avg': home_avg_concedes,
+            'capital_multiplier': 2.0,
+            'reason': f"Edge-Derived Lock: {home_name} concedes {home_avg_concedes:.2f} avg goals (last 5) ≤ 1.0",
+            'details': f"{home_name} defensive proof: {home_avg_concedes:.2f} avg conceded ≤ 1.0",
+            'capital_authorized': True,
+            'state_locked': True,
+            'declaration': f"🔓 EDGE-DERIVED: {home_name} UNDER 1.5\n{home_name} concedes {home_avg_concedes:.2f} avg (last 5) ≤ 1.0"
+        })
+    
+    # Check Away team for UNDER 1.5 lock
+    if away_avg_concedes <= DEFENSIVE_PROOF_THRESHOLD:
+        edge_locks.append({
+            'team': away_name,
+            'market': 'UNDER_1_5',  # CLEAR: Team's own UNDER 1.5
+            'lock_type': 'UNDER_1_5',
+            'type': 'edge_derived',
+            'source': 'TIER_1_EDGE_DERIVED',
+            'defense_avg': away_avg_concedes,
+            'capital_multiplier': 2.0,
+            'reason': f"Edge-Derived Lock: {away_name} concedes {away_avg_concedes:.2f} avg goals (last 5) ≤ 1.0",
+            'details': f"{away_name} defensive proof: {away_avg_concedes:.2f} avg conceded ≤ 1.0",
+            'capital_authorized': True,
+            'state_locked': True,
+            'declaration': f"🔓 EDGE-DERIVED: {away_name} UNDER 1.5\n{away_name} concedes {away_avg_concedes:.2f} avg (last 5) ≤ 1.0"
+        })
+    
+    return edge_locks
     
     @staticmethod
     def execute_integrated_analysis(home_data: Dict, away_data: Dict,
@@ -1824,7 +1822,7 @@ class BrutballIntegratedArchitecture:
         integrated_log.append("CONDITION: Opponent concedes ≤ 1.0 avg goals (last 5 matches)")
         integrated_log.append("PERSPECTIVES: Backing HOME (check AWAY) • Backing AWAY (check HOME)")
         
-        edge_derived_locks = BrutballIntegratedArchitecture.check_edge_derived_opponent_under_15(
+        edge_derived_locks = BrutballIntegratedArchitecture.check_edge_derived_under_15(
             home_data, away_data, home_name, away_name
         )
         
@@ -2692,61 +2690,85 @@ def main():
                 
                 # Important note
                 st.warning("**⚠️ IMPORTANT:** This classification is 100% read-only and informational only. Does NOT affect betting logic, stakes, or existing tiers.", icon="⚠️")
-        
         # =================== EDGE-DERIVED LOCKS DISPLAY ===================
-        if result['has_edge_derived_locks']:
-            st.markdown("#### 🔓 TIER 1+: EDGE-DERIVED OPPONENT_UNDER_1.5 LOCKS")
-            
-            edge_html = f"""
-            <div class="edge-derived-display">
-                <h3 style="color: #1E40AF; margin: 0 0 1rem 0;">EDGE-DERIVED DEFENSIVE CONTROL DETECTED</h3>
-                <div style="font-size: 1.2rem; color: #3B82F6; margin-bottom: 0.5rem;">
-                    {len(result['edge_derived_locks'])} OPPONENT_UNDER_1.5 lock(s) from Tier 1 edge analysis
-                </div>
-                <div style="color: #374151; margin-bottom: 1rem;">
-                    Extracted from defensive proof (opponent concedes ≤ 1.0 avg goals last 5)
-                </div>
-                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;">
-                    <span class="market-badge badge-edge-locked">Edge-Derived</span>
-                    <span class="market-badge badge-edge-locked">Opponent Under 1.5</span>
-                    <span class="market-badge badge-edge-locked">Tier 1 Source</span>
+if result['has_edge_derived_locks']:
+    st.markdown("#### 🔓 TIER 1+: EDGE-DERIVED UNDER 1.5 LOCKS")
+    
+    edge_html = f"""
+    <div class="edge-derived-display">
+        <h3 style="color: #1E40AF; margin: 0 0 1rem 0;">EDGE-DERIVED DEFENSIVE CONTROL DETECTED</h3>
+        <div style="font-size: 1.2rem; color: #3B82F6; margin-bottom: 0.5rem;">
+            {len(result['edge_derived_locks'])} UNDER 1.5 lock(s) from Tier 1+ Edge-Derived analysis
+        </div>
+        <div style="color: #374151; margin-bottom: 1rem;">
+            Binary gate: Team concedes ≤ 1.0 avg goals (last 5 matches)
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;">
+            <span class="market-badge badge-edge-locked">Edge-Derived</span>
+            <span class="market-badge badge-edge-locked">UNDER 1.5</span>
+            <span class="market-badge badge-edge-locked">Tier 1+ Source</span>
+        </div>
+    </div>
+    """
+    st.markdown(edge_html, unsafe_allow_html=True)
+    
+    # Show individual edge-derived locks
+    for lock in result['edge_derived_locks']:
+        # Safely handle the declaration split
+        if safe_split_declaration:
+            first_line, second_line = safe_split_declaration(
+                lock['declaration'],
+                lock.get('details', 'Defensive proof confirmed')
+            )
+        else:
+            # Fallback if function not available
+            declaration = lock.get('declaration', '')
+            if declaration and '\n' in declaration:
+                parts = declaration.split('\n', 1)
+                first_line = parts[0]
+                second_line = parts[1] if len(parts) > 1 else lock.get('details', 'Defensive proof confirmed')
+            else:
+                first_line = declaration or f"{lock['team']} UNDER 1.5"
+                second_line = lock.get('details', 'Defensive proof confirmed')
+        
+        lock_html = f"""
+        <div class="market-edge-derived">
+            <div style="display: flex; align-items: center; margin-bottom: 0.5rem;">
+                <div style="font-size: 1.5rem; margin-right: 0.5rem;">🔓</div>
+                <div>
+                    <div style="font-size: 1.1rem; font-weight: 700; color: #1E40AF;">
+                        {first_line}
+                    </div>
+                    <div style="font-size: 0.9rem; color: #6B7280;">
+                        {second_line}
+                    </div>
                 </div>
             </div>
-            """
-            st.markdown(edge_html, unsafe_allow_html=True)
-            
-            # Show individual edge-derived locks
-            for lock in result['edge_derived_locks']:
-                # Safely handle the declaration split
-                first_line, second_line = safe_split_declaration(
-                    lock['declaration'], 
-                    lock.get('details', 'Defensive proof confirmed')
-                )
-                
-                lock_html = f"""
-                <div class="market-edge-derived">
-                    <div style="display: flex; align-items: center; margin-bottom: 0.5rem;">
-                        <div style="font-size: 1.5rem; margin-right: 0.5rem;">🔓</div>
-                        <div>
-                            <div style="font-size: 1.1rem; font-weight: 700; color: #1E40AF;">
-                                {first_line}
-                            </div>
-                            <div style="font-size: 0.9rem; color: #6B7280;">
-                                {second_line}
-                            </div>
-                        </div>
+            <div style="background: #EFF6FF; padding: 0.75rem; border-radius: 6px; margin-top: 0.5rem;">
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <div>
+                        <div style="font-size: 0.85rem; color: #6B7280;">Team</div>
+                        <div style="font-weight: 600; color: #1E40AF;">{lock['team']}</div>
                     </div>
-                    <div style="background: #EFF6FF; padding: 0.75rem; border-radius: 6px; margin-top: 0.5rem;">
-                        <div style="font-size: 0.9rem; color: #374151;">
-                            <strong>Defensive Proof:</strong> {lock['details']}
-                        </div>
-                        <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">
-                            <strong>Source:</strong> Tier 1 Edge Analysis • <strong>Capital:</strong> Authorized (2.0x multiplier)
-                        </div>
+                    <div>
+                        <div style="font-size: 0.85rem; color: #6B7280;">Avg Conceded</div>
+                        <div style="font-weight: 600; color: #3B82F6;">{lock['defense_avg']:.2f}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.85rem; color: #6B7280;">Multiplier</div>
+                        <div style="font-weight: 600; color: #059669;">{lock['capital_multiplier']:.1f}x</div>
                     </div>
                 </div>
-                """
-                st.markdown(lock_html, unsafe_allow_html=True)     
+                <div style="font-size: 0.9rem; color: #374151;">
+                    <strong>Lock Type:</strong> {lock['lock_type']}
+                </div>
+                <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">
+                    <strong>Source:</strong> Tier 1+ Edge-Derived • <strong>Data:</strong> Last 5 matches only
+                </div>
+            </div>
+        </div>
+        """
+        st.markdown(lock_html, unsafe_allow_html=True)     
         
         # Check for State Preservation failures and show "Stay-Out" badge
         preservation_failures = []
