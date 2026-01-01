@@ -2677,34 +2677,34 @@ def main():
             
             # Show individual edge-derived locks
             for lock in result['edge_derived_locks']:# Get the declaration parts safely
-declaration_parts = lock['declaration'].split('\n')
-first_line = declaration_parts[0] if len(declaration_parts) > 0 else lock['declaration']
-second_line = declaration_parts[1] if len(declaration_parts) > 1 else lock['details']
-
-lock_html = f"""
-<div class="market-edge-derived">
-    <div style="display: flex; align-items: center; margin-bottom: 0.5rem;">
-        <div style="font-size: 1.5rem; margin-right: 0.5rem;">🔓</div>
-        <div>
-            <div style="font-size: 1.1rem; font-weight: 700; color: #1E40AF;">
-                {first_line}
-            </div>
-            <div style="font-size: 0.9rem; color: #6B7280;">
-                {second_line}
-            </div>
-        </div>
-    </div>
-    <div style="background: #EFF6FF; padding: 0.75rem; border-radius: 6px; margin-top: 0.5rem;">
-        <div style="font-size: 0.9rem; color: #374151;">
-            <strong>Defensive Proof:</strong> {lock['details']}
-        </div>
-        <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">
-            <strong>Source:</strong> Tier 1 Edge Analysis • <strong>Capital:</strong> Authorized (2.0x multiplier)
-        </div>
-    </div>
-</div>
-"""
-                st.markdown(lock_html, unsafe_allow_html=True)
+                # Safely split the declaration
+                declaration_parts = lock['declaration'].split('\n')
+                first_line = declaration_parts[0] if declaration_parts else lock['declaration']
+                second_line = declaration_parts[1] if len(declaration_parts) > 1 else lock['details']
+                
+                lock_html = f"""
+                <div class="market-edge-derived">
+                    <div style="display: flex; align-items: center; margin-bottom: 0.5rem;">
+                        <div style="font-size: 1.5rem; margin-right: 0.5rem;">🔓</div>
+                        <div>
+                            <div style="font-size: 1.1rem; font-weight: 700; color: #1E40AF;">
+                                {first_line}
+                            </div>
+                            <div style="font-size: 0.9rem; color: #6B7280;">
+                                {second_line}
+                            </div>
+                        </div>
+                    </div>
+                    <div style="background: #EFF6FF; padding: 0.75rem; border-radius: 6px; margin-top: 0.5rem;">
+                        <div style="font-size: 0.9rem; color: #374151;">
+                            <strong>Defensive Proof:</strong> {lock['details']}
+                        </div>
+                        <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">
+                            <strong>Source:</strong> Tier 1 Edge Analysis • <strong>Capital:</strong> Authorized (2.0x multiplier)
+                        </div>
+                    </div>
+                </div>
+                """                st.markdown(lock_html, unsafe_allow_html=True)
         
         # Check for State Preservation failures and show "Stay-Out" badge
         preservation_failures = []
