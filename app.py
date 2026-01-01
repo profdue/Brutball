@@ -4,7 +4,21 @@ import numpy as np
 from typing import Dict, Tuple, List, Optional, Any
 import warnings
 warnings.filterwarnings('ignore')
-# Add this helper function near the top of your app.py (after the imports)
+
+# =================== STATE & DURABILITY CLASSIFIER IMPORT (SAFE, READ-ONLY) ===================
+# CRITICAL: This module adds informational classification ONLY
+# Does NOT affect betting logic, stakes, or existing tiers
+try:
+    from match_state_classifier import get_complete_classification, format_reliability_badge, format_durability_indicator
+    STATE_CLASSIFIER_AVAILABLE = True
+except ImportError:
+    STATE_CLASSIFIER_AVAILABLE = False
+    # No warnings - classifier is optional enhancement
+    get_complete_classification = None
+    format_reliability_badge = None
+    format_durability_indicator = None
+
+# =================== HTML HELPER FUNCTIONS ===================
 def format_reliability_badge_html(reliability_data):
     """Convert reliability badge Markdown to HTML for use in f-strings"""
     score = reliability_data.get('reliability_score', 0)
@@ -24,31 +38,6 @@ def format_reliability_badge_html(reliability_data):
     
     # Return HTML span
     return f'<span style="font-size: 1.1rem; font-weight: 600;">{emoji} <strong>Reliability: {label} ({score}/5)</strong></span>'
-
-# Then in your classification_html, replace the badge line with:
-reliability_badge_html = format_reliability_badge_html(classification_result.get('reliability_home', {}))
-classification_html = f"""
-...
-<div class="reliability-display">
-    ...
-    {reliability_badge_html}
-    ...
-</div>
-...
-"""
-
-# =================== STATE & DURABILITY CLASSIFIER IMPORT (SAFE, READ-ONLY) ===================
-# CRITICAL: This module adds informational classification ONLY
-# Does NOT affect betting logic, stakes, or existing tiers
-try:
-    from match_state_classifier import get_complete_classification, format_reliability_badge, format_durability_indicator
-    STATE_CLASSIFIER_AVAILABLE = True
-except ImportError:
-    STATE_CLASSIFIER_AVAILABLE = False
-    # No warnings - classifier is optional enhancement
-    get_complete_classification = None
-    format_reliability_badge = None
-    format_durability_indicator = None
 
 # =================== SYSTEM CONSTANTS (IMMUTABLE) ===================
 # v6.0 Edge Detection Engine Constants
@@ -2279,6 +2268,11 @@ def main():
             totals_durability = classification_result.get('totals_durability', 'NONE')
             under_suggestion = classification_result.get('under_suggestion', 'No Under recommendation')
             
+            # Create reliability badge HTML if available
+            reliability_badge_html = "N/A"
+            if classification_result.get('reliability_home'):
+                reliability_badge_html = format_reliability_badge_html(classification_result.get('reliability_home', {}))
+            
             # Display classification summary
             classification_html = f"""
             <div class="state-classification-display">
@@ -2313,7 +2307,7 @@ def main():
                     <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-bottom: 0.5rem;">
                         <div style="font-size: 1.1rem; font-weight: 600;">Reliability Assessment</div>
                     </div>
-                    {format_reliability_badge(classification_result.get('reliability_home', {})) if format_reliability_badge else 'N/A'}
+                    {reliability_badge_html}
                     <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.5rem; text-align: center;">
                         Based on durability, under suggestions, and opponent defense
                     </div>
