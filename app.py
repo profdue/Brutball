@@ -5,15 +5,18 @@ from typing import Dict, Tuple, List, Optional, Any
 import warnings
 warnings.filterwarnings('ignore')
 
-# =================== STATE CLASSIFIER IMPORT (SAFE, READ-ONLY) ===================
+# =================== STATE & DURABILITY CLASSIFIER IMPORT (SAFE, READ-ONLY) ===================
 # CRITICAL: This module adds informational classification ONLY
 # Does NOT affect betting logic, stakes, or existing tiers
 try:
-    from match_state_classifier import MatchStateClassifier
+    from match_state_classifier import get_complete_classification, format_reliability_badge, format_durability_indicator
     STATE_CLASSIFIER_AVAILABLE = True
 except ImportError:
     STATE_CLASSIFIER_AVAILABLE = False
     # No warnings - classifier is optional enhancement
+    get_complete_classification = None
+    format_reliability_badge = None
+    format_durability_indicator = None
 
 # =================== SYSTEM CONSTANTS (IMMUTABLE) ===================
 # v6.0 Edge Detection Engine Constants
@@ -1854,7 +1857,7 @@ def main():
         <p><strong>THREE-TIER SYSTEM WITH STATE PRESERVATION LAW</strong></p>
         <p>Tier 1: v6.0 Edge Detection • Tier 2: Agency-State Lock • Tier 3: Totals Lock</p>
         <p><strong>CRITICAL UPDATE:</strong> Gate 4A enforces that defensive markets require RECENT defensive proof</p>
-        <p><strong>OPTIONAL ENHANCEMENT:</strong> State Classification (Read-Only) available for system protection</p>
+        <p><strong>OPTIONAL ENHANCEMENT:</strong> State & Durability Classification (Read-Only) available for system protection</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -1881,9 +1884,10 @@ def main():
     if STATE_CLASSIFIER_AVAILABLE:
         st.markdown("""
         <div class="read-only-note">
-            <strong>🔍 STATE CLASSIFIER AVAILABLE (READ-ONLY)</strong>
-            <p>Match state classification will be displayed after analysis (informational only)</p>
-            <p>Classification does NOT affect betting logic, stakes, or existing tiers</p>
+            <strong>🔍 STATE & DURABILITY CLASSIFIER AVAILABLE (READ-ONLY)</strong>
+            <p>Match state classification, durability scoring, and reliability assessment will be displayed after analysis</p>
+            <p>Includes: Totals Durability (STABLE/FRAGILE/NONE), Under Market Suggestions, Opponent Under 1.5 signals</p>
+            <p><strong>CRITICAL:</strong> Classification does NOT affect betting logic, stakes, or existing tiers</p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -2054,14 +2058,14 @@ def main():
             home_data, away_data, home_team, away_team, league_avg_xg
         )
         
-        # =================== OPTIONAL: READ-ONLY STATE CLASSIFICATION ===================
+        # =================== OPTIONAL: READ-ONLY STATE & DURABILITY CLASSIFICATION ===================
         # CRITICAL: This runs AFTER all betting logic is complete
         # Does NOT affect existing results, stakes, or decisions
         classification_result = None
-        if STATE_CLASSIFIER_AVAILABLE:
+        if STATE_CLASSIFIER_AVAILABLE and get_complete_classification:
             try:
-                classification_result = MatchStateClassifier.classify_match_state(home_data, away_data)
-                # Add as separate, read-only field
+                classification_result = get_complete_classification(home_data, away_data)
+                # Add as separate, read-only fields
                 result['state_classification'] = classification_result
                 result['classification_is_read_only'] = True
                 result['classification_does_not_affect_betting'] = True
@@ -2107,9 +2111,9 @@ def main():
         </div>
         """, unsafe_allow_html=True)
         
-        # =================== OPTIONAL: STATE CLASSIFICATION DISPLAY ===================
+        # =================== OPTIONAL: STATE & DURABILITY CLASSIFICATION DISPLAY ===================
         if classification_result and 'state_classification' in result:
-            st.markdown("#### 🔍 STRUCTURAL STATE CLASSIFICATION (READ-ONLY)")
+            st.markdown("#### 🔍 STRUCTURAL INTELLIGENCE (READ-ONLY)")
             
             # Map state to badge class
             state_badge_classes = {
@@ -2124,6 +2128,16 @@ def main():
             dominant_state = classification_result['dominant_state']
             badge_class = state_badge_classes.get(dominant_state, 'badge-neutral')
             
+            # Display reliability badge
+            if format_reliability_badge:
+                reliability_badge = format_reliability_badge(classification_result)
+                st.markdown(reliability_badge, unsafe_allow_html=True)
+            
+            # Display durability indicator
+            if format_durability_indicator:
+                durability = classification_result.get('totals_durability', 'NONE')
+                st.markdown(f"**Totals Durability:** {format_durability_indicator(durability)}")
+            
             st.markdown(f"""
             <div class="state-classification-display">
                 <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin-bottom: 1rem;">
@@ -2134,7 +2148,10 @@ def main():
                     {classification_result.get('state_description', 'No description available')}
                 </div>
                 <div style="color: #6B7280; font-size: 0.9rem; margin-bottom: 0.5rem;">
-                    {classification_result.get('market_guidance', 'No market guidance available')}
+                    <strong>Under Market Suggestion:</strong> {classification_result.get('under_suggestion', 'N/A')}
+                </div>
+                <div style="color: #6B7280; font-size: 0.9rem; margin-bottom: 0.5rem;">
+                    <strong>Opponent Under 1.5 Signal:</strong> {'✅ PRESENT' if classification_result.get('opponent_under_15', {}).get('any_opponent_under_15', False) else '❌ ABSENT'}
                 </div>
                 <div style="color: #DC2626; font-size: 0.85rem; margin-top: 1rem; padding: 0.75rem; background: #FEF2F2; border-radius: 6px;">
                     <strong>⚠️ IMPORTANT:</strong> Classification is informational only. Does NOT affect betting logic, stakes, or existing tiers.
@@ -2361,18 +2378,21 @@ INTEGRATED SYSTEM LOG:
             export_text += f"""
 
 ===========================================
-STATE CLASSIFICATION (READ-ONLY - INFORMATIONAL)
+STATE & DURABILITY CLASSIFICATION (READ-ONLY - INFORMATIONAL)
 ===========================================
 • Dominant State: {classification_result['dominant_state']}
+• Totals Durability: {classification_result.get('totals_durability', 'N/A')}
+• Under Market Suggestion: {classification_result.get('under_suggestion', 'N/A')}
+• Opponent Under 1.5 Signal: {'PRESENT' if classification_result.get('opponent_under_15', {}).get('any_opponent_under_15', False) else 'ABSENT'}
+• Reliability Score: {classification_result.get('reliability_score', 0)}/5 ({classification_result.get('reliability_label', 'N/A')})
 • Description: {classification_result.get('state_description', 'N/A')}
-• Market Guidance: {classification_result.get('market_guidance', 'N/A')}
-• All Detected States: {', '.join(classification_result.get('all_states', []))}
 
-IMPORTANT: Classification is read-only and does NOT affect:
+IMPORTANT: Classification is 100% read-only and does NOT affect:
 • Betting logic or decisions
 • Capital allocation (1.0x vs 2.0x)
 • Market lock declarations
 • Existing tier logic (Tiers 1-3)
+• Stake calculations
 """
         
         export_text += f"""
@@ -2401,7 +2421,7 @@ State Preservation: Gate 4A OVERRIDES Gates 1-3 for defensive markets
         <p>Three-Tier System with State Preservation Law</p>
         <p>Tier 1: v6.0 Edge Detection • Tier 2: Agency-State Lock • Tier 3: Totals Lock</p>
         <p><strong>STATE PRESERVATION LAW:</strong> Gate 4A OVERRIDES Gates 1-3 for defensive markets</p>
-        <p><strong>OPTIONAL ENHANCEMENT:</strong> State Classification available (read-only)</p>
+        <p><strong>OPTIONAL ENHANCEMENT:</strong> State & Durability Classification available (read-only)</p>
     </div>
     """, unsafe_allow_html=True)
 
