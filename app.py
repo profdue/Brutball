@@ -99,7 +99,7 @@ TOTALS_LOCK_CONFIG = {
 # Capital Multipliers
 CAPITAL_MULTIPLIERS = {
     'EDGE_MODE': 1.0,     # v6.0 only
-    'LOCK_MODE': 2.0,     # v6.0 + Any lock (agency or totals)
+    'LOCK_MODE': 2.0,     # v6.0 + Any lock (agency, totals, or edge-derived)
 }
 
 # =================== PAGE CONFIGURATION ===================
@@ -198,6 +198,15 @@ st.markdown("""
         margin: 1.5rem 0;
         box-shadow: 0 6px 16px rgba(14, 165, 233, 0.15);
     }
+    .edge-derived-display {
+        padding: 2.5rem;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+        border: 4px solid #3B82F6;
+        text-align: center;
+        margin: 1.5rem 0;
+        box-shadow: 0 6px 16px rgba(59, 130, 246, 0.15);
+    }
     .market-locked-display {
         padding: 1.5rem;
         border-radius: 10px;
@@ -211,6 +220,14 @@ st.markdown("""
         border-radius: 10px;
         background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
         border: 3px solid #0EA5E9;
+        margin: 1rem 0;
+        text-align: left;
+    }
+    .market-edge-derived {
+        padding: 1.5rem;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+        border: 3px solid #3B82F6;
         margin: 1rem 0;
         text-align: left;
     }
@@ -252,6 +269,11 @@ st.markdown("""
         background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
         color: #0C4A6E;
         border: 3px solid #0EA5E9;
+    }
+    .edge-derived-mode {
+        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+        color: #1E40AF;
+        border: 3px solid #3B82F6;
     }
     .gate-passed {
         background: #F0FDF4;
@@ -347,6 +369,11 @@ st.markdown("""
         color: #0C4A6E;
         border: 1px solid #7DD3FC;
     }
+    .badge-edge-derived {
+        background: #DBEAFE;
+        color: #1E40AF;
+        border: 1px solid #93C5FD;
+    }
     .badge-locked {
         background: #A7F3D0;
         color: #065F46;
@@ -357,6 +384,12 @@ st.markdown("""
         background: #7DD3FC;
         color: #0C4A6E;
         border: 1px solid #38BDF8;
+        font-weight: 800;
+    }
+    .badge-edge-locked {
+        background: #C7D2FE;
+        color: #3730A3;
+        border: 1px solid #818CF8;
         font-weight: 800;
     }
     .badge-noise {
@@ -378,6 +411,13 @@ st.markdown("""
         border: 2px solid #0EA5E9;
         margin: 1rem 0;
     }
+    .edge-derived-insight {
+        background: #EFF6FF;
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 2px solid #93C5FD;
+        margin: 1rem 0;
+    }
     .metric-row {
         display: flex;
         justify-content: space-between;
@@ -397,6 +437,10 @@ st.markdown("""
     .metric-row-agency {
         background: #E0F2FE;
         border-left: 3px solid #38BDF8;
+    }
+    .metric-row-edge {
+        background: #EFF6FF;
+        border-left: 3px solid #3B82F6;
     }
     .architecture-diagram {
         background: white;
@@ -432,6 +476,12 @@ st.markdown("""
         color: #166534;
         font-weight: 700;
     }
+    .tier-1-edge-derived {
+        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+        border: 3px dashed #3B82F6;
+        color: #1E40AF;
+        font-weight: 700;
+    }
     .tier-1 {
         background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
         border: 3px solid #3B82F6;
@@ -456,6 +506,13 @@ st.markdown("""
         padding: 1rem;
         border-radius: 8px;
         border: 2px solid #7DD3FC;
+        margin: 0.5rem 0;
+    }
+    .edge-derived-list {
+        background: #EFF6FF;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 2px solid #93C5FD;
         margin: 0.5rem 0;
     }
     .noise-list {
@@ -550,6 +607,16 @@ st.markdown("""
         background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
         color: #92400E;
         border: 2px solid #F59E0B;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 700;
+        display: inline-block;
+        margin: 0.5rem 0;
+    }
+    .edge-derived-badge {
+        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+        color: #1E40AF;
+        border: 2px solid #3B82F6;
         padding: 0.5rem 1rem;
         border-radius: 20px;
         font-weight: 700;
@@ -1603,7 +1670,78 @@ class BrutballIntegratedArchitecture:
     CRITICAL UPDATE (v6.2): STATE PRESERVATION LAW
     Gate 4A now enforces that defensive markets require RECENT defensive proof.
     Manchester United vs Wolves proved this empirically.
+    
+    NEW FEATURE: Edge-Derived OPPONENT_UNDER_1_5 Locks
+    Even in edge matches (Tier 1), extract OPPONENT_UNDER_1_5 locks when
+    opponent meets defensive proof criteria (≤ 1.0 avg goals conceded last 5)
     """
+    
+    @staticmethod
+    def check_edge_derived_opponent_under_15(home_data: Dict, away_data: Dict,
+                                           home_name: str, away_name: str) -> List[Dict]:
+        """
+        Check for Edge-Derived OPPONENT_UNDER_1_5 locks.
+        These locks are extracted from Tier 1 edge matches when opponent meets
+        defensive proof criteria (≤ 1.0 avg goals conceded last 5).
+        """
+        edge_locks = []
+        
+        # Extract defensive data (last 5 matches)
+        home_concedes_last5 = home_data.get('goals_conceded_last_5', 0)
+        away_concedes_last5 = away_data.get('goals_conceded_last_5', 0)
+        
+        # Calculate averages
+        home_avg_concedes = home_concedes_last5 / 5 if home_concedes_last5 > 0 else 0
+        away_avg_concedes = away_concedes_last5 / 5 if away_concedes_last5 > 0 else 0
+        
+        # Defensive proof check function
+        def defensive_proof(avg_conceded: float) -> bool:
+            """Check if opponent meets defensive proof for Under 1.5"""
+            return avg_conceded <= 1.0
+        
+        # BACKING HOME: check if AWAY team meets defensive proof
+        if defensive_proof(away_avg_concedes):
+            edge_locks.append({
+                'market': 'OPPONENT_UNDER_1_5',
+                'type': 'edge_derived',
+                'source': 'TIER_1_EDGE',
+                'backing': home_name,
+                'opponent': away_name,
+                'perspective': 'BACKING_HOME',
+                'reason': f"Edge-Derived Lock: {away_name} concedes {away_avg_concedes:.2f} avg goals (last 5) ≤ 1.0",
+                'details': f"{away_name} defensive proof: {away_avg_concedes:.2f} avg conceded ≤ 1.0",
+                'metrics': {
+                    'opponent_avg_conceded': away_avg_concedes,
+                    'threshold': 1.0,
+                    'data_source': 'last_5_matches'
+                },
+                'capital_authorized': True,
+                'state_locked': True,
+                'declaration': f"🔓 EDGE-DERIVED: BACK {home_name} → {away_name} UNDER 1.5\n{away_name} concedes {away_avg_concedes:.2f} avg (last 5) ≤ 1.0"
+            })
+        
+        # BACKING AWAY: check if HOME team meets defensive proof
+        if defensive_proof(home_avg_concedes):
+            edge_locks.append({
+                'market': 'OPPONENT_UNDER_1_5',
+                'type': 'edge_derived',
+                'source': 'TIER_1_EDGE',
+                'backing': away_name,
+                'opponent': home_name,
+                'perspective': 'BACKING_AWAY',
+                'reason': f"Edge-Derived Lock: {home_name} concedes {home_avg_concedes:.2f} avg goals (last 5) ≤ 1.0",
+                'details': f"{home_name} defensive proof: {home_avg_concedes:.2f} avg conceded ≤ 1.0",
+                'metrics': {
+                    'opponent_avg_conceded': home_avg_concedes,
+                    'threshold': 1.0,
+                    'data_source': 'last_5_matches'
+                },
+                'capital_authorized': True,
+                'state_locked': True,
+                'declaration': f"🔓 EDGE-DERIVED: BACK {away_name} → {home_name} UNDER 1.5\n{home_name} concedes {home_avg_concedes:.2f} avg (last 5) ≤ 1.0"
+            })
+        
+        return edge_locks
     
     @staticmethod
     def execute_integrated_analysis(home_data: Dict, away_data: Dict,
@@ -1619,6 +1757,7 @@ class BrutballIntegratedArchitecture:
         integrated_log.append("TIER 1: v6.0 Edge Detection Engine (Heuristic)")
         integrated_log.append("TIER 2: Agency-State Lock Engine (4 Gates + State Preservation)")
         integrated_log.append("TIER 3: Totals Lock Engine (Trend-Based Binary Gate)")
+        integrated_log.append("NEW: Edge-Derived OPPONENT_UNDER_1_5 Locks from Tier 1")
         integrated_log.append(f"MATCH: {home_name} vs {away_name}")
         integrated_log.append("=" * 80)
         
@@ -1636,6 +1775,28 @@ class BrutballIntegratedArchitecture:
         integrated_log.append(f"• Confidence: {v6_result['confidence']:.1f}/10")
         integrated_log.append(f"• Base Stake: {v6_result['stake_pct']:.1f}%")
         integrated_log.append(f"• Mode: EDGE_MODE (1.0x multiplier)")
+        
+        # =================== CHECK FOR EDGE-DERIVED OPPONENT_UNDER_1_5 LOCKS ===================
+        integrated_log.append("")
+        integrated_log.append("🔓 EDGE-DERIVED OPPONENT_UNDER_1_5 LOCKS")
+        integrated_log.append("-" * 40)
+        integrated_log.append("LOGIC: Extract OPPONENT_UNDER_1_5 locks from Tier 1 edge matches")
+        integrated_log.append("CONDITION: Opponent concedes ≤ 1.0 avg goals (last 5 matches)")
+        integrated_log.append("PERSPECTIVES: Backing HOME (check AWAY) • Backing AWAY (check HOME)")
+        
+        edge_derived_locks = BrutballIntegratedArchitecture.check_edge_derived_opponent_under_15(
+            home_data, away_data, home_name, away_name
+        )
+        
+        has_edge_derived_locks = len(edge_derived_locks) > 0
+        
+        if has_edge_derived_locks:
+            integrated_log.append(f"✅ EDGE-DERIVED LOCKS DETECTED: {len(edge_derived_locks)}")
+            for lock in edge_derived_locks:
+                integrated_log.append(f"  • {lock['reason']}")
+        else:
+            integrated_log.append("❌ NO EDGE-DERIVED LOCKS")
+            integrated_log.append(f"  • Neither team concedes ≤ 1.0 avg goals (last 5)")
         
         # =================== TIER 2: AGENCY-STATE LOCKS ===================
         integrated_log.append("")
@@ -1662,7 +1823,8 @@ class BrutballIntegratedArchitecture:
                     'market': market,
                     'controller': result['controller'],
                     'delta': result['control_delta'],
-                    'recent_concede_avg': result.get('recent_concede_avg', 0)
+                    'recent_concede_avg': result.get('recent_concede_avg', 0),
+                    'source': 'TIER_2_AGENCY'
                 })
         
         # Track agency-state results
@@ -1722,8 +1884,8 @@ class BrutballIntegratedArchitecture:
         integrated_log.append("💰 INTEGRATED CAPITAL DECISION")
         integrated_log.append("-" * 40)
         
-        # Determine capital mode
-        if has_agency_lock or has_totals_lock:
+        # Determine capital mode - Edge-Derived locks now also trigger LOCK_MODE
+        if has_agency_lock or has_totals_lock or has_edge_derived_locks:
             capital_mode = 'LOCK_MODE'
             multiplier = CAPITAL_MULTIPLIERS['LOCK_MODE']
             final_stake = v6_result['stake_pct'] * multiplier
@@ -1734,6 +1896,9 @@ class BrutballIntegratedArchitecture:
             elif has_agency_lock:
                 capital_reason = "AGENCY-STATE LOCK (with State Preservation)"
                 system_verdict = "AGENCY-STATE CONTROL DETECTED"
+            elif has_edge_derived_locks:
+                capital_reason = "EDGE-DERIVED LOCK (Defensive Proof)"
+                system_verdict = "EDGE-DERIVED DEFENSIVE CONTROL DETECTED"
             else:
                 capital_reason = "LOCK (Other)"
                 system_verdict = "STRUCTURAL CERTAINTY DETECTED"
@@ -1754,6 +1919,38 @@ class BrutballIntegratedArchitecture:
         integrated_log.append("=" * 80)
         
         # =================== PREPARE INTEGRATED OUTPUT ===================
+        # Combine all locks from different sources
+        all_locked_markets = []
+        
+        # Add Tier 2 Agency-State Locks
+        all_locked_markets.extend(agency_locked_markets)
+        
+        # Add Tier 3 Totals Lock if present
+        if has_totals_lock:
+            all_locked_markets.append({
+                'market': 'TOTALS_UNDER_2_5',
+                'controller': 'BOTH_TEAMS',
+                'delta': 0,
+                'recent_concede_avg': 0,
+                'source': 'TIER_3_TOTALS',
+                'trend_data': totals_result['trend_data']
+            })
+        
+        # Add Edge-Derived Locks
+        for lock in edge_derived_locks:
+            all_locked_markets.append({
+                'market': lock['market'],
+                'type': 'edge_derived',
+                'controller': lock['backing'],
+                'opponent': lock['opponent'],
+                'delta': 0,
+                'recent_concede_avg': lock['metrics']['opponent_avg_conceded'],
+                'source': lock['source'],
+                'reason': lock['reason'],
+                'details': lock['details'],
+                'declaration': lock['declaration']
+            })
+        
         # Determine strongest market for display
         strongest_market_info = None
         if has_agency_lock:
@@ -1763,7 +1960,8 @@ class BrutballIntegratedArchitecture:
                 'type': 'agency',
                 'controller': strongest_agency['controller'],
                 'delta': strongest_agency['delta'],
-                'recent_concede_avg': strongest_agency.get('recent_concede_avg', 0)
+                'recent_concede_avg': strongest_agency.get('recent_concede_avg', 0),
+                'source': 'TIER_2'
             }
         elif has_totals_lock:
             strongest_market_info = {
@@ -1771,7 +1969,20 @@ class BrutballIntegratedArchitecture:
                 'type': 'totals',
                 'controller': 'BOTH_TEAMS',
                 'delta': 0,
-                'recent_concede_avg': 0
+                'recent_concede_avg': 0,
+                'source': 'TIER_3'
+            }
+        elif has_edge_derived_locks:
+            # Use the first edge-derived lock as strongest
+            strongest_edge = edge_derived_locks[0]
+            strongest_market_info = {
+                'market': strongest_edge['market'],
+                'type': 'edge_derived',
+                'controller': strongest_edge['backing'],
+                'opponent': strongest_edge['opponent'],
+                'delta': 0,
+                'recent_concede_avg': strongest_edge['metrics']['opponent_avg_conceded'],
+                'source': 'TIER_1_EDGE'
             }
         
         # Prepare market status summary
@@ -1781,22 +1992,39 @@ class BrutballIntegratedArchitecture:
                 'locked': agency_results[market]['state_locked'],
                 'controller': agency_results[market].get('controller'),
                 'reason': agency_results[market]['reason'],
-                'failed_on_preservation': agency_results[market].get('failed_on_preservation', False)
+                'failed_on_preservation': agency_results[market].get('failed_on_preservation', False),
+                'source': 'TIER_2'
             }
         
         market_status['TOTALS_UNDER_2_5'] = {
             'locked': has_totals_lock,
             'controller': 'BOTH_TEAMS' if has_totals_lock else None,
             'reason': totals_result['reason'],
-            'failed_on_preservation': False
+            'failed_on_preservation': False,
+            'source': 'TIER_3'
         }
         
+        # Add Edge-Derived OPPONENT_UNDER_1_5 status
+        edge_under_15_locked = any(lock['market'] == 'OPPONENT_UNDER_1_5' for lock in edge_derived_locks)
+        if edge_under_15_locked:
+            market_status['OPPONENT_UNDER_1_5_EDGE'] = {
+                'locked': True,
+                'controller': 'EDGE_DERIVED',
+                'reason': f"Edge-derived lock: Opponent meets defensive proof (≤ 1.0 avg conceded)",
+                'failed_on_preservation': False,
+                'source': 'TIER_1_EDGE',
+                'edge_locks': edge_derived_locks
+            }
+        
         return {
-            'architecture': 'Three-Tier Integrated v6.2',
+            'architecture': 'Three-Tier Integrated v6.2 with Edge-Derived Locks',
             'v6_result': v6_result,
             'agency_results': agency_results,
             'totals_result': totals_result,
+            'edge_derived_locks': edge_derived_locks,
+            'has_edge_derived_locks': has_edge_derived_locks,
             'agency_locked_markets': agency_locked_markets,
+            'all_locked_markets': all_locked_markets,
             'has_agency_lock': has_agency_lock,
             'has_totals_lock': has_totals_lock,
             'capital_mode': capital_mode,
@@ -1809,6 +2037,8 @@ class BrutballIntegratedArchitecture:
             'key_metrics': {
                 'home_last5_avg': totals_result['trend_data']['home_last5_avg'] if 'trend_data' in totals_result else 0,
                 'away_last5_avg': totals_result['trend_data']['away_last5_avg'] if 'trend_data' in totals_result else 0,
+                'home_concedes_avg': home_data.get('goals_conceded_last_5', 0) / 5,
+                'away_concedes_avg': away_data.get('goals_conceded_last_5', 0) / 5,
                 'home_xg': home_data.get('home_xg_per_match', 0),
                 'away_xg': away_data.get('away_xg_per_match', 0)
             }
@@ -1933,9 +2163,10 @@ def main():
     
     st.markdown("""
     <div class="system-subheader">
-        <p><strong>THREE-TIER SYSTEM WITH STATE PRESERVATION LAW</strong></p>
-        <p>Tier 1: v6.0 Edge Detection • Tier 2: Agency-State Lock • Tier 3: Totals Lock</p>
+        <p><strong>FOUR-LAYER SYSTEM WITH STATE PRESERVATION LAW & EDGE-DERIVED LOCKS</strong></p>
+        <p>Tier 1: v6.0 Edge Detection • Tier 1+: Edge-Derived Locks • Tier 2: Agency-State Lock • Tier 3: Totals Lock</p>
         <p><strong>CRITICAL UPDATE:</strong> Gate 4A enforces that defensive markets require RECENT defensive proof</p>
+        <p><strong>NEW FEATURE:</strong> Edge-Derived OPPONENT_UNDER_1.5 locks from Tier 1 edge matches</p>
         <p><strong>PRE-MATCH INTELLIGENCE:</strong> State & Durability Classification available for system protection</p>
     </div>
     """, unsafe_allow_html=True)
@@ -1959,6 +2190,31 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
+    # Edge-Derived Locks Principle
+    st.markdown("""
+    <div class="state-principle">
+        <h4>🔓 EDGE-DERIVED OPPONENT_UNDER_1.5 LOCKS (NEW)</h4>
+        <div style="margin: 1rem 0;">
+            <div class="edge-derived-list">
+                <strong>✅ EXTRACT ACTIONABLE LOCKS FROM TIER 1 EDGE MATCHES</strong>
+                <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                    <li><strong>Condition:</strong> Opponent concedes ≤ 1.0 avg goals (last 5 matches)</li>
+                    <li><strong>Logic:</strong> Defensive proof creates actionable OPPONENT_UNDER_1.5 lock</li>
+                    <li><strong>Perspective-sensitive:</strong> BACK HOME → check AWAY defense • BACK AWAY → check HOME defense</li>
+                    <li><strong>Capital:</strong> Triggers LOCK MODE (2.0x multiplier) • Uses same defensive proof as Gate 4A</li>
+                </ul>
+            </div>
+            <div class="strict-binary">
+                <strong>🔓 EDGE-DERIVED LOCK CONDITION (Binary Gate):</strong><br>
+                <strong>If opponent concedes ≤ 1.0 avg goals (last 5) → ACTIONABLE OPPONENT_UNDER_1.5 LOCK</strong><br>
+                • Even in "random" edge matches (Tier 1 only)<br>
+                • Deterministic defensive proof (no agency-state gates)<br>
+                • Increases actionable opportunities from Tier 1 matches
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
     # Pre-Match Intelligence Principles
     st.markdown("""
     <div class="state-principle">
@@ -1969,7 +2225,7 @@ def main():
                 <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
                     <li><strong>Totals Lock:</strong> Binary gate (both teams ≤ 1.2 avg goals scored)</li>
                     <li><strong>Durability:</strong> STABLE / FRAGILE / NONE based on last 5</li>
-                    <li><strong>Opponent Under 1.5:</strong> PRESENT/ABSENT from conceded avg last 5</li>
+                    <li><strong>Edge-Derived Locks:</strong> PRESENT/ABSENT from conceded avg last 5</li>
                     <li><strong>Perspective-sensitive:</strong> "Opponent" depends on which team is backed</li>
                 </ul>
             </div>
@@ -2006,10 +2262,10 @@ def main():
         </div>
         """, unsafe_allow_html=True)
     
-    # Architecture diagram
+    # Updated Architecture diagram with Edge-Derived layer
     st.markdown("""
     <div class="architecture-diagram">
-        <h4>🏗️ THREE-TIER ARCHITECTURE v6.2</h4>
+        <h4>🏗️ FOUR-LAYER ARCHITECTURE v6.2 with EDGE-DERIVED LOCKS</h4>
         <div class="three-tier-architecture">
             <div class="tier-level tier-3">
                 <div style="font-size: 1.1rem; font-weight: 700;">TIER 3: TOTALS LOCK ENGINE</div>
@@ -2036,6 +2292,17 @@ def main():
                 </div>
             </div>
             <div class="arrow-down" style="font-size: 1.5rem; font-weight: 800;">↓</div>
+            <div class="tier-level tier-1-edge-derived">
+                <div style="font-size: 1rem; font-weight: 700;">TIER 1+: EDGE-DERIVED LOCKS (NEW)</div>
+                <div style="font-size: 0.9rem;">Defensive Proof • Binary Gate</div>
+                <div style="font-size: 0.85rem; color: #1E40AF; margin-top: 0.5rem;">
+                    <strong>Extracts OPPONENT_UNDER_1.5 locks from Tier 1 edge matches</strong>
+                </div>
+                <div style="margin-top: 0.5rem;">
+                    <span class="market-badge badge-edge-locked">Opponent Under 1.5 ONLY</span>
+                </div>
+            </div>
+            <div class="arrow-down" style="font-size: 1.5rem; font-weight: 800;">↓</div>
             <div class="tier-level tier-1">
                 <div style="font-size: 1rem;">TIER 1: v6.0 EDGE DETECTION</div>
                 <div style="font-size: 0.9rem;">Heuristic • 4 Control Criteria</div>
@@ -2050,7 +2317,7 @@ def main():
     # Strict binary gate warning
     st.markdown("""
     <div class="binary-gate">
-        <h4>⚖️ STATE PRESERVATION LAW: HARD BINARY RULE</h4>
+        <h4>⚖️ STATE PRESERVATION LAW: HARD BINARY RULES</h4>
         <div class="strict-binary">
             <strong>DEFENSIVE MARKETS REQUIRE RECENT DEFENSIVE PROOF</strong><br>
             <strong>Clean Sheet:</strong> Recent concede avg ≤ 0.8<br>
@@ -2059,9 +2326,13 @@ def main():
             <strong>DATA:</strong> *_goals_conceded_last_5 / 5 ONLY<br>
             <strong>NO EXCEPTIONS:</strong> If fails → NO LOCK (regardless of Gates 1-3)
         </div>
+        <div style="margin-top: 1rem; padding: 0.75rem; background: #EFF6FF; border-radius: 6px;">
+            <strong>🔓 EDGE-DERIVED LOCKS:</strong> Uses same defensive proof (≤1.0) but from Tier 1 edge matches only
+        </div>
         <div style="margin-top: 1rem; padding: 0.75rem; background: #FEF3C7; border-radius: 6px;">
             <strong>Manchester United vs Wolves Test Case:</strong><br>
-            United concedes 1.6 avg (last 5) → Clean Sheet/Team No Score locks are INVALID
+            United concedes 1.6 avg (last 5) → Clean Sheet/Team No Score locks are INVALID<br>
+            However: Could still have Edge-Derived lock if Wolves concedes ≤1.0
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -2114,6 +2385,7 @@ def main():
             <p>Manchester United vs Wolves is the empirical proof of State Preservation Law.</p>
             <p><strong>Expected Result:</strong> United may pass Winner lock, but MUST FAIL Clean Sheet/Team No Score locks.</p>
             <p><strong>Reason:</strong> United concedes 1.6 avg goals recently (last 5) → cannot preserve defensive states.</p>
+            <p><strong>Edge-Derived Lock Test:</strong> If Wolves concedes ≤1.0 avg goals → actionable OPPONENT_UNDER_1.5 lock for backing United</p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -2167,6 +2439,10 @@ def main():
             capital_display = "TOTALS LOCK MODE"
             capital_class = "totals-lock-mode"
             capital_color = "#0C4A6E"
+        elif result['has_edge_derived_locks']:
+            capital_display = "EDGE-DERIVED LOCK MODE"
+            capital_class = "edge-derived-mode"
+            capital_color = "#1E40AF"
         elif capital_mode == 'LOCK_MODE':
             capital_display = "LOCK MODE"
             capital_class = "lock-mode"
@@ -2377,6 +2653,55 @@ def main():
                 # Important note
                 st.warning("**⚠️ IMPORTANT:** This classification is 100% read-only and informational only. Does NOT affect betting logic, stakes, or existing tiers.", icon="⚠️")
         
+        # =================== EDGE-DERIVED LOCKS DISPLAY ===================
+        if result['has_edge_derived_locks']:
+            st.markdown("#### 🔓 TIER 1+: EDGE-DERIVED OPPONENT_UNDER_1.5 LOCKS")
+            
+            edge_html = f"""
+            <div class="edge-derived-display">
+                <h3 style="color: #1E40AF; margin: 0 0 1rem 0;">EDGE-DERIVED DEFENSIVE CONTROL DETECTED</h3>
+                <div style="font-size: 1.2rem; color: #3B82F6; margin-bottom: 0.5rem;">
+                    {len(result['edge_derived_locks'])} OPPONENT_UNDER_1.5 lock(s) from Tier 1 edge analysis
+                </div>
+                <div style="color: #374151; margin-bottom: 1rem;">
+                    Extracted from defensive proof (opponent concedes ≤ 1.0 avg goals last 5)
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;">
+                    <span class="market-badge badge-edge-locked">Edge-Derived</span>
+                    <span class="market-badge badge-edge-locked">Opponent Under 1.5</span>
+                    <span class="market-badge badge-edge-locked">Tier 1 Source</span>
+                </div>
+            </div>
+            """
+            st.markdown(edge_html, unsafe_allow_html=True)
+            
+            # Show individual edge-derived locks
+            for lock in result['edge_derived_locks']:
+                lock_html = f"""
+                <div class="market-edge-derived">
+                    <div style="display: flex; align-items: center; margin-bottom: 0.5rem;">
+                        <div style="font-size: 1.5rem; margin-right: 0.5rem;">🔓</div>
+                        <div>
+                            <div style="font-size: 1.1rem; font-weight: 700; color: #1E40AF;">
+                                {lock['declaration'].split('\\n')[0]}
+                            </div>
+                            <div style="font-size: 0.9rem; color: #6B7280;">
+                                {lock['declaration'].split('\\n')[1]}
+                            </div>
+                        </div>
+                    </div>
+                    <div style="background: #EFF6FF; padding: 0.75rem; border-radius: 6px; margin-top: 0.5rem;">
+                        <div style="font-size: 0.9rem; color: #374151;">
+                            <strong>Defensive Proof:</strong> {lock['details']}
+                        </div>
+                        <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">
+                            <strong>Source:</strong> Tier 1 Edge Analysis • <strong>Capital:</strong> Authorized (2.0x multiplier)
+                        </div>
+                    </div>
+                </div>
+                """
+                st.markdown(lock_html, unsafe_allow_html=True)
+        
         # Check for State Preservation failures and show "Stay-Out" badge
         preservation_failures = []
         for market in ['CLEAN_SHEET', 'TEAM_NO_SCORE']:
@@ -2553,11 +2878,13 @@ League: {selected_league}
 Match: {home_team} vs {away_team}
 Analysis Time: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-PRE-MATCH INTELLIGENCE SUMMARY:
-• Framework: Three-Tier Integrated System v6.2
+ARCHITECTURE OVERVIEW:
+• Framework: Four-Layer Integrated System v6.2 with Edge-Derived Locks
+• Layer 1: v6.0 Edge Detection (Heuristic)
+• Layer 1+: Edge-Derived OPPONENT_UNDER_1.5 Locks (NEW)
+• Layer 2: Agency-State Lock Engine (4 Gates + State Preservation)
+• Layer 3: Totals Lock Engine (Trend-Based Binary Gate)
 • Data Source: LAST 5 MATCHES ONLY (no season averages)
-• Perspective-Sensitive: Opponent depends on which team is backed
-• Read-Only: Does not affect betting logic, stakes, or existing tiers
 
 CRITICAL UPDATE (v6.2): STATE PRESERVATION LAW
 • A state cannot be locked unless it can be PRESERVED.
@@ -2565,11 +2892,28 @@ CRITICAL UPDATE (v6.2): STATE PRESERVATION LAW
 • Manchester United vs Wolves proved this empirically.
 • Defensive markets require RECENT defensive proof (last 5 matches).
 
+NEW FEATURE: EDGE-DERIVED OPPONENT_UNDER_1.5 LOCKS
+• Extracts actionable locks from Tier 1 edge matches
+• Condition: Opponent concedes ≤ 1.0 avg goals (last 5)
+• Perspective-sensitive: Backing HOME (check AWAY) • Backing AWAY (check HOME)
+• Capital: Triggers LOCK MODE (2.0x multiplier)
+
 TIER 1: v6.0 EDGE DETECTION RESULT:
 • Primary Action: {v6_result['primary_action']}
 • Confidence: {v6_result['confidence']:.1f}/10
 • Base Stake: {v6_result['stake_pct']:.1f}%
 • Secondary Logic: {v6_result['secondary_logic']}
+
+EDGE-DERIVED LOCKS (TIER 1+):
+• Locks Detected: {len(result['edge_derived_locks'])}
+"""
+        
+        for lock in result['edge_derived_locks']:
+            export_text += f"• {lock['reason']}\n"
+            export_text += f"  {lock['details']}\n"
+            export_text += f"  Declaration: {lock['declaration']}\n"
+        
+        export_text += f"""
 
 TIER 2: AGENCY-STATE LOCKS v6.2:
 • Markets Evaluated: 4 (Winner, Clean Sheet, Team No Score, Opponent Under 1.5)
@@ -2642,6 +2986,20 @@ IMPORTANT: Classification is 100% read-only and does NOT affect:
 • Stake calculations
 """
         
+        # Add Edge-Derived Locks Summary
+        if result['has_edge_derived_locks']:
+            export_text += f"""
+
+EDGE-DERIVED LOCKS SUMMARY:
+• Source: Tier 1 Edge Analysis (defensive proof extraction)
+• Market: OPPONENT_UNDER_1.5 ONLY
+• Condition: Opponent concedes ≤ 1.0 avg goals (last 5)
+• Capital Impact: Triggers LOCK MODE (2.0x multiplier)
+• Locks Extracted: {len(result['edge_derived_locks'])}
+"""
+            for lock in result['edge_derived_locks']:
+                export_text += f"  - {lock['declaration']}\n"
+        
         # Add Stay-Out recommendation if applicable
         if preservation_failures:
             export_text += f"""
@@ -2656,10 +3014,11 @@ STAY-OUT RECOMMENDATION:
 
 ===========================================
 BRUTBALL INTEGRATED ARCHITECTURE v6.2
-Three-Tier System with State Preservation Law
-Tier 1: v6.0 Edge Detection • Tier 2: Agency-State Lock • Tier 3: Totals Lock
-Capital: 2.0x for any lock (agency or totals), 1.0x otherwise
+Four-Layer System with Edge-Derived Locks
+Tier 1: v6.0 Edge Detection • Tier 1+: Edge-Derived Locks • Tier 2: Agency-State Lock • Tier 3: Totals Lock
+Capital: 2.0x for any lock (agency, totals, or edge-derived), 1.0x otherwise
 State Preservation: Gate 4A OVERRIDES Gates 1-3 for defensive markets
+Edge-Derived Locks: Extract OPPONENT_UNDER_1.5 from Tier 1 edge matches (defensive proof ≤1.0)
 Pre-Match Intelligence: Perspective-sensitive, last-5 data only, read-only
 """
         
@@ -2676,9 +3035,10 @@ Pre-Match Intelligence: Perspective-sensitive, last-5 data only, read-only
     st.markdown("""
     <div style="text-align: center; color: #6B7280; font-size: 0.9rem; padding: 1rem;">
         <p><strong>BRUTBALL INTEGRATED ARCHITECTURE v6.2</strong></p>
-        <p>Three-Tier System with State Preservation Law</p>
-        <p>Tier 1: v6.0 Edge Detection • Tier 2: Agency-State Lock • Tier 3: Totals Lock</p>
+        <p>Four-Layer System with Edge-Derived Locks</p>
+        <p>Tier 1: v6.0 Edge Detection • Tier 1+: Edge-Derived Locks • Tier 2: Agency-State Lock • Tier 3: Totals Lock</p>
         <p><strong>STATE PRESERVATION LAW:</strong> Gate 4A OVERRIDES Gates 1-3 for defensive markets</p>
+        <p><strong>EDGE-DERIVED LOCKS:</strong> Extract OPPONENT_UNDER_1.5 from Tier 1 edge matches (defensive proof ≤1.0)</p>
         <p><strong>PRE-MATCH INTELLIGENCE:</strong> Perspective-sensitive, last-5 data only, read-only</p>
     </div>
     """, unsafe_allow_html=True)
