@@ -4,6 +4,38 @@ import numpy as np
 from typing import Dict, Tuple, List, Optional, Any
 import warnings
 warnings.filterwarnings('ignore')
+# Add this helper function near the top of your app.py (after the imports)
+def format_reliability_badge_html(reliability_data):
+    """Convert reliability badge Markdown to HTML for use in f-strings"""
+    score = reliability_data.get('reliability_score', 0)
+    label = reliability_data.get('reliability_label', 'NONE')
+    
+    # Emoji mapping
+    emoji_map = {
+        5: '🟢',  # Green
+        4: '🟡',  # Yellow
+        3: '🟠',  # Orange
+        2: '⚪',  # Light gray
+        1: '⚪',  # Light gray
+        0: '⚫'   # Gray
+    }
+    
+    emoji = emoji_map.get(score, '⚫')
+    
+    # Return HTML span
+    return f'<span style="font-size: 1.1rem; font-weight: 600;">{emoji} <strong>Reliability: {label} ({score}/5)</strong></span>'
+
+# Then in your classification_html, replace the badge line with:
+reliability_badge_html = format_reliability_badge_html(classification_result.get('reliability_home', {}))
+classification_html = f"""
+...
+<div class="reliability-display">
+    ...
+    {reliability_badge_html}
+    ...
+</div>
+...
+"""
 
 # =================== STATE & DURABILITY CLASSIFIER IMPORT (SAFE, READ-ONLY) ===================
 # CRITICAL: This module adds informational classification ONLY
