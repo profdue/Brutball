@@ -1,47 +1,13 @@
+# match_state_classifier.py - CORRECTED VERSION (fixing the unterminated string)
+
 """
-BRUTBALL MATCH STATE, DURABILITY & RELIABILITY CLASSIFIER v1.3
+BRUTBALL MATCH STATE & DURABILITY CLASSIFIER v1.3
 READ-ONLY MODULE - NO SIDE EFFECTS
 
 PURPOSE:
 Classify matches into structural states, durability categories, and reliability scores.
 This does NOT affect betting logic, stakes, or existing tiers.
 It only labels reality to provide intelligent insights.
-
-CLASSIFICATION SYSTEM:
-1. STRUCTURAL MATCH STATES (Existing)
-   • TERMINAL_STAGNATION - Dual low-offense, no scoring pathways
-   • ASYMMETRIC_SUPPRESSION - One team controls, opponent suppressed
-   • DELAYED_RELEASE - Low scoring but volatile pathways exist
-   • FORCED_EXPLOSION - High xG + open play dominance
-
-2. TOTALS DURABILITY (NEW)
-   • STABLE - High durability for Under 2.5
-   • FRAGILE - Medium durability for Under 2.5
-   • NONE - No structural support for Under 2.5
-
-3. OPPONENT UNDER 1.5 (NEW)
-   • True - Opponent concedes ≤1.0 avg goals (defensively strong)
-   • False - Opponent does not meet defensive criteria
-
-4. UNDER SUGGESTIONS (NEW)
-   • Under 2.5 recommended - Based on STABLE durability
-   • Under 3.5 recommended - Based on FRAGILE durability
-   • No Under recommendation - Based on NONE durability
-
-5. RELIABILITY SCORING (NEW)
-   • 0-5 numerical score combining all signals
-   • 5: HIGH CONFIDENCE - Strong under structure
-   • 4: MODERATE CONFIDENCE - Under possible, monitor
-   • 3: CAUTION - Under 3.5 safer
-   • 1-2: LOW - Weak under signal
-   • 0: NONE - No structural under detected
-
-RULES:
-1. Uses existing CSV data only
-2. No changes to Tier 1, 2, or 3 logic
-3. No market triggers or stake modifications
-4. Only adds informational classification
-5. All outputs are READ-ONLY
 """
 
 from typing import Dict, Tuple, List, Optional
@@ -50,7 +16,7 @@ import pandas as pd
 
 class MatchStateClassifier:
     """
-    MATCH STATE, DURABILITY & RELIABILITY CLASSIFIER (Read-Only)
+    MATCH STATE & DURABILITY CLASSIFIER (Read-Only)
     
     IMPORTANT: This is READ-ONLY. It does NOT:
     - Alter betting logic
@@ -136,11 +102,6 @@ class MatchStateClassifier:
         CLASSIFY TOTALS DURABILITY (Under 2.5)
         
         Returns 'STABLE', 'FRAGILE', or 'NONE' for Under 2.5 durability.
-        
-        Logic:
-        • STABLE: Both teams ≤ 1.0 avg goals scored
-        • FRAGILE: Both teams ≤ 1.2 avg goals scored (but > 1.0)
-        • NONE: Any team > 1.2 avg goals scored
         """
         # Extract last 5 matches goals scored
         home_last5_goals = home_data.get('goals_scored_last_5', 0)
@@ -167,8 +128,6 @@ class MatchStateClassifier:
         CLASSIFY OPPONENT UNDER 1.5
         
         Returns True for any team that concedes ≤1.0 avg goals (defensively strong).
-        
-        This works INDEPENDENTLY of Tier 1-3 locks and is informational only.
         """
         # Extract last 5 matches goals conceded
         home_conceded_last5 = home_data.get('goals_conceded_last_5', 0)
@@ -196,10 +155,6 @@ class MatchStateClassifier:
         SUGGEST UNDER MARKET BASED ON DURABILITY
         
         Provides actionable guidance for Under markets (informational only).
-        
-        • STABLE durability → Under 2.5 recommended
-        • FRAGILE durability → Under 3.5 recommended
-        • NONE durability → No Under recommendation
         """
         durability = MatchStateClassifier.classify_totals_durability(home_data, away_data)
         
@@ -218,13 +173,6 @@ class MatchStateClassifier:
         COMPUTE RELIABILITY SCORE (0-5)
         
         Combines all classifications into a single reliability score.
-        
-        Scoring:
-        • Totals Durability: STABLE=+2, FRAGILE=+1, NONE=0
-        • Under Suggestion: Under 2.5=+2, Under 3.5=+1, None=0
-        • Opponent Under 1.5: True=+1, False=0
-        
-        Total range: 0 → 5
         """
         # Extract classification values
         totals_durability = classifications.get('totals_durability', 'NONE')
@@ -281,7 +229,7 @@ class MatchStateClassifier:
             }
         }
     
-    # =================== EXISTING MATCH STATE FUNCTIONS (Preserved) ===================
+    # =================== EXISTING MATCH STATE FUNCTIONS ===================
     
     @staticmethod
     def check_terminal_stagnation(home_data: Dict, away_data: Dict) -> Tuple[bool, Dict, List[str]]:
@@ -374,12 +322,7 @@ class MatchStateClassifier:
         """
         MAIN CLASSIFICATION FUNCTION - COMPLETE SYSTEM
         
-        Returns ALL classifications in a single dictionary:
-        • Match States (existing)
-        • Totals Durability
-        • Opponent Under 1.5
-        • Under Suggestions
-        • Reliability Score (0-5 with detailed breakdown)
+        Returns ALL classifications in a single dictionary.
         
         IMPORTANT: This is 100% READ-ONLY and informational only.
         Does NOT affect betting logic, stakes, or existing tiers.
@@ -552,16 +495,6 @@ def get_complete_classification(home_data: Dict, away_data: Dict) -> Dict:
     
     Use this function in app.py to get ALL classification results.
     Ensures classification stays 100% read-only.
-    
-    Usage in app.py:
-    ```
-    from match_state_classifier import get_complete_classification
-    
-    # After existing analysis
-    classification = get_complete_classification(home_data, away_data)
-    result['intelligence_layer'] = classification
-    result['intelligence_is_read_only'] = True
-    ```
     """
     return MatchStateClassifier.classify_match_state(home_data, away_data)
 
@@ -603,12 +536,6 @@ def format_reliability_badge(reliability_data: Dict) -> str:
     FORMAT RELIABILITY SCORE AS UI BADGE
     
     Returns HTML/emoji formatted badge for display in Streamlit.
-    
-    Usage in app.py:
-    ```
-    badge = format_reliability_badge(classification)
-    st.markdown(badge, unsafe_allow_html=True)
-    ```
     """
     score = reliability_data.get('reliability_score', 0)
     label = reliability_data.get('reliability_label', 'NONE')
@@ -748,9 +675,35 @@ if __name__ == "__main__":
     # Integration Instructions
     print("🎯 INTEGRATION INSTRUCTIONS FOR app.py")
     print("=" * 60)
-    print("""
-1. Save this file as 'match_state_classifier.py' in your project.
-
-2. Add import at top of app.py:
-   ```python
-   from match_state_classifier import get_complete_classification, format_reliability_badge
+    print("\n1. Save this file as 'match_state_classifier.py' in your project.\n")
+    print("2. Add import at top of app.py:")
+    print("   from match_state_classifier import get_complete_classification, format_reliability_badge, format_durability_indicator\n")
+    print("3. After existing analysis (before displaying results), add:")
+    print("   # READ-ONLY INTELLIGENCE LAYER")
+    print("   intelligence = get_complete_classification(home_data, away_data)")
+    print("   result['state_classification'] = intelligence")
+    print("   result['classification_is_read_only'] = True\n")
+    print("4. In UI section, display intelligence:")
+    print("   if 'state_classification' in result:")
+    print("       st.markdown('### 🧠 STRUCTURAL INTELLIGENCE (READ-ONLY)')")
+    print("       # Reliability badge")
+    print("       badge = format_reliability_badge(result['state_classification'])")
+    print("       st.markdown(badge, unsafe_allow_html=True)")
+    print("       # Durability indicator")
+    print("       dura = result['state_classification']['totals_durability']")
+    print("       st.markdown(f'**Totals Durability:** {format_durability_indicator(dura)}')\n")
+    print("5. Safety Verification:")
+    print("   • Remove the intelligence code → system behaves identically")
+    print("   • No changes to existing Tier 1-3 logic")
+    print("   • All bets, stakes, locks remain unchanged")
+    print("   • Classification is 100% read-only\n")
+    print("6. Test with known matches:")
+    print("   • Rayo Vallecano vs Getafe → Should show HIGH reliability")
+    print("   • Celta Vigo vs Valencia → Should show MODERATE/CAUTION")
+    print("   • Manchester United vs Wolves → Should show LOW/NONE")
+    
+    print("\n" + "=" * 60)
+    print("✅ MODULE READY FOR DROP-IN INTEGRATION")
+    print("🔒 100% READ-ONLY - NO SIDE EFFECTS")
+    print("🧠 COMPLETE INTELLIGENCE LAYER IMPLEMENTED")
+    print("🚀 SAFE TO INTEGRATE WITH EXISTING BRUTBALL SYSTEM")
