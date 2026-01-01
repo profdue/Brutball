@@ -2672,7 +2672,7 @@ def main():
                     <span class="market-badge badge-edge-locked">Tier 1 Source</span>
                 </div>
             </div>
-            """st.markdown("#### 🔓 TIER 1+: EDGE-DERIVED OPPONENT_UNDER_1.5 LOCKS")
+            ""st.markdown("#### 🔓 TIER 1+: EDGE-DERIVED OPPONENT_UNDER_1.5 LOCKS")
 
 edge_html = f"""
 <div class="edge-derived-display">
