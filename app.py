@@ -2676,11 +2676,12 @@ def main():
             st.markdown(edge_html, unsafe_allow_html=True)
             
             # Show individual edge-derived locks
-            for lock in result['edge_derived_locks']:# Get the declaration parts safely
-                # Safely split the declaration
-                declaration_parts = lock['declaration'].split('\n')
-                first_line = declaration_parts[0] if declaration_parts else lock['declaration']
-                second_line = declaration_parts[1] if len(declaration_parts) > 1 else lock['details']
+            for lock in result['edge_derived_locks']:
+                # Safely handle the declaration split
+                first_line, second_line = safe_split_declaration(
+                    lock['declaration'], 
+                    lock.get('details', 'Defensive proof confirmed')
+                )
                 
                 lock_html = f"""
                 <div class="market-edge-derived">
@@ -2704,7 +2705,8 @@ def main():
                         </div>
                     </div>
                 </div>
-                """                st.markdown(lock_html, unsafe_allow_html=True)
+                """
+                st.markdown(lock_html, unsafe_allow_html=True)     
         
         # Check for State Preservation failures and show "Stay-Out" badge
         preservation_failures = []
