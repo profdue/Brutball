@@ -2672,57 +2672,35 @@ def main():
                     <span class="market-badge badge-edge-locked">Tier 1 Source</span>
                 </div>
             </div>
-            ""st.markdown("#### 🔓 TIER 1+: EDGE-DERIVED OPPONENT_UNDER_1.5 LOCKS")
-
-edge_html = f"""
-<div class="edge-derived-display">
-    <h3 style="color: #1E40AF; margin: 0 0 1rem 0;">EDGE-DERIVED DEFENSIVE CONTROL DETECTED</h3>
-    <div style="font-size: 1.2rem; color: #3B82F6; margin-bottom: 0.5rem;">
-        {len(result['edge_derived_locks'])} OPPONENT_UNDER_1.5 lock(s) from Tier 1 edge analysis
-    </div>
-    <div style="color: #374151; margin-bottom: 1rem;">
-        Extracted from defensive proof (opponent concedes ≤ 1.0 avg goals last 5)
-    </div>
-    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;">
-        <span class="market-badge badge-edge-locked">Edge-Derived</span>
-        <span class="market-badge badge-edge-locked">Opponent Under 1.5</span>
-        <span class="market-badge badge-edge-locked">Tier 1 Source</span>
-    </div>
-</div>
-"""
-st.markdown(edge_html, unsafe_allow_html=True)
-
-# Show individual edge-derived locks
-for lock in result['edge_derived_locks']:
-    # Safely split the declaration
-    declaration_parts = lock['declaration'].split('\n')
-    first_line = declaration_parts[0] if len(declaration_parts) > 0 else lock['declaration']
-    second_line = declaration_parts[1] if len(declaration_parts) > 1 else "Defensive proof confirmed"
-    
-    lock_html = f"""
-    <div class="market-edge-derived">
-        <div style="display: flex; align-items: center; margin-bottom: 0.5rem;">
-            <div style="font-size: 1.5rem; margin-right: 0.5rem;">🔓</div>
-            <div>
-                <div style="font-size: 1.1rem; font-weight: 700; color: #1E40AF;">
-                    {first_line}
+            """
+            st.markdown(edge_html, unsafe_allow_html=True)
+            
+            # Show individual edge-derived locks
+            for lock in result['edge_derived_locks']:
+                lock_html = f"""
+                <div class="market-edge-derived">
+                    <div style="display: flex; align-items: center; margin-bottom: 0.5rem;">
+                        <div style="font-size: 1.5rem; margin-right: 0.5rem;">🔓</div>
+                        <div>
+                            <div style="font-size: 1.1rem; font-weight: 700; color: #1E40AF;">
+                                {lock['declaration'].split('\\n')[0]}
+                            </div>
+                            <div style="font-size: 0.9rem; color: #6B7280;">
+                                {lock['declaration'].split('\\n')[1]}
+                            </div>
+                        </div>
+                    </div>
+                    <div style="background: #EFF6FF; padding: 0.75rem; border-radius: 6px; margin-top: 0.5rem;">
+                        <div style="font-size: 0.9rem; color: #374151;">
+                            <strong>Defensive Proof:</strong> {lock['details']}
+                        </div>
+                        <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">
+                            <strong>Source:</strong> Tier 1 Edge Analysis • <strong>Capital:</strong> Authorized (2.0x multiplier)
+                        </div>
+                    </div>
                 </div>
-                <div style="font-size: 0.9rem; color: #6B7280;">
-                    {second_line}
-                </div>
-            </div>
-        </div>
-        <div style="background: #EFF6FF; padding: 0.75rem; border-radius: 6px; margin-top: 0.5rem;">
-            <div style="font-size: 0.9rem; color: #374151;">
-                <strong>Defensive Proof:</strong> {lock['details']}
-            </div>
-            <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">
-                <strong>Source:</strong> Tier 1 Edge Analysis • <strong>Capital:</strong> Authorized (2.0x multiplier)
-            </div>
-        </div>
-    </div>
-    """
-    st.markdown(lock_html, unsafe_allow_html=True)
+                """
+                st.markdown(lock_html, unsafe_allow_html=True)
         
         # Check for State Preservation failures and show "Stay-Out" badge
         preservation_failures = []
