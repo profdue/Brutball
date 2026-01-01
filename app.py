@@ -39,6 +39,46 @@ def format_reliability_badge_html(reliability_data):
     # Return HTML span
     return f'<span style="font-size: 1.1rem; font-weight: 600;">{emoji} <strong>Reliability: {label} ({score}/5)</strong></span>'
 
+# =================== ADD THIS FUNCTION ===================
+def safe_split_declaration(declaration: str, fallback_text: str = "") -> Tuple[str, str]:
+    """
+    Safely split a declaration into two lines.
+    
+    Args:
+        declaration: The declaration text to split
+        fallback_text: Text to use as second line if split fails
+        
+    Returns:
+        Tuple of (first_line, second_line)
+    """
+    if not declaration:
+        return "Declaration not available", fallback_text
+    
+    # Try to split by newline
+    lines = declaration.strip().split('\n')
+    
+    if len(lines) >= 2:
+        # Return first two lines
+        return lines[0].strip(), lines[1].strip()
+    elif len(lines) == 1:
+        # If only one line, try to split by colon or period
+        line = lines[0].strip()
+        
+        # Try to find a natural break point
+        colon_split = line.split(':', 1)
+        if len(colon_split) == 2:
+            return colon_split[0].strip() + ':', colon_split[1].strip()
+        
+        period_split = line.split('.', 1)
+        if len(period_split) == 2:
+            return period_split[0].strip() + '.', period_split[1].strip()
+        
+        # If still no good split, just use the whole line as first line
+        return line, fallback_text
+    else:
+        # Empty declaration
+        return "No declaration", fallback_text
+
 # =================== SYSTEM CONSTANTS (IMMUTABLE) ===================
 # v6.0 Edge Detection Engine Constants
 CONTROL_CRITERIA_REQUIRED = 2  # Minimum for edge detection
