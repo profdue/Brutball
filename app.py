@@ -505,6 +505,36 @@ st.markdown("""
         font-size: 0.85rem;
         color: #374151;
     }
+    .perspective-display {
+        background: #F0F9FF;
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 2px solid #0EA5E9;
+        margin: 1rem 0;
+    }
+    .perspective-box {
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 2px solid #E5E7EB;
+        margin: 0.75rem 0;
+    }
+    .perspective-home {
+        border-left: 4px solid #3B82F6;
+    }
+    .perspective-away {
+        border-left: 4px solid #EF4444;
+    }
+    .stay-out-badge {
+        background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+        color: #92400E;
+        border: 2px solid #F59E0B;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 700;
+        display: inline-block;
+        margin: 0.5rem 0;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -975,10 +1005,10 @@ class AgencyStateLockEngine:
         
         # Get recent defensive trend (LAST 5 MATCHES ONLY)
         if is_home:
-            recent_conceded = controller_data.get('home_goals_conceded_last_5', 0)
+            recent_conceded = controller_data.get('goals_conceded_last_5', 0)
             matches = 5
         else:
-            recent_conceded = controller_data.get('away_goals_conceded_last_5', 0)
+            recent_conceded = controller_data.get('goals_conceded_last_5', 0)
             matches = 5
         
         recent_concede_avg = recent_conceded / matches if matches > 0 else 0
@@ -1847,7 +1877,7 @@ def calculate_derived_metrics(df: pd.DataFrame) -> pd.DataFrame:
 
 # =================== MAIN APPLICATION ===================
 def main():
-    """Main application function with State Preservation Law and optional State Classification."""
+    """Main application function with State Preservation Law and State Classification."""
     
     # Header
     st.markdown('<div class="system-header">⚖️🔒📊 BRUTBALL INTEGRATED ARCHITECTURE v6.2</div>', unsafe_allow_html=True)
@@ -1857,7 +1887,7 @@ def main():
         <p><strong>THREE-TIER SYSTEM WITH STATE PRESERVATION LAW</strong></p>
         <p>Tier 1: v6.0 Edge Detection • Tier 2: Agency-State Lock • Tier 3: Totals Lock</p>
         <p><strong>CRITICAL UPDATE:</strong> Gate 4A enforces that defensive markets require RECENT defensive proof</p>
-        <p><strong>OPTIONAL ENHANCEMENT:</strong> State & Durability Classification (Read-Only) available for system protection</p>
+        <p><strong>PRE-MATCH INTELLIGENCE:</strong> State & Durability Classification available for system protection</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -1880,6 +1910,42 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
+    # Pre-Match Intelligence Principles
+    st.markdown("""
+    <div class="state-principle">
+        <h4>🧠 PRE-MATCH INTELLIGENCE PRINCIPLES</h4>
+        <div style="margin: 1rem 0;">
+            <div class="state-bound-list">
+                <strong>✅ LAST-5 DATA ONLY (NO SEASON AVERAGES)</strong>
+                <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                    <li><strong>Totals Lock:</strong> Binary gate (both teams ≤ 1.2 avg goals scored)</li>
+                    <li><strong>Durability:</strong> STABLE / FRAGILE / NONE based on last 5</li>
+                    <li><strong>Opponent Under 1.5:</strong> PRESENT/ABSENT from conceded avg last 5</li>
+                    <li><strong>Perspective-sensitive:</strong> "Opponent" depends on which team is backed</li>
+                </ul>
+            </div>
+            <div class="totals-lock-list">
+                <strong>✅ PERSPECTIVE-BASED OPPONENT LOGIC</strong>
+                <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                    <li><strong>Backing Home Team → Opponent = Away Team</strong></li>
+                    <li><strong>Backing Away Team → Opponent = Home Team</strong></li>
+                    <li>Clear labeling: "When backing HOME: Away concedes X avg"</li>
+                    <li>Dual perspective reporting in UI</li>
+                </ul>
+            </div>
+            <div class="noise-list">
+                <strong>✅ READ-ONLY INTELLIGENCE LAYER</strong>
+                <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                    <li>Does NOT affect bets, stakes, or Tier 1–3 logic</li>
+                    <li>Informational only for pre-match assessment</li>
+                    <li>Mathematically consistent with last-5 data</li>
+                    <li>No external assumptions or season averages</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
     # Show State Classifier availability
     if STATE_CLASSIFIER_AVAILABLE:
         st.markdown("""
@@ -1890,44 +1956,6 @@ def main():
             <p><strong>CRITICAL:</strong> Classification does NOT affect betting logic, stakes, or existing tiers</p>
         </div>
         """, unsafe_allow_html=True)
-    
-    # State Principles
-    st.markdown("""
-    <div class="state-principle">
-        <h4>🧠 SYSTEM ARCHITECTURE & MARKET LOGIC</h4>
-        <div style="margin: 1rem 0;">
-            <div class="state-bound-list">
-                <strong>✅ TIER 2: AGENCY-STATE LOCKS (4 Gates + State Preservation)</strong>
-                <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-                    <li><strong>Gate 1:</strong> Quiet Control Identification (≥2 criteria)</li>
-                    <li><strong>Gate 2:</strong> Directional Dominance (Δ > 0.25 + market thresholds)</li>
-                    <li><strong>Gate 3:</strong> Agency Collapse (opponent fails escalation checks)</li>
-                    <li><strong>Gate 4A:</strong> <strong>DEFENSIVE STATE PRESERVATION</strong> (recent concede avg ≤ threshold)</li>
-                    <li><strong>Gate 4B:</strong> Non-Urgent Enforcement (can protect outcome)</li>
-                    <li><strong>Critical:</strong> Gate 4A OVERRIDES Gates 1-3 for defensive markets</li>
-                </ul>
-            </div>
-            <div class="totals-lock-list">
-                <strong>✅ TIER 3: TOTALS LOCK (Binary Gate)</strong>
-                <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-                    <li><strong>Condition:</strong> BOTH teams last 5 avg goals ≤ 1.2</li>
-                    <li><strong>Market:</strong> Totals ≤2.5 ONLY</li>
-                    <li><strong>Logic:</strong> Dual low-offense trend → structural scoring incapacity</li>
-                    <li><strong>Data:</strong> goals_scored_last_5 / 5 ONLY (no season averages)</li>
-                </ul>
-            </div>
-            <div class="noise-list">
-                <strong>❌ NON-STATE MARKETS (Emergent Noise)</strong>
-                <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-                    <li>Totals Over 2.5 - Requires mutual agency</li>
-                    <li>Both Teams to Score - Mutual scoring needed</li>
-                    <li>Correct Score - Joint agency chaos</li>
-                    <li>Draw - Mutual inability</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
     
     # Architecture diagram
     st.markdown("""
@@ -2053,12 +2081,12 @@ def main():
         else:
             league_avg_xg = 1.3
         
-        # Execute integrated analysis (EXISTING LOGIC - UNCHANGED)
+        # Execute integrated analysis
         result = BrutballIntegratedArchitecture.execute_integrated_analysis(
             home_data, away_data, home_team, away_team, league_avg_xg
         )
         
-        # =================== OPTIONAL: READ-ONLY STATE & DURABILITY CLASSIFICATION ===================
+        # =================== READ-ONLY STATE & DURABILITY CLASSIFICATION ===================
         # CRITICAL: This runs AFTER all betting logic is complete
         # Does NOT affect existing results, stakes, or decisions
         classification_result = None
@@ -2111,9 +2139,65 @@ def main():
         </div>
         """, unsafe_allow_html=True)
         
-        # =================== OPTIONAL: STATE & DURABILITY CLASSIFICATION DISPLAY ===================
+        # =================== STATE & DURABILITY CLASSIFICATION DISPLAY ===================
         if classification_result and 'state_classification' in result:
-            st.markdown("#### 🔍 STRUCTURAL INTELLIGENCE (READ-ONLY)")
+            st.markdown("#### 🔍 PRE-MATCH STRUCTURAL INTELLIGENCE (READ-ONLY)")
+            
+            # Display the perspective boxes
+            st.markdown("""
+            <div class="perspective-display">
+                <h4>📊 PERSPECTIVE-BASED ANALYSIS</h4>
+                <p style="color: #374151; margin-bottom: 1rem;">"Opponent" depends on which team you're backing. All calculations use LAST 5 MATCHES only.</p>
+            """, unsafe_allow_html=True)
+            
+            # Get opponent under 1.5 data
+            opponent_data = classification_result.get('opponent_under_15', {})
+            home_perspective = opponent_data.get('home_perspective', {})
+            away_perspective = opponent_data.get('away_perspective', {})
+            
+            # Home Perspective Box
+            st.markdown(f"""
+            <div class="perspective-box perspective-home">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <div style="font-weight: 700; color: #1E40AF;">BACKING HOME ({home_team})</div>
+                    <div style="font-size: 0.9rem; color: #6B7280;">Opponent = {away_team}</div>
+                </div>
+                <div style="color: #374151; margin-bottom: 0.5rem;">
+                    {home_perspective.get('interpretation', 'N/A')}
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <div style="font-size: 1.5rem; margin-right: 0.5rem;">
+                        {'✅' if home_perspective.get('opponent_under_15') else '❌'}
+                    </div>
+                    <div style="font-weight: 600; color: {'#16A34A' if home_perspective.get('opponent_under_15') else '#DC2626'};">
+                        Signal: {'PRESENT' if home_perspective.get('opponent_under_15') else 'ABSENT'}
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Away Perspective Box
+            st.markdown(f"""
+            <div class="perspective-box perspective-away">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <div style="font-weight: 700; color: #DC2626;">BACKING AWAY ({away_team})</div>
+                    <div style="font-size: 0.9rem; color: #6B7280;">Opponent = {home_team}</div>
+                </div>
+                <div style="color: #374151; margin-bottom: 0.5rem;">
+                    {away_perspective.get('interpretation', 'N/A')}
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <div style="font-size: 1.5rem; margin-right: 0.5rem;">
+                        {'✅' if away_perspective.get('opponent_under_15') else '❌'}
+                    </div>
+                    <div style="font-weight: 600; color: {'#16A34A' if away_perspective.get('opponent_under_15') else '#DC2626'};">
+                        Signal: {'PRESENT' if away_perspective.get('opponent_under_15') else 'ABSENT'}
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown("</div>", unsafe_allow_html=True)
             
             # Map state to badge class
             state_badge_classes = {
@@ -2128,33 +2212,69 @@ def main():
             dominant_state = classification_result['dominant_state']
             badge_class = state_badge_classes.get(dominant_state, 'badge-neutral')
             
-            # Display reliability badge
-            if format_reliability_badge:
-                reliability_badge = format_reliability_badge(classification_result)
-                st.markdown(reliability_badge, unsafe_allow_html=True)
-            
-            # Display durability indicator
-            if format_durability_indicator:
-                durability = classification_result.get('totals_durability', 'NONE')
-                st.markdown(f"**Totals Durability:** {format_durability_indicator(durability)}")
-            
+            # Display classification summary
             st.markdown(f"""
             <div class="state-classification-display">
                 <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin-bottom: 1rem;">
                     <span class="state-badge {badge_class}">{dominant_state.replace('_', ' ')}</span>
                     <span class="read-only-badge">READ-ONLY</span>
                 </div>
-                <div style="color: #374151; margin-bottom: 0.5rem;">
-                    {classification_result.get('state_description', 'No description available')}
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1.5rem 0;">
+                    <div style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #E5E7EB;">
+                        <div style="font-size: 0.9rem; color: #6B7280; margin-bottom: 0.5rem;">Totals Durability</div>
+                        <div style="font-size: 1.2rem; font-weight: 700; color: #1E40AF;">
+                            {format_durability_indicator(classification_result.get('totals_durability', 'NONE')) if format_durability_indicator else classification_result.get('totals_durability', 'N/A')}
+                        </div>
+                        <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">
+                            Based on last 5 matches only
+                        </div>
+                    </div>
+                    
+                    <div style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #E5E7EB;">
+                        <div style="font-size: 0.9rem; color: #6B7280; margin-bottom: 0.5rem;">Under Market Suggestion</div>
+                        <div style="font-size: 1.2rem; font-weight: 700; color: #059669;">
+                            {classification_result.get('under_suggestion', 'N/A')}
+                        </div>
+                        <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">
+                            Informational guidance only
+                        </div>
+                    </div>
                 </div>
-                <div style="color: #6B7280; font-size: 0.9rem; margin-bottom: 0.5rem;">
-                    <strong>Under Market Suggestion:</strong> {classification_result.get('under_suggestion', 'N/A')}
+                
+                <div style="margin: 1rem 0; padding: 1rem; background: #F0F9FF; border-radius: 8px; border: 1px solid #BAE6FD;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <div style="font-size: 1.1rem; font-weight: 600;">Reliability Assessment</div>
+                    </div>
+                    {format_reliability_badge(classification_result.get('reliability_home', {})) if format_reliability_badge else 'N/A'}
+                    <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.5rem; text-align: center;">
+                        Based on durability, under suggestions, and opponent defense
+                    </div>
                 </div>
-                <div style="color: #6B7280; font-size: 0.9rem; margin-bottom: 0.5rem;">
-                    <strong>Opponent Under 1.5 Signal:</strong> {'✅ PRESENT' if classification_result.get('opponent_under_15', {}).get('any_opponent_under_15', False) else '❌ ABSENT'}
-                </div>
+                
                 <div style="color: #DC2626; font-size: 0.85rem; margin-top: 1rem; padding: 0.75rem; background: #FEF2F2; border-radius: 6px;">
-                    <strong>⚠️ IMPORTANT:</strong> Classification is informational only. Does NOT affect betting logic, stakes, or existing tiers.
+                    <strong>⚠️ IMPORTANT:</strong> This classification is 100% read-only and informational only. Does NOT affect betting logic, stakes, or existing tiers.
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Check for State Preservation failures and show "Stay-Out" badge
+        preservation_failures = []
+        for market in ['CLEAN_SHEET', 'TEAM_NO_SCORE']:
+            if result['market_status'][market]['failed_on_preservation']:
+                preservation_failures.append(market.replace('_', ' '))
+        
+        if preservation_failures:
+            st.markdown(f"""
+            <div style="text-align: center; margin: 1.5rem 0;">
+                <div class="stay-out-badge">
+                    ⚠️ STAY-OUT RECOMMENDED
+                </div>
+                <div style="color: #92400E; margin-top: 0.5rem; font-size: 0.9rem;">
+                    {', '.join(preservation_failures)} failed State Preservation Law
+                </div>
+                <div style="color: #6B7280; font-size: 0.85rem; margin-top: 0.25rem;">
+                    Recent defensive proof insufficient for these markets
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -2225,17 +2345,17 @@ def main():
             """, unsafe_allow_html=True)
             
             # Check if any failed on State Preservation
-            preservation_failures = []
+            preservation_failures_display = []
             for market in ['CLEAN_SHEET', 'TEAM_NO_SCORE', 'OPPONENT_UNDER_1_5']:
                 if result['market_status'][market]['failed_on_preservation']:
-                    preservation_failures.append(market)
+                    preservation_failures_display.append(market.replace('_', ' '))
             
-            if preservation_failures:
+            if preservation_failures_display:
                 st.markdown(f"""
                 <div class="gate-failed">
                     <strong>❌ STATE PRESERVATION LAW FAILURES DETECTED</strong>
                     <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">
-                        Markets failed on recent defensive proof: {', '.join(preservation_failures)}
+                        Markets failed on recent defensive proof: {', '.join(preservation_failures_display)}
                     </p>
                     <p style="margin: 0.5rem 0 0 0; font-size: 0.85rem; color: #DC2626;">
                         Manchester United vs Wolves pattern detected
@@ -2255,7 +2375,7 @@ def main():
                     Dual Low-Offense Trend Confirmed
                 </div>
                 <div style="color: #374151; margin-bottom: 1rem;">
-                    Both teams exhibit sustained low-scoring trends
+                    Both teams exhibit sustained low-scoring trends (last 5 matches)
                 </div>
                 <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;">
                     <span class="market-badge badge-totals-locked">TOTALS ≤2.5 LOCKED</span>
@@ -2305,12 +2425,11 @@ League: {selected_league}
 Match: {home_team} vs {away_team}
 Analysis Time: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-ARCHITECTURE SUMMARY:
+PRE-MATCH INTELLIGENCE SUMMARY:
 • Framework: Three-Tier Integrated System v6.2
-• Tier 1: v6.0 Edge Detection Engine (Heuristic)
-• Tier 2: Agency-State Lock Engine (4 Gates + State Preservation Law)
-• Tier 3: Totals Lock Engine (Trend-Based, Binary Gate)
-• Core Principle: STATE = AGENCY CONTROL • LOCK = AGENCY SUPPRESSION
+• Data Source: LAST 5 MATCHES ONLY (no season averages)
+• Perspective-Sensitive: Opponent depends on which team is backed
+• Read-Only: Does not affect betting logic, stakes, or existing tiers
 
 CRITICAL UPDATE (v6.2): STATE PRESERVATION LAW
 • A state cannot be locked unless it can be PRESERVED.
@@ -2360,17 +2479,6 @@ INTEGRATED CAPITAL DECISION:
 • Base Stake: {v6_result['stake_pct']:.1f}%
 • Final Stake: {result['final_stake']:.2f}%
 • System Verdict: {result['system_verdict']}
-
-STATE PRESERVATION LAW DETAILS:
-• Winner: Uses dominance logic (no preservation check)
-• Clean Sheet: Requires recent concede avg ≤ 0.8
-• Team No Score: Requires recent concede avg ≤ 0.6
-• Opponent Under 1.5: Requires recent concede avg ≤ 1.0
-• Data Source: *_goals_conceded_last_5 / 5 ONLY
-• No exceptions: If fails → NO LOCK (regardless of Gates 1-3)
-
-INTEGRATED SYSTEM LOG:
-{chr(10).join(result['integrated_log'])}
 """
         
         # Add classification if available
@@ -2378,14 +2486,25 @@ INTEGRATED SYSTEM LOG:
             export_text += f"""
 
 ===========================================
-STATE & DURABILITY CLASSIFICATION (READ-ONLY - INFORMATIONAL)
+STATE & DURABILITY CLASSIFICATION (READ-ONLY - PRE-MATCH INTELLIGENCE)
 ===========================================
+DATA SOURCE: Last 5 matches only (no season averages)
+
+PERSPECTIVE-BASED ANALYSIS:
+• Backing {home_team} (HOME): Opponent = {away_team}
+  - {opponent_data.get('home_perspective', {}).get('interpretation', 'N/A')}
+  - Signal: {'PRESENT' if home_perspective.get('opponent_under_15') else 'ABSENT'}
+
+• Backing {away_team} (AWAY): Opponent = {home_team}
+  - {opponent_data.get('away_perspective', {}).get('interpretation', 'N/A')}
+  - Signal: {'PRESENT' if away_perspective.get('opponent_under_15') else 'ABSENT'}
+
+CLASSIFICATION RESULTS:
 • Dominant State: {classification_result['dominant_state']}
 • Totals Durability: {classification_result.get('totals_durability', 'N/A')}
 • Under Market Suggestion: {classification_result.get('under_suggestion', 'N/A')}
-• Opponent Under 1.5 Signal: {'PRESENT' if classification_result.get('opponent_under_15', {}).get('any_opponent_under_15', False) else 'ABSENT'}
-• Reliability Score: {classification_result.get('reliability_score', 0)}/5 ({classification_result.get('reliability_label', 'N/A')})
-• Description: {classification_result.get('state_description', 'N/A')}
+• Reliability Score (Home perspective): {classification_result.get('reliability_home', {}).get('reliability_score', 0)}/5 ({classification_result.get('reliability_home', {}).get('reliability_label', 'N/A')})
+• Reliability Score (Away perspective): {classification_result.get('reliability_away', {}).get('reliability_score', 0)}/5 ({classification_result.get('reliability_away', {}).get('reliability_label', 'N/A')})
 
 IMPORTANT: Classification is 100% read-only and does NOT affect:
 • Betting logic or decisions
@@ -2393,6 +2512,16 @@ IMPORTANT: Classification is 100% read-only and does NOT affect:
 • Market lock declarations
 • Existing tier logic (Tiers 1-3)
 • Stake calculations
+"""
+        
+        # Add Stay-Out recommendation if applicable
+        if preservation_failures:
+            export_text += f"""
+
+STAY-OUT RECOMMENDATION:
+• Markets failed State Preservation Law: {', '.join(preservation_failures)}
+• Recent defensive proof insufficient for these markets
+• Pre-match intelligence suggests avoiding these positions
 """
         
         export_text += f"""
@@ -2403,6 +2532,7 @@ Three-Tier System with State Preservation Law
 Tier 1: v6.0 Edge Detection • Tier 2: Agency-State Lock • Tier 3: Totals Lock
 Capital: 2.0x for any lock (agency or totals), 1.0x otherwise
 State Preservation: Gate 4A OVERRIDES Gates 1-3 for defensive markets
+Pre-Match Intelligence: Perspective-sensitive, last-5 data only, read-only
 """
         
         st.download_button(
@@ -2421,7 +2551,7 @@ State Preservation: Gate 4A OVERRIDES Gates 1-3 for defensive markets
         <p>Three-Tier System with State Preservation Law</p>
         <p>Tier 1: v6.0 Edge Detection • Tier 2: Agency-State Lock • Tier 3: Totals Lock</p>
         <p><strong>STATE PRESERVATION LAW:</strong> Gate 4A OVERRIDES Gates 1-3 for defensive markets</p>
-        <p><strong>OPTIONAL ENHANCEMENT:</strong> State & Durability Classification available (read-only)</p>
+        <p><strong>PRE-MATCH INTELLIGENCE:</strong> Perspective-sensitive, last-5 data only, read-only</p>
     </div>
     """, unsafe_allow_html=True)
 
