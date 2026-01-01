@@ -2251,74 +2251,131 @@ def main():
             
             st.markdown("</div>", unsafe_allow_html=True)
             
-            # Map state to badge class
-            state_badge_classes = {
-                'TERMINAL_STAGNATION': 'badge-stagnation',
-                'ASYMMETRIC_SUPPRESSION': 'badge-suppression',
-                'DELAYED_RELEASE': 'badge-delayed',
-                'FORCED_EXPLOSION': 'badge-explosion',
-                'NEUTRAL': 'badge-neutral',
-                'CLASSIFIER_ERROR': 'badge-neutral'
+            # =================== STREAMLIT-NATIVE CLASSIFICATION DISPLAY ===================
+            # Using pure Streamlit components, no HTML
+            
+            # Map state to emoji and color
+            state_info = {
+                'TERMINAL_STAGNATION': {'emoji': '🌀', 'color': '#0EA5E9', 'label': 'Terminal Stagnation'},
+                'ASYMMETRIC_SUPPRESSION': {'emoji': '🛡️', 'color': '#16A34A', 'label': 'Asymmetric Suppression'},
+                'DELAYED_RELEASE': {'emoji': '⏳', 'color': '#F59E0B', 'label': 'Delayed Release'},
+                'FORCED_EXPLOSION': {'emoji': '💥', 'color': '#EF4444', 'label': 'Forced Explosion'},
+                'NEUTRAL': {'emoji': '⚖️', 'color': '#6B7280', 'label': 'Neutral'},
+                'CLASSIFIER_ERROR': {'emoji': '⚠️', 'color': '#DC2626', 'label': 'Classifier Error'}
             }
             
             dominant_state = classification_result.get('dominant_state', 'NEUTRAL')
-            badge_class = state_badge_classes.get(dominant_state, 'badge-neutral')
+            state_data = state_info.get(dominant_state, state_info['NEUTRAL'])
             
             # Get durability and suggestion
             totals_durability = classification_result.get('totals_durability', 'NONE')
             under_suggestion = classification_result.get('under_suggestion', 'No Under recommendation')
             
-            # Create reliability badge HTML if available
-            reliability_badge_html = "N/A"
-            if classification_result.get('reliability_home'):
-                reliability_badge_html = format_reliability_badge_html(classification_result.get('reliability_home', {}))
-            
-            # Display classification summary
-            classification_html = f"""
-            <div class="state-classification-display">
-                <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin-bottom: 1rem;">
-                    <span class="state-badge {badge_class}">{dominant_state.replace('_', ' ')}</span>
-                    <span class="read-only-badge">READ-ONLY</span>
-                </div>
-                
-                <div class="classification-grid">
-                    <div class="classification-card">
-                        <div class="classification-title">Totals Durability</div>
-                        <div class="classification-value" style="color: #1E40AF;">
-                            {format_durability_indicator(totals_durability) if format_durability_indicator else totals_durability}
+            # Create a clean classification display using Streamlit columns and containers
+            with st.container():
+                # State classification badge
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #FFEDD5 0%, #FED7AA 100%); 
+                            padding: 2rem; border-radius: 12px; border: 4px solid #F97316; 
+                            text-align: center; margin: 1.5rem 0;">
+                    <div style="display: inline-flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                        <span style="font-size: 2rem;">{state_data['emoji']}</span>
+                        <div>
+                            <div style="font-size: 1.5rem; font-weight: 800; color: {state_data['color']};">
+                                {state_data['label']}
+                            </div>
+                            <div style="display: inline-block; background: #F3F4F6; color: #6B7280; 
+                                        border: 1px solid #D1D5DB; font-size: 0.8rem; padding: 0.25rem 0.75rem; 
+                                        border-radius: 12px; margin-top: 0.5rem;">
+                                READ-ONLY
+                            </div>
                         </div>
-                        <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Classification metrics using Streamlit columns
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Totals Durability
+                    with st.container():
+                        st.markdown("**Totals Durability**")
+                        
+                        # Determine durability emoji and color
+                        if totals_durability == 'STABLE':
+                            durability_emoji = '🟢'
+                            durability_color = '#16A34A'
+                        elif totals_durability == 'FRAGILE':
+                            durability_emoji = '🟡'
+                            durability_color = '#F59E0B'
+                        else:  # NONE or other
+                            durability_emoji = '⚫'
+                            durability_color = '#6B7280'
+                        
+                        st.markdown(f"""
+                        <div style="font-size: 1.5rem; font-weight: 700; color: {durability_color}; 
+                                    margin: 0.5rem 0;">
+                            {durability_emoji} {totals_durability}
+                        </div>
+                        <div style="font-size: 0.85rem; color: #6B7280;">
                             Based on last 5 matches only
                         </div>
-                    </div>
-                    
-                    <div class="classification-card">
-                        <div class="classification-title">Under Market Suggestion</div>
-                        <div class="classification-value" style="color: #059669;">
+                        """, unsafe_allow_html=True)
+                
+                with col2:
+                    # Under Market Suggestion
+                    with st.container():
+                        st.markdown("**Under Market Suggestion**")
+                        st.markdown(f"""
+                        <div style="font-size: 1.2rem; font-weight: 700; color: #059669; 
+                                    margin: 0.5rem 0;">
                             {under_suggestion}
                         </div>
-                        <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">
+                        <div style="font-size: 0.85rem; color: #6B7280;">
                             Informational guidance only
+                        </div>
+                        """, unsafe_allow_html=True)
+                
+                # Reliability Assessment
+                st.markdown("---")
+                st.markdown("**Reliability Assessment**")
+                
+                reliability_data = classification_result.get('reliability_home', {})
+                score = reliability_data.get('reliability_score', 0)
+                label = reliability_data.get('reliability_label', 'NONE')
+                
+                # Map reliability score to emoji and color
+                reliability_map = {
+                    5: {'emoji': '🟢', 'color': '#16A34A'},
+                    4: {'emoji': '🟡', 'color': '#F59E0B'},
+                    3: {'emoji': '🟠', 'color': '#F97316'},
+                    2: {'emoji': '⚪', 'color': '#9CA3AF'},
+                    1: {'emoji': '⚪', 'color': '#9CA3AF'},
+                    0: {'emoji': '⚫', 'color': '#6B7280'}
+                }
+                
+                rel_info = reliability_map.get(score, reliability_map[0])
+                
+                st.markdown(f"""
+                <div style="background: #F0F9FF; padding: 1.5rem; border-radius: 8px; 
+                            border: 1px solid #BAE6FD; margin: 1rem 0;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">
+                            {rel_info['emoji']}
+                        </div>
+                        <div style="font-size: 1.2rem; font-weight: 700; color: {rel_info['color']};">
+                            Reliability: {label} ({score}/5)
+                        </div>
+                        <div style="font-size: 0.9rem; color: #6B7280; margin-top: 0.5rem;">
+                            Based on durability, under suggestions, and opponent defense
                         </div>
                     </div>
                 </div>
+                """, unsafe_allow_html=True)
                 
-                <div class="reliability-display">
-                    <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                        <div style="font-size: 1.1rem; font-weight: 600;">Reliability Assessment</div>
-                    </div>
-                    {reliability_badge_html}
-                    <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.5rem; text-align: center;">
-                        Based on durability, under suggestions, and opponent defense
-                    </div>
-                </div>
-                
-                <div style="color: #DC2626; font-size: 0.85rem; margin-top: 1rem; padding: 0.75rem; background: #FEF2F2; border-radius: 6px;">
-                    <strong>⚠️ IMPORTANT:</strong> This classification is 100% read-only and informational only. Does NOT affect betting logic, stakes, or existing tiers.
-                </div>
-            </div>
-            """
-            st.markdown(classification_html, unsafe_allow_html=True)
+                # Important note
+                st.warning("**⚠️ IMPORTANT:** This classification is 100% read-only and informational only. Does NOT affect betting logic, stakes, or existing tiers.", icon="⚠️")
         
         # Check for State Preservation failures and show "Stay-Out" badge
         preservation_failures = []
