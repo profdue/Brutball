@@ -2822,8 +2822,11 @@ def main():
         st.markdown(capital_html, unsafe_allow_html=True)
         
         # =================== STATE & DURABILITY CLASSIFICATION DISPLAY ===================
-        if classification_result and 'state_classification' in result:
+        if classification_result:
             st.markdown("#### 🔍 PRE-MATCH STRUCTURAL INTELLIGENCE (READ-ONLY)")
+
+            # Use safe display function
+            safe_classification_display(classification_result, home_team, away_team)
             
             # Display the perspective boxes
             st.markdown("""
