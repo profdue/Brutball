@@ -2341,8 +2341,10 @@ def load_and_prepare_data(league_name: str) -> Optional[pd.DataFrame]:
         for source in data_sources:
             try:
                 df = pd.read_csv(source)
+                st.success(f"✅ Loaded data from: {source}")
                 break
-            except Exception:
+            except Exception as e:
+                st.warning(f"⚠️ Could not load from {source}: {str(e)}")
                 continue
         
         if df is None:
@@ -2352,11 +2354,19 @@ def load_and_prepare_data(league_name: str) -> Optional[pd.DataFrame]:
         # Calculate derived metrics
         df = calculate_derived_metrics(df)
         
+        # Validate last-5 data for classifier
+        validation_result = validate_last5_data(df)
+        if not validation_result['is_valid']:
+            st.warning(f"⚠️ CSV missing last-5 data for classifier: {', '.join(validation_result['missing_fields'])}")
+            st.info(f"📋 Classifier requires: goals_scored_last_5, goals_conceded_last_5")
+            st.info(f"📊 Available columns: {', '.join(list(df.columns)[:10])}...")
+        
         # Store metadata
         df.attrs['league_name'] = league_name
         df.attrs['display_name'] = league_config['display_name']
         df.attrs['country'] = league_config['country']
         df.attrs['color'] = league_config['color']
+        df.attrs['last5_validation'] = validation_result
         
         return df
         
@@ -2364,69 +2374,263 @@ def load_and_prepare_data(league_name: str) -> Optional[pd.DataFrame]:
         st.error(f"❌ Data preparation error: {str(e)}")
         return None
 
+
+def validate_last5_data(df: pd.DataFrame) -> Dict:
+    """
+    Validate that required last-5 data fields exist for classifier.
+    
+    Returns validation result dictionary.
+    """
+    required_fields = ['goals_scored_last_5', 'goals_conceded_last_5']
+    missing_fields = []
+    valid_fields = []
+    
+    for field in required_fields:
+        if field in df.columns:
+            # Check if data is valid (not all NaN or 0)
+            if df[field].isna().all() or (df[field] == 0).all():
+                missing_fields.append(f"{field}_empty")
+            else:
+                valid_fields.append(field)
+        else:
+            missing_fields.append(field)
+    
+    return {
+        'is_valid': len(missing_fields) == 0,
+        'missing_fields': missing_fields,
+        'valid_fields': valid_fields,
+        'total_teams': len(df),
+        'sample_data': {
+            'goals_scored_last_5': df['goals_scored_last_5'].head(3).tolist() if 'goals_scored_last_5' in df.columns else [],
+            'goals_conceded_last_5': df['goals_conceded_last_5'].head(3).tolist() if 'goals_conceded_last_5' in df.columns else []
+        }
+    }
+
+
 def calculate_derived_metrics(df: pd.DataFrame) -> pd.DataFrame:
     """Calculate all derived metrics from your CSV structure."""
     
-    # Goals scored (from CSV structure)
-    df['home_goals_scored'] = (
-        df['home_goals_openplay_for'].fillna(0) +
-        df['home_goals_counter_for'].fillna(0) +
-        df['home_goals_setpiece_for'].fillna(0) +
-        df['home_goals_penalty_for'].fillna(0) +
-        df['home_goals_owngoal_for'].fillna(0)
-    )
+    # CRITICAL: First check what columns we have
+    available_columns = set(df.columns)
+    st.info(f"📋 Available columns in CSV: {', '.join(sorted(available_columns)[:15])}...")
     
-    df['away_goals_scored'] = (
-        df['away_goals_openplay_for'].fillna(0) +
-        df['away_goals_counter_for'].fillna(0) +
-        df['away_goals_setpiece_for'].fillna(0) +
-        df['away_goals_penalty_for'].fillna(0) +
-        df['away_goals_owngoal_for'].fillna(0)
-    )
+    # =================== GOALS SCORED ===================
+    # Calculate goals scored from available components
+    home_goal_components = []
+    away_goal_components = []
     
-    # Goals conceded (from CSV structure)
-    df['home_goals_conceded'] = (
-        df['home_goals_openplay_against'].fillna(0) +
-        df['home_goals_counter_against'].fillna(0) +
-        df['home_goals_setpiece_against'].fillna(0) +
-        df['home_goals_penalty_against'].fillna(0) +
-        df['home_goals_owngoal_against'].fillna(0)
-    )
+    # Home goals components
+    if 'home_goals_openplay_for' in df.columns:
+        home_goal_components.append('home_goals_openplay_for')
+    if 'home_goals_counter_for' in df.columns:
+        home_goal_components.append('home_goals_counter_for')
+    if 'home_goals_setpiece_for' in df.columns:
+        home_goal_components.append('home_goals_setpiece_for')
+    if 'home_goals_penalty_for' in df.columns:
+        home_goal_components.append('home_goals_penalty_for')
+    if 'home_goals_owngoal_for' in df.columns:
+        home_goal_components.append('home_goals_owngoal_for')
     
-    df['away_goals_conceded'] = (
-        df['away_goals_openplay_against'].fillna(0) +
-        df['away_goals_counter_against'].fillna(0) +
-        df['away_goals_setpiece_against'].fillna(0) +
-        df['away_goals_penalty_against'].fillna(0) +
-        df['away_goals_owngoal_against'].fillna(0)
-    )
+    # Away goals components
+    if 'away_goals_openplay_for' in df.columns:
+        away_goal_components.append('away_goals_openplay_for')
+    if 'away_goals_counter_for' in df.columns:
+        away_goal_components.append('away_goals_counter_for')
+    if 'away_goals_setpiece_for' in df.columns:
+        away_goal_components.append('away_goals_setpiece_for')
+    if 'away_goals_penalty_for' in df.columns:
+        away_goal_components.append('away_goals_penalty_for')
+    if 'away_goals_owngoal_for' in df.columns:
+        away_goal_components.append('away_goals_owngoal_for')
     
-    # Per-match averages
-    df['home_goals_per_match'] = df['home_goals_scored'] / df['home_matches_played'].replace(0, np.nan)
-    df['away_goals_per_match'] = df['away_goals_scored'] / df['away_matches_played'].replace(0, np.nan)
+    # Calculate total goals scored
+    if home_goal_components:
+        df['home_goals_scored'] = df[home_goal_components].sum(axis=1, skipna=True)
+        st.success(f"✅ Calculated home_goals_scored from: {', '.join(home_goal_components)}")
+    else:
+        df['home_goals_scored'] = 0
+        st.warning("⚠️ No home goal components found - using 0 for home_goals_scored")
     
-    df['home_xg_per_match'] = df['home_xg_for'] / df['home_matches_played'].replace(0, np.nan)
-    df['away_xg_per_match'] = df['away_xg_for'] / df['away_matches_played'].replace(0, np.nan)
+    if away_goal_components:
+        df['away_goals_scored'] = df[away_goal_components].sum(axis=1, skipna=True)
+        st.success(f"✅ Calculated away_goals_scored from: {', '.join(away_goal_components)}")
+    else:
+        df['away_goals_scored'] = 0
+        st.warning("⚠️ No away goal components found - using 0 for away_goals_scored")
     
-    # Goal type percentages (for home)
+    # =================== GOALS CONCEDED ===================
+    # Calculate goals conceded from available components
+    home_conceded_components = []
+    away_conceded_components = []
+    
+    # Home conceded components
+    if 'home_goals_openplay_against' in df.columns:
+        home_conceded_components.append('home_goals_openplay_against')
+    if 'home_goals_counter_against' in df.columns:
+        home_conceded_components.append('home_goals_counter_against')
+    if 'home_goals_setpiece_against' in df.columns:
+        home_conceded_components.append('home_goals_setpiece_against')
+    if 'home_goals_penalty_against' in df.columns:
+        home_conceded_components.append('home_goals_penalty_against')
+    if 'home_goals_owngoal_against' in df.columns:
+        home_conceded_components.append('home_goals_owngoal_against')
+    
+    # Away conceded components
+    if 'away_goals_openplay_against' in df.columns:
+        away_conceded_components.append('away_goals_openplay_against')
+    if 'away_goals_counter_against' in df.columns:
+        away_conceded_components.append('away_goals_counter_against')
+    if 'away_goals_setpiece_against' in df.columns:
+        away_conceded_components.append('away_goals_setpiece_against')
+    if 'away_goals_penalty_against' in df.columns:
+        away_conceded_components.append('away_goals_penalty_against')
+    if 'away_goals_owngoal_against' in df.columns:
+        away_conceded_components.append('away_goals_owngoal_against')
+    
+    # Calculate total goals conceded
+    if home_conceded_components:
+        df['home_goals_conceded'] = df[home_conceded_components].sum(axis=1, skipna=True)
+        st.success(f"✅ Calculated home_goals_conceded from: {', '.join(home_conceded_components)}")
+    else:
+        df['home_goals_conceded'] = 0
+        st.warning("⚠️ No home conceded components found - using 0 for home_goals_conceded")
+    
+    if away_conceded_components:
+        df['away_goals_conceded'] = df[away_conceded_components].sum(axis=1, skipna=True)
+        st.success(f"✅ Calculated away_goals_conceded from: {', '.join(away_conceded_components)}")
+    else:
+        df['away_goals_conceded'] = 0
+        st.warning("⚠️ No away conceded components found - using 0 for away_goals_conceded")
+    
+    # =================== LAST-5 DATA HANDLING ===================
+    # CRITICAL FOR CLASSIFIER: Handle last-5 data
+    
+    # If goals_scored_last_5 doesn't exist, create an estimate from season data
+    if 'goals_scored_last_5' not in df.columns:
+        st.warning("⚠️ goals_scored_last_5 not in CSV - creating estimate from season data")
+        
+        # Try to estimate from home/away goals per match
+        if 'home_matches_played' in df.columns and 'home_goals_scored' in df.columns:
+            # Estimate: (total goals / total matches) * 5
+            df['home_goals_scored_last_5_est'] = (df['home_goals_scored'] / df['home_matches_played'].replace(0, 1)) * 5
+        else:
+            df['home_goals_scored_last_5_est'] = 0
+        
+        if 'away_matches_played' in df.columns and 'away_goals_scored' in df.columns:
+            df['away_goals_scored_last_5_est'] = (df['away_goals_scored'] / df['away_matches_played'].replace(0, 1)) * 5
+        else:
+            df['away_goals_scored_last_5_est'] = 0
+        
+        # Use whichever is available (real data or estimate)
+        if 'home_goals_scored_last_5' not in df.columns:
+            df['goals_scored_last_5'] = df['home_goals_scored_last_5_est'].fillna(0).astype(int)
+            st.info("📊 Using estimated goals_scored_last_5 from season averages")
+    
+    # If goals_conceded_last_5 doesn't exist, create an estimate
+    if 'goals_conceded_last_5' not in df.columns:
+        st.warning("⚠️ goals_conceded_last_5 not in CSV - creating estimate from season data")
+        
+        if 'home_matches_played' in df.columns and 'home_goals_conceded' in df.columns:
+            df['home_goals_conceded_last_5_est'] = (df['home_goals_conceded'] / df['home_matches_played'].replace(0, 1)) * 5
+        else:
+            df['home_goals_conceded_last_5_est'] = 0
+        
+        if 'away_matches_played' in df.columns and 'away_goals_conceded' in df.columns:
+            df['away_goals_conceded_last_5_est'] = (df['away_goals_conceded'] / df['away_matches_played'].replace(0, 1)) * 5
+        else:
+            df['away_goals_conceded_last_5_est'] = 0
+        
+        # Use whichever is available (real data or estimate)
+        if 'goals_conceded_last_5' not in df.columns:
+            df['goals_conceded_last_5'] = df['home_goals_conceded_last_5_est'].fillna(0).astype(int)
+            st.info("📊 Using estimated goals_conceded_last_5 from season averages")
+    
+    # =================== PER-MATCH AVERAGES ===================
+    # Home per-match averages
+    if 'home_matches_played' in df.columns:
+        df['home_goals_per_match'] = df['home_goals_scored'] / df['home_matches_played'].replace(0, np.nan)
+        df['home_goals_conceded_per_match'] = df['home_goals_conceded'] / df['home_matches_played'].replace(0, np.nan)
+    else:
+        df['home_goals_per_match'] = 0
+        df['home_goals_conceded_per_match'] = 0
+    
+    # Away per-match averages
+    if 'away_matches_played' in df.columns:
+        df['away_goals_per_match'] = df['away_goals_scored'] / df['away_matches_played'].replace(0, np.nan)
+        df['away_goals_conceded_per_match'] = df['away_goals_conceded'] / df['away_matches_played'].replace(0, np.nan)
+    else:
+        df['away_goals_per_match'] = 0
+        df['away_goals_conceded_per_match'] = 0
+    
+    # xG per match if available
+    if 'home_xg_for' in df.columns and 'home_matches_played' in df.columns:
+        df['home_xg_per_match'] = df['home_xg_for'] / df['home_matches_played'].replace(0, np.nan)
+    else:
+        df['home_xg_per_match'] = 0
+    
+    if 'away_xg_for' in df.columns and 'away_matches_played' in df.columns:
+        df['away_xg_per_match'] = df['away_xg_for'] / df['away_matches_played'].replace(0, np.nan)
+    else:
+        df['away_xg_per_match'] = 0
+    
+    # =================== GOAL TYPE PERCENTAGES ===================
+    # Home goal type percentages
     df['home_total_goals_for'] = df['home_goals_scored'].replace(0, np.nan)
-    df['home_counter_pct'] = df['home_goals_counter_for'] / df['home_total_goals_for']
-    df['home_setpiece_pct'] = df['home_goals_setpiece_for'] / df['home_total_goals_for']
-    df['home_openplay_pct'] = df['home_goals_openplay_for'] / df['home_total_goals_for']
     
-    # Goal type percentages (for away)
+    if 'home_goals_counter_for' in df.columns:
+        df['home_counter_pct'] = df['home_goals_counter_for'] / df['home_total_goals_for']
+    else:
+        df['home_counter_pct'] = 0
+    
+    if 'home_goals_setpiece_for' in df.columns:
+        df['home_setpiece_pct'] = df['home_goals_setpiece_for'] / df['home_total_goals_for']
+    else:
+        df['home_setpiece_pct'] = 0
+    
+    if 'home_goals_openplay_for' in df.columns:
+        df['home_openplay_pct'] = df['home_goals_openplay_for'] / df['home_total_goals_for']
+    else:
+        df['home_openplay_pct'] = 0
+    
+    # Away goal type percentages
     df['away_total_goals_for'] = df['away_goals_scored'].replace(0, np.nan)
-    df['away_counter_pct'] = df['away_goals_counter_for'] / df['away_total_goals_for']
-    df['away_setpiece_pct'] = df['away_goals_setpiece_for'] / df['away_total_goals_for']
-    df['away_openplay_pct'] = df['away_goals_openplay_for'] / df['away_total_goals_for']
     
-    # Fill NaN
+    if 'away_goals_counter_for' in df.columns:
+        df['away_counter_pct'] = df['away_goals_counter_for'] / df['away_total_goals_for']
+    else:
+        df['away_counter_pct'] = 0
+    
+    if 'away_goals_setpiece_for' in df.columns:
+        df['away_setpiece_pct'] = df['away_goals_setpiece_for'] / df['away_total_goals_for']
+    else:
+        df['away_setpiece_pct'] = 0
+    
+    if 'away_goals_openplay_for' in df.columns:
+        df['away_openplay_pct'] = df['away_goals_openplay_for'] / df['away_total_goals_for']
+    else:
+        df['away_openplay_pct'] = 0
+    
+    # =================== FILL MISSING VALUES ===================
     for col in df.columns:
         if df[col].dtype in ['float64', 'int64']:
             df[col] = df[col].fillna(0)
     
+    # =================== FINAL VALIDATION ===================
+    # Check that we have the minimum required fields
+    required_classifier_fields = ['goals_scored_last_5', 'goals_conceded_last_5']
+    missing_classifier_fields = [f for f in required_classifier_fields if f not in df.columns]
+    
+    if missing_classifier_fields:
+        st.error(f"❌ Missing required classifier fields after processing: {', '.join(missing_classifier_fields)}")
+        st.info("📋 The classifier requires these fields to work properly.")
+    
+    # Show sample of last-5 data
+    st.success(f"✅ Data processing complete")
+    st.info(f"📊 Sample last-5 data (first 3 teams):")
+    st.dataframe(df[['team', 'goals_scored_last_5', 'goals_conceded_last_5']].head(3) if 'team' in df.columns else 
+                 df[['goals_scored_last_5', 'goals_conceded_last_5']].head(3))
+    
     return df
-
 # =================== MAIN APPLICATION ===================
 def main():
     """Main application function with State Preservation Law, State Classification, and Bet-Ready Signals."""
