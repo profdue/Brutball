@@ -3126,7 +3126,7 @@ if classification_result and 'state_classification' in result:
                 </div>
             </div>
             """
-            st.markdown(home_html, unsafe_allow_html=True)
+        st.markdown(home_html, unsafe_allow_html=True)
             
             # Away Team Box
             away_html = f"""
