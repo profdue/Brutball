@@ -46,6 +46,56 @@ def extract_pure_team_data(df: pd.DataFrame, team_name: str) -> Dict:
     
     return team_data
 
+# =================== DATA TYPE NORMALIZATION (NOT TRANSFORMATION) ===================
+def normalize_numeric_types(data_dict: Dict) -> Dict:
+    """
+    ARCHITECTURALLY PURE TYPE NORMALIZATION
+    
+    PRINCIPLE: This is NOT data transformation, calculation, or inference.
+    This is TYPE SANITATION only - ensuring CSV values arrive as Python native numeric types.
+    
+    Allowed: Converting "10" → 10 (string to int)
+    Allowed: Converting numpy.int64(10) → 10 (numpy to Python native)
+    NOT ALLOWED: Any math, averages, fallbacks, or synthetic data
+    
+    This preserves the CSV-ONLY architecture while ensuring type integrity.
+    """
+    normalized = {}
+    
+    for key, value in data_dict.items():
+        # Only process fields the classifier needs
+        if key in ['goals_scored_last_5', 'goals_conceded_last_5']:
+            if pd.isna(value):
+                # Preserve NaN - this will correctly block classification
+                normalized[key] = value
+            else:
+                try:
+                    # TYPE SANITATION ONLY - no logic, no math
+                    # Convert to Python native numeric type
+                    if isinstance(value, str):
+                        # CSV string → Python numeric
+                        if '.' in str(value):
+                            normalized[key] = float(value)
+                        else:
+                            normalized[key] = int(value)
+                    elif hasattr(value, 'item'):
+                        # numpy/pandas type → Python native
+                        normalized[key] = value.item()
+                    elif isinstance(value, (np.integer, np.floating)):
+                        # numpy numeric → Python native
+                        normalized[key] = float(value)
+                    else:
+                        # Already Python native or convertible
+                        normalized[key] = float(value)
+                except (ValueError, TypeError):
+                    # If conversion fails, preserve original
+                    # This will trigger classifier's type_error - CORRECT BEHAVIOR
+                    normalized[key] = value
+        else:
+            # Pass through all other fields unchanged
+            normalized[key] = value
+    
+    return normalized
 
 # =================== DATA INTEGRITY VERIFICATION ===================
 def verify_data_integrity(df: pd.DataFrame, home_team: str, away_team: str):
@@ -89,11 +139,12 @@ def verify_data_integrity(df: pd.DataFrame, home_team: str, away_team: str):
     print("="*80)
     return True
 
-
 # =================== UPDATED CLASSIFIER INTEGRATION ===================
 def run_analysis_with_classifier(df, home_team, away_team):
     """
     Run analysis with architecturally pure classifier integration
+    
+    CRITICAL UPDATE: Type normalization only, no data transformations
     """
     # 1. Verify data integrity first
     if not verify_data_integrity(df, home_team, away_team):
@@ -101,29 +152,67 @@ def run_analysis_with_classifier(df, home_team, away_team):
         return None
     
     # 2. Extract pure data (no transformations)
-    home_data = extract_pure_team_data(df, home_team)
-    away_data = extract_pure_team_data(df, away_team)
+    home_data_raw = extract_pure_team_data(df, home_team)
+    away_data_raw = extract_pure_team_data(df, away_team)
     
-    # 3. Debug: Show what we're sending to classifier
+    # 3. TYPE NORMALIZATION ONLY (not transformation)
+    home_data = normalize_numeric_types(home_data_raw)
+    away_data = normalize_numeric_types(away_data_raw)
+    
+    # 4. Debug: Show what we're sending to classifier
     with st.expander("🔍 Debug: Data being sent to classifier"):
         st.write(f"**{home_team} data:**")
         for field in ['goals_scored_last_5', 'goals_conceded_last_5']:
             value = home_data.get(field)
-            st.write(f"{field}: {value} {'(NaN!)' if pd.isna(value) else ''}")
+            raw_value = home_data_raw.get(field)
+            st.write(f"{field}: {value} (type: {type(value).__name__})")
+            st.write(f"  Raw: {raw_value} (raw type: {type(raw_value).__name__})")
+            st.write(f"  Is numeric: {isinstance(value, (int, float))}")
         
         st.write(f"**{away_team} data:**")
         for field in ['goals_scored_last_5', 'goals_conceded_last_5']:
             value = away_data.get(field)
-            st.write(f"{field}: {value} {'(NaN!)' if pd.isna(value) else ''}")
+            raw_value = away_data_raw.get(field)
+            st.write(f"{field}: {value} (type: {type(value).__name__})")
+            st.write(f"  Raw: {raw_value} (raw type: {type(raw_value).__name__})")
+            st.write(f"  Is numeric: {isinstance(value, (int, float))}")
     
-    # 4. Run classifier
+    # 5. Run classifier
     classification_result = None
     try:
-        classification_result = get_complete_classification(home_data, away_data)
+        # Send ONLY the fields classifier needs
+        classifier_data = {
+            'home': {k: home_data[k] for k in ['goals_scored_last_5', 'goals_conceded_last_5'] if k in home_data},
+            'away': {k: away_data[k] for k in ['goals_scored_last_5', 'goals_conceded_last_5'] if k in away_data}
+        }
+        
+        classification_result = get_complete_classification(
+            classifier_data['home'], 
+            classifier_data['away']
+        )
         
         # Display results
         if classification_result.get('classification_error', False):
-            st.warning(f"⚠️ Classifier Error: {classification_result.get('error_message')}")
+            error_msg = classification_result.get('error_message', 'Unknown error')
+            missing_fields = classification_result.get('missing_fields', [])
+            
+            st.warning(f"⚠️ Classifier Error: {error_msg}")
+            
+            # Provide actionable debug info
+            st.write("**Type Debug Information:**")
+            for team_name, team_data in [('Home', home_data), ('Away', away_data)]:
+                for field in ['goals_scored_last_5', 'goals_conceded_last_5']:
+                    value = team_data.get(field)
+                    st.write(f"{team_name}.{field}: {value} (type: {type(value).__name__})")
+                    st.write(f"  isinstance(int, float): {isinstance(value, (int, float))}")
+                    st.write(f"  Convertible to float: {isinstance(value, (int, float, str, np.integer, np.floating))}")
+            
+            # Show which fields failed
+            if missing_fields:
+                st.write("**Failed Fields:**")
+                for field in missing_fields:
+                    st.write(f"• {field}")
+                    
         else:
             # Show successful classification
             st.success("✅ Structural analysis complete")
@@ -145,9 +234,10 @@ def run_analysis_with_classifier(df, home_team, away_team):
             
     except Exception as e:
         st.error(f"❌ Classifier failed: {str(e)}")
+        import traceback
+        st.error(f"Detailed error: {traceback.format_exc()}")
     
     return classification_result
-
 
 # =================== HTML HELPER FUNCTIONS ===================
 def format_reliability_badge_html(reliability_data):
@@ -3250,14 +3340,41 @@ STATE & DURABILITY CLASSIFICATION (READ-ONLY - PRE-MATCH INTELLIGENCE)
 DATA SOURCE: Last 5 matches only (no season averages)
 
 TEAM DEFENSIVE STRENGTH (Last 5 matches):
-• {home_team}: {classification_result.get('averages', {}).get('home_conceded_avg', 0):.2f} avg conceded {'≤1.0 ✅ Strong' if classification_result.get('averages', {}).get('home_conceded_avg', 0) <= 1.0 else '>1.0 ❌ Weak'}
-• {away_team}: {classification_result.get('averages', {}).get('away_conceded_avg', 0):.2f} avg conceded {'≤1.0 ✅ Strong' if classification_result.get('averages', {}).get('away_conceded_avg', 0) <= 1.0 else '>1.0 ❌ Weak'}
-
+"""
+            
+            # SAFE: Handle potential None values in classification_result
+            if classification_result and not classification_result.get('classification_error', False):
+                averages = classification_result.get('averages', {})
+                home_conceded = averages.get('home_conceded_avg')
+                away_conceded = averages.get('away_conceded_avg')
+                
+                if home_conceded is not None:
+                    export_text += f"• {home_team}: {home_conceded:.2f} avg conceded {'≤1.0 ✅ Strong' if home_conceded <= 1.0 else '>1.0 ❌ Weak'}\n"
+                else:
+                    export_text += f"• {home_team}: No defensive data available\n"
+                
+                if away_conceded is not None:
+                    export_text += f"• {away_team}: {away_conceded:.2f} avg conceded {'≤1.0 ✅ Strong' if away_conceded <= 1.0 else '>1.0 ❌ Weak'}\n"
+                else:
+                    export_text += f"• {away_team}: No defensive data available\n"
+                
+                export_text += f"""
 CLASSIFICATION RESULTS:
 • Dominant State: {classification_result.get('dominant_state', 'N/A')}
 • Totals Durability: {classification_result.get('totals_durability', 'N/A')}
 • Under Market Suggestion: {classification_result.get('under_suggestion', 'N/A')}
-• Reliability Score: {classification_result.get('reliability_home', {}).get('reliability_score', 0)}/5 ({classification_result.get('reliability_home', {}).get('reliability_label', 'N/A')})
+"""
+                # Safely get reliability data
+                reliability_home = classification_result.get('reliability_home', {})
+                reliability_score = reliability_home.get('reliability_score', 0)
+                reliability_label = reliability_home.get('reliability_label', 'N/A')
+                export_text += f"• Reliability Score: {reliability_score}/5 ({reliability_label})"
+            else:
+                export_text += f"""
+• Classification data unavailable (type error or missing data)
+"""
+        
+        export_text += f"""
 
 IMPORTANT: Classification is 100% read-only and does NOT affect:
 • Betting logic or decisions
