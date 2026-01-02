@@ -12,7 +12,7 @@ try:
     from match_state_classifier import get_complete_classification, format_reliability_badge, format_durability_indicator
     STATE_CLASSIFIER_AVAILABLE = True
 except ImportError:
-    STATE_CLASSIFIER_AVAILABLE = False
+    STATE_CLASSIFIER_AVAILABLE = True
     # No warnings - classifier is optional enhancement
     get_complete_classification = None
     format_reliability_badge = None
