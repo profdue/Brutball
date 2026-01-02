@@ -3128,8 +3128,8 @@ if classification_result and 'state_classification' in result:
             """
         st.markdown(home_html, unsafe_allow_html=True)
             
-            # Away Team Box
-            away_html = f"""
+        # Away Team Box
+        away_html = f"""
             <div class="perspective-box perspective-away">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                     <div style="font-weight: 700; color: #DC2626;">{away_team}</div>
