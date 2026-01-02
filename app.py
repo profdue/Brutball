@@ -133,6 +133,7 @@ def display_bet_ready_signals(edge_locks: List[Dict], home_name: str, away_name:
     if not edge_locks:
         return
     
+    # Header
     st.markdown("""
     <div style="background: linear-gradient(135deg, #ECFDF5 0%, #A7F3D0 100%); 
                 padding: 1.5rem; border-radius: 10px; border: 3px solid #059669; 
@@ -154,7 +155,7 @@ def display_bet_ready_signals(edge_locks: List[Dict], home_name: str, away_name:
         
         confidence_color = confidence_colors.get(lock['confidence'], "#6B7280")
         
-        # Display each signal
+        # Build the HTML for this signal
         signal_html = f"""
         <div style="background: white; padding: 1.5rem; border-radius: 8px; 
                     border: 2px solid {confidence_color}; margin: 1rem 0;">
@@ -212,6 +213,8 @@ def display_bet_ready_signals(edge_locks: List[Dict], home_name: str, away_name:
             </div>
         </div>
         """
+        
+        # Render the HTML
         st.markdown(signal_html, unsafe_allow_html=True)
 
 # =================== SYSTEM CONSTANTS (IMMUTABLE) ===================
