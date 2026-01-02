@@ -41,48 +41,120 @@ def get_team_under_15_name(recommendation: Dict, home_team: str, away_team: str)
     else:
         return recommendation.get('team_to_bet', '')
 
-# =================== EXISTING DATA EXTRACTION FUNCTIONS ===================
-def extract_pure_team_data(df: pd.DataFrame, team_name: str) -> Dict:
-    """Extract team data with ZERO transformations"""
+# =================== DATA LOADING FUNCTIONS (RESTORED) ===================
+@st.cache_data(ttl=3600, show_spinner="Loading league data...")
+def load_and_prepare_data(league_name: str) -> Optional[pd.DataFrame]:
+    """Load and prepare league data from CSV"""
+    try:
+        # League configuration
+        LEAGUES = {
+            'Premier League': {'filename': 'premier_league.csv', 'display_name': '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League', 'color': '#3B82F6'},
+            'La Liga': {'filename': 'la_liga.csv', 'display_name': '🇪🇸 La Liga', 'color': '#EF4444'},
+            'Bundesliga': {'filename': 'bundesliga.csv', 'display_name': '🇩🇪 Bundesliga', 'color': '#000000'},
+            'Serie A': {'filename': 'serie_a.csv', 'display_name': '🇮🇹 Serie A', 'color': '#10B981'},
+            'Ligue 1': {'filename': 'ligue_1.csv', 'display_name': '🇫🇷 Ligue 1', 'color': '#8B5CF6'},
+            'Eredivisie': {'filename': 'eredivisie.csv', 'display_name': '🇳🇱 Eredivisie', 'color': '#F59E0B'},
+            'Primeira Liga': {'filename': 'premeira_portugal.csv', 'display_name': '🇵🇹 Primeira Liga', 'color': '#DC2626'},
+            'Super Lig': {'filename': 'super_league.csv', 'display_name': '🇹🇷 Super Lig', 'color': '#E11D48'}
+        }
+        
+        if league_name not in LEAGUES:
+            st.error(f"❌ Unknown league: {league_name}")
+            return None
+        
+        league_config = LEAGUES[league_name]
+        filename = league_config['filename']
+        
+        # Try multiple possible file locations
+        data_sources = [
+            f'leagues/{filename}',
+            f'./leagues/{filename}',
+            filename,
+            f'https://raw.githubusercontent.com/profdue/Brutball/main/leagues/{filename}'
+        ]
+        
+        df = None
+        for source in data_sources:
+            try:
+                df = pd.read_csv(source)
+                break
+            except Exception:
+                continue
+        
+        if df is None:
+            st.error(f"❌ Failed to load data for {league_config['display_name']}")
+            return None
+        
+        # Calculate derived metrics
+        df = calculate_derived_metrics(df)
+        
+        # Store metadata
+        df.attrs['league_name'] = league_name
+        df.attrs['display_name'] = league_config['display_name']
+        df.attrs['country'] = league_config.get('country', '')
+        df.attrs['color'] = league_config['color']
+        
+        return df
+        
+    except Exception as e:
+        st.error(f"❌ Data preparation error: {str(e)}")
+        return None
+
+def calculate_derived_metrics(df: pd.DataFrame) -> pd.DataFrame:
+    """Calculate derived metrics from CSV structure"""
+    
+    # Goals scored
+    df['home_goals_scored'] = (
+        df['home_goals_openplay_for'].fillna(0) +
+        df['home_goals_counter_for'].fillna(0) +
+        df['home_goals_setpiece_for'].fillna(0) +
+        df['home_goals_penalty_for'].fillna(0) +
+        df['home_goals_owngoal_for'].fillna(0)
+    )
+    
+    df['away_goals_scored'] = (
+        df['away_goals_openplay_for'].fillna(0) +
+        df['away_goals_counter_for'].fillna(0) +
+        df['away_goals_setpiece_for'].fillna(0) +
+        df['away_goals_penalty_for'].fillna(0) +
+        df['away_goals_owngoal_for'].fillna(0)
+    )
+    
+    # Goals conceded
+    df['home_goals_conceded'] = (
+        df['home_goals_openplay_against'].fillna(0) +
+        df['home_goals_counter_against'].fillna(0) +
+        df['home_goals_setpiece_against'].fillna(0) +
+        df['home_goals_penalty_against'].fillna(0) +
+        df['home_goals_owngoal_against'].fillna(0)
+    )
+    
+    df['away_goals_conceded'] = (
+        df['away_goals_openplay_against'].fillna(0) +
+        df['away_goals_counter_against'].fillna(0) +
+        df['away_goals_setpiece_against'].fillna(0) +
+        df['away_goals_penalty_against'].fillna(0) +
+        df['away_goals_owngoal_against'].fillna(0)
+    )
+    
+    # Per-match averages
+    df['home_goals_per_match'] = df['home_goals_scored'] / df['home_matches_played'].replace(0, np.nan)
+    df['away_goals_per_match'] = df['away_goals_scored'] / df['away_matches_played'].replace(0, np.nan)
+    
+    # Fill NaN
+    for col in df.columns:
+        if df[col].dtype in ['float64', 'int64']:
+            df[col] = df[col].fillna(0)
+    
+    return df
+
+def extract_team_data(df: pd.DataFrame, team_name: str) -> Dict:
+    """Extract team data from DataFrame"""
     if team_name not in df['team'].values:
-        st.error(f"❌ Team '{team_name}' not found in CSV.")
         return {}
     
     team_row = df[df['team'] == team_name].iloc[0]
-    team_data = {}
-    for col in df.columns:
-        value = team_row[col]
-        team_data[col] = value
-    
-    return team_data
-
-def normalize_numeric_types(data_dict: Dict) -> Dict:
-    """Architecturally pure type normalization"""
-    normalized = {}
-    
-    for key, value in data_dict.items():
-        if key in ['goals_scored_last_5', 'goals_conceded_last_5']:
-            if pd.isna(value):
-                normalized[key] = value
-            else:
-                try:
-                    if isinstance(value, str):
-                        if '.' in str(value):
-                            normalized[key] = float(value)
-                        else:
-                            normalized[key] = int(value)
-                    elif hasattr(value, 'item'):
-                        normalized[key] = value.item()
-                    elif isinstance(value, (np.integer, np.floating)):
-                        normalized[key] = float(value)
-                    else:
-                        normalized[key] = float(value)
-                except (ValueError, TypeError):
-                    normalized[key] = value
-        else:
-            normalized[key] = value
-    
-    return normalized
+    return team_row.to_dict()
 
 # =================== ENHANCED CSS WITH WRAPPER FIX ===================
 st.markdown("""
@@ -132,29 +204,6 @@ st.markdown("""
         border-color: #7C3AED;
         border-left: 6px solid #7C3AED;
     }
-    .pattern-badge {
-        display: inline-block;
-        padding: 0.25rem 0.75rem;
-        border-radius: 20px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        margin: 0.25rem;
-    }
-    .badge-elite {
-        background: #DCFCE7;
-        color: #065F46;
-        border: 1px solid #86EFAC;
-    }
-    .badge-winner {
-        background: #DBEAFE;
-        color: #1E40AF;
-        border: 1px solid #93C5FD;
-    }
-    .badge-total {
-        background: #F3E8FF;
-        color: #5B21B6;
-        border: 1px solid #C4B5FD;
-    }
     .stake-display {
         background: #FFFBEB;
         padding: 1rem;
@@ -162,53 +211,6 @@ st.markdown("""
         border: 2px solid #F59E0B;
         margin: 1rem 0;
         text-align: center;
-        width: 100%;
-        box-sizing: border-box;
-    }
-    .bankroll-display {
-        background: #F0F9FF;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 2px solid #0EA5E9;
-        margin: 1rem 0;
-        width: 100%;
-        box-sizing: border-box;
-    }
-    .accuracy-display {
-        background: #F0FDF4;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 2px solid #10B981;
-        margin: 1rem 0;
-        width: 100%;
-        box-sizing: border-box;
-    }
-    .historical-proof {
-        background: #FEFCE8;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 2px solid #FACC15;
-        margin: 1rem 0;
-        font-size: 0.9rem;
-        width: 100%;
-        box-sizing: border-box;
-    }
-    .pattern-header {
-        background: linear-gradient(135deg, #FFEDD5 0%, #FED7AA 100%);
-        padding: 2rem;
-        border-radius: 12px;
-        border: 4px solid #F97316;
-        text-align: center;
-        margin: 1.5rem 0;
-        width: 100%;
-        box-sizing: border-box;
-    }
-    .empirical-proof {
-        background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
-        padding: 1.5rem;
-        border-radius: 10px;
-        border: 3px solid #0EA5E9;
-        margin: 1rem 0;
         width: 100%;
         box-sizing: border-box;
     }
@@ -233,15 +235,25 @@ st.markdown("""
         box-sizing: border-box;
     }
     
+    /* League selection buttons */
+    .league-btn {
+        transition: all 0.3s ease;
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        text-align: center;
+        cursor: pointer;
+    }
+    .league-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
     /* Responsive grid fixes */
     @media (max-width: 768px) {
         .system-header {
             font-size: 1.8rem;
         }
         .pattern-card {
-            padding: 1rem;
-        }
-        .empirical-proof {
             padding: 1rem;
         }
     }
@@ -392,7 +404,7 @@ def display_proven_patterns_results(pattern_results: Dict, home_team: str, away_
         </div>
         """, unsafe_allow_html=True)
 
-# =================== MAIN APPLICATION (SIMPLIFIED VERSION) ===================
+# =================== MAIN APPLICATION (WITH CSV INTEGRATION RESTORED) ===================
 def main():
     """Main application with Proven Pattern Detection"""
     
@@ -411,60 +423,6 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    # Empirical Proof Display
-    st.markdown("""
-    <div class="brutball-card-wrapper">
-        <div style="background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
-                padding: 1.5rem; border-radius: 10px; border: 3px solid #0EA5E9; 
-                margin: 1rem 0; box-sizing: border-box;">
-            <h4 style="color: #0C4A6E; margin: 0 0 1rem 0;">📊 EMPIRICAL PROOF (25-MATCH ANALYSIS)</h4>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
-                <div style="text-align: center; padding: 1rem; background: #DCFCE7; border-radius: 8px;">
-                    <div style="font-size: 1.5rem; font-weight: 800; color: #065F46;">100%</div>
-                    <div style="font-size: 0.9rem; color: #374151;">Elite Defense Pattern</div>
-                    <div style="font-size: 0.8rem; color: #6B7280;">8/8 matches</div>
-                </div>
-                <div style="text-align: center; padding: 1rem; background: #DBEAFE; border-radius: 8px;">
-                    <div style="font-size: 1.5rem; font-weight: 800; color: #1E40AF;">100%</div>
-                    <div style="font-size: 0.9rem; color: #374151;">Winner Lock Pattern</div>
-                    <div style="font-size: 0.8rem; color: #6B7280;">6/6 matches</div>
-                </div>
-                <div style="text-align: center; padding: 1rem; background: #F3E8FF; border-radius: 8px;">
-                    <div style="font-size: 1.5rem; font-weight: 800; color: #5B21B6;">83.3%</div>
-                    <div style="font-size: 0.9rem; color: #374151;">Under 3.5 Pattern</div>
-                    <div style="font-size: 0.8rem; color: #6B7280;">10/12 matches</div>
-                </div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # TEAM_UNDER_1.5 Explanation
-    st.markdown("""
-    <div class="brutball-card-wrapper">
-        <div style="background: linear-gradient(135deg, #DCFCE7 0%, #BBF7D0 100%);
-                padding: 1rem; border-radius: 8px; border: 3px solid #16A34A; 
-                margin: 1rem 0; text-align: center; box-sizing: border-box;">
-            <h4 style="color: #065F46; margin: 0 0 1rem 0;">🎯 TEAM_UNDER_1.5 EXPLANATION</h4>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
-                <div style="text-align: center; padding: 1rem; background: white; border-radius: 6px; border: 2px solid #86EFAC;">
-                    <div style="font-weight: 700; color: #065F46; margin-bottom: 0.5rem;">IF HOME is Elite Defense</div>
-                    <div style="font-size: 1.2rem; color: #16A34A; font-weight: 700;">Bet: AWAY to score ≤1 goals</div>
-                    <div style="font-size: 0.9rem; color: #6B7280; margin-top: 0.5rem;">Example: Porto (elite) vs AVS → Bet AVS UNDER 1.5</div>
-                </div>
-                <div style="text-align: center; padding: 1rem; background: white; border-radius: 6px; border: 2px solid #86EFAC;">
-                    <div style="font-weight: 700; color: #065F46; margin-bottom: 0.5rem;">IF AWAY is Elite Defense</div>
-                    <div style="font-size: 1.2rem; color: #16A34A; font-weight: 700;">Bet: HOME to score ≤1 goals</div>
-                    <div style="font-size: 0.9rem; color: #6B7280; margin-top: 0.5rem;">Example: AVS vs Porto (elite) → Bet AVS UNDER 1.5</div>
-                </div>
-            </div>
-            <div style="margin-top: 1rem; padding: 0.75rem; background: #BBF7D0; border-radius: 6px;">
-                <strong>📊 Elite Defense Definition:</strong> Team concedes ≤4 goals TOTAL in last 5 matches (avg ≤0.8/match)
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
     # Initialize session state
     if 'analysis_complete' not in st.session_state:
         st.session_state.analysis_complete = False
@@ -472,32 +430,112 @@ def main():
         st.session_state.pattern_results = None
     if 'selected_league' not in st.session_state:
         st.session_state.selected_league = 'Premier League'
+    if 'df' not in st.session_state:
+        st.session_state.df = None
     
-    # League configuration (simplified for demo)
+    # League selection
+    st.markdown("### 🌍 League Selection")
+    
     LEAGUES = {
-        'Premier League': {'filename': 'premier_league.csv', 'display_name': '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League'},
+        'Premier League': {'filename': 'premier_league.csv', 'display_name': '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League', 'color': '#3B82F6'},
+        'La Liga': {'filename': 'la_liga.csv', 'display_name': '🇪🇸 La Liga', 'color': '#EF4444'},
+        'Bundesliga': {'filename': 'bundesliga.csv', 'display_name': '🇩🇪 Bundesliga', 'color': '#000000'},
+        'Serie A': {'filename': 'serie_a.csv', 'display_name': '🇮🇹 Serie A', 'color': '#10B981'},
+        'Ligue 1': {'filename': 'ligue_1.csv', 'display_name': '🇫🇷 Ligue 1', 'color': '#8B5CF6'},
+        'Eredivisie': {'filename': 'eredivisie.csv', 'display_name': '🇳🇱 Eredivisie', 'color': '#F59E0B'},
+        'Primeira Liga': {'filename': 'premeira_portugal.csv', 'display_name': '🇵🇹 Primeira Liga', 'color': '#DC2626'},
+        'Super Lig': {'filename': 'super_league.csv', 'display_name': '🇹🇷 Super Lig', 'color': '#E11D48'}
     }
     
-    # Demo data for Arsenal vs Aston Villa
-    demo_data = {
-        'Arsenal': {'goals_conceded_last_5': 4},
-        'Aston Villa': {'goals_conceded_last_5': 9}
-    }
+    cols = st.columns(4)
+    leagues = list(LEAGUES.keys())
     
-    # Team selection (simplified for demo)
+    for idx, league in enumerate(leagues):
+        col_idx = idx % 4
+        with cols[col_idx]:
+            config = LEAGUES[league]
+            if st.button(
+                config['display_name'],
+                use_container_width=True,
+                type="primary" if st.session_state.selected_league == league else "secondary",
+                key=f"league_btn_{league}"
+            ):
+                st.session_state.selected_league = league
+                st.session_state.analysis_complete = False
+                st.session_state.df = None
+                st.rerun()
+    
+    selected_league = st.session_state.selected_league
+    config = LEAGUES[selected_league]
+    
+    # Load data if not already loaded
+    if st.session_state.df is None:
+        with st.spinner(f"Loading {config['display_name']} data..."):
+            df = load_and_prepare_data(selected_league)
+            if df is not None:
+                st.session_state.df = df
+                st.success(f"✅ Loaded {len(df)} teams from {config['display_name']}")
+            else:
+                st.error("Failed to load data. Check CSV files in 'leagues/' directory.")
+                return
+    
+    df = st.session_state.df
+    
+    if df is None:
+        st.error("No data available. Please select a league.")
+        return
+    
+    # Team selection from CSV data
     st.markdown("### 🏟️ Match Analysis")
+    
     col1, col2 = st.columns(2)
     with col1:
-        home_team = st.selectbox("Home Team", ["Arsenal", "Manchester City", "Liverpool", "Chelsea"], index=0)
+        # Get sorted list of teams from CSV
+        teams = sorted(df['team'].unique())
+        home_team = st.selectbox("Home Team", teams, key="home_team_select")
+    
     with col2:
-        away_team = st.selectbox("Away Team", ["Aston Villa", "Tottenham", "Manchester United", "Newcastle"], index=0)
+        # Filter out home team from away options
+        away_options = [t for t in teams if t != home_team]
+        away_team = st.selectbox("Away Team", away_options, key="away_team_select")
+    
+    # Show team stats
+    with st.expander("📊 View Team Stats", expanded=False):
+        col1, col2 = st.columns(2)
+        with col1:
+            if home_team in df['team'].values:
+                home_data = extract_team_data(df, home_team)
+                st.write(f"**{home_team} (Last 5 matches):**")
+                st.write(f"- Goals Scored: {home_data.get('goals_scored_last_5', 'N/A')}")
+                st.write(f"- Goals Conceded: {home_data.get('goals_conceded_last_5', 'N/A')}")
+                if home_data.get('goals_conceded_last_5'):
+                    avg_conceded = home_data['goals_conceded_last_5'] / 5
+                    elite_status = "✅ ELITE DEFENSE" if home_data['goals_conceded_last_5'] <= 4 else "❌ Not Elite"
+                    st.write(f"- Avg Conceded: {avg_conceded:.2f} goals/match")
+                    st.write(f"- Status: {elite_status}")
+        
+        with col2:
+            if away_team in df['team'].values:
+                away_data = extract_team_data(df, away_team)
+                st.write(f"**{away_team} (Last 5 matches):**")
+                st.write(f"- Goals Scored: {away_data.get('goals_scored_last_5', 'N/A')}")
+                st.write(f"- Goals Conceded: {away_data.get('goals_conceded_last_5', 'N/A')}")
+                if away_data.get('goals_conceded_last_5'):
+                    avg_conceded = away_data['goals_conceded_last_5'] / 5
+                    elite_status = "✅ ELITE DEFENSE" if away_data['goals_conceded_last_5'] <= 4 else "❌ Not Elite"
+                    st.write(f"- Avg Conceded: {avg_conceded:.2f} goals/match")
+                    st.write(f"- Status: {elite_status}")
     
     # Execute analysis button
     if st.button("⚡ DETECT PROVEN PATTERNS", type="primary", use_container_width=True, key="detect_patterns"):
         
-        # Use demo data
-        home_data = demo_data.get(home_team, {'goals_conceded_last_5': 10})
-        away_data = demo_data.get(away_team, {'goals_conceded_last_5': 10})
+        # Extract data from CSV
+        home_data = extract_team_data(df, home_team)
+        away_data = extract_team_data(df, away_team)
+        
+        if not home_data or not away_data:
+            st.error("Could not extract team data from CSV")
+            return
         
         # Prepare match metadata
         match_metadata = {
@@ -508,146 +546,189 @@ def main():
             'winner_delta_value': 0
         }
         
-        # Run pattern detection
-        pattern_results = {
-            'patterns_detected': 2,
-            'recommendations': [
-                {
-                    'pattern': 'ELITE_DEFENSE_UNDER_1_5',
-                    'bet_type': 'TEAM_UNDER_1_5',
-                    'defensive_team': 'Arsenal',
-                    'home_conceded': 4,
-                    'away_conceded': 9,
-                    'defense_gap': 5,
-                    'reason': f"{home_team} elite defense: {home_data['goals_conceded_last_5']}/5 goals conceded, +5 defense gap",
-                    'stake_multiplier': 2.0,
-                    'sample_accuracy': '8/8 matches (100%)',
-                    'sample_matches': [
-                        'Porto 2-0 AVS', 'Espanyol 2-1 Athletic', 'Parma 1-0 Fiorentina',
-                        'Juventus 2-0 Pisa', 'Milan 3-0 Verona', 'Arsenal 4-1 Villa',
-                        'Man City 0-0 Sunderland'
-                    ]
-                },
-                {
-                    'pattern': 'PATTERN_DRIVEN_UNDER_3_5',
-                    'bet_type': 'TOTAL_UNDER_3_5',
-                    'reason': 'Pattern detected - Elite Defense present',
-                    'stake_multiplier': 1.0,
-                    'sample_accuracy': '10/12 matches (83.3%)',
-                    'sample_matches': [
-                        'Porto 2-0 AVS', 'Espanyol 2-1 Athletic', 'Parma 1-0 Fiorentina',
-                        'Juventus 2-0 Pisa', 'Milan 3-0 Verona', 'Man City 0-0 Sunderland',
-                        'Udinese 1-1 Lazio', 'Man Utd 1-1 Wolves', 'Brentford 0-0 Spurs'
-                    ]
-                }
-            ],
-            'summary': 'Detected: 1 Elite Defense bet, 1 UNDER 3.5 bet'
-        }
-        
-        # Store results
-        st.session_state.pattern_results = pattern_results
-        st.session_state.analysis_complete = True
-        st.session_state.home_team = home_team
-        st.session_state.away_team = away_team
-        
-        st.rerun()
+        # Run pattern detection using actual CSV data
+        try:
+            pattern_results = ProvenPatternDetector.generate_all_patterns(
+                home_data, away_data, match_metadata
+            )
+            
+            # Store results
+            st.session_state.pattern_results = pattern_results
+            st.session_state.analysis_complete = True
+            st.session_state.current_home_team = home_team
+            st.session_state.current_away_team = away_team
+            
+            st.success(f"✅ Analysis complete! Found {pattern_results['patterns_detected']} pattern(s)")
+            
+        except Exception as e:
+            st.error(f"❌ Pattern detection error: {str(e)}")
+            st.info("Make sure your CSV has 'goals_conceded_last_5' column for both teams")
     
     # Display results if analysis is complete
     if st.session_state.analysis_complete and st.session_state.pattern_results:
         pattern_results = st.session_state.pattern_results
-        home_team = st.session_state.home_team
-        away_team = st.session_state.away_team
+        home_team = st.session_state.current_home_team
+        away_team = st.session_state.current_away_team
         
         # Display Proven Patterns
         st.markdown("### 🎯 PROVEN PATTERN DETECTION RESULTS")
         display_proven_patterns_results(pattern_results, home_team, away_team)
         
         # Show summaries for both patterns
-        st.markdown("### 📋 PATTERN SUMMARY")
-        
-        # TEAM_UNDER_1.5 Summary
-        elite_defense_patterns = [r for r in pattern_results['recommendations'] 
-                                 if r['pattern'] == 'ELITE_DEFENSE_UNDER_1_5']
-        
-        for pattern in elite_defense_patterns:
-            team_to_bet = get_team_under_15_name(pattern, home_team, away_team)
-            defensive_team = pattern.get('defensive_team', '')
+        if pattern_results['patterns_detected'] > 0:
+            st.markdown("### 📋 PATTERN SUMMARY")
             
-            st.markdown(f"""
-            <div class="brutball-card-wrapper">
-                <div style="background: linear-gradient(135deg, #DCFCE7 0%, #BBF7D0 100%);
-                        padding: 1rem; border-radius: 8px; border: 3px solid #16A34A; 
-                        margin: 1rem 0; text-align: center; box-sizing: border-box;">
-                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
-                        <div style="font-size: 2rem;">🎯</div>
-                        <div style="flex: 1;">
-                            <div style="font-size: 1.5rem; font-weight: 700; color: #065F46;">
-                                Bet: {team_to_bet} to score UNDER 1.5 goals
+            # TEAM_UNDER_1.5 Summary
+            elite_defense_patterns = [r for r in pattern_results['recommendations'] 
+                                     if r['pattern'] == 'ELITE_DEFENSE_UNDER_1_5']
+            
+            for pattern in elite_defense_patterns:
+                team_to_bet = get_team_under_15_name(pattern, home_team, away_team)
+                defensive_team = pattern.get('defensive_team', '')
+                
+                st.markdown(f"""
+                <div class="brutball-card-wrapper">
+                    <div style="background: linear-gradient(135deg, #DCFCE7 0%, #BBF7D0 100%);
+                            padding: 1rem; border-radius: 8px; border: 3px solid #16A34A; 
+                            margin: 1rem 0; text-align: center; box-sizing: border-box;">
+                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                            <div style="font-size: 2rem;">🎯</div>
+                            <div style="flex: 1;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: #065F46;">
+                                    Bet: {team_to_bet} to score UNDER 1.5 goals
+                                </div>
+                                <div style="color: #374151;">
+                                    Because {defensive_team} has elite defense ({pattern.get('home_conceded', 0)}/5 goals conceded)
+                                </div>
                             </div>
-                            <div style="color: #374151;">
-                                Because {defensive_team} has elite defense ({pattern.get('home_conceded', 0)}/5 goals conceded)
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                            <div style="text-align: center;">
+                                <div style="font-size: 0.9rem; color: #6B7280;">Defensive Team</div>
+                                <div style="font-size: 1.2rem; font-weight: 700; color: #16A34A;">{defensive_team}</div>
                             </div>
-                        </div>
-                    </div>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-top: 1rem;">
-                        <div style="text-align: center;">
-                            <div style="font-size: 0.9rem; color: #6B7280;">Defensive Team</div>
-                            <div style="font-size: 1.2rem; font-weight: 700; color: #16A34A;">{defensive_team}</div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 0.9rem; color: #6B7280;">Team to Bet</div>
-                            <div style="font-size: 1.2rem; font-weight: 700; color: #DC2626;">{team_to_bet}</div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 0.9rem; color: #6B7280;">Defense Gap</div>
-                            <div style="font-size: 1.2rem; font-weight: 700; color: #059669;">+{pattern.get('defense_gap', 0)} goals</div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 0.9rem; color: #6B7280;">Team to Bet</div>
+                                <div style="font-size: 1.2rem; font-weight: 700; color: #DC2626;">{team_to_bet}</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 0.9rem; color: #6B7280;">Defense Gap</div>
+                                <div style="font-size: 1.2rem; font-weight: 700; color: #059669;">+{pattern.get('defense_gap', 0)} goals</div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # UNDER 3.5 Summary
-        under_35_patterns = [r for r in pattern_results['recommendations'] 
-                           if r['pattern'] == 'PATTERN_DRIVEN_UNDER_3_5']
-        
-        for pattern in under_35_patterns:
-            st.markdown(f"""
-            <div class="brutball-card-wrapper">
-                <div style="background: linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%);
-                        padding: 1rem; border-radius: 8px; border: 3px solid #7C3AED; 
-                        margin: 1rem 0; text-align: center; box-sizing: border-box;">
-                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
-                        <div style="font-size: 2rem;">📊</div>
-                        <div style="flex: 1;">
-                            <div style="font-size: 1.5rem; font-weight: 700; color: #5B21B6;">
-                                Bet: TOTAL UNDER 3.5 goals
+                """, unsafe_allow_html=True)
+            
+            # UNDER 3.5 Summary
+            under_35_patterns = [r for r in pattern_results['recommendations'] 
+                               if r['pattern'] == 'PATTERN_DRIVEN_UNDER_3_5']
+            
+            for pattern in under_35_patterns:
+                st.markdown(f"""
+                <div class="brutball-card-wrapper">
+                    <div style="background: linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%);
+                            padding: 1rem; border-radius: 8px; border: 3px solid #7C3AED; 
+                            margin: 1rem 0; text-align: center; box-sizing: border-box;">
+                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                            <div style="font-size: 2rem;">📊</div>
+                            <div style="flex: 1;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: #5B21B6;">
+                                    Bet: TOTAL UNDER 3.5 goals
+                                </div>
+                                <div style="color: #374151;">
+                                    Pattern-driven bet triggered by Elite Defense detection
+                                </div>
                             </div>
-                            <div style="color: #374151;">
-                                Pattern-driven bet triggered by Elite Defense detection
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                            <div style="text-align: center;">
+                                <div style="font-size: 0.9rem; color: #6B7280;">Pattern Type</div>
+                                <div style="font-size: 1.2rem; font-weight: 700; color: #7C3AED;">Under 3.5</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 0.9rem; color: #6B7280;">Accuracy</div>
+                                <div style="font-size: 1.2rem; font-weight: 700; color: #059669;">83.3%</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 0.9rem; color: #6B7280;">Sample Size</div>
+                                <div style="font-size: 1.2rem; font-weight: 700; color: #7C3AED;">10/12 matches</div>
                             </div>
                         </div>
-                    </div>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-top: 1rem;">
-                        <div style="text-align: center;">
-                            <div style="font-size: 0.9rem; color: #6B7280;">Pattern Type</div>
-                            <div style="font-size: 1.2rem; font-weight: 700; color: #7C3AED;">Under 3.5</div>
+                        <div style="margin-top: 1rem; padding: 0.75rem; background: #F3E8FF; border-radius: 6px;">
+                            <strong>🎯 LOGIC:</strong> When Elite Defense pattern is detected, total goals are ≤3 in 83.3% of cases
                         </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 0.9rem; color: #6B7280;">Accuracy</div>
-                            <div style="font-size: 1.2rem; font-weight: 700; color: #059669;">83.3%</div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 0.9rem; color: #6B7280;">Sample Size</div>
-                            <div style="font-size: 1.2rem; font-weight: 700; color: #7C3AED;">10/12 matches</div>
-                        </div>
-                    </div>
-                    <div style="margin-top: 1rem; padding: 0.75rem; background: #F3E8FF; border-radius: 6px;">
-                        <strong>🎯 LOGIC:</strong> When Elite Defense pattern is detected, total goals are ≤3 in 83.3% of cases
                     </div>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
+            
+            # Export functionality
+            st.markdown("---")
+            st.markdown("#### 📤 Export Analysis")
+            
+            export_text = f"""BRUTBALL PROVEN PATTERNS ANALYSIS
+===========================================
+League: {selected_league}
+Match: {home_team} vs {away_team}
+Analysis Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+DATA SOURCE: CSV with last 5 matches data
+• Home Team: {home_team}
+• Away Team: {away_team}
+• CSV File: {config['filename']}
+
+EMPRICAL PROOF (25-MATCH ANALYSIS):
+• Pattern A: Elite Defense → Opponent UNDER 1.5 (100% - 8 matches)
+• Pattern B: Winner Lock → Double Chance (100% - 6 matches)
+• Pattern C: UNDER 3.5 When Patterns Present (83.3% - 10/12 matches)
+
+DETECTED PATTERNS:
+• Patterns Found: {pattern_results['patterns_detected']}
+• Summary: {pattern_results['summary']}
+
+RECOMMENDED BETS:
+"""
+            
+            for idx, rec in enumerate(pattern_results['recommendations']):
+                # FIXED: Get correct team name for export
+                if rec['pattern'] == 'ELITE_DEFENSE_UNDER_1_5':
+                    team_name = get_team_under_15_name(rec, home_team, away_team)
+                    bet_desc = f"{team_name} to score UNDER 1.5 goals"
+                elif rec['pattern'] == 'WINNER_LOCK_DOUBLE_CHANCE':
+                    team_name = rec.get('team_to_bet', '')
+                    bet_desc = f"{team_name} Double Chance (Win or Draw)"
+                else:
+                    team_name = ''
+                    bet_desc = f"Total UNDER 3.5 goals"
+                
+                export_text += f"""
+{idx+1}. {rec['bet_type']}
+   • Bet: {bet_desc}
+   • Pattern: {rec['pattern'].replace('_', ' ')}
+   • Reason: {rec['reason']}
+   • Sample Accuracy: {rec['sample_accuracy']}
+   • Stake Multiplier: {rec['stake_multiplier']:.1f}x
+"""
+            
+            export_text += f"""
+
+CSV DATA USED:
+• {home_team}: {extract_team_data(df, home_team).get('goals_conceded_last_5', 'N/A')} goals conceded (last 5)
+• {away_team}: {extract_team_data(df, away_team).get('goals_conceded_last_5', 'N/A')} goals conceded (last 5)
+
+SYSTEM:
+• Data Source: CSV files in 'leagues/' directory
+• Pattern Detection: BRUTBALL_PROVEN_PATTERNS_v1.0
+• Card Design: Beautiful responsive UI with wrapper containers
+"""
+            
+            st.download_button(
+                label="📥 Download Pattern Analysis",
+                data=export_text,
+                file_name=f"brutball_patterns_{selected_league.replace(' ', '_')}_{home_team}_vs_{away_team}.txt",
+                mime="text/plain",
+                use_container_width=True
+            )
     
     # Footer
     st.markdown("---")
@@ -667,8 +748,7 @@ def main():
                     📊 Pattern Present → Bet UNDER 3.5
                 </div>
             </div>
-            <p><strong>Historical Proof:</strong> Porto 2-0 AVS • Espanyol 2-1 Athletic • Parma 1-0 Fiorentina</p>
-            <p>Juventus 2-0 Pisa • Milan 3-0 Verona • Arsenal 4-1 Villa • Man City 0-0 Sunderland</p>
+            <p><strong>Data Source:</strong> CSV files with last 5 matches data • <strong>Card Design:</strong> Beautiful responsive UI</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
