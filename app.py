@@ -19,6 +19,136 @@ except ImportError:
     format_reliability_badge = None
     format_durability_indicator = None
 
+# =================== ARCHITECTURALLY PURE DATA EXTRACTION ===================
+def extract_pure_team_data(df: pd.DataFrame, team_name: str) -> Dict:
+    """
+    Extract team data with ZERO transformations, calculations, or assumptions.
+    Pure CSV → Dict mapping. No NaN handling, no type coercion.
+    
+    PRINCIPLE: Missing data should BLOCK locks, not fabricate defensive strength.
+    """
+    # 1. Verify team exists
+    if team_name not in df['team'].values:
+        st.error(f"❌ Team '{team_name}' not found in CSV. This is a data integrity issue.")
+        return {}
+    
+    # 2. Extract raw row
+    team_row = df[df['team'] == team_name].iloc[0]
+    
+    # 3. Build pure dictionary (no transformations)
+    team_data = {}
+    for col in df.columns:
+        value = team_row[col]
+        
+        # CRITICAL: Preserve NaN - don't convert to 0
+        # Missing data should be visible, not hidden
+        team_data[col] = value
+    
+    return team_data
+
+
+# =================== DATA INTEGRITY VERIFICATION ===================
+def verify_data_integrity(df: pd.DataFrame, home_team: str, away_team: str):
+    """
+    Verify that CSV data has the required fields and values.
+    """
+    print("="*80)
+    print("🛡️ DATA INTEGRITY VERIFICATION")
+    print("="*80)
+    
+    # Check required columns
+    required_columns = ['team', 'goals_scored_last_5', 'goals_conceded_last_5']
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    
+    if missing_columns:
+        print(f"❌ CRITICAL: Missing required columns: {missing_columns}")
+        return False
+    
+    print("✅ CSV structure verified")
+    
+    # Check teams exist
+    if home_team not in df['team'].values:
+        print(f"❌ Home team '{home_team}' not found in CSV")
+        return False
+    
+    if away_team not in df['team'].values:
+        print(f"❌ Away team '{away_team}' not found in CSV")
+        return False
+    
+    print(f"✅ Teams found: {home_team}, {away_team}")
+    
+    # Check specific data values
+    for team in [home_team, away_team]:
+        team_row = df[df['team'] == team].iloc[0]
+        print(f"\n📊 {team} data check:")
+        for field in ['goals_scored_last_5', 'goals_conceded_last_5']:
+            value = team_row[field]
+            status = "✅" if not pd.isna(value) else "❌ NaN"
+            print(f"  {status} {field}: {value}")
+    
+    print("="*80)
+    return True
+
+
+# =================== UPDATED CLASSIFIER INTEGRATION ===================
+def run_analysis_with_classifier(df, home_team, away_team):
+    """
+    Run analysis with architecturally pure classifier integration
+    """
+    # 1. Verify data integrity first
+    if not verify_data_integrity(df, home_team, away_team):
+        st.error("❌ Data integrity check failed. Cannot run classifier.")
+        return None
+    
+    # 2. Extract pure data (no transformations)
+    home_data = extract_pure_team_data(df, home_team)
+    away_data = extract_pure_team_data(df, away_team)
+    
+    # 3. Debug: Show what we're sending to classifier
+    with st.expander("🔍 Debug: Data being sent to classifier"):
+        st.write(f"**{home_team} data:**")
+        for field in ['goals_scored_last_5', 'goals_conceded_last_5']:
+            value = home_data.get(field)
+            st.write(f"{field}: {value} {'(NaN!)' if pd.isna(value) else ''}")
+        
+        st.write(f"**{away_team} data:**")
+        for field in ['goals_scored_last_5', 'goals_conceded_last_5']:
+            value = away_data.get(field)
+            st.write(f"{field}: {value} {'(NaN!)' if pd.isna(value) else ''}")
+    
+    # 4. Run classifier
+    classification_result = None
+    try:
+        classification_result = get_complete_classification(home_data, away_data)
+        
+        # Display results
+        if classification_result.get('classification_error', False):
+            st.warning(f"⚠️ Classifier Error: {classification_result.get('error_message')}")
+        else:
+            # Show successful classification
+            st.success("✅ Structural analysis complete")
+            
+            # Display averages
+            averages = classification_result.get('averages', {})
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric(f"{home_team} Avg Goals", f"{averages.get('home_goals_avg', 0):.2f}")
+                st.metric(f"{home_team} Avg Conceded", f"{averages.get('home_conceded_avg', 0):.2f}")
+            with col2:
+                st.metric(f"{away_team} Avg Goals", f"{averages.get('away_goals_avg', 0):.2f}")
+                st.metric(f"{away_team} Avg Conceded", f"{averages.get('away_conceded_avg', 0):.2f}")
+            
+            # Display match state
+            state = classification_result.get('dominant_state', 'NEUTRAL')
+            state_config = MatchStateClassifier.STATE_CONFIG.get(state, MatchStateClassifier.STATE_CONFIG['NEUTRAL'])
+            st.info(f"{state_config['emoji']} **Match State: {state_config['label']}**")
+            
+    except Exception as e:
+        st.error(f"❌ Classifier failed: {str(e)}")
+    
+    return classification_result
+
+
 # =================== HTML HELPER FUNCTIONS ===================
 def format_reliability_badge_html(reliability_data):
     """Convert reliability badge Markdown to HTML for use in f-strings"""
@@ -2715,24 +2845,42 @@ def main():
         # Does NOT affect existing results, stakes, or decisions
         classification_result = None
         if STATE_CLASSIFIER_AVAILABLE:
-            try:
-                classification_result = get_complete_classification(home_data, away_data)
-                result['state_classification'] = classification_result
-                result['classification_is_read_only'] = True
-                result['classification_does_not_affect_betting'] = True
+            with st.expander("🔍 Pre-Match Structural Intelligence (Read-Only)", expanded=True):
+                classification_result = run_analysis_with_classifier(df, home_team, away_team)
                 
-            except Exception as e:
-                # Fail gracefully - classification is optional
-                classification_result = {
-                    'classification_error': True,
-                    'dominant_state': 'CLASSIFIER_ERROR',
-                    'error': str(e),
-                    'is_read_only': True,
-                    'does_not_affect_betting': True
-                }
-                result['state_classification'] = classification_result
-                result['classification_is_read_only'] = True
-                result['classification_does_not_affect_betting'] = True
+                if classification_result and not classification_result.get('classification_error', True):
+                    # Create nice display
+                    try:
+                        ui_data = MatchStateClassifier.create_ui_display_data(classification_result)
+                        
+                        if ui_data['display_type'] == 'CLASSIFICATION':
+                            st.write("### 📊 Structural Analysis (Last 5 Matches Only)")
+                            st.caption("All calculations use LAST 5 MATCHES only. Does NOT affect betting logic.")
+                            
+                            # Show team data
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.write(f"**{home_team}**")
+                                st.write(f"Avg Goals: {ui_data['averages']['home_goals']:.2f}")
+                                st.write(f"Avg Conceded: {ui_data['averages']['home_conceded']:.2f}")
+                                st.write(f"Defensive strength: {'✅ Strong' if ui_data['defensive_analysis']['home_strong_defense'] else '❌ Weak'}")
+                            
+                            with col2:
+                                st.write(f"**{away_team}**")
+                                st.write(f"Avg Goals: {ui_data['averages']['away_goals']:.2f}")
+                                st.write(f"Avg Conceded: {ui_data['averages']['away_conceded']:.2f}")
+                                st.write(f"Defensive strength: {'✅ Strong' if ui_data['defensive_analysis']['away_strong_defense'] else '❌ Weak'}")
+                            
+                            # Show classification results
+                            st.write("### 🎯 Classification Results")
+                            st.write(f"**Match State:** {ui_data['match_state']['emoji']} {ui_data['match_state']['label']}")
+                            st.write(f"**Totals Durability:** {format_durability_indicator(ui_data['durability']['code'])}")
+                            st.write(f"**Under Market Suggestion:** {ui_data['under_suggestion']}")
+                            st.write(f"**Reliability:** {format_reliability_badge(ui_data['reliability'])}")
+                            
+                            st.warning("⚠️ IMPORTANT: This classification is 100% read-only and informational only. Does NOT affect betting logic, stakes, or existing tiers.")
+                    except Exception as e:
+                        st.error(f"Error creating UI display: {str(e)}")
         
         # =================== INTEGRATED SYSTEM VERDICT ===================
         st.markdown("### 🎯 INTEGRATED SYSTEM VERDICT v6.3")
@@ -2768,201 +2916,6 @@ def main():
         </div>
         """
         st.markdown(capital_html, unsafe_allow_html=True)
-        
-        # =================== STATE & DURABILITY CLASSIFICATION DISPLAY ===================
-        if classification_result and 'state_classification' in result:
-            st.markdown("#### 🔍 PRE-MATCH STRUCTURAL INTELLIGENCE (READ-ONLY)")
-            
-            # Display the perspective boxes
-            st.markdown("""
-            <div class="perspective-display">
-                <h4>📊 STRUCTURAL ANALYSIS (Last 5 Matches Only)</h4>
-                <p style="color: #374151; margin-bottom: 1rem;">All calculations use LAST 5 MATCHES only. Does NOT affect betting logic.</p>
-            """, unsafe_allow_html=True)
-            
-            # Get classification data
-            averages = classification_result.get('averages', {})
-            opponent_data = classification_result.get('opponent_under_15', {})
-            
-            # Home Team Box
-            home_html = f"""
-            <div class="perspective-box perspective-home">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                    <div style="font-weight: 700; color: #1E40AF;">{home_team}</div>
-                    <div style="font-size: 0.9rem; color: #6B7280;">Last 5 matches data</div>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
-                    <div>
-                        <div style="font-size: 0.85rem; color: #6B7280;">Avg Goals</div>
-                        <div style="font-weight: 600;">{averages.get('home_goals_avg', 0):.2f}</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.85rem; color: #6B7280;">Avg Conceded</div>
-                        <div style="font-weight: 600; color: {'#16A34A' if averages.get('home_conceded_avg', 0) <= 1.0 else '#DC2626'}">
-                            {averages.get('home_conceded_avg', 0):.2f}
-                        </div>
-                    </div>
-                </div>
-                <div style="color: #374151; font-size: 0.9rem;">
-                    Defensive strength: {'✅ Strong' if averages.get('home_conceded_avg', 0) <= 1.0 else '❌ Weak'}
-                </div>
-            </div>
-            """
-            st.markdown(home_html, unsafe_allow_html=True)
-            
-            # Away Team Box
-            away_html = f"""
-            <div class="perspective-box perspective-away">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                    <div style="font-weight: 700; color: #DC2626;">{away_team}</div>
-                    <div style="font-size: 0.9rem; color: #6B7280;">Last 5 matches data</div>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
-                    <div>
-                        <div style="font-size: 0.85rem; color: #6B7280;">Avg Goals</div>
-                        <div style="font-weight: 600;">{averages.get('away_goals_avg', 0):.2f}</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.85rem; color: #6B7280;">Avg Conceded</div>
-                        <div style="font-weight: 600; color: {'#16A34A' if averages.get('away_conceded_avg', 0) <= 1.0 else '#DC2626'}">
-                            {averages.get('away_conceded_avg', 0):.2f}
-                        </div>
-                    </div>
-                </div>
-                <div style="color: #374151; font-size: 0.9rem;">
-                    Defensive strength: {'✅ Strong' if averages.get('away_conceded_avg', 0) <= 1.0 else '❌ Weak'}
-                </div>
-            </div>
-            """
-            st.markdown(away_html, unsafe_allow_html=True)
-            
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-            # =================== STREAMLIT-NATIVE CLASSIFICATION DISPLAY ===================
-            # Using pure Streamlit components, no HTML
-            
-            # Map state to emoji and color
-            state_info = {
-                'TERMINAL_STAGNATION': {'emoji': '🌀', 'color': '#0EA5E9', 'label': 'Terminal Stagnation'},
-                'ASYMMETRIC_SUPPRESSION': {'emoji': '🛡️', 'color': '#16A34A', 'label': 'Asymmetric Suppression'},
-                'DELAYED_RELEASE': {'emoji': '⏳', 'color': '#F59E0B', 'label': 'Delayed Release'},
-                'FORCED_EXPLOSION': {'emoji': '💥', 'color': '#EF4444', 'label': 'Forced Explosion'},
-                'NEUTRAL': {'emoji': '⚖️', 'color': '#6B7280', 'label': 'Neutral'},
-                'CLASSIFIER_ERROR': {'emoji': '⚠️', 'color': '#DC2626', 'label': 'Classifier Error'}
-            }
-            
-            dominant_state = classification_result.get('dominant_state', 'NEUTRAL')
-            state_data = state_info.get(dominant_state, state_info['NEUTRAL'])
-            
-            # Get durability and suggestion
-            totals_durability = classification_result.get('totals_durability', 'NONE')
-            under_suggestion = classification_result.get('under_suggestion', 'No Under recommendation')
-            
-            # Create a clean classification display using Streamlit columns and containers
-            with st.container():
-                # State classification badge
-                st.markdown(f"""
-                <div style="background: linear-gradient(135deg, #FFEDD5 0%, #FED7AA 100%); 
-                            padding: 2rem; border-radius: 12px; border: 4px solid #F97316; 
-                            text-align: center; margin: 1.5rem 0;">
-                    <div style="display: inline-flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-                        <span style="font-size: 2rem;">{state_data['emoji']}</span>
-                        <div>
-                            <div style="font-size: 1.5rem; font-weight: 800; color: {state_data['color']};">
-                                {state_data['label']}
-                            </div>
-                            <div style="display: inline-block; background: #F3F4F6; color: #6B7280; 
-                                        border: 1px solid #D1D5DB; font-size: 0.8rem; padding: 0.25rem 0.75rem; 
-                                        border-radius: 12px; margin-top: 0.5rem;">
-                                READ-ONLY
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Classification metrics using Streamlit columns
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    # Totals Durability
-                    with st.container():
-                        st.markdown("**Totals Durability**")
-                        
-                        # Determine durability emoji and color
-                        if totals_durability == 'STABLE':
-                            durability_emoji = '🟢'
-                            durability_color = '#16A34A'
-                        elif totals_durability == 'FRAGILE':
-                            durability_emoji = '🟡'
-                            durability_color = '#F59E0B'
-                        else:  # NONE or other
-                            durability_emoji = '⚫'
-                            durability_color = '#6B7280'
-                        
-                        st.markdown(f"""
-                        <div style="font-size: 1.5rem; font-weight: 700; color: {durability_color}; 
-                                    margin: 0.5rem 0;">
-                            {durability_emoji} {totals_durability}
-                        </div>
-                        <div style="font-size: 0.85rem; color: #6B7280;">
-                            Based on last 5 matches only
-                        </div>
-                        """, unsafe_allow_html=True)
-                
-                with col2:
-                    # Under Market Suggestion
-                    with st.container():
-                        st.markdown("**Under Market Suggestion**")
-                        st.markdown(f"""
-                        <div style="font-size: 1.2rem; font-weight: 700; color: #059669; 
-                                    margin: 0.5rem 0;">
-                            {under_suggestion}
-                        </div>
-                        <div style="font-size: 0.85rem; color: #6B7280;">
-                            Informational guidance only
-                        </div>
-                        """, unsafe_allow_html=True)
-                
-                # Reliability Assessment
-                st.markdown("---")
-                st.markdown("**Reliability Assessment**")
-                
-                reliability_data = classification_result.get('reliability_home', {})
-                score = reliability_data.get('reliability_score', 0)
-                label = reliability_data.get('reliability_label', 'NONE')
-                
-                # Map reliability score to emoji and color
-                reliability_map = {
-                    5: {'emoji': '🟢', 'color': '#16A34A'},
-                    4: {'emoji': '🟡', 'color': '#F59E0B'},
-                    3: {'emoji': '🟠', 'color': '#F97316'},
-                    2: {'emoji': '⚪', 'color': '#9CA3AF'},
-                    1: {'emoji': '⚪', 'color': '#9CA3AF'},
-                    0: {'emoji': '⚫', 'color': '#6B7280'}
-                }
-                
-                rel_info = reliability_map.get(score, reliability_map[0])
-                
-                st.markdown(f"""
-                <div style="background: #F0F9FF; padding: 1.5rem; border-radius: 8px; 
-                            border: 1px solid #BAE6FD; margin: 1rem 0;">
-                    <div style="text-align: center;">
-                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">
-                            {rel_info['emoji']}
-                        </div>
-                        <div style="font-size: 1.2rem; font-weight: 700; color: {rel_info['color']};">
-                            Reliability: {label} ({score}/5)
-                        </div>
-                        <div style="font-size: 0.9rem; color: #6B7280; margin-top: 0.5rem;">
-                            Based on durability, under suggestions, and defensive strength
-                        </div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Important note
-                st.warning("**⚠️ IMPORTANT:** This classification is 100% read-only and informational only. Does NOT affect betting logic, stakes, or existing tiers.", icon="⚠️")
         
         # =================== EDGE-DERIVED LOCKS DISPLAY (Backward Compatible) ===================
         if result['has_edge_derived_locks']:
@@ -3288,7 +3241,7 @@ INTEGRATED CAPITAL DECISION:
 """
         
         # Add classification if available
-        if classification_result and 'state_classification' in result:
+        if classification_result:
             export_text += f"""
 
 ===========================================
@@ -3297,8 +3250,8 @@ STATE & DURABILITY CLASSIFICATION (READ-ONLY - PRE-MATCH INTELLIGENCE)
 DATA SOURCE: Last 5 matches only (no season averages)
 
 TEAM DEFENSIVE STRENGTH (Last 5 matches):
-• {home_team}: {averages.get('home_conceded_avg', 0):.2f} avg conceded {'≤1.0 ✅ Strong' if averages.get('home_conceded_avg', 0) <= 1.0 else '>1.0 ❌ Weak'}
-• {away_team}: {averages.get('away_conceded_avg', 0):.2f} avg conceded {'≤1.0 ✅ Strong' if averages.get('away_conceded_avg', 0) <= 1.0 else '>1.0 ❌ Weak'}
+• {home_team}: {classification_result.get('averages', {}).get('home_conceded_avg', 0):.2f} avg conceded {'≤1.0 ✅ Strong' if classification_result.get('averages', {}).get('home_conceded_avg', 0) <= 1.0 else '>1.0 ❌ Weak'}
+• {away_team}: {classification_result.get('averages', {}).get('away_conceded_avg', 0):.2f} avg conceded {'≤1.0 ✅ Strong' if classification_result.get('averages', {}).get('away_conceded_avg', 0) <= 1.0 else '>1.0 ❌ Weak'}
 
 CLASSIFICATION RESULTS:
 • Dominant State: {classification_result.get('dominant_state', 'N/A')}
