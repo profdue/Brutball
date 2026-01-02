@@ -2,7 +2,6 @@
 COMPLETE BRUTBALL PATTERN DETECTION APP - AUTOMATED VERSION
 Fully independent - no hardcoded teams or matches
 AUTOMATED Winner Lock detection from Agency-State system output
-FIXED VERSION: Session state error resolved
 """
 
 import streamlit as st
@@ -16,93 +15,16 @@ warnings.filterwarnings('ignore')
 
 # =================== IMPORT COMPLETE SYSTEM ===================
 try:
-    # Try to import from match_state_classifier
+    from match_state_classifier import (
+        CompletePatternDetector,
+        DataValidator,
+        ResultFormatter,
+        get_complete_classification
+    )
     SYSTEM_AVAILABLE = True
-    
-    # Mock classes for now if import fails
-    class CompletePatternDetector:
-        @staticmethod
-        def analyze_match_complete(home_data, away_data, match_metadata):
-            # Mock implementation
-            return {
-                'pattern_stats': {
-                    'total_patterns': 1,
-                    'elite_defense_count': 1,
-                    'winner_lock_count': 1,
-                    'under_35_present': True,
-                    'pattern_combination': 'BOTH_PATTERNS',
-                    'combination_emoji': '🎯'
-                },
-                'recommendations': [
-                    {
-                        'pattern': 'WINNER_LOCK_DOUBLE_CHANCE',
-                        'bet_type': 'DOUBLE_CHANCE',
-                        'team_to_bet': match_metadata.get('home_team', 'Team'),
-                        'reason': f"Automated Winner Lock detection (Δ={match_metadata.get('winner_delta_value', 0.0)})",
-                        'stake_multiplier': 2.0,
-                        'confidence': '100%',
-                        'sample_accuracy': '6/6 matches'
-                    }
-                ],
-                'combination_desc': 'Both Elite Defense and Winner Lock patterns detected',
-                'tier_summary': [
-                    'TIER 1: Elite Defense Pattern Detected',
-                    'TIER 2: Automated Winner Lock Detected',
-                    'TIER 3: UNDER 3.5 (100% confidence)'
-                ]
-            }
-    
-    class DataValidator:
-        @staticmethod
-        def validate_match_data(home_data, away_data, match_metadata):
-            # Mock validation - always passes
-            return []
-    
-    class ResultFormatter:
-        @staticmethod
-        def get_pattern_style(pattern):
-            styles = {
-                'ELITE_DEFENSE_UNDER_1_5': {'color': '#16A34A', 'border_color': '#16A34A', 'emoji': '🛡️'},
-                'WINNER_LOCK_DOUBLE_CHANCE': {'color': '#2563EB', 'border_color': '#2563EB', 'emoji': '🤖'},
-                'UNDER_3_5': {'color': '#7C3AED', 'border_color': '#7C3AED', 'emoji': '📊'}
-            }
-            return styles.get(pattern, {'color': '#6B7280', 'border_color': '#6B7280', 'emoji': '📈'})
-        
-        @staticmethod
-        def get_team_under_15_name(recommendation, home_team, away_team):
-            return home_team  # Simplified
-        
-        @staticmethod
-        def format_pattern_name(pattern):
-            names = {
-                'ELITE_DEFENSE_UNDER_1_5': 'Elite Defense UNDER 1.5',
-                'WINNER_LOCK_DOUBLE_CHANCE': 'Winner Lock Double Chance',
-                'UNDER_3_5': 'Total UNDER 3.5 Goals'
-            }
-            return names.get(pattern, pattern)
-
 except ImportError as e:
     st.error(f"❌ System import error: {str(e)}")
     SYSTEM_AVAILABLE = False
-
-# =================== INITIALIZE SESSION STATE ===================
-# Initialize ALL session state variables at the top
-def initialize_session_state():
-    """Initialize all session state variables"""
-    if 'analysis_result' not in st.session_state:
-        st.session_state.analysis_result = None
-    if 'selected_league' not in st.session_state:
-        st.session_state.selected_league = 'Premier League'
-    if 'df' not in st.session_state:
-        st.session_state.df = None
-    if 'agency_output' not in st.session_state:
-        st.session_state.agency_output = ""
-    if 'winner_lock_detected' not in st.session_state:
-        st.session_state.winner_lock_detected = None
-    if 'current_home_team' not in st.session_state:
-        st.session_state.current_home_team = ""
-    if 'current_away_team' not in st.session_state:
-        st.session_state.current_away_team = ""
 
 # =================== AUTOMATED WINNER LOCK DETECTOR ===================
 class AutomatedWinnerLockDetector:
@@ -235,23 +157,23 @@ class AutomatedWinnerLockDetector:
             f"""🔐 TIER 2: AGENCY-STATE LOCKS v6.2
 AGENCY-STATE CONTROL DETECTED
 1 market(s) structurally locked
-Strongest lock: WINNER (Δ = +1.08)
+Strongest lock: WINNER (Δ = +{np.random.choice(['0.85', '0.92', '1.08', '1.15'])})
 WINNER: {home_team}""",
             
             f"""AGENCY-STATE SYSTEM OUTPUT
 Match: {home_team} vs {away_team}
 Detection: WINNER LOCK present
-Delta value: +1.04
+Delta value: +{np.random.choice(['0.78', '0.91', '1.04', '1.12'])}
 Locked team: {home_team}""",
             
             f"""STRUCTURAL MARKET ANALYSIS
 Winner market locked by Agency-State forces
-Δ = +0.92
+Δ = +{np.random.choice(['0.82', '0.95', '1.01', '1.09'])}
 Team with lock: {home_team}
 Confidence: 92%"""
         ]
         
-        return patterns[0]  # Return first pattern for consistency
+        return np.random.choice(patterns)
 
 # =================== GLOBAL CSS ===================
 st.markdown("""
@@ -568,7 +490,7 @@ def display_pattern_card(recommendation: Dict, home_team: str, away_team: str):
                 <div style="text-align: right; min-width: 100px;">
                     <div style="background: {style['color']}; color: white; padding: 0.25rem 0.75rem; 
                             border-radius: 20px; font-size: 0.85rem; font-weight: 700; display: inline-block;">
-                        {recommendation.get('stake_multiplier', 1.0):.1f}x
+                        {recommendation['stake_multiplier']:.1f}x
                     </div>
                     <div style="font-size: 0.8rem; color: #6B7280; margin-top: 0.25rem;">Stake Multiplier</div>
                 </div>
@@ -634,9 +556,6 @@ def display_pattern_combination(analysis_result: Dict):
 def main():
     """Complete independent pattern detection application - AUTOMATED VERSION"""
     
-    # Initialize session state FIRST
-    initialize_session_state()
-    
     if not SYSTEM_AVAILABLE:
         st.error("❌ System components not available. Check match_state_classifier.py")
         return
@@ -655,6 +574,18 @@ def main():
     
     # Display tier system
     display_tier_system()
+    
+    # Initialize session state
+    if 'analysis_result' not in st.session_state:
+        st.session_state.analysis_result = None
+    if 'selected_league' not in st.session_state:
+        st.session_state.selected_league = 'Premier League'
+    if 'df' not in st.session_state:
+        st.session_state.df = None
+    if 'agency_output' not in st.session_state:
+        st.session_state.agency_output = ""
+    if 'winner_lock_detected' not in st.session_state:
+        st.session_state.winner_lock_detected = None
     
     # League configuration
     LEAGUES = {
@@ -737,7 +668,7 @@ def main():
         detect Winner Lock patterns without any manual selection. Based on 25-match historical analysis.
         """)
         
-        # Text area for Agency-State output - use session state safely
+        # Text area for Agency-State output - FIXED: Don't assign to session_state in widget
         agency_output = st.text_area(
             "Paste Agency-State System Output:",
             height=150,
@@ -747,46 +678,35 @@ AGENCY-STATE CONTROL DETECTED
 1 market(s) structurally locked
 Strongest lock: WINNER (Δ = +1.08)
 WINNER: Real Betis""",
-            value=st.session_state.get('agency_output', ""),
+            value=st.session_state.agency_output,
             key="agency_output"
         )
         
-        # Update session state safely
-        if 'agency_output' in st.session_state:
-            st.session_state.agency_output = agency_output
-        else:
-            st.session_state['agency_output'] = agency_output
+        # Update session state after widget creation
+        st.session_state.agency_output = agency_output
         
         # Parse Agency-State output automatically
         if agency_output and home_team and away_team:
             detector = AutomatedWinnerLockDetector()
             winner_lock_result = detector.parse_agency_state_output(agency_output, home_team, away_team)
-            
-            # Update session state safely
-            if 'winner_lock_detected' in st.session_state:
-                st.session_state.winner_lock_detected = winner_lock_result
-            else:
-                st.session_state['winner_lock_detected'] = winner_lock_result
+            st.session_state.winner_lock_detected = winner_lock_result
             
             # Display automated detection result
             display_winner_lock_result(winner_lock_result)
         
         # Test mode option
         with st.expander("🔧 Test Mode Options"):
-            test_mode = st.checkbox("Enable Test Mode", value=False, key="test_mode")
+            test_mode = st.checkbox("Enable Test Mode", value=False)
             if test_mode:
                 col1, col2 = st.columns(2)
                 with col1:
-                    include_winner_lock = st.checkbox("Include Winner Lock in test", value=True, key="include_lock")
+                    include_winner_lock = st.checkbox("Include Winner Lock in test", value=True)
                 with col2:
-                    if st.button("Generate Test Output", key="gen_test"):
+                    if st.button("Generate Test Output"):
                         test_output = AutomatedWinnerLockDetector.generate_mock_agency_output(
                             home_team, away_team, include_winner_lock
                         )
-                        if 'agency_output' in st.session_state:
-                            st.session_state.agency_output = test_output
-                        else:
-                            st.session_state['agency_output'] = test_output
+                        st.session_state.agency_output = test_output
                         st.rerun()
         
         st.markdown('</div>', unsafe_allow_html=True)
@@ -808,13 +728,13 @@ WINNER: Real Betis""",
     }
     
     # Get automated Winner Lock detection result
-    winner_lock_result = st.session_state.get('winner_lock_detected', {
+    winner_lock_result = st.session_state.winner_lock_detected or {
         'detected': False,
         'team': None,
         'team_name': None,
         'delta_value': 0.0,
         'confidence': 'No detection performed'
-    })
+    }
     
     # Prepare match metadata with AUTOMATED detection
     match_metadata = {
@@ -823,13 +743,16 @@ WINNER: Real Betis""",
         'winner_lock_detected': winner_lock_result['detected'],
         'winner_lock_team': winner_lock_result['team'],  # Auto-detected
         'winner_delta_value': winner_lock_result['delta_value'],  # Auto-extracted
-        'agency_output': st.session_state.get('agency_output', ""),
+        'agency_output': st.session_state.agency_output,
         'detection_confidence': winner_lock_result['confidence']
     }
     
     # Validate data
-    validator = DataValidator()
-    validation_errors = validator.validate_match_data(home_data, away_data, match_metadata)
+    if SYSTEM_AVAILABLE:
+        validator = DataValidator()
+        validation_errors = validator.validate_match_data(home_data, away_data, match_metadata)
+    else:
+        validation_errors = []
     
     if validation_errors:
         st.markdown("""
@@ -856,7 +779,7 @@ WINNER: Real Betis""",
     """, unsafe_allow_html=True)
     
     # Analyze button
-    if st.button("🤖 RUN AUTOMATED PATTERN ANALYSIS", type="primary", use_container_width=True, key="analyze_btn"):
+    if st.button("🤖 RUN AUTOMATED PATTERN ANALYSIS", type="primary", use_container_width=True):
         with st.spinner("Running automated analysis..."):
             try:
                 # Run complete analysis with AUTOMATED detection
@@ -864,101 +787,87 @@ WINNER: Real Betis""",
                     home_data, away_data, match_metadata
                 )
                 
-                # Store result safely
-                if 'analysis_result' in st.session_state:
-                    st.session_state.analysis_result = analysis_result
-                else:
-                    st.session_state['analysis_result'] = analysis_result
-                
-                if 'current_home_team' in st.session_state:
-                    st.session_state.current_home_team = home_team
-                else:
-                    st.session_state['current_home_team'] = home_team
-                
-                if 'current_away_team' in st.session_state:
-                    st.session_state.current_away_team = away_team
-                else:
-                    st.session_state['current_away_team'] = away_team
+                # Store result
+                st.session_state.analysis_result = analysis_result
+                st.session_state.current_home_team = home_team
+                st.session_state.current_away_team = away_team
                 
                 st.success(f"✅ Automated analysis complete! Found {analysis_result['pattern_stats']['total_patterns']} pattern(s)")
                 
             except Exception as e:
                 st.error(f"❌ Analysis error: {str(e)}")
-                import traceback
-                st.code(traceback.format_exc())
     
     # Display results if available
-    analysis_result = st.session_state.get('analysis_result')
-    if analysis_result:
-        home_team = st.session_state.get('current_home_team', "")
-        away_team = st.session_state.get('current_away_team', "")
+    if st.session_state.analysis_result:
+        analysis_result = st.session_state.analysis_result
+        home_team = st.session_state.current_home_team
+        away_team = st.session_state.current_away_team
         
-        if home_team and away_team:
-            # Display pattern combination
-            st.markdown("### 🎯 PATTERN COMBINATION DETECTED")
-            display_pattern_combination(analysis_result)
+        # Display pattern combination
+        st.markdown("### 🎯 PATTERN COMBINATION DETECTED")
+        display_pattern_combination(analysis_result)
+        
+        # Display recommendations
+        if analysis_result['recommendations']:
+            st.markdown("### 📊 RECOMMENDED BETS")
             
-            # Display recommendations
-            if analysis_result.get('recommendations'):
-                st.markdown("### 📊 RECOMMENDED BETS")
-                
-                for rec in analysis_result['recommendations']:
-                    display_pattern_card(rec, home_team, away_team)
-            
-            # Display statistics
-            stats = analysis_result.get('pattern_stats', {})
-            st.markdown("### 📈 ANALYSIS STATISTICS")
-            
-            st.markdown(f"""
-            <div class="brutball-card-wrapper">
-                <div style="background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
-                        padding: 1.5rem; border-radius: 10px; border: 2px solid #E2E8F0; 
-                        margin: 1rem 0;">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
-                        <div style="text-align: center;">
-                            <div style="font-size: 0.9rem; color: #6B7280;">Elite Defense</div>
-                            <div style="font-size: 1.5rem; font-weight: 700; color: #16A34A;">{stats.get('elite_defense_count', 0)}</div>
+            for rec in analysis_result['recommendations']:
+                display_pattern_card(rec, home_team, away_team)
+        
+        # Display statistics
+        stats = analysis_result['pattern_stats']
+        st.markdown("### 📈 ANALYSIS STATISTICS")
+        
+        st.markdown(f"""
+        <div class="brutball-card-wrapper">
+            <div style="background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+                    padding: 1.5rem; border-radius: 10px; border: 2px solid #E2E8F0; 
+                    margin: 1rem 0;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.9rem; color: #6B7280;">Elite Defense</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; color: #16A34A;">{stats['elite_defense_count']}</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.9rem; color: #6B7280;">Winner Lock</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; color: #2563EB;">{stats['winner_lock_count']}</div>
+                        <div style="font-size: 0.7rem; color: #2563EB;">🤖 Automated</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.9rem; color: #6B7280;">UNDER 3.5</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; color: {'#059669' if stats['under_35_present'] else '#DC2626'}">
+                            {'✅ Yes' if stats['under_35_present'] else '❌ No'}
                         </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 0.9rem; color: #6B7280;">Winner Lock</div>
-                            <div style="font-size: 1.5rem; font-weight: 700; color: #2563EB;">{stats.get('winner_lock_count', 0)}</div>
-                            <div style="font-size: 0.7rem; color: #2563EB;">🤖 Automated</div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 0.9rem; color: #6B7280;">UNDER 3.5</div>
-                            <div style="font-size: 1.5rem; font-weight: 700; color: {'#059669' if stats.get('under_35_present') else '#DC2626'}">
-                                {'✅ Yes' if stats.get('under_35_present') else '❌ No'}
-                            </div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 0.9rem; color: #6B7280;">Total Patterns</div>
-                            <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">{stats.get('total_patterns', 0)}</div>
-                        </div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 0.9rem; color: #6B7280;">Total Patterns</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">{stats['total_patterns']}</div>
                     </div>
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Tier summary
+        if analysis_result['tier_summary']:
+            st.markdown("### 🏆 TIER SUMMARY")
             
-            # Tier summary
-            if analysis_result.get('tier_summary'):
-                st.markdown("### 🏆 TIER SUMMARY")
+            for tier in analysis_result['tier_summary']:
+                if "TIER 1" in tier:
+                    color = "#F97316"
+                elif "TIER 2" in tier:
+                    color = "#16A34A"
+                else:
+                    color = "#2563EB"
                 
-                for tier in analysis_result['tier_summary']:
-                    if "TIER 1" in tier:
-                        color = "#F97316"
-                    elif "TIER 2" in tier:
-                        color = "#16A34A"
-                    else:
-                        color = "#2563EB"
-                    
-                    st.markdown(f"""
-                    <div class="brutball-card-wrapper">
-                        <div style="background: white; padding: 1rem; border-radius: 8px; 
-                                border-left: 4px solid {color}; margin: 0.5rem 0;">
-                            <strong>{tier}</strong>
-                        </div>
+                st.markdown(f"""
+                <div class="brutball-card-wrapper">
+                    <div style="background: white; padding: 1rem; border-radius: 8px; 
+                            border-left: 4px solid {color}; margin: 0.5rem 0;">
+                        <strong>{tier}</strong>
                     </div>
-                    """, unsafe_allow_html=True)
+                </div>
+                """, unsafe_allow_html=True)
     
     # Historical validation section
     st.markdown("---")
