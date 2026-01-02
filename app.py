@@ -1,207 +1,366 @@
+"""
+COMPLETE BRUTBALL PATTERN DETECTION APP
+Fully independent - no hardcoded teams or matches
+"""
+
 import streamlit as st
 import pandas as pd
 import numpy as np
-from typing import Dict, Tuple, List, Optional, Any
+from typing import Dict, List, Optional
 from datetime import datetime
 import warnings
 warnings.filterwarnings('ignore')
 
-# =================== UPDATED CLASSIFIER IMPORT ===================
+# =================== IMPORT COMPLETE SYSTEM ===================
 try:
     from match_state_classifier import (
-        MatchStateClassifier, 
-        ProvenPatternDetector,
-        BankrollManager,
-        get_complete_classification, 
-        format_reliability_badge, 
-        format_durability_indicator,
-        format_pattern_badge
+        CompletePatternDetector,
+        DataValidator,
+        ResultFormatter,
+        get_complete_classification
     )
-    STATE_CLASSIFIER_AVAILABLE = True
-except ImportError:
-    STATE_CLASSIFIER_AVAILABLE = False
-    # Fallback functions
-    get_complete_classification = None
-    format_reliability_badge = None
-    format_durability_indicator = None
-    format_pattern_badge = None
+    SYSTEM_AVAILABLE = True
+except ImportError as e:
+    st.error(f"❌ System import error: {str(e)}")
+    SYSTEM_AVAILABLE = False
 
-# =================== PATTERN COMBINATION DISPLAY ===================
-def display_pattern_combination(combination: str, desc: str):
-    """Display pattern combination with appropriate styling"""
-    
-    combination_styles = {
-        'BOTH_PATTERNS': {
-            'emoji': '🎯',
-            'bg_color': 'linear-gradient(135deg, #FFEDD5 0%, #FED7AA 100%)',
-            'border_color': '#F97316',
-            'color': '#9A3412',
-            'title': 'BOTH PATTERNS PRESENT'
-        },
-        'ONLY_ELITE_DEFENSE': {
-            'emoji': '🛡️',
-            'bg_color': 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)',
-            'border_color': '#16A34A',
-            'color': '#065F46',
-            'title': 'ONLY ELITE DEFENSE'
-        },
-        'ONLY_WINNER_LOCK': {
-            'emoji': '👑',
-            'bg_color': 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
-            'border_color': '#2563EB',
-            'color': '#1E40AF',
-            'title': 'ONLY WINNER LOCK'
-        },
-        'NO_PATTERNS': {
-            'emoji': '⚪',
-            'bg_color': 'linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%)',
-            'border_color': '#9CA3AF',
-            'color': '#6B7280',
-            'title': 'NO PROVEN PATTERNS'
-        }
+# =================== GLOBAL CSS ===================
+st.markdown("""
+    <style>
+    .brutball-card-wrapper {
+        max-width: 1000px;
+        margin: 0 auto;
+        width: 100%;
     }
     
-    style = combination_styles.get(combination, combination_styles['NO_PATTERNS'])
+    .system-header {
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: #1E3A8A;
+        margin-bottom: 0.5rem;
+        text-align: center;
+        border-bottom: 3px solid #3B82F6;
+        padding-bottom: 1rem;
+    }
     
-    st.markdown(f"""
-    <div class="brutball-card-wrapper">
-        <div style="
-            background: {style['bg_color']};
-            padding: 1.5rem;
-            border-radius: 10px;
-            border: 3px solid {style['border_color']};
-            text-align: center;
-            margin: 1.5rem 0;
-            box-sizing: border-box;
-        ">
-            <div style="font-size: 2rem; margin-bottom: 0.5rem;">{style['emoji']}</div>
-            <h3 style="color: {style['color']}; margin: 0 0 0.5rem 0;">{style['title']}</h3>
-            <div style="color: #374151;">{desc}</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    .tier-display {
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+        border: 3px solid;
+        box-sizing: border-box;
+        width: 100%;
+    }
+    
+    .tier-1 {
+        background: linear-gradient(135deg, #FFEDD5 0%, #FED7AA 100%);
+        border-color: #F97316;
+    }
+    
+    .tier-2 {
+        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+        border-color: #16A34A;
+    }
+    
+    .tier-3 {
+        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+        border-color: #2563EB;
+    }
+    
+    .pattern-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 2px solid;
+        margin: 1rem 0;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .data-input-section {
+        background: #F8FAFC;
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 2px solid #E2E8F0;
+        margin: 1rem 0;
+    }
+    
+    .validation-error {
+        background: #FEF2F2;
+        color: #DC2626;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 2px solid #FCA5A5;
+        margin: 1rem 0;
+    }
+    
+    .validation-success {
+        background: #F0FDF4;
+        color: #059669;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 2px solid #86EFAC;
+        margin: 1rem 0;
+    }
+    
+    @media (max-width: 768px) {
+        .system-header {
+            font-size: 1.8rem;
+        }
+        .pattern-card {
+            padding: 1rem;
+        }
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-# =================== MAIN APPLICATION WITH PATTERN SEPARATION ===================
-def main():
-    """Main application with Pattern Separation"""
-    
-    # Header
-    st.markdown('<div class="system-header">🎯🔒📊 BRUTBALL v6.3 + PATTERN SEPARATION</div>', unsafe_allow_html=True)
-    
+# =================== DATA LOADING ===================
+@st.cache_data(ttl=3600)
+def load_league_csv(league_name: str, filename: str) -> Optional[pd.DataFrame]:
+    """Load league CSV from GitHub"""
+    try:
+        url = f"https://raw.githubusercontent.com/profdue/Brutball/main/leagues/{filename}"
+        df = pd.read_csv(url)
+        
+        # Ensure required columns exist
+        required_cols = ['team', 'goals_conceded_last_5']
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        
+        if missing_cols:
+            st.error(f"CSV missing required columns: {missing_cols}")
+            return None
+        
+        # Clean and prepare data
+        df = df.fillna(0)
+        
+        # Add derived metrics if needed
+        if 'goals_conceded_last_5' in df.columns:
+            df['goals_conceded_last_5'] = pd.to_numeric(df['goals_conceded_last_5'], errors='coerce').fillna(0)
+        
+        return df
+        
+    except Exception as e:
+        st.error(f"Error loading {league_name}: {str(e)}")
+        return None
+
+# =================== DISPLAY FUNCTIONS ===================
+def display_tier_system():
+    """Display the three-tier system explanation"""
     st.markdown("""
     <div class="brutball-card-wrapper">
         <div style="text-align: center; color: #6B7280; margin-bottom: 2rem; font-size: 0.95rem;">
-            <p><strong>🎯 PATTERNS APPEAR INDEPENDENTLY (25-MATCH ANALYSIS)</strong></p>
-            <p><strong>🔍 Key Insight:</strong> Patterns can appear Alone, Together, or Neither</p>
-            <p><strong>🔄 UNDER 3.5 Confidence:</strong> Varies based on which patterns are present</p>
+            <h3>🎯 THREE-TIER PATTERN DETECTION SYSTEM</h3>
+            <p><strong>Completely independent analysis based on input data only</strong></p>
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    # Pattern Combination Matrix
+    # Tier 1 Display
     st.markdown("""
     <div class="brutball-card-wrapper">
-        <div style="background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
-                padding: 1.5rem; border-radius: 10px; border: 3px solid #0EA5E9; 
-                margin: 1rem 0; box-sizing: border-box;">
-            <h4 style="color: #0C4A6E; margin: 0 0 1rem 0;">📊 PATTERN COMBINATION MATRIX</h4>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1rem;">
-                
-                <div style="background: white; padding: 1rem; border-radius: 8px; border-left: 4px solid #F97316;">
-                    <div style="font-weight: 700; color: #9A3412; margin-bottom: 0.5rem;">🎯 BOTH PATTERNS</div>
-                    <div style="font-size: 0.9rem; color: #374151;">3 matches</div>
-                    <div style="font-size: 1.2rem; font-weight: 800; color: #059669;">100%</div>
-                    <div style="font-size: 0.8rem; color: #6B7280;">UNDER 3.5 rate</div>
+        <div class="tier-display tier-1">
+            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                <div style="font-size: 2rem;">🛡️</div>
+                <div>
+                    <h3 style="color: #9A3412; margin: 0;">TIER 1: ELITE DEFENSE</h3>
+                    <div style="color: #374151;">Team concedes ≤4 goals in last 5 matches</div>
                 </div>
-                
-                <div style="background: white; padding: 1rem; border-radius: 8px; border-left: 4px solid #16A34A;">
-                    <div style="font-weight: 700; color: #065F46; margin-bottom: 0.5rem;">🛡️ ONLY ELITE DEFENSE</div>
-                    <div style="font-size: 0.9rem; color: #374151;">5 matches</div>
-                    <div style="font-size: 1.2rem; font-weight: 800; color: #059669;">87.5%</div>
-                    <div style="font-size: 0.8rem; color: #6B7280;">UNDER 3.5 rate</div>
-                </div>
-                
-                <div style="background: white; padding: 1rem; border-radius: 8px; border-left: 4px solid #2563EB;">
-                    <div style="font-weight: 700; color: #1E40AF; margin-bottom: 0.5rem;">👑 ONLY WINNER LOCK</div>
-                    <div style="font-size: 0.9rem; color: #374151;">3 matches</div>
-                    <div style="font-size: 1.2rem; font-weight: 800; color: #059669;">83.3%</div>
-                    <div style="font-size: 0.8rem; color: #6B7280;">UNDER 3.5 rate</div>
-                </div>
-                
-                <div style="background: white; padding: 1rem; border-radius: 8px; border-left: 4px solid #9CA3AF;">
-                    <div style="font-weight: 700; color: #6B7280; margin-bottom: 0.5rem;">⚪ NO PATTERNS</div>
-                    <div style="font-size: 0.9rem; color: #374151;">14 matches</div>
-                    <div style="font-size: 1.2rem; font-weight: 800; color: #DC2626;">57%</div>
-                    <div style="font-size: 0.8rem; color: #6B7280;">UNDER 3.5 rate (No bet)</div>
-                </div>
-                
+            </div>
+            <div style="background: white; padding: 1rem; border-radius: 8px;">
+                <strong>Bet:</strong> Opponent to score UNDER 1.5 goals
+                <br><strong>Confidence:</strong> 100% (8/8 matches)
+                <br><strong>Condition:</strong> Defense gap > 2.0 vs opponent
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
     
+    # Tier 2 Display
+    st.markdown("""
+    <div class="brutball-card-wrapper">
+        <div class="tier-display tier-2">
+            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                <div style="font-size: 2rem;">👑</div>
+                <div>
+                    <h3 style="color: #065F46; margin: 0;">TIER 2: WINNER LOCK</h3>
+                    <div style="color: #374151;">Agency-State system Winner Lock detection</div>
+                </div>
+            </div>
+            <div style="background: white; padding: 1rem; border-radius: 8px;">
+                <strong>Bet:</strong> Team Double Chance (Win or Draw)
+                <br><strong>Confidence:</strong> 100% (6/6 matches)
+                <br><strong>Source:</strong> External Agency-State system input
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Tier 3 Display
+    st.markdown("""
+    <div class="brutball-card-wrapper">
+        <div class="tier-display tier-3">
+            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                <div style="font-size: 2rem;">📊</div>
+                <div>
+                    <h3 style="color: #1E40AF; margin: 0;">TIER 3: UNDER 3.5 TIERS</h3>
+                    <div style="color: #374151;">Confidence varies by pattern presence</div>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                <div style="background: white; padding: 1rem; border-radius: 8px; border-left: 4px solid #F97316;">
+                    <strong>Both Patterns:</strong> 100%
+                    <br><small>3/3 matches</small>
+                </div>
+                <div style="background: white; padding: 1rem; border-radius: 8px; border-left: 4px solid #16A34A;">
+                    <strong>Only Elite Defense:</strong> 87.5%
+                    <br><small>7/8 matches</small>
+                </div>
+                <div style="background: white; padding: 1rem; border-radius: 8px; border-left: 4px solid #2563EB;">
+                    <strong>Only Winner Lock:</strong> 83.3%
+                    <br><small>5/6 matches</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def display_pattern_card(recommendation: Dict, home_team: str, away_team: str):
+    """Display a pattern recommendation card"""
+    formatter = ResultFormatter()
+    style = formatter.get_pattern_style(recommendation['pattern'])
+    
+    # Get bet description
+    if recommendation['pattern'] == 'ELITE_DEFENSE_UNDER_1_5':
+        team_to_bet = formatter.get_team_under_15_name(recommendation, home_team, away_team)
+        bet_desc = f"{team_to_bet} to score UNDER 1.5 goals"
+    elif recommendation['pattern'] == 'WINNER_LOCK_DOUBLE_CHANCE':
+        bet_desc = f"{recommendation.get('team_to_bet', 'Team')} Double Chance"
+    else:
+        bet_desc = f"Total UNDER 3.5 goals"
+    
+    # Format pattern name
+    pattern_name = formatter.format_pattern_name(recommendation['pattern'])
+    
+    st.markdown(f"""
+    <div class="brutball-card-wrapper">
+        <div class="pattern-card" style="border-color: {style['border_color']}; border-left: 6px solid {style['border_color']};">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 250px;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <span style="font-size: 1.5rem;">{style['emoji']}</span>
+                        <h3 style="color: {style['color']}; margin: 0;">{recommendation['bet_type']}</h3>
+                    </div>
+                    <div style="font-weight: 700; color: #374151; margin-bottom: 0.25rem; font-size: 1.1rem;">
+                        {bet_desc}
+                    </div>
+                    <div style="color: #6B7280; font-size: 0.9rem; margin-bottom: 0.5rem;">
+                        {recommendation.get('reason', recommendation.get('condition_1', ''))}
+                    </div>
+                    <div style="font-size: 0.85rem; color: #4B5563;">
+                        <strong>Pattern:</strong> {pattern_name}
+                    </div>
+                </div>
+                <div style="text-align: right; min-width: 100px;">
+                    <div style="background: {style['color']}; color: white; padding: 0.25rem 0.75rem; 
+                            border-radius: 20px; font-size: 0.85rem; font-weight: 700; display: inline-block;">
+                        {recommendation['stake_multiplier']:.1f}x
+                    </div>
+                    <div style="font-size: 0.8rem; color: #6B7280; margin-top: 0.25rem;">Stake Multiplier</div>
+                </div>
+            </div>
+            
+            <div style="background: rgba(255, 255, 255, 0.7); padding: 0.75rem; border-radius: 6px; margin-top: 0.75rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; flex-wrap: wrap;">
+                    <div style="margin-bottom: 0.5rem;">
+                        <div style="font-size: 0.85rem; color: #6B7280;">Confidence</div>
+                        <div style="font-weight: 600; color: {style['color']};">
+                            {recommendation.get('confidence', recommendation.get('sample_accuracy', 'N/A'))}
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 0.5rem;">
+                        <div style="font-size: 0.85rem; color: #6B7280;">Historical Accuracy</div>
+                        <div style="font-weight: 600; color: #059669;">{recommendation.get('sample_accuracy', 'N/A')}</div>
+                    </div>
+                </div>
+                
+                {'<div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(0,0,0,0.1); font-size: 0.85rem; color: #DC2626;"><strong>⚠️ Warning:</strong> ' + recommendation.get('warning', '') + '</div>' if 'warning' in recommendation else ''}
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def display_pattern_combination(analysis_result: Dict):
+    """Display pattern combination result"""
+    stats = analysis_result['pattern_stats']
+    
+    combination_colors = {
+        'BOTH_PATTERNS': {'color': '#9A3412', 'bg': '#FFEDD5', 'border': '#F97316'},
+        'ONLY_ELITE_DEFENSE': {'color': '#065F46', 'bg': '#F0FDF4', 'border': '#16A34A'},
+        'ONLY_WINNER_LOCK': {'color': '#1E40AF', 'bg': '#EFF6FF', 'border': '#2563EB'},
+        'NO_PATTERNS': {'color': '#6B7280', 'bg': '#F3F4F6', 'border': '#9CA3AF'}
+    }
+    
+    combo = stats['pattern_combination']
+    colors = combination_colors.get(combo, combination_colors['NO_PATTERNS'])
+    
+    st.markdown(f"""
+    <div class="brutball-card-wrapper">
+        <div style="
+            background: {colors['bg']};
+            padding: 2rem;
+            border-radius: 10px;
+            border: 3px solid {colors['border']};
+            text-align: center;
+            margin: 1.5rem 0;
+            box-sizing: border-box;
+        ">
+            <div style="font-size: 3rem; margin-bottom: 0.5rem;">{stats['combination_emoji']}</div>
+            <h2 style="color: {colors['color']}; margin: 0 0 0.5rem 0;">
+                {analysis_result['combination_desc'].upper()}
+            </h2>
+            <div style="color: #374151; font-size: 0.9rem;">
+                {analysis_result['combination_desc']}
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# =================== MAIN APPLICATION ===================
+def main():
+    """Complete independent pattern detection application"""
+    
+    if not SYSTEM_AVAILABLE:
+        st.error("❌ System components not available. Check match_state_classifier.py")
+        return
+    
+    # Header
+    st.markdown('<div class="system-header">🎯🔒📊 BRUTBALL COMPLETE TIER SYSTEM</div>', unsafe_allow_html=True)
+    
+    # Display tier system
+    display_tier_system()
+    
     # Initialize session state
-    if 'analysis_complete' not in st.session_state:
-        st.session_state.analysis_complete = False
-    if 'pattern_results' not in st.session_state:
-        st.session_state.pattern_results = None
+    if 'analysis_result' not in st.session_state:
+        st.session_state.analysis_result = None
     if 'selected_league' not in st.session_state:
         st.session_state.selected_league = 'Premier League'
     if 'df' not in st.session_state:
         st.session_state.df = None
     
-    # League selection
+    # League configuration
     LEAGUES = {
-        'Premier League': {'filename': 'premier_league.csv', 'display_name': '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League'},
-        'La Liga': {'filename': 'la_liga.csv', 'display_name': '🇪🇸 La Liga'},
-        'Bundesliga': {'filename': 'bundesliga.csv', 'display_name': '🇩🇪 Bundesliga'},
-        'Serie A': {'filename': 'serie_a.csv', 'display_name': '🇮🇹 Serie A'},
-        'Ligue 1': {'filename': 'ligue_1.csv', 'display_name': '🇫🇷 Ligue 1'},
-        'Eredivisie': {'filename': 'eredivisie.csv', 'display_name': '🇳🇱 Eredivisie'},
-        'Primeira Liga': {'filename': 'premeira_portugal.csv', 'display_name': '🇵🇹 Primeira Liga'},
-        'Super Lig': {'filename': 'super_league.csv', 'display_name': '🇹🇷 Super Lig'}
+        'Premier League': 'premier_league.csv',
+        'La Liga': 'la_liga.csv',
+        'Bundesliga': 'bundesliga.csv',
+        'Serie A': 'serie_a.csv',
+        'Ligue 1': 'ligue_1.csv',
+        'Eredivisie': 'eredivisie.csv',
+        'Primeira Liga': 'premeira_portugal.csv',
+        'Super Lig': 'super_league.csv'
     }
     
-    # Load CSV data
-    def load_csv_data(league_name):
-        """Load CSV data from GitHub"""
-        try:
-            config = LEAGUES[league_name]
-            url = f"https://raw.githubusercontent.com/profdue/Brutball/main/leagues/{config['filename']}"
-            df = pd.read_csv(url)
-            
-            # Calculate derived metrics
-            df['home_goals_scored'] = (
-                df['home_goals_openplay_for'].fillna(0) +
-                df['home_goals_counter_for'].fillna(0) +
-                df['home_goals_setpiece_for'].fillna(0)
-            )
-            
-            df['away_goals_scored'] = (
-                df['away_goals_openplay_for'].fillna(0) +
-                df['away_goals_counter_for'].fillna(0) +
-                df['away_goals_setpiece_for'].fillna(0)
-            )
-            
-            df['home_goals_conceded'] = (
-                df['home_goals_openplay_against'].fillna(0) +
-                df['home_goals_counter_against'].fillna(0) +
-                df['home_goals_setpiece_against'].fillna(0)
-            )
-            
-            df['away_goals_conceded'] = (
-                df['away_goals_openplay_against'].fillna(0) +
-                df['away_goals_counter_against'].fillna(0) +
-                df['away_goals_setpiece_against'].fillna(0)
-            )
-            
-            return df
-            
-        except Exception as e:
-            st.error(f"❌ Error loading {league_name}: {str(e)}")
-            return None
-    
-    # League buttons
+    # League selection
     st.markdown("### 🌍 League Selection")
     cols = st.columns(4)
     
@@ -209,225 +368,175 @@ def main():
         col_idx = idx % 4
         with cols[col_idx]:
             if st.button(
-                LEAGUES[league]['display_name'],
+                league,
                 use_container_width=True,
                 type="primary" if st.session_state.selected_league == league else "secondary",
-                key=f"league_btn_{league}"
+                key=f"league_{league}"
             ):
                 with st.spinner(f"Loading {league} data..."):
-                    df = load_csv_data(league)
+                    df = load_league_csv(league, LEAGUES[league])
                     if df is not None:
                         st.session_state.df = df
                         st.session_state.selected_league = league
-                        st.session_state.analysis_complete = False
+                        st.session_state.analysis_result = None
                         st.success(f"✅ Loaded {len(df)} teams")
                         st.rerun()
     
-    # Get current data
     df = st.session_state.df
     
     if df is None:
         st.info("👆 Select a league to begin analysis")
         return
     
-    # Team selection
-    st.markdown("### 🏟️ Match Analysis")
+    # Data Input Section
+    st.markdown("### 📥 Match Data Input")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        teams = sorted(df['team'].unique())
-        home_team = st.selectbox("Home Team", teams, key="home_team_select")
-    
-    with col2:
-        away_options = [t for t in teams if t != home_team]
-        away_team = st.selectbox("Away Team", away_options, key="away_team_select")
-    
-    # Show team stats
-    with st.expander("📊 View Team Defense Stats (Last 5 Matches)", expanded=False):
+    with st.container():
+        st.markdown('<div class="data-input-section">', unsafe_allow_html=True)
+        
         col1, col2 = st.columns(2)
         
-        home_row = df[df['team'] == home_team].iloc[0] if home_team in df['team'].values else None
-        away_row = df[df['team'] == away_team].iloc[0] if away_team in df['team'].values else None
-        
         with col1:
+            # Team selection from CSV
+            teams = sorted(df['team'].unique())
+            home_team = st.selectbox("Home Team", teams, key="home_select")
+            
+            # Get home team data
+            home_row = df[df['team'] == home_team].iloc[0] if home_team in df['team'].values else None
+            
             if home_row is not None:
-                goals_conceded = home_row.get('goals_conceded_last_5', 0)
-                elite_status = "✅ ELITE DEFENSE" if goals_conceded <= 4 else "❌ Not Elite"
-                st.write(f"**{home_team}:**")
-                st.write(f"- Goals Conceded: {goals_conceded}")
-                st.write(f"- Status: {elite_status}")
-                st.write(f"- Avg per match: {goals_conceded/5:.2f}")
+                home_conceded = home_row.get('goals_conceded_last_5', 0)
+                st.info(f"**{home_team} Defense:** {home_conceded} goals conceded (last 5)")
         
         with col2:
+            # Away team selection
+            away_options = [t for t in teams if t != home_team]
+            away_team = st.selectbox("Away Team", away_options, key="away_select")
+            
+            # Get away team data
+            away_row = df[df['team'] == away_team].iloc[0] if away_team in df['team'].values else None
+            
             if away_row is not None:
-                goals_conceded = away_row.get('goals_conceded_last_5', 0)
-                elite_status = "✅ ELITE DEFENSE" if goals_conceded <= 4 else "❌ Not Elite"
-                st.write(f"**{away_team}:**")
-                st.write(f"- Goals Conceded: {goals_conceded}")
-                st.write(f"- Status: {elite_status}")
-                st.write(f"- Avg per match: {goals_conceded/5:.2f}")
+                away_conceded = away_row.get('goals_conceded_last_5', 0)
+                st.info(f"**{away_team} Defense:** {away_conceded} goals conceded (last 5)")
+        
+        # Winner Lock Input Section
+        st.markdown("---")
+        st.markdown("#### 👑 Winner Lock Data (From Agency-State System)")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            winner_lock_detected = st.checkbox("Winner Lock Detected", value=False,
+                                              help="Check if Agency-State system detected Winner Lock")
+        
+        with col2:
+            if winner_lock_detected:
+                lock_team = st.radio("Team with Winner Lock", ['Home', 'Away'], horizontal=True)
+                delta_value = st.slider("Δ Value (Directional Dominance)", 0.1, 2.0, 0.8, 0.1,
+                                       help="Agency-State system Δ value")
+            else:
+                lock_team = 'Home'
+                delta_value = 0.0
+        
+        st.markdown('</div>', unsafe_allow_html=True)
     
-    # Execute analysis
-    if st.button("⚡ ANALYZE PATTERN SEPARATION", type="primary", use_container_width=True):
-        
-        if home_row is None or away_row is None:
-            st.error("Could not find team data")
-            return
-        
-        # Prepare data
-        home_data = {
-            'team_name': home_team,
-            'goals_conceded_last_5': home_row.get('goals_conceded_last_5', 0)
-        }
-        
-        away_data = {
-            'team_name': away_team,
-            'goals_conceded_last_5': away_row.get('goals_conceded_last_5', 0)
-        }
-        
-        match_metadata = {
-            'home_team': home_team,
-            'away_team': away_team,
-            'winner_lock_detected': False,  # Would come from your Agency-State system
-            'winner_lock_team': '',
-            'winner_delta_value': 0
-        }
-        
-        # Run pattern detection with separation
-        try:
-            pattern_results = ProvenPatternDetector.generate_separated_patterns(
-                home_data, away_data, match_metadata
-            )
-            
-            st.session_state.pattern_results = pattern_results
-            st.session_state.analysis_complete = True
-            st.session_state.current_home_team = home_team
-            st.session_state.current_away_team = away_team
-            
-            st.success(f"✅ Analysis complete!")
-            
-        except Exception as e:
-            st.error(f"❌ Analysis error: {str(e)}")
+    # Prepare data for analysis
+    if home_row is None or away_row is None:
+        st.error("Could not load team data")
+        return
     
-    # Display results
-    if st.session_state.analysis_complete and st.session_state.pattern_results:
-        pattern_results = st.session_state.pattern_results
+    # Prepare data structures
+    home_data = {
+        'team_name': home_team,
+        'goals_conceded_last_5': home_row.get('goals_conceded_last_5', 0)
+    }
+    
+    away_data = {
+        'team_name': away_team,
+        'goals_conceded_last_5': away_row.get('goals_conceded_last_5', 0)
+    }
+    
+    match_metadata = {
+        'home_team': home_team,
+        'away_team': away_team,
+        'winner_lock_detected': winner_lock_detected,
+        'winner_lock_team': 'home' if lock_team == 'Home' else 'away',
+        'winner_delta_value': delta_value if winner_lock_detected else 0.0
+    }
+    
+    # Validate data
+    validator = DataValidator()
+    validation_errors = validator.validate_match_data(home_data, away_data, match_metadata)
+    
+    if validation_errors:
+        st.markdown("""
+        <div class="brutball-card-wrapper">
+            <div class="validation-error">
+                <h4>❌ Data Validation Errors</h4>
+        """, unsafe_allow_html=True)
+        
+        for error in validation_errors:
+            st.write(f"• {error}")
+        
+        st.markdown("</div></div>", unsafe_allow_html=True)
+        return
+    
+    # Data validation passed
+    st.markdown("""
+    <div class="brutball-card-wrapper">
+        <div class="validation-success">
+            <h4>✅ Data Validation Passed</h4>
+            <p>All required data present for pattern detection</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Analyze button
+    if st.button("⚡ RUN COMPLETE PATTERN ANALYSIS", type="primary", use_container_width=True):
+        with st.spinner("Analyzing all tiers..."):
+            try:
+                # Run complete analysis
+                analysis_result = CompletePatternDetector.analyze_match_complete(
+                    home_data, away_data, match_metadata
+                )
+                
+                # Store result
+                st.session_state.analysis_result = analysis_result
+                st.session_state.current_home_team = home_team
+                st.session_state.current_away_team = away_team
+                
+                st.success(f"✅ Analysis complete! Found {analysis_result['pattern_stats']['total_patterns']} pattern(s)")
+                
+            except Exception as e:
+                st.error(f"❌ Analysis error: {str(e)}")
+    
+    # Display results if available
+    if st.session_state.analysis_result:
+        analysis_result = st.session_state.analysis_result
         home_team = st.session_state.current_home_team
         away_team = st.session_state.current_away_team
         
-        # Display Pattern Combination
+        # Display pattern combination
         st.markdown("### 🎯 PATTERN COMBINATION DETECTED")
-        display_pattern_combination(
-            pattern_results['pattern_combination'],
-            pattern_results['combination_desc']
-        )
+        display_pattern_combination(analysis_result)
         
         # Display recommendations
-        if pattern_results['recommendations']:
+        if analysis_result['recommendations']:
             st.markdown("### 📊 RECOMMENDED BETS")
             
-            for rec in pattern_results['recommendations']:
-                # Determine card style
-                style_map = {
-                    'ELITE_DEFENSE_UNDER_1_5': {
-                        'bg_color': 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)',
-                        'border_color': '#16A34A',
-                        'emoji': '🛡️',
-                        'title_color': '#065F46'
-                    },
-                    'WINNER_LOCK_DOUBLE_CHANCE': {
-                        'bg_color': 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
-                        'border_color': '#2563EB',
-                        'emoji': '👑',
-                        'title_color': '#1E40AF'
-                    },
-                    'BOTH_PATTERNS_UNDER_3_5': {
-                        'bg_color': 'linear-gradient(135deg, #FFEDD5 0%, #FED7AA 100%)',
-                        'border_color': '#F97316',
-                        'emoji': '🎯',
-                        'title_color': '#9A3412'
-                    },
-                    'ELITE_DEFENSE_UNDER_3_5': {
-                        'bg_color': 'linear-gradient(135deg, #DCFCE7 0%, #BBF7D0 100%)',
-                        'border_color': '#16A34A',
-                        'emoji': '📊',
-                        'title_color': '#065F46'
-                    },
-                    'WINNER_LOCK_UNDER_3_5': {
-                        'bg_color': 'linear-gradient(135deg, #DBEAFE 0%, #93C5FD 100%)',
-                        'border_color': '#2563EB',
-                        'emoji': '📊',
-                        'title_color': '#1E40AF'
-                    }
-                }
-                
-                style = style_map.get(rec['pattern'], style_map['ELITE_DEFENSE_UNDER_1_5'])
-                
-                # Get bet description
-                if rec['pattern'] == 'ELITE_DEFENSE_UNDER_1_5':
-                    defensive_team = rec.get('defensive_team', '')
-                    team_to_bet = away_team if defensive_team == home_team else home_team
-                    bet_desc = f"{team_to_bet} to score UNDER 1.5 goals"
-                elif rec['pattern'] == 'WINNER_LOCK_DOUBLE_CHANCE':
-                    bet_desc = f"{rec.get('team_to_bet', 'Team')} Double Chance"
-                else:
-                    bet_desc = f"Total UNDER 3.5 goals"
-                
-                st.markdown(f"""
-                <div class="brutball-card-wrapper">
-                    <div style="
-                        background: {style['bg_color']};
-                        padding: 1.5rem;
-                        border-radius: 10px;
-                        border: 3px solid {style['border_color']};
-                        margin: 1rem 0;
-                        box-sizing: border-box;
-                    ">
-                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem; flex-wrap: wrap;">
-                            <div style="flex: 1; min-width: 250px;">
-                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                                    <span style="font-size: 1.5rem;">{style['emoji']}</span>
-                                    <h3 style="color: {style['title_color']}; margin: 0;">{rec['bet_type']}</h3>
-                                </div>
-                                <div style="font-weight: 700; color: #374151; margin-bottom: 0.25rem; font-size: 1.1rem;">
-                                    {bet_desc}
-                                </div>
-                                <div style="color: #6B7280; font-size: 0.9rem;">{rec['reason']}</div>
-                            </div>
-                            <div style="text-align: right; min-width: 100px;">
-                                <div style="background: {style['border_color']}; color: white; padding: 0.25rem 0.75rem; 
-                                        border-radius: 20px; font-size: 0.85rem; font-weight: 700; display: inline-block;">
-                                    {rec['stake_multiplier']:.1f}x
-                                </div>
-                                <div style="font-size: 0.8rem; color: #6B7280; margin-top: 0.25rem;">Stake Multiplier</div>
-                            </div>
-                        </div>
-                        
-                        <div style="background: rgba(255, 255, 255, 0.7); padding: 0.75rem; border-radius: 6px; margin-top: 0.75rem;">
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; flex-wrap: wrap;">
-                                <div style="margin-bottom: 0.5rem;">
-                                    <div style="font-size: 0.85rem; color: #6B7280;">Pattern Type</div>
-                                    <div style="font-weight: 600; color: {style['title_color']};">{rec['pattern'].replace('_', ' ')}</div>
-                                </div>
-                                <div style="margin-bottom: 0.5rem;">
-                                    <div style="font-size: 0.85rem; color: #6B7280;">Sample Accuracy</div>
-                                    <div style="font-weight: 600; color: #059669;">{rec['sample_accuracy']}</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+            for rec in analysis_result['recommendations']:
+                display_pattern_card(rec, home_team, away_team)
         
-        # Pattern Statistics
-        stats = pattern_results['pattern_stats']
-        st.markdown("### 📈 PATTERN STATISTICS")
+        # Display statistics
+        stats = analysis_result['pattern_stats']
+        st.markdown("### 📈 ANALYSIS STATISTICS")
         
         st.markdown(f"""
         <div class="brutball-card-wrapper">
-            <div style="background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
-                    padding: 1.5rem; border-radius: 10px; border: 3px solid #0EA5E9; 
-                    margin: 1rem 0; box-sizing: border-box;">
+            <div style="background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+                    padding: 1.5rem; border-radius: 10px; border: 2px solid #E2E8F0; 
+                    margin: 1rem 0;">
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
                     <div style="text-align: center;">
                         <div style="font-size: 0.9rem; color: #6B7280;">Elite Defense</div>
@@ -439,38 +548,59 @@ def main():
                     </div>
                     <div style="text-align: center;">
                         <div style="font-size: 0.9rem; color: #6B7280;">UNDER 3.5</div>
-                        <div style="font-size: 1.5rem; font-weight: 700; color: {'#059669' if stats['under_35_decision'] else '#DC2626'}">
-                            {'✅ Yes' if stats['under_35_decision'] else '❌ No'}
+                        <div style="font-size: 1.5rem; font-weight: 700; color: {'#059669' if stats['under_35_present'] else '#DC2626'}">
+                            {'✅ Yes' if stats['under_35_present'] else '❌ No'}
                         </div>
                     </div>
                     <div style="text-align: center;">
-                        <div style="font-size: 0.9rem; color: #6B7280;">Total Bets</div>
-                        <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">{stats['total_patterns_detected']}</div>
+                        <div style="font-size: 0.9rem; color: #6B7280;">Total Patterns</div>
+                        <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">{stats['total_patterns']}</div>
                     </div>
                 </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
+        
+        # Tier summary
+        if analysis_result['tier_summary']:
+            st.markdown("### 🏆 TIER SUMMARY")
+            
+            for tier in analysis_result['tier_summary']:
+                if "TIER 1" in tier:
+                    color = "#F97316"
+                elif "TIER 2" in tier:
+                    color = "#16A34A"
+                else:
+                    color = "#2563EB"
+                
+                st.markdown(f"""
+                <div class="brutball-card-wrapper">
+                    <div style="background: white; padding: 1rem; border-radius: 8px; 
+                            border-left: 4px solid {color}; margin: 0.5rem 0;">
+                        <strong>{tier}</strong>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
     
     # Footer
     st.markdown("---")
     st.markdown("""
     <div class="brutball-card-wrapper">
         <div style="text-align: center; color: #6B7280; font-size: 0.9rem; padding: 1rem;">
-            <p><strong>🎯 BRUTBALL PATTERN SEPARATION v2.0</strong></p>
-            <p><strong>Key Discovery:</strong> Patterns appear independently (Alone, Together, Neither)</p>
+            <p><strong>🎯 BRUTBALL COMPLETE TIER SYSTEM v1.0</strong></p>
+            <p><strong>Fully Independent Analysis:</strong> No hardcoded teams or matches</p>
             <div style="display: flex; justify-content: center; gap: 1rem; margin: 1rem 0; flex-wrap: wrap;">
                 <div style="background: #FFEDD5; color: #9A3412; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem;">
-                    🎯 Both Patterns: 100% UNDER 3.5
+                    🛡️ Tier 1: Elite Defense Detection
                 </div>
-                <div style="background: #DCFCE7; color: #065F46; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem;">
-                    🛡️ Only Elite Defense: 87.5% UNDER 3.5
+                <div style="background: #F0FDF4; color: #065F46; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem;">
+                    👑 Tier 2: Winner Lock Integration
                 </div>
-                <div style="background: #DBEAFE; color: #1E40AF; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem;">
-                    👑 Only Winner Lock: 83.3% UNDER 3.5
+                <div style="background: #EFF6FF; color: #1E40AF; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem;">
+                    📊 Tier 3: Confidence-Tiered UNDER 3.5
                 </div>
             </div>
-            <p><strong>Data Source:</strong> GitHub CSV files • <strong>Analysis:</strong> 25-match empirical study</p>
+            <p><strong>Data Source:</strong> GitHub CSV • <strong>Logic:</strong> Pure pattern detection</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
