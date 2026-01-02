@@ -1,6 +1,11 @@
 """
-BRUTBALL MATCH STATE & DURABILITY CLASSIFIER v1.3
+BRUTBALL MATCH STATE & DURABILITY CLASSIFIER v1.4
 READ-ONLY MODULE - NO SIDE EFFECTS
+
+CRITICAL FIX: Added data validation guard rails
+- No more fabricating 0.00 averages from missing data
+- Classifier DISABLES itself if last-5 data is missing/invalid
+- Clear error messaging instead of misleading outputs
 
 PURPOSE:
 Classify matches into structural states, durability categories, and reliability scores.
@@ -33,6 +38,9 @@ class MatchStateClassifier:
     
     # Opponent Under 1.5 threshold
     OPPONENT_UNDER_15_THRESHOLD = 1.0
+    
+    # Minimum required data for classification
+    MINIMUM_DATA_REQUIREMENTS = ['goals_scored_last_5', 'goals_conceded_last_5']
     
     # Reliability scoring weights
     RELIABILITY_WEIGHTS = {
@@ -92,37 +100,85 @@ class MatchStateClassifier:
         }
     }
     
+    # =================== DATA VALIDATION ===================
+    
+    @classmethod
+    def validate_last5_data(cls, home_data: Dict, away_data: Dict) -> Tuple[bool, List[str], Dict]:
+        """
+        VALIDATE LAST 5 MATCHES DATA
+        
+        Returns: (is_valid, missing_fields, validated_data)
+        
+        CRITICAL: If data is missing, classifier should DISABLE itself
+        instead of fabricating 0.00 averages.
+        """
+        missing_fields = []
+        validated_data = {
+            'home': {},
+            'away': {}
+        }
+        
+        # Check all required fields exist and are not None
+        for field in cls.MINIMUM_DATA_REQUIREMENTS:
+            # Check home data
+            if field not in home_data or home_data.get(field) is None:
+                missing_fields.append(f"home.{field}")
+            else:
+                validated_data['home'][field] = home_data[field]
+            
+            # Check away data
+            if field not in away_data or away_data.get(field) is None:
+                missing_fields.append(f"away.{field}")
+            else:
+                validated_data['away'][field] = away_data[field]
+        
+        # Additional validation: ensure values are numeric and reasonable
+        if not missing_fields:
+            for team in ['home', 'away']:
+                for field in cls.MINIMUM_DATA_REQUIREMENTS:
+                    value = validated_data[team][field]
+                    if not isinstance(value, (int, float)):
+                        missing_fields.append(f"{team}.{field}_type_error")
+                    elif value < 0 or value > 50:  # Reasonable bounds for last 5 matches
+                        missing_fields.append(f"{team}.{field}_range_error")
+        
+        is_valid = len(missing_fields) == 0
+        
+        return is_valid, missing_fields, validated_data
+    
     # =================== CORE CLASSIFICATION FUNCTIONS ===================
     
-    @staticmethod
-    def classify_totals_durability(home_data: Dict, away_data: Dict) -> str:
+    @classmethod
+    def classify_totals_durability(cls, home_data: Dict, away_data: Dict) -> str:
         """
         CLASSIFY TOTALS DURABILITY (Under 2.5)
         
         Returns 'STABLE', 'FRAGILE', or 'NONE' for Under 2.5 durability.
         Uses ONLY last 5 matches data.
+        
+        ASSUMES: Data has been validated by validate_last5_data()
         """
-        # Extract last 5 matches goals scored
+        # Extract last 5 matches goals scored (already validated)
         home_last5_goals = home_data.get('goals_scored_last_5', 0)
         away_last5_goals = away_data.get('goals_scored_last_5', 0)
         
         # Calculate averages (last 5 only)
-        home_avg = home_last5_goals / 5 if home_last5_goals > 0 else 0
-        away_avg = away_last5_goals / 5 if away_last5_goals > 0 else 0
+        home_avg = home_last5_goals / 5 if home_last5_goals is not None else 0
+        away_avg = away_last5_goals / 5 if away_last5_goals is not None else 0
         
         # Find maximum average (most offensive team)
         max_avg = max(home_avg, away_avg)
         
         # Classification logic
-        if max_avg <= MatchStateClassifier.DURABILITY_STABLE_THRESHOLD:
+        if max_avg <= cls.DURABILITY_STABLE_THRESHOLD:
             return "STABLE"
-        elif max_avg <= MatchStateClassifier.DURABILITY_FRAGILE_THRESHOLD:
+        elif max_avg <= cls.DURABILITY_FRAGILE_THRESHOLD:
             return "FRAGILE"
         else:
             return "NONE"
     
-    @staticmethod
-    def classify_opponent_under_15(home_data: Dict, away_data: Dict) -> Dict:
+    @classmethod
+    def classify_opponent_under_15(cls, home_data: Dict, away_data: Dict) -> Dict:
         """
         CLASSIFY OPPONENT UNDER 1.5 (PERSPECTIVE-SENSITIVE)
         
@@ -134,21 +190,23 @@ class MatchStateClassifier:
         
         Signal = PRESENT if opponent concedes ≤1.0 avg goals in last 5 matches.
         Uses ONLY last 5 matches conceded data.
+        
+        ASSUMES: Data has been validated by validate_last5_data()
         """
-        # Extract last 5 matches goals conceded
+        # Extract last 5 matches goals conceded (already validated)
         home_conceded_last5 = home_data.get('goals_conceded_last_5', 0)
         away_conceded_last5 = away_data.get('goals_conceded_last_5', 0)
         
         # Calculate averages (last 5 only)
-        home_avg_conceded = home_conceded_last5 / 5 if home_conceded_last5 > 0 else 0
-        away_avg_conceded = away_conceded_last5 / 5 if away_conceded_last5 > 0 else 0
+        home_avg_conceded = home_conceded_last5 / 5 if home_conceded_last5 is not None else 0
+        away_avg_conceded = away_conceded_last5 / 5 if away_conceded_last5 is not None else 0
         
         # =================== CRITICAL: PERSPECTIVE-BASED ANALYSIS ===================
         # If we're analyzing HOME TEAM → OPPONENT = AWAY TEAM
-        home_perspective_opponent_under_15 = away_avg_conceded <= MatchStateClassifier.OPPONENT_UNDER_15_THRESHOLD
+        home_perspective_opponent_under_15 = away_avg_conceded <= cls.OPPONENT_UNDER_15_THRESHOLD
         
         # If we're analyzing AWAY TEAM → OPPONENT = HOME TEAM
-        away_perspective_opponent_under_15 = home_avg_conceded <= MatchStateClassifier.OPPONENT_UNDER_15_THRESHOLD
+        away_perspective_opponent_under_15 = home_avg_conceded <= cls.OPPONENT_UNDER_15_THRESHOLD
         
         return {
             # Home Team Perspective: "Can we back Home Team given Away's defense?"
@@ -169,28 +227,30 @@ class MatchStateClassifier:
             
             # General defensive strength (either team defensively strong)
             'any_team_defensive_strength': (
-                home_avg_conceded <= MatchStateClassifier.OPPONENT_UNDER_15_THRESHOLD or
-                away_avg_conceded <= MatchStateClassifier.OPPONENT_UNDER_15_THRESHOLD
+                home_avg_conceded <= cls.OPPONENT_UNDER_15_THRESHOLD or
+                away_avg_conceded <= cls.OPPONENT_UNDER_15_THRESHOLD
             ),
             
             # Data for display
             'home_avg_conceded': home_avg_conceded,
             'away_avg_conceded': away_avg_conceded,
-            'threshold': MatchStateClassifier.OPPONENT_UNDER_15_THRESHOLD,
+            'threshold': cls.OPPONENT_UNDER_15_THRESHOLD,
             
             # Legacy field for compatibility (uses home perspective by default)
             'any_opponent_under_15': home_perspective_opponent_under_15 or away_perspective_opponent_under_15
         }
     
-    @staticmethod
-    def suggest_under_market(home_data: Dict, away_data: Dict) -> str:
+    @classmethod
+    def suggest_under_market(cls, home_data: Dict, away_data: Dict) -> str:
         """
         SUGGEST UNDER MARKET BASED ON DURABILITY
         
         Provides actionable guidance for Under markets (informational only).
         Uses durability classification from last 5 matches only.
+        
+        ASSUMES: Data has been validated by validate_last5_data()
         """
-        durability = MatchStateClassifier.classify_totals_durability(home_data, away_data)
+        durability = cls.classify_totals_durability(home_data, away_data)
         
         if durability == "STABLE":
             return "Under 2.5 recommended"
@@ -272,16 +332,19 @@ class MatchStateClassifier:
     
     # =================== EXISTING MATCH STATE FUNCTIONS ===================
     
-    @staticmethod
-    def check_terminal_stagnation(home_data: Dict, away_data: Dict) -> Tuple[bool, Dict, List[str]]:
-        """Existing function - preserved for backward compatibility"""
+    @classmethod
+    def check_terminal_stagnation(cls, home_data: Dict, away_data: Dict) -> Tuple[bool, Dict, List[str]]:
+        """
+        Existing function - preserved for backward compatibility
+        ASSUMES: Data has been validated by validate_last5_data()
+        """
         rationale = []
         
         home_last5_goals = home_data.get('goals_scored_last_5', 0)
         away_last5_goals = away_data.get('goals_scored_last_5', 0)
         
-        home_avg = home_last5_goals / 5 if home_last5_goals > 0 else 0
-        away_avg = away_last5_goals / 5 if away_last5_goals > 0 else 0
+        home_avg = home_last5_goals / 5 if home_last5_goals is not None else 0
+        away_avg = away_last5_goals / 5 if away_last5_goals is not None else 0
         
         low_scoring = (home_avg <= 1.2) and (away_avg <= 1.2)
         
@@ -310,9 +373,12 @@ class MatchStateClassifier:
             'no_dominant_pathways': no_dominant_pathways
         }, rationale
     
-    @staticmethod
-    def check_asymmetric_suppression(home_data: Dict, away_data: Dict) -> Tuple[bool, Dict, List[str]]:
-        """Existing function - preserved for backward compatibility"""
+    @classmethod
+    def check_asymmetric_suppression(cls, home_data: Dict, away_data: Dict) -> Tuple[bool, Dict, List[str]]:
+        """
+        Existing function - preserved for backward compatibility
+        ASSUMES: Data has been validated by validate_last5_data()
+        """
         rationale = []
         
         home_xg = home_data.get('home_xg_per_match', 0)
@@ -368,26 +434,70 @@ class MatchStateClassifier:
         IMPORTANT: This is 100% READ-ONLY and informational only.
         Does NOT affect betting logic, stakes, or existing tiers.
         Uses ONLY last 5 matches data for all calculations.
+        
+        CRITICAL FIX: If last-5 data is missing/invalid, classifier DISABLES itself
+        instead of fabricating 0.00 averages and misleading outputs.
         """
         
         classification_log = []
         classification_log.append("=" * 70)
-        classification_log.append("🧠 BRUTBALL INTELLIGENCE LAYER v1.3 (READ-ONLY)")
+        classification_log.append("🧠 BRUTBALL INTELLIGENCE LAYER v1.4 (READ-ONLY)")
         classification_log.append("=" * 70)
         classification_log.append("PURPOSE: Structural classification for intelligent insights")
         classification_log.append("RULES: Does not affect betting logic - informational only")
         classification_log.append("DATA: Uses ONLY last 5 matches for all calculations")
         classification_log.append("")
         
-        # ========== 1. TOTALS DURABILITY CLASSIFICATION ==========
+        # ========== 1. DATA VALIDATION CHECK ==========
+        classification_log.append("🔍 DATA VALIDATION CHECK:")
+        classification_log.append("-" * 40)
+        
+        is_valid, missing_fields, validated_data = cls.validate_last5_data(home_data, away_data)
+        
+        if not is_valid:
+            classification_log.append(f"❌ INSUFFICIENT DATA FOR CLASSIFICATION")
+            classification_log.append(f"• Missing or invalid fields: {', '.join(missing_fields)}")
+            classification_log.append(f"• Required fields: {', '.join(cls.MINIMUM_DATA_REQUIREMENTS)}")
+            classification_log.append(f"• Last 5 matches data required for all calculations")
+            classification_log.append(f"• Classifier DISABLED - No structural insights available")
+            classification_log.append("=" * 70)
+            
+            return {
+                'classification_error': True,
+                'error_message': f"Insufficient last-5 data: {', '.join(missing_fields)}",
+                'error_type': 'MISSING_DATA',
+                'missing_fields': missing_fields,
+                'classification_log': classification_log,
+                'is_read_only': True,
+                'metadata': {
+                    'version': '1.4',
+                    'status': 'DISABLED - INSUFFICIENT_DATA',
+                    'action': 'Check data source for goals_scored_last_5 and goals_conceded_last_5 fields',
+                    'data_requirements': cls.MINIMUM_DATA_REQUIREMENTS,
+                    'data_source': 'last_5_matches_only'
+                }
+            }
+        
+        # Extract validated data for processing
+        home_validated = validated_data['home']
+        away_validated = validated_data['away']
+        
+        classification_log.append("✅ Last 5 matches data validation passed")
+        classification_log.append(f"• Home goals scored (last 5): {home_validated.get('goals_scored_last_5')}")
+        classification_log.append(f"• Away goals scored (last 5): {away_validated.get('goals_scored_last_5')}")
+        classification_log.append(f"• Home goals conceded (last 5): {home_validated.get('goals_conceded_last_5')}")
+        classification_log.append(f"• Away goals conceded (last 5): {away_validated.get('goals_conceded_last_5')}")
+        classification_log.append("")
+        
+        # ========== 2. TOTALS DURABILITY CLASSIFICATION ==========
         classification_log.append("📊 TOTALS DURABILITY CLASSIFICATION (LAST 5 ONLY):")
         classification_log.append("-" * 40)
         
-        totals_durability = cls.classify_totals_durability(home_data, away_data)
-        home_last5_goals = home_data.get('goals_scored_last_5', 0)
-        away_last5_goals = away_data.get('goals_scored_last_5', 0)
-        home_avg = home_last5_goals / 5 if home_last5_goals > 0 else 0
-        away_avg = away_last5_goals / 5 if away_last5_goals > 0 else 0
+        totals_durability = cls.classify_totals_durability(home_validated, away_validated)
+        home_last5_goals = home_validated.get('goals_scored_last_5', 0)
+        away_last5_goals = away_validated.get('goals_scored_last_5', 0)
+        home_avg = home_last5_goals / 5 if home_last5_goals is not None else 0
+        away_avg = away_last5_goals / 5 if away_last5_goals is not None else 0
         
         classification_log.append(f"• Home avg goals (last 5): {home_avg:.2f}")
         classification_log.append(f"• Away avg goals (last 5): {away_avg:.2f}")
@@ -396,13 +506,13 @@ class MatchStateClassifier:
         classification_log.append(f"• Thresholds: STABLE≤{cls.DURABILITY_STABLE_THRESHOLD}, FRAGILE≤{cls.DURABILITY_FRAGILE_THRESHOLD}")
         classification_log.append("")
         
-        # ========== 2. OPPONENT UNDER 1.5 CLASSIFICATION ==========
+        # ========== 3. OPPONENT UNDER 1.5 CLASSIFICATION ==========
         classification_log.append("🛡️ OPPONENT UNDER 1.5 CLASSIFICATION (LAST 5 ONLY):")
         classification_log.append("-" * 40)
         classification_log.append("PERSPECTIVE-SENSITIVE: 'Opponent' depends on which team is backed")
         classification_log.append("")
         
-        opponent_under_15 = cls.classify_opponent_under_15(home_data, away_data)
+        opponent_under_15 = cls.classify_opponent_under_15(home_validated, away_validated)
         
         classification_log.append(f"• Home avg conceded (last 5): {opponent_under_15['home_avg_conceded']:.2f}")
         classification_log.append(f"• Away avg conceded (last 5): {opponent_under_15['away_avg_conceded']:.2f}")
@@ -419,29 +529,29 @@ class MatchStateClassifier:
         classification_log.append(f"• Signal when backing AWAY: {'✅ PRESENT' if opponent_under_15['away_perspective']['opponent_under_15'] else '❌ ABSENT'}")
         classification_log.append("")
         
-        # ========== 3. UNDER MARKET SUGGESTIONS ==========
+        # ========== 4. UNDER MARKET SUGGESTIONS ==========
         classification_log.append("🎯 UNDER MARKET SUGGESTIONS:")
         classification_log.append("-" * 40)
         
-        under_suggestion = cls.suggest_under_market(home_data, away_data)
+        under_suggestion = cls.suggest_under_market(home_validated, away_validated)
         classification_log.append(f"• Based on {totals_durability} durability (from last 5):")
         classification_log.append(f"• Suggestion: {under_suggestion}")
         classification_log.append("")
         
-        # ========== 4. EXISTING MATCH STATES (Preserved) ==========
+        # ========== 5. EXISTING MATCH STATES (Preserved) ==========
         classification_log.append("⚙️ STRUCTURAL MATCH STATES:")
         classification_log.append("-" * 40)
         
         states = []
         
         # Check terminal stagnation
-        is_stagnation, stagnation_data, stagnation_rationale = cls.check_terminal_stagnation(home_data, away_data)
+        is_stagnation, stagnation_data, stagnation_rationale = cls.check_terminal_stagnation(home_validated, away_validated)
         if is_stagnation:
             states.append(('TERMINAL_STAGNATION', stagnation_data))
         classification_log.extend(stagnation_rationale)
         
         # Check asymmetric suppression
-        is_asymmetric, asymmetric_data, asymmetric_rationale = cls.check_asymmetric_suppression(home_data, away_data)
+        is_asymmetric, asymmetric_data, asymmetric_rationale = cls.check_asymmetric_suppression(home_validated, away_validated)
         if is_asymmetric:
             states.append(('ASYMMETRIC_SUPPRESSION', asymmetric_data))
         classification_log.extend(asymmetric_rationale)
@@ -457,7 +567,7 @@ class MatchStateClassifier:
         classification_log.append(f"• Dominant Structural State: {dominant_state}")
         classification_log.append("")
         
-        # ========== 5. RELIABILITY SCORING ==========
+        # ========== 6. RELIABILITY SCORING ==========
         classification_log.append("📈 RELIABILITY SCORING (0-5):")
         classification_log.append("-" * 40)
         
@@ -480,7 +590,7 @@ class MatchStateClassifier:
         classification_log.append(f"• AWAY Perspective Score: {reliability_away['reliability_score']}/5 - {reliability_away['reliability_label']}")
         classification_log.append("")
         
-        # ========== 6. FINAL SUMMARY ==========
+        # ========== 7. FINAL SUMMARY ==========
         classification_log.append("🎯 INTELLIGENCE SUMMARY (LAST 5 DATA ONLY):")
         classification_log.append("-" * 40)
         
@@ -500,7 +610,7 @@ class MatchStateClassifier:
         classification_log.append("   • Informational insights for decision support only")
         classification_log.append("=" * 70)
         
-        # ========== 7. RETURN COMPLETE RESULTS ==========
+        # ========== 8. RETURN COMPLETE RESULTS ==========
         return {
             # Core Classifications
             'totals_durability': totals_durability,
@@ -522,11 +632,15 @@ class MatchStateClassifier:
                 'away_conceded_avg': opponent_under_15['away_avg_conceded']
             },
             
+            # Validation info
+            'data_validated': True,
+            'validation_status': 'PASSED',
+            
             # Logs and metadata
             'classification_log': classification_log,
             'is_read_only': True,  # CRITICAL SAFETY FLAG
             'metadata': {
-                'version': '1.3',
+                'version': '1.4',
                 'purpose': 'Read-only intelligence layer for structural insights',
                 'no_side_effects': True,
                 'components': {
@@ -537,7 +651,8 @@ class MatchStateClassifier:
                     'reliability_scoring': True
                 },
                 'data_source': 'last_5_matches_only',
-                'perspective_sensitive': True
+                'perspective_sensitive': True,
+                'data_validation': 'ENABLED'
             }
         }
 
@@ -550,8 +665,36 @@ def get_complete_classification(home_data: Dict, away_data: Dict) -> Dict:
     
     Use this function in app.py to get ALL classification results.
     Ensures classification stays 100% read-only.
+    
+    CRITICAL FIX: Graceful error handling - classifier either works or disables
     """
-    return MatchStateClassifier.classify_match_state(home_data, away_data)
+    try:
+        return MatchStateClassifier.classify_match_state(home_data, away_data)
+    except Exception as e:
+        # Graceful fallback - classifier unavailable due to unexpected error
+        error_log = [
+            "=" * 70,
+            "🧠 BRUTBALL INTELLIGENCE LAYER v1.4 (READ-ONLY)",
+            "=" * 70,
+            "❌ CLASSIFIER ERROR",
+            f"Error: {str(e)}",
+            "Classifier DISABLED - Unexpected error during classification",
+            "=" * 70
+        ]
+        
+        return {
+            'classification_error': True,
+            'error_message': f"Classifier error: {str(e)}",
+            'error_type': 'UNEXPECTED_ERROR',
+            'classification_log': error_log,
+            'is_read_only': True,
+            'metadata': {
+                'version': '1.4',
+                'status': 'DISABLED - UNEXPECTED_ERROR',
+                'action': 'Check data structure and classifier integrity',
+                'data_requirements': MatchStateClassifier.MINIMUM_DATA_REQUIREMENTS
+            }
+        }
 
 
 def format_reliability_badge(reliability_data: Dict) -> str:
@@ -592,3 +735,23 @@ def format_durability_indicator(durability: str) -> str:
         'NONE': '⚫ NONE'
     }
     return indicators.get(durability, '⚫ NONE')
+
+
+def get_classifier_status_message(classification_result: Dict) -> str:
+    """
+    GET CLASSIFIER STATUS MESSAGE FOR DISPLAY
+    
+    Returns appropriate message based on classifier state.
+    """
+    if classification_result.get('classification_error', False):
+        error_type = classification_result.get('error_type', 'UNKNOWN_ERROR')
+        error_message = classification_result.get('error_message', 'Unknown error')
+        
+        if error_type == 'MISSING_DATA':
+            return f"⚠️ Classifier unavailable: Missing last-5 data ({error_message})"
+        elif error_type == 'UNEXPECTED_ERROR':
+            return f"⚠️ Classifier error: {error_message}"
+        else:
+            return f"⚠️ Classifier unavailable: {error_message}"
+    else:
+        return "✅ Classifier active - Read-only insights available"
