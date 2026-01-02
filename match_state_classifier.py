@@ -1,5 +1,5 @@
 """
-BRUTBALL MATCH STATE & DURABILITY CLASSIFIER v1.6 - CSV-COMPLIANT VERSION
+BRUTBALL MATCH STATE & DURABILITY CLASSIFIER v1.7 - CSV-COMPLIANT VERSION
 
 COMPLETE UNIFIED FILE - 100% CSV-COMPLIANT
 
@@ -23,6 +23,7 @@ USAGE:
 """
 
 from typing import Dict, Tuple, List, Optional, Any
+import pandas as pd
 
 
 class MatchStateClassifier:
@@ -131,6 +132,8 @@ class MatchStateClassifier:
         CRITICAL: If data is missing, classifier should DISABLE itself
         instead of fabricating 0.00 averages.
         Only checks CSV-compliant fields.
+        
+        PRINCIPLE: Missing data should BLOCK classification, not create false 0.00
         """
         missing_fields = []
         validated_data = {
@@ -138,17 +141,21 @@ class MatchStateClassifier:
             'away': {}
         }
         
-        # Check all required fields exist and are not None
+        # Check all required fields exist and are not None/NaN
         for field in cls.MINIMUM_DATA_REQUIREMENTS:
             # Check home data
-            if field not in home_data or home_data.get(field) is None:
-                missing_fields.append(f"home.{field}")
+            if field not in home_data:
+                missing_fields.append(f"home.{field}_missing")
+            elif pd.isna(home_data.get(field)):
+                missing_fields.append(f"home.{field}_nan")
             else:
                 validated_data['home'][field] = home_data[field]
             
             # Check away data
-            if field not in away_data or away_data.get(field) is None:
-                missing_fields.append(f"away.{field}")
+            if field not in away_data:
+                missing_fields.append(f"away.{field}_missing")
+            elif pd.isna(away_data.get(field)):
+                missing_fields.append(f"away.{field}_nan")
             else:
                 validated_data['away'][field] = away_data[field]
         
@@ -378,32 +385,36 @@ class MatchStateClassifier:
         This is the MAIN ENTRY POINT for the classifier.
         Uses ONLY CSV-compliant data.
         """
-        # Step 1: Validate data - FIXED: Allows 0 values
+        # Step 1: Validate data - ENFORCE CSV-ONLY ARCHITECTURE
         is_valid, missing_fields, validated_data = cls.validate_last5_data(home_data, away_data)
         
         if not is_valid:
+            # CRITICAL: Do NOT fabricate 0.00 averages
+            # Missing data should BLOCK classification, not create false data
             return {
                 'classification_error': True,
-                'error_type': 'MISSING_DATA',
+                'error_type': 'MISSING_OR_INVALID_DATA',
                 'error_message': f'Missing/invalid last-5 data fields: {", ".join(missing_fields)}',
                 'missing_fields': missing_fields,
                 'is_valid': False,
                 'averages': {
-                    'home_goals_avg': 0.0,
-                    'home_conceded_avg': 0.0,
-                    'away_goals_avg': 0.0,
-                    'away_conceded_avg': 0.0
+                    'home_goals_avg': None,  # NOT 0.00 - this is important
+                    'home_conceded_avg': None,
+                    'away_goals_avg': None,
+                    'away_conceded_avg': None
                 },
                 'dominant_state': 'CLASSIFIER_ERROR',
                 'totals_durability': 'NONE',
-                'under_suggestion': 'No Under recommendation',
+                'under_suggestion': 'Data insufficient for recommendation',
                 'opponent_under_15': {},
                 'reliability_home': {
                     'reliability_score': 0,
-                    'reliability_label': 'NONE',
-                    'reliability_description': 'Classifier unavailable due to missing data'
+                    'reliability_label': 'DATA MISSING',
+                    'reliability_description': 'Classifier unavailable due to missing last-5 data',
+                    'reliability_color': 'gray'
                 },
-                'validation_passed': False
+                'validation_passed': False,
+                'data_integrity_violation': True
             }
         
         # Step 2: Calculate averages for display - CSV COMPLIANT
@@ -447,6 +458,7 @@ class MatchStateClassifier:
             'error_message': None,
             'is_valid': True,
             'validation_passed': True,
+            'data_integrity_violation': False,
             'averages': {
                 'home_goals_avg': round(home_goals_avg, 2),
                 'home_conceded_avg': round(home_conceded_avg, 2),
@@ -461,12 +473,13 @@ class MatchStateClassifier:
             'reliability_away': reliability_away,
             'perspective_used': perspective,
             'metadata': {
-                'version': '1.6',
+                'version': '1.7',
                 'data_source': 'last_5_matches_only',
                 'data_compliance': '100% CSV-compliant',
                 'fields_used': ['goals_scored_last_5', 'goals_conceded_last_5'],
                 'read_only': True,
-                'purpose': 'Informational classification only'
+                'purpose': 'Informational classification only',
+                'principle': 'Missing data blocks classification, does not create false 0.00'
             }
         }
     
@@ -509,11 +522,36 @@ class MatchStateClassifier:
         Uses ONLY CSV-compliant data.
         """
         if classification_result.get('classification_error', False):
+            error_msg = classification_result.get('error_message', 'Unknown error')
+            missing_fields = classification_result.get('missing_fields', [])
+            
+            # Special handling for data integrity violations
+            if classification_result.get('data_integrity_violation', False):
+                return {
+                    'display_type': 'DATA_INTEGRITY_ERROR',
+                    'error_message': '⚠️ DATA INTEGRITY VIOLATION',
+                    'detailed_message': f'Last-5 data missing or invalid: {error_msg}',
+                    'missing_fields': missing_fields,
+                    'suggestion': 'Check CSV for goals_scored_last_5 and goals_conceded_last_5 fields',
+                    'averages': {
+                        'home_goals': None,  # Not 0.00!
+                        'home_conceded': None,
+                        'away_goals': None,
+                        'away_conceded': None
+                    }
+                }
+            
             return {
                 'display_type': 'ERROR',
-                'error_message': classification_result.get('error_message', 'Unknown error'),
-                'missing_fields': classification_result.get('missing_fields', []),
-                'suggestion': 'Check CSV data for goals_scored_last_5 and goals_conceded_last_5 fields'
+                'error_message': error_msg,
+                'missing_fields': missing_fields,
+                'suggestion': 'Check CSV data for goals_scored_last_5 and goals_conceded_last_5 fields',
+                'averages': {
+                    'home_goals': None,
+                    'home_conceded': None,
+                    'away_goals': None,
+                    'away_conceded': None
+                }
             }
         
         # Extract data
@@ -539,10 +577,10 @@ class MatchStateClassifier:
         return {
             'display_type': 'CLASSIFICATION',
             'averages': {
-                'home_goals': averages.get('home_goals_avg', 0.0),
-                'home_conceded': averages.get('home_conceded_avg', 0.0),
-                'away_goals': averages.get('away_goals_avg', 0.0),
-                'away_conceded': averages.get('away_conceded_avg', 0.0)
+                'home_goals': averages.get('home_goals_avg'),
+                'home_conceded': averages.get('home_conceded_avg'),
+                'away_goals': averages.get('away_goals_avg'),
+                'away_conceded': averages.get('away_conceded_avg')
             },
             'match_state': {
                 'code': dominant_state,
@@ -575,7 +613,8 @@ class MatchStateClassifier:
                 'data_source': 'Last 5 matches only',
                 'data_compliance': '100% CSV-compliant',
                 'read_only': True,
-                'version': 'v1.6'
+                'version': 'v1.7',
+                'principle': 'Missing data blocks classification, does not create false 0.00'
             }
         }
     
@@ -635,6 +674,12 @@ class MatchStateClassifier:
                 'NO match-by-match lists allowed (CSV rule)',
                 '100% CSV-compliant architecture'
             ],
+            'architectural_principles': [
+                'Missing data blocks classification (does not create false 0.00)',
+                'NaN values are preserved, not hidden',
+                'No data transformations or calculations before classifier',
+                'Pure CSV → Dict mapping only'
+            ],
             'data_compliance': {
                 'status': 'FULLY COMPLIANT',
                 'principle': 'Uses only CSV columns: goals_scored_last_5, goals_conceded_last_5',
@@ -664,29 +709,30 @@ class MatchStateClassifier:
             quality_score = 100  # Perfect if valid
             
             suggestions = []
-            # NOTE: 0 values are now VALID, not suspicious
-            # A team can score 0 goals in last 5 matches
-            
+            if home_goals_avg == 0 and home_conceded_avg == 0:
+                suggestions.append("⚠️ Home team data shows all zeros - verify this is correct real data")
+            if away_goals_avg == 0 and away_conceded_avg == 0:
+                suggestions.append("⚠️ Away team data shows all zeros - verify this is correct real data")
         else:
-            home_goals_avg = home_conceded_avg = away_goals_avg = away_conceded_avg = 0
+            home_goals_avg = home_conceded_avg = away_goals_avg = away_conceded_avg = None  # Not 0.00!
             quality_score = 0
-            suggestions = [f"Fix missing fields: {', '.join(missing_fields)}"]
+            suggestions = [f"❌ Fix missing fields: {', '.join(missing_fields)}"]
         
         return {
             'is_valid': is_valid,
             'quality_score': quality_score,
             'missing_fields': missing_fields,
             'calculated_averages': {
-                'home_goals': round(home_goals_avg, 2),
-                'home_conceded': round(home_conceded_avg, 2),
-                'away_goals': round(away_goals_avg, 2),
-                'away_conceded': round(away_conceded_avg, 2)
+                'home_goals': round(home_goals_avg, 2) if home_goals_avg is not None else None,
+                'home_conceded': round(home_conceded_avg, 2) if home_conceded_avg is not None else None,
+                'away_goals': round(away_goals_avg, 2) if away_goals_avg is not None else None,
+                'away_conceded': round(away_conceded_avg, 2) if away_conceded_avg is not None else None
             },
             'suggestions': suggestions,
             'data_quality': 'GOOD' if is_valid else 'POOR',
             'can_run_classifier': is_valid,
             'data_compliance': {
-                'status': 'CSV-COMPLIANT',
+                'status': 'CSV-COMPLIANT' if is_valid else 'VIOLATION',
                 'fields_checked': cls.MINIMUM_DATA_REQUIREMENTS,
                 'illegal_fields_checked': ['concede_last_5_list', 'match-by-match lists'],
                 'result': 'NO ILLEGAL FIELDS' if is_valid else 'MISSING REQUIRED FIELDS'
@@ -747,8 +793,8 @@ def format_durability_indicator(durability: str) -> str:
 
 # =================== EXAMPLE USAGE ===================
 if __name__ == "__main__":
-    print("=== BRUTBALL MATCH STATE CLASSIFIER v1.6 - CSV-COMPLIANT ===")
-    print("Principle: 100% CSV-compliant architecture")
+    print("=== BRUTBALL MATCH STATE CLASSIFIER v1.7 - CSV-COMPLIANT ===")
+    print("PRINCIPLE: Missing data blocks classification, does not create false 0.00")
     print("Fields used: goals_scored_last_5, goals_conceded_last_5 ONLY\n")
     
     # Example data - CSV-COMPLIANT
@@ -768,10 +814,11 @@ if __name__ == "__main__":
     print(f"Data valid: {quality_check['is_valid']}")
     print(f"Data compliance: {quality_check['data_compliance']['status']}")
     print(f"Calculated averages:")
-    print(f"  Home goals: {quality_check['calculated_averages']['home_goals']:.2f}")
-    print(f"  Home conceded: {quality_check['calculated_averages']['home_conceded']:.2f}")
-    print(f"  Away goals: {quality_check['calculated_averages']['away_goals']:.2f}")
-    print(f"  Away conceded: {quality_check['calculated_averages']['away_conceded']:.2f}")
+    avgs = quality_check['calculated_averages']
+    print(f"  Home goals: {avgs['home_goals']:.2f}" if avgs['home_goals'] is not None else "  Home goals: None (missing data)")
+    print(f"  Home conceded: {avgs['home_conceded']:.2f}" if avgs['home_conceded'] is not None else "  Home conceded: None (missing data)")
+    print(f"  Away goals: {avgs['away_goals']:.2f}" if avgs['away_goals'] is not None else "  Away goals: None (missing data)")
+    print(f"  Away conceded: {avgs['away_conceded']:.2f}" if avgs['away_conceded'] is not None else "  Away conceded: None (missing data)")
     
     # Example 2: Full classification
     print("\n=== FULL CLASSIFICATION ===")
@@ -780,25 +827,26 @@ if __name__ == "__main__":
     )
     
     if classification['classification_error']:
-        print(f"ERROR: {classification['error_message']}")
+        print(f"❌ ERROR: {classification['error_message']}")
+        print(f"Missing fields: {classification.get('missing_fields', [])}")
     else:
+        print(f"✅ Classification successful")
         print(f"Match state: {classification['dominant_state']}")
         print(f"Durability: {classification['totals_durability']}")
         print(f"Under suggestion: {classification['under_suggestion']}")
         print(f"Reliability score: {classification['reliability_home']['reliability_score']}")
-        print(f"Home perspective opponent under 1.5: {classification['opponent_under_15']['home_perspective']['final_verdict']}")
-        print(f"Away perspective opponent under 1.5: {classification['opponent_under_15']['away_perspective']['final_verdict']}")
     
     # Example 3: Get data requirements
     print("\n=== DATA REQUIREMENTS ===")
     requirements = MatchStateClassifier.get_data_requirements()
     print(f"Required fields: {requirements['required_fields']}")
-    print(f"Data compliance status: {requirements['data_compliance']['status']}")
-    print(f"Illegal fields: {requirements['data_compliance']['illegal_fields']}")
+    print(f"Architectural principles:")
+    for principle in requirements['architectural_principles']:
+        print(f"  • {principle}")
     
-    print("\n=== SYSTEM STATUS: 100% CSV-COMPLIANT ===")
+    print("\n=== SYSTEM STATUS: ARCHITECTURALLY PURE CSV-ONLY ===")
     print("• Uses only goals_scored_last_5, goals_conceded_last_5")
-    print("• No concede_last_5_list (illegal)")
-    print("• No match-by-match granularity")
-    print("• All calculations from aggregates only")
-    print("• Architecturally pure CSV-only system")
+    print("• Missing data → BLOCKS classification (not false 0.00)")
+    print("• NaN values preserved (not hidden)")
+    print("• No data transformations before classifier")
+    print("• Pure CSV → Dict mapping only")
