@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from typing import Dict, Tuple, List, Optional, Any
+from datetime import datetime  # ADD THIS IMPORT
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -24,6 +25,28 @@ except ImportError:
     format_reliability_badge = None
     format_durability_indicator = None
     format_pattern_badge = None
+
+# =================== FIXED: TEAM NAME FOR UNDER 1.5 ===================
+def get_team_under_15_name(recommendation: Dict, home_team: str, away_team: str) -> str:
+    """
+    FIXED: Get the correct team name for UNDER 1.5 bets
+    
+    For ELITE_DEFENSE_UNDER_1_5 pattern:
+    - If HOME is elite defense → Bet: AWAY to score UNDER 1.5
+    - If AWAY is elite defense → Bet: HOME to score UNDER 1.5
+    """
+    if recommendation['pattern'] == 'ELITE_DEFENSE_UNDER_1_5':
+        defensive_team = recommendation.get('defensive_team', '')
+        
+        # Determine which team is being bet on
+        if defensive_team == home_team:
+            # HOME is elite defense → Bet AWAY UNDER 1.5
+            return away_team
+        else:
+            # AWAY is elite defense → Bet HOME UNDER 1.5
+            return home_team
+    else:
+        return recommendation.get('team_to_bet', '')
 
 # =================== EXISTING DATA EXTRACTION FUNCTIONS ===================
 def extract_pure_team_data(df: pd.DataFrame, team_name: str) -> Dict:
@@ -169,6 +192,17 @@ def display_proven_patterns_results(pattern_results: Dict, home_team: str, away_
         
         style = pattern_styles.get(rec['pattern'], pattern_styles['ELITE_DEFENSE_UNDER_1_5'])
         
+        # FIXED: Get correct team name for UNDER 1.5
+        if rec['pattern'] == 'ELITE_DEFENSE_UNDER_1_5':
+            team_to_display = get_team_under_15_name(rec, home_team, away_team)
+            bet_description = f"{team_to_display} to score UNDER 1.5 goals"
+        elif rec['pattern'] == 'WINNER_LOCK_DOUBLE_CHANCE':
+            team_to_display = rec.get('team_to_bet', '')
+            bet_description = f"{team_to_display} Double Chance (Win or Draw)"
+        else:
+            team_to_display = ''
+            bet_description = rec.get('reason', '')
+        
         # Create beautiful card
         st.markdown(f"""
         <div style="background: {style['bg_color']}; padding: 1.5rem; border-radius: 10px; 
@@ -180,7 +214,9 @@ def display_proven_patterns_results(pattern_results: Dict, home_team: str, away_
                         <span style="font-size: 1.5rem;">{style['emoji']}</span>
                         <h3 style="color: {style['title_color']}; margin: 0;">{rec['bet_type']}</h3>
                     </div>
-                    {'<div style="font-weight: 600; color: #374151; margin-bottom: 0.25rem;">Team: ' + rec['team_to_bet'] + '</div>' if 'team_to_bet' in rec else ''}
+                    <div style="font-weight: 700; color: #374151; margin-bottom: 0.25rem; font-size: 1.1rem;">
+                        {bet_description}
+                    </div>
                     <div style="color: #6B7280; font-size: 0.9rem;">{rec['reason']}</div>
                 </div>
                 <div style="text-align: right;">
@@ -213,6 +249,9 @@ def display_proven_patterns_results(pattern_results: Dict, home_team: str, away_
                     </div>
                 </div>
             </div>
+            
+            <!-- FIXED: Clear TEAM_UNDER_1.5 naming -->
+            {f'<div style="margin-top: 1rem; padding: 0.75rem; background: #DCFCE7; border-radius: 6px; border-left: 4px solid #16A34A;"><strong>🎯 CLEAR BETTING SIGNAL:</strong> Bet on <strong>{team_to_display}</strong> to score 0 or 1 goals</div>' if rec['pattern'] == 'ELITE_DEFENSE_UNDER_1_5' else ''}
             
         </div>
         """, unsafe_allow_html=True)
@@ -260,18 +299,7 @@ class PerformanceTracker:
 
 # Initialize trackers
 performance_tracker = PerformanceTracker()
-bankroll_manager = BankrollManager(initial_bankroll=10000.0)
-
-# =================== SYSTEM CONSTANTS ===================
-CONTROL_CRITERIA_REQUIRED = 2
-GOALS_ENV_THRESHOLD = 2.8
-ELITE_ATTACK_THRESHOLD = 1.6
-DIRECTION_THRESHOLD = 0.25
-ENFORCEMENT_METHODS_REQUIRED = 2
-STATE_FLIP_FAILURES_REQUIRED = 2
-QUIET_CONTROL_SEPARATION_THRESHOLD = 0.1
-TOTALS_LOCK_THRESHOLD = 1.2
-UNDER_GOALS_THRESHOLD = 2.5
+bankroll_manager = BankrollManager(initial_bankroll=10000.0) if 'BankrollManager' in globals() else None
 
 # =================== LEAGUE CONFIGURATION ===================
 LEAGUES = {
@@ -391,6 +419,14 @@ st.markdown("""
         border: 3px solid #0EA5E9;
         margin: 1rem 0;
     }
+    .team-under-15-highlight {
+        background: linear-gradient(135deg, #DCFCE7 0%, #BBF7D0 100%);
+        padding: 1rem;
+        border-radius: 8px;
+        border: 3px solid #16A34A;
+        margin: 1rem 0;
+        text-align: center;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -499,10 +535,10 @@ def main():
     st.markdown("""
     <div class="system-subheader">
         <p><strong>THREE PROVEN PATTERNS FROM 25-MATCH EMPIRICAL ANALYSIS</strong></p>
-        <p>Pattern A: Elite Defense → Opponent UNDER 1.5 (100% - 8 matches)</p>
-        <p>Pattern B: Winner Lock → Double Chance (100% - 6 matches)</p>
-        <p>Pattern C: UNDER 3.5 When Patterns Present (83.3% - 10/12 matches)</p>
-        <p><strong>NEW:</strong> Beautiful UI with clear betting recommendations & stake calculations</p>
+        <p><strong style="color: #16A34A;">Pattern A:</strong> Elite Defense → Opponent UNDER 1.5 (100% - 8 matches)</p>
+        <p><strong style="color: #2563EB;">Pattern B:</strong> Winner Lock → Double Chance (100% - 6 matches)</p>
+        <p><strong style="color: #7C3AED;">Pattern C:</strong> UNDER 3.5 When Patterns Present (83.3% - 10/12 matches)</p>
+        <p><strong>🎯 CLEAR TEAM NAMES:</strong> "Team X to score UNDER 1.5 goals" - No confusion</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -530,41 +566,24 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    # Pattern Conditions Display
+    # TEAM_UNDER_1.5 Explanation
     st.markdown("""
-    <div class="historical-proof">
-        <h4>🎯 PATTERN CONDITIONS</h4>
+    <div class="team-under-15-highlight">
+        <h4>🎯 TEAM_UNDER_1.5 EXPLANATION</h4>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
-            <div style="padding: 1rem; background: #F0FDF4; border-radius: 6px;">
-                <div style="font-weight: 700; color: #065F46; margin-bottom: 0.5rem;">
-                    🛡️ ELITE DEFENSE
-                </div>
-                <ul style="margin: 0.5rem 0; padding-left: 1.5rem; font-size: 0.9rem;">
-                    <li>Team concedes ≤4 goals TOTAL in last 5 matches</li>
-                    <li>Defense gap > 2.0 goals vs opponent</li>
-                    <li>Bet: Opponent UNDER 1.5 goals</li>
-                </ul>
+            <div style="text-align: center; padding: 1rem; background: white; border-radius: 6px; border: 2px solid #86EFAC;">
+                <div style="font-weight: 700; color: #065F46; margin-bottom: 0.5rem;">IF HOME is Elite Defense</div>
+                <div style="font-size: 1.2rem; color: #16A34A; font-weight: 700;">Bet: AWAY to score ≤1 goals</div>
+                <div style="font-size: 0.9rem; color: #6B7280; margin-top: 0.5rem;">Example: Porto (elite) vs AVS → Bet AVS UNDER 1.5</div>
             </div>
-            <div style="padding: 1rem; background: #EFF6FF; border-radius: 6px;">
-                <div style="font-weight: 700; color: #1E40AF; margin-bottom: 0.5rem;">
-                    👑 WINNER LOCK
-                </div>
-                <ul style="margin: 0.5rem 0; padding-left: 1.5rem; font-size: 0.9rem;">
-                    <li>Agency-State Lock gives WINNER lock</li>
-                    <li>Team does NOT lose (wins or draws)</li>
-                    <li>Bet: DOUBLE CHANCE (Win or Draw)</li>
-                </ul>
+            <div style="text-align: center; padding: 1rem; background: white; border-radius: 6px; border: 2px solid #86EFAC;">
+                <div style="font-weight: 700; color: #065F46; margin-bottom: 0.5rem;">IF AWAY is Elite Defense</div>
+                <div style="font-size: 1.2rem; color: #16A34A; font-weight: 700;">Bet: HOME to score ≤1 goals</div>
+                <div style="font-size: 0.9rem; color: #6B7280; margin-top: 0.5rem;">Example: AVS vs Porto (elite) → Bet AVS UNDER 1.5</div>
             </div>
         </div>
-        <div style="margin-top: 1rem; padding: 1rem; background: #FAF5FF; border-radius: 6px;">
-            <div style="font-weight: 700; color: #5B21B6; margin-bottom: 0.5rem;">
-                📊 UNDER 3.5 WHEN PATTERNS PRESENT
-            </div>
-            <ul style="margin: 0.5rem 0; padding-left: 1.5rem; font-size: 0.9rem;">
-                <li>EITHER Elite Defense OR Winner Lock pattern present</li>
-                <li>Bet: TOTAL UNDER 3.5 goals</li>
-                <li>83.3% accuracy in sample matches</li>
-            </ul>
+        <div style="margin-top: 1rem; padding: 0.75rem; background: #BBF7D0; border-radius: 6px;">
+            <strong>📊 Elite Defense Definition:</strong> Team concedes ≤4 goals TOTAL in last 5 matches (avg ≤0.8/match)
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -652,184 +671,42 @@ def main():
         st.markdown("### 🎯 PROVEN PATTERN DETECTION RESULTS")
         display_proven_patterns_results(pattern_results, home_team, away_team)
         
-        # Bankroll and Stake Management
-        st.markdown("### 💰 BANKROLL MANAGEMENT")
+        # Show TEAM_UNDER_1.5 summary
+        elite_defense_patterns = [r for r in pattern_results['recommendations'] 
+                                 if r['pattern'] == 'ELITE_DEFENSE_UNDER_1_5']
         
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            risk_level = st.selectbox(
-                "Risk Level",
-                ["CONSERVATIVE (0.5%)", "MEDIUM (1.0%)", "AGGRESSIVE (1.5%)"],
-                index=1
-            )
-        
-        with col2:
-            base_percentage = {
-                "CONSERVATIVE (0.5%)": 0.005,
-                "MEDIUM (1.0%)": 0.01,
-                "AGGRESSIVE (1.5%)": 0.015
-            }[risk_level]
-            base_stake = bankroll_manager.bankroll * base_percentage
-            st.metric("Base Stake per Bet", f"${base_stake:.2f}")
-        
-        with col3:
-            bankroll_status = bankroll_manager.get_status()
-            st.metric("Current Bankroll", f"${bankroll_manager.bankroll:.2f}")
-        
-        # Calculate stakes for each recommendation
-        if pattern_results['patterns_detected'] > 0:
-            st.markdown("#### 📊 RECOMMENDED STAKES")
+        if elite_defense_patterns:
+            st.markdown("### 🎯 TEAM_UNDER_1.5 SUMMARY")
             
-            total_stake = 0
-            for idx, rec in enumerate(pattern_results['recommendations']):
-                stake = bankroll_manager.calculate_stake(rec, risk_level.split()[0])
-                total_stake += stake
-                
-                # Determine card style
-                card_class = {
-                    'ELITE_DEFENSE_UNDER_1_5': 'pattern-card-elite',
-                    'WINNER_LOCK_DOUBLE_CHANCE': 'pattern-card-winner',
-                    'PATTERN_DRIVEN_UNDER_3_5': 'pattern-card-total'
-                }.get(rec['pattern'], 'pattern-card')
+            for pattern in elite_defense_patterns:
+                team_to_bet = get_team_under_15_name(pattern, home_team, away_team)
+                defensive_team = pattern.get('defensive_team', '')
                 
                 st.markdown(f"""
-                <div class="pattern-card {card_class}">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                        <div style="font-weight: 700; font-size: 1.1rem;">
-                            {rec['bet_type']}
-                        </div>
-                        <div style="background: #3B82F6; color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-weight: 700;">
-                            ${stake:.2f}
+                <div class="team-under-15-highlight">
+                    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                        <div style="font-size: 2rem;">🎯</div>
+                        <div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #065F46;">
+                                Bet: {team_to_bet} to score UNDER 1.5 goals
+                            </div>
+                            <div style="color: #374151;">
+                                Because {defensive_team} has elite defense ({pattern.get('home_conceded', 0)}/5 goals conceded)
+                            </div>
                         </div>
                     </div>
-                    <div style="color: #6B7280; font-size: 0.9rem; margin-bottom: 0.5rem;">
-                        {rec['reason']}
-                    </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #4B5563;">
-                        <div>
-                            <strong>Stake:</strong> {stake/bankroll_manager.bankroll*100:.1f}% of bankroll
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.9rem; color: #6B7280;">Defensive Team</div>
+                            <div style="font-size: 1.2rem; font-weight: 700; color: #16A34A;">{defensive_team}</div>
                         </div>
-                        <div>
-                            <strong>Multiplier:</strong> {rec['stake_multiplier']:.1f}x
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.9rem; color: #6B7280;">Team to Bet</div>
+                            <div style="font-size: 1.2rem; font-weight: 700; color: #DC2626;">{team_to_bet}</div>
                         </div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
-            
-            # Total stake warning
-            risk_percentage = (total_stake / bankroll_manager.bankroll) * 100
-            risk_color = "#059669" if risk_percentage < 10 else "#F59E0B" if risk_percentage < 20 else "#DC2626"
-            
-            st.markdown(f"""
-            <div class="stake-display">
-                <div style="font-weight: 700; margin-bottom: 0.5rem;">
-                    Total Stake for This Match
-                </div>
-                <div style="font-size: 1.5rem; font-weight: 800; color: {risk_color};">
-                    ${total_stake:.2f}
-                </div>
-                <div style="font-size: 0.9rem; color: #6B7280; margin-top: 0.25rem;">
-                    {risk_percentage:.1f}% of bankroll • {pattern_results['patterns_detected']} pattern(s)
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # Performance Tracking
-        st.markdown("### 📈 PERFORMANCE TRACKING")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            actual_home = st.number_input(
-                f"{home_team} actual goals", 
-                min_value=0, max_value=10, value=0, 
-                key="actual_home"
-            )
-        with col2:
-            actual_away = st.number_input(
-                f"{away_team} actual goals", 
-                min_value=0, max_value=10, value=0, 
-                key="actual_away"
-            )
-        
-        if st.button("Record Match Result", type="secondary"):
-            # Record predictions
-            for rec in pattern_results['recommendations']:
-                match_info = f"{home_team} vs {away_team}"
-                prediction = f"{rec['bet_type']}: {rec.get('team_to_bet', 'Match')}"
-                accuracy = rec['sample_accuracy'].split('(')[0].strip()
-                performance_tracker.record_prediction(match_info, prediction, accuracy)
-            
-            # Record result
-            actual_score = f"{actual_home}-{actual_away}"
-            performance_tracker.record_result(f"{home_team} vs {away_team}", actual_score)
-            
-            # Calculate profit/loss
-            actual_total = actual_home + actual_away
-            profit_loss = 0
-            
-            for rec in pattern_results['recommendations']:
-                stake = bankroll_manager.calculate_stake(rec, risk_level.split()[0])
-                
-                # Check if bet would win
-                if rec['pattern'] == 'ELITE_DEFENSE_UNDER_1_5':
-                    # Bet: Opponent UNDER 1.5
-                    if rec['team_to_bet'] == away_team:
-                        would_win = actual_away <= 1
-                    else:
-                        would_win = actual_home <= 1
-                    odds = 1.8  # Example odds
-                    profit = stake * (odds - 1) if would_win else -stake
-                    profit_loss += profit
-                    
-                elif rec['pattern'] == 'WINNER_LOCK_DOUBLE_CHANCE':
-                    # Bet: Double Chance (Win or Draw)
-                    if rec['team_to_bet'] == home_team:
-                        would_win = actual_home >= actual_away
-                    else:
-                        would_win = actual_away >= actual_home
-                    odds = 1.3  # Example odds
-                    profit = stake * (odds - 1) if would_win else -stake
-                    profit_loss += profit
-                    
-                elif rec['pattern'] == 'PATTERN_DRIVEN_UNDER_3_5':
-                    # Bet: UNDER 3.5
-                    would_win = actual_total < 3.5
-                    odds = 1.9  # Example odds
-                    profit = stake * (odds - 1) if would_win else -stake
-                    profit_loss += profit
-            
-            # Update bankroll
-            bankroll_manager.update_after_result(profit_loss)
-            
-            # Show result
-            result_color = "#059669" if profit_loss >= 0 else "#DC2626"
-            st.success(f"""
-            ✅ Recorded: {home_team} {actual_home}-{actual_away} {away_team}
-            
-            **Profit/Loss:** <span style='color:{result_color}; font-weight:700;'>
-            ${profit_loss:+.2f}</span>
-            
-            **New Bankroll:** ${bankroll_manager.bankroll:.2f}
-            """, unsafe_allow_html=True)
-            
-            # Check if should continue
-            should_continue, message = bankroll_manager.should_continue_betting()
-            if not should_continue:
-                st.warning(f"⚠️ {message}")
-            
-            st.rerun()
-        
-        # Display performance stats
-        stats = performance_tracker.calculate_accuracy()
-        bankroll_status = bankroll_manager.get_status()
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total Predictions", stats['total_predictions'])
-        with col2:
-            st.metric("Accuracy", f"{stats['accuracy']:.1f}%")
-        with col3:
-            st.metric("Bankroll", f"${bankroll_status['bankroll']:.2f}")
         
         # Export functionality
         st.markdown("---")
@@ -854,28 +731,43 @@ RECOMMENDED BETS:
 """
         
         for idx, rec in enumerate(pattern_results['recommendations']):
+            # FIXED: Get correct team name for export
+            if rec['pattern'] == 'ELITE_DEFENSE_UNDER_1_5':
+                team_name = get_team_under_15_name(rec, home_team, away_team)
+                bet_desc = f"{team_name} to score UNDER 1.5 goals"
+            elif rec['pattern'] == 'WINNER_LOCK_DOUBLE_CHANCE':
+                team_name = rec.get('team_to_bet', '')
+                bet_desc = f"{team_name} Double Chance (Win or Draw)"
+            else:
+                team_name = ''
+                bet_desc = rec.get('reason', '')
+            
             export_text += f"""
 {idx+1}. {rec['bet_type']}
+   • Bet: {bet_desc}
    • Pattern: {rec['pattern'].replace('_', ' ')}
    • Reason: {rec['reason']}
    • Sample Accuracy: {rec['sample_accuracy']}
    • Stake Multiplier: {rec['stake_multiplier']:.1f}x
-   • Recommended Stake: ${bankroll_manager.calculate_stake(rec, risk_level.split()[0]):.2f}
+"""
+        
+        # Add TEAM_UNDER_1.5 summary
+        if elite_defense_patterns:
+            export_text += f"""
+
+TEAM_UNDER_1.5 SUMMARY:
+"""
+            for pattern in elite_defense_patterns:
+                team_to_bet = get_team_under_15_name(pattern, home_team, away_team)
+                defensive_team = pattern.get('defensive_team', '')
+                export_text += f"""
+• Bet {team_to_bet} to score 0 or 1 goals
+  - Because {defensive_team} has elite defense ({pattern.get('home_conceded', 0)} goals in last 5 matches)
+  - Defense gap: +{pattern.get('defense_gap', 0)} goals vs opponent
+  - Historical evidence: {pattern['sample_accuracy']}
 """
         
         export_text += f"""
-
-BANKROLL STATUS:
-• Current Bankroll: ${bankroll_status['bankroll']:.2f}
-• Base Unit: ${bankroll_status['base_unit']:.2f}
-• Daily P/L: ${bankroll_status['daily_profit_loss']:+.2f}
-• Consecutive Losses: {bankroll_status['consecutive_losses']}
-
-RISK MANAGEMENT:
-• Risk Level: {risk_level}
-• Stop Conditions: 3 consecutive losses, 10% daily loss
-• Max Trades per Day: 20
-• Min Bankroll: $100 (10 base units)
 
 DATA SOURCE:
 • Last 5 matches data only (no season averages)
@@ -897,16 +789,16 @@ DATA SOURCE:
     st.markdown("""
     <div style="text-align: center; color: #6B7280; font-size: 0.9rem; padding: 1rem;">
         <p><strong>BRUTBALL PROVEN PATTERNS v1.0</strong></p>
-        <p>Based on 25-match empirical analysis with proven accuracy</p>
+        <p>🎯 <strong>CLEAR TEAM NAMES FOR UNDER 1.5 BETS:</strong> "Team X to score 0 or 1 goals"</p>
         <div style="display: flex; justify-content: center; gap: 1rem; margin: 1rem 0; flex-wrap: wrap;">
             <div style="background: #DCFCE7; color: #065F46; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem;">
-                🛡️ Elite Defense (100%)
+                🛡️ Elite Defense → Bet Opponent UNDER 1.5
             </div>
             <div style="background: #DBEAFE; color: #1E40AF; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem;">
-                👑 Winner Lock (100%)
+                👑 Winner Lock → Bet Double Chance
             </div>
             <div style="background: #F3E8FF; color: #5B21B6; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem;">
-                📊 Under 3.5 (83.3%)
+                📊 Pattern Present → Bet UNDER 3.5
             </div>
         </div>
         <p><strong>Historical Proof:</strong> Porto 2-0 AVS • Espanyol 2-1 Athletic • Parma 1-0 Fiorentina</p>
