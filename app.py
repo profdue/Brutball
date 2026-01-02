@@ -78,6 +78,62 @@ def safe_split_declaration(declaration: str, fallback_text: str = "") -> tuple:
         # Empty declaration
         return "No declaration", fallback_text
 
+# =================== FIX FOR CLASSIFIER DISPLAY ===================
+def safe_classification_display(result, home_name, away_name):
+    """
+    Safe display for classifier results that handles errors gracefully
+    """
+    # Check if classifier returned valid data
+    if not result or 'averages' not in result:
+        st.warning("⚠️ Classifier data incomplete - using fallback display")
+        
+        # Extract data from bet-ready signals if available
+        if 'edge_derived_locks' in result and result['edge_derived_locks']:
+            lock = result['edge_derived_locks'][0]
+            home_avg = lock.get('opponent_attack_avg', 0) if lock['team_to_bet'] == away_name else 0
+            away_avg = lock.get('opponent_attack_avg', 0) if lock['team_to_bet'] == home_name else 0
+            home_conceded = lock.get('defense_avg', 0) if lock['defensive_team'] == home_name else 0
+            away_conceded = lock.get('defense_avg', 0) if lock['defensive_team'] == away_name else 0
+        else:
+            home_avg = away_avg = home_conceded = away_conceded = 0
+        
+        # Show basic defensive strength
+        st.markdown(f"""
+        <div class="perspective-display">
+            <h4>📊 DEFENSIVE STRENGTH (From Bet-Ready Signals)</h4>
+            <div class="perspective-box perspective-home">
+                <strong>{home_name}</strong><br>
+                Avg conceded: {home_conceded:.2f} {'✅ ≤1.0' if home_conceded <= 1.0 else '❌ >1.0'}
+            </div>
+            <div class="perspective-box perspective-away">
+                <strong>{away_name}</strong><br>
+                Avg conceded: {away_conceded:.2f} {'✅ ≤1.0' if away_conceded <= 1.0 else '❌ >1.0'}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        return
+    
+    # Normal display if classifier worked
+    averages = result.get('averages', {})
+    
+    st.markdown(f"""
+    <div class="perspective-display">
+        <h4>📊 STRUCTURAL ANALYSIS (Last 5 Matches Only)</h4>
+        <div class="perspective-box perspective-home">
+            <strong>{home_name}</strong><br>
+            Avg goals: {averages.get('home_goals_avg', 0):.2f}<br>
+            Avg conceded: {averages.get('home_conceded_avg', 0):.2f}
+            {'✅ ≤1.0' if averages.get('home_conceded_avg', 0) <= 1.0 else '❌ >1.0'}
+        </div>
+        <div class="perspective-box perspective-away">
+            <strong>{away_name}</strong><br>
+            Avg goals: {averages.get('away_goals_avg', 0):.2f}<br>
+            Avg conceded: {averages.get('away_conceded_avg', 0):.2f}
+            {'✅ ≤1.0' if averages.get('away_conceded_avg', 0) <= 1.0 else '❌ >1.0'}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 # =================== PERFORMANCE TRACKER ===================
 class PerformanceTracker:
     """Simple tracker for system predictions vs actual results."""
