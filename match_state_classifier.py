@@ -4,7 +4,7 @@ BRUTBALL MATCH STATE & DURABILITY CLASSIFIER v1.6 - CSV-COMPLIANT VERSION
 COMPLETE UNIFIED FILE - 100% CSV-COMPLIANT
 
 CRITICAL RULE: CSV-ONLY ARCHITECTURE
-- Uses ONLY: goals_scored_last_5, goals_conceded_last_5, opponent_attack_avg
+- Uses ONLY: goals_scored_last_5, goals_conceded_last_5
 - NO concede_last_5_list (illegal)
 - NO match-by-match granularity
 - NO hidden data structures
@@ -23,7 +23,6 @@ USAGE:
 """
 
 from typing import Dict, Tuple, List, Optional, Any
-import pandas as pd
 
 
 class MatchStateClassifier:
@@ -168,15 +167,6 @@ class MatchStateClassifier:
                     # Max reasonable: 5 matches × 10 goals/match = 50
                     if value < 0 or value > 50:
                         missing_fields.append(f"{team}.{field}_range_error")
-                    
-                    # Zero-sum validation (if both are zero, likely missing data)
-                    if value == 0 and field == 'goals_scored_last_5':
-                        # Check if this is likely real data or missing data
-                        conceded_field = 'goals_conceded_last_5'
-                        conceded_value = validated_data[team].get(conceded_field, 0)
-                        if conceded_value == 0:
-                            # Both zero - likely missing data
-                            missing_fields.append(f"{team}.{field}_zero_data_suspected")
         
         is_valid = len(missing_fields) == 0
         
@@ -388,7 +378,7 @@ class MatchStateClassifier:
         This is the MAIN ENTRY POINT for the classifier.
         Uses ONLY CSV-compliant data.
         """
-        # Step 1: Validate data
+        # Step 1: Validate data - FIXED: Allows 0 values
         is_valid, missing_fields, validated_data = cls.validate_last5_data(home_data, away_data)
         
         if not is_valid:
@@ -674,10 +664,9 @@ class MatchStateClassifier:
             quality_score = 100  # Perfect if valid
             
             suggestions = []
-            if home_goals_avg == 0 and home_conceded_avg == 0:
-                suggestions.append("Home team data shows all zeros - verify this is correct")
-            if away_goals_avg == 0 and away_conceded_avg == 0:
-                suggestions.append("Away team data shows all zeros - verify this is correct")
+            # NOTE: 0 values are now VALID, not suspicious
+            # A team can score 0 goals in last 5 matches
+            
         else:
             home_goals_avg = home_conceded_avg = away_goals_avg = away_conceded_avg = 0
             quality_score = 0
