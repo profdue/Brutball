@@ -2764,27 +2764,61 @@ def main():
             
             if stats['total_predictions'] == 0:
                 st.info("No predictions recorded yet. Analyze matches and record results to build performance data.")
-        
         # =================== READ-ONLY STATE & DURABILITY CLASSIFICATION ===================
-        # CRITICAL: This runs AFTER all betting logic is complete
-        # Does NOT affect existing results, stakes, or decisions
-        classification_result = None
-        if STATE_CLASSIFIER_AVAILABLE and get_complete_classification:
-            try:
-                classification_result = get_complete_classification(home_data, away_data)
-                # Add as separate, read-only fields
-                result['state_classification'] = classification_result
-                result['classification_is_read_only'] = True
-                result['classification_does_not_affect_betting'] = True
-            except Exception as e:
-                # Fail gracefully - classification is optional
-                classification_result = {
-                    'dominant_state': 'CLASSIFIER_ERROR',
-                    'error': str(e),
-                    'is_read_only': True,
-                    'does_not_affect_betting': True
+# CRITICAL: This runs AFTER all betting logic is complete
+# Does NOT affect existing results, stakes, or decisions
+classification_result = None
+if STATE_CLASSIFIER_AVAILABLE and get_complete_classification:
+    try:
+        classification_result = get_complete_classification(home_data, away_data)
+        
+        # ========== NEW: CHECK FOR CLASSIFIER ERRORS ==========
+        if classification_result and 'classification_error' in classification_result:
+            # Classifier has data validation error - DISABLED state
+            error_message = classification_result.get('error_message', 'Unknown data error')
+            error_type = classification_result.get('error_type', 'MISSING_DATA')
+            
+            classification_result = {
+                'classification_error': True,
+                'error_message': error_message,
+                'error_type': error_type,
+                'missing_fields': classification_result.get('missing_fields', []),
+                'is_read_only': True,
+                'does_not_affect_betting': True,
+                'metadata': {
+                    'status': 'DISABLED - INSUFFICIENT_DATA',
+                    'action': 'Check CSV for goals_scored_last_5 and goals_conceded_last_5 fields'
                 }
-                result['state_classification'] = classification_result
+            }
+            result['state_classification'] = classification_result
+            result['classification_is_read_only'] = True
+            result['classification_does_not_affect_betting'] = True
+            result['classifier_status'] = 'DISABLED'
+            
+        else:
+            # Classifier worked normally - add as separate, read-only fields
+            result['state_classification'] = classification_result
+            result['classification_is_read_only'] = True
+            result['classification_does_not_affect_betting'] = True
+            result['classifier_status'] = 'ACTIVE'
+            
+    except Exception as e:
+        # Fail gracefully - classification is optional
+        classification_result = {
+            'classification_error': True,
+            'error_message': f"Classifier runtime error: {str(e)}",
+            'error_type': 'RUNTIME_ERROR',
+            'is_read_only': True,
+            'does_not_affect_betting': True,
+            'metadata': {
+                'status': 'DISABLED - RUNTIME_ERROR',
+                'action': 'Check classifier module integrity'
+            }
+        }
+        result['state_classification'] = classification_result
+        result['classification_is_read_only'] = True
+        result['classification_does_not_affect_betting'] = True
+        result['classifier_status'] = 'ERROR'
         
         # =================== INTEGRATED SYSTEM VERDICT ===================
         st.markdown("### 🎯 INTEGRATED SYSTEM VERDICT v6.3")
@@ -2820,24 +2854,49 @@ def main():
         </div>
         """
         st.markdown(capital_html, unsafe_allow_html=True)
-        
         # =================== STATE & DURABILITY CLASSIFICATION DISPLAY ===================
-        if classification_result:
-            st.markdown("#### 🔍 PRE-MATCH STRUCTURAL INTELLIGENCE (READ-ONLY)")
-
-            # Use safe display function
-            safe_classification_display(classification_result, home_team, away_team)
+if classification_result and 'state_classification' in result:
+    
+    # ========== NEW: CHECK FOR ERRORS FIRST ==========
+    if classification_result.get('classification_error', False):
+        # Show error state - Classifier disabled
+        error_type = classification_result.get('error_type', 'UNKNOWN')
+        error_message = classification_result.get('error_message', 'Unknown error')
+        
+        st.markdown("#### 🔍 PRE-MATCH STRUCTURAL INTELLIGENCE (READ-ONLY)")
+        st.warning(f"⚠️ **Classifier Unavailable: {error_message}**")
+        
+        # Show basic last-5 data if we have it
+        with st.expander("📊 Basic Last 5 Matches Data (Available)"):
+            col1, col2 = st.columns(2)
+            with col1:
+                home_goals = home_data.get('goals_scored_last_5', 'N/A')
+                home_conceded = home_data.get('goals_conceded_last_5', 'N/A')
+                st.metric(f"{home_team} Goals Scored (Last 5)", home_goals)
+                st.metric(f"{home_team} Goals Conceded (Last 5)", home_conceded)
+            with col2:
+                away_goals = away_data.get('goals_scored_last_5', 'N/A')
+                away_conceded = away_data.get('goals_conceded_last_5', 'N/A')
+                st.metric(f"{away_team} Goals Scored (Last 5)", away_goals)
+                st.metric(f"{away_team} Goals Conceded (Last 5)", away_conceded)
             
-            # Display the perspective boxes
-            st.markdown("""
-            <div class="perspective-display">
-                <h4>📊 STRUCTURAL ANALYSIS (Last 5 Matches Only)</h4>
-                <p style="color: #374151; margin-bottom: 1rem;">All calculations use LAST 5 MATCHES only. Does NOT affect betting logic.</p>
-            """, unsafe_allow_html=True)
-            
-            # Get classification data
-            averages = classification_result.get('averages', {})
-            opponent_data = classification_result.get('opponent_under_15', {})
+            st.info("⚠️ Note: Full classification unavailable due to missing last-5 data in CSV")
+            st.markdown("**Required CSV fields:** `goals_scored_last_5`, `goals_conceded_last_5`")
+    
+    else:
+        # ========== OLD DISPLAY LOGIC (Updated for new structure) ==========
+        st.markdown("#### 🔍 PRE-MATCH STRUCTURAL INTELLIGENCE (READ-ONLY)")
+        
+        # Display the perspective boxes
+        st.markdown("""
+        <div class="perspective-display">
+            <h4>📊 STRUCTURAL ANALYSIS (Last 5 Matches Only)</h4>
+            <p style="color: #374151; margin-bottom: 1rem;">All calculations use LAST 5 MATCHES only. Does NOT affect betting logic.</p>
+        """, unsafe_allow_html=True)
+        
+        # Get classification data (now guaranteed to exist)
+        averages = classification_result.get('averages', {})
+        opponent_data = classification_result.get('opponent_under_15', {})
             
             # Home Team Box
             home_html = f"""
