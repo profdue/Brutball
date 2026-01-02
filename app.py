@@ -2643,7 +2643,7 @@ def main():
         st.markdown("### 🎯 BET-READY SIGNALS (Human-Readable)")
         
         # Display bet-ready signals
-        display_bet_ready_signals(result['edge_derived_locks'], home_team, away_team)
+        display_bet_ready_signals_streamlit(result['edge_derived_locks'], home_team, away_team)
         
         # =================== PERFORMANCE TRACKING ===================
         with st.expander("📊 Performance Dashboard", expanded=False):
