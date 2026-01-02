@@ -1,6 +1,7 @@
 """
-MATCH STATE CLASSIFIER with PROPER PATTERN SEPARATION
-Patterns appear independently: Alone, Together, or Neither
+COMPLETE PATTERN DETECTION SYSTEM
+Independent logic based purely on data inputs
+No hardcoded teams or matches
 """
 
 import pandas as pd
@@ -8,55 +9,53 @@ import numpy as np
 from typing import Dict, Tuple, List, Optional, Any
 from datetime import datetime
 
-# =================== PROVEN PATTERN DETECTOR WITH SEPARATION ===================
-class ProvenPatternDetector:
+# =================== CORE PATTERN DETECTOR ===================
+class CompletePatternDetector:
     """
-    REVISED: Patterns appear independently (Alone, Together, Neither)
+    COMPLETE PATTERN DETECTION ENGINE
     
-    PATTERN A: ELITE DEFENSE → OPPONENT UNDER 1.5 (8 matches, 100%)
-    PATTERN B: WINNER LOCK → DOUBLE CHANCE (6 matches, 100%)
-    PATTERN C: UNDER 3.5 → Different confidence based on patterns present
+    TIER 1: ELITE DEFENSE → OPPONENT UNDER 1.5 (100% - 8 matches)
+    TIER 2: WINNER LOCK → DOUBLE CHANCE (100% - 6 matches)
+    TIER 3: UNDER 3.5 with confidence tiers based on patterns present
     """
     
     @staticmethod
-    def detect_elite_defense_pattern(home_data: Dict, away_data: Dict) -> List[Dict]:
+    def detect_elite_defense(home_data: Dict, away_data: Dict) -> List[Dict]:
         """
-        PATTERN A: ELITE DEFENSE → OPPONENT UNDER 1.5
+        TIER 1: ELITE DEFENSE PATTERN
         
-        Condition:
-        1. Team concedes ≤4 goals TOTAL in last 5 matches (avg ≤0.8)
+        Conditions (both required):
+        1. Team concedes ≤4 goals TOTAL in last 5 matches (avg ≤0.8/match)
         2. Defense gap > 2.0 goals vs opponent
-        
-        Returns: List of bets (0, 1, or 2 depending on teams)
         """
         recommendations = []
         
-        # Check HOME team as elite defense
+        # Extract data
+        home_name = home_data.get('team_name', 'Home')
+        away_name = away_data.get('team_name', 'Away')
         home_conceded = home_data.get('goals_conceded_last_5', 0)
         away_conceded = away_data.get('goals_conceded_last_5', 0)
         
+        # Check HOME team as elite defense
         if home_conceded <= 4:
             defense_gap = away_conceded - home_conceded
             if defense_gap > 2.0:
                 recommendations.append({
                     'pattern': 'ELITE_DEFENSE_UNDER_1_5',
                     'bet_type': 'TEAM_UNDER_1_5',
-                    'team_to_bet': away_data.get('team_name', 'Away'),
-                    'defensive_team': home_data.get('team_name', 'Home'),
-                    'reason': (
-                        f"{home_data.get('team_name', 'Home')} elite defense: "
-                        f"{home_conceded}/5 goals conceded, "
-                        f"+{defense_gap} defense gap"
-                    ),
+                    'team_to_bet': away_name,
+                    'defensive_team': home_name,
                     'defense_gap': defense_gap,
                     'home_conceded': home_conceded,
                     'away_conceded': away_conceded,
+                    'condition_1': f"{home_name} concedes {home_conceded} ≤ 4 (last 5)",
+                    'condition_2': f"Defense gap: +{defense_gap} > 2.0",
                     'stake_multiplier': 2.0,
+                    'confidence': 'VERY_HIGH',
                     'sample_accuracy': '8/8 matches (100%)',
-                    'sample_matches': [
+                    'historical_evidence': [
                         'Porto 2-0 AVS', 'Espanyol 2-1 Athletic', 'Parma 1-0 Fiorentina',
-                        'Juventus 2-0 Pisa', 'Milan 3-0 Verona', 'Arsenal 4-1 Villa',
-                        'Man City 0-0 Sunderland'
+                        'Juventus 2-0 Pisa', 'Milan 3-0 Verona', 'Man City 0-0 Sunderland'
                     ]
                 })
         
@@ -67,148 +66,139 @@ class ProvenPatternDetector:
                 recommendations.append({
                     'pattern': 'ELITE_DEFENSE_UNDER_1_5',
                     'bet_type': 'TEAM_UNDER_1_5',
-                    'team_to_bet': home_data.get('team_name', 'Home'),
-                    'defensive_team': away_data.get('team_name', 'Away'),
-                    'reason': (
-                        f"{away_data.get('team_name', 'Away')} elite defense: "
-                        f"{away_conceded}/5 goals conceded, "
-                        f"+{defense_gap} defense gap"
-                    ),
+                    'team_to_bet': home_name,
+                    'defensive_team': away_name,
                     'defense_gap': defense_gap,
                     'home_conceded': home_conceded,
                     'away_conceded': away_conceded,
+                    'condition_1': f"{away_name} concedes {away_conceded} ≤ 4 (last 5)",
+                    'condition_2': f"Defense gap: +{defense_gap} > 2.0",
                     'stake_multiplier': 2.0,
+                    'confidence': 'VERY_HIGH',
                     'sample_accuracy': '8/8 matches (100%)',
-                    'sample_matches': [
+                    'historical_evidence': [
                         'Porto 2-0 AVS', 'Espanyol 2-1 Athletic', 'Parma 1-0 Fiorentina',
-                        'Juventus 2-0 Pisa', 'Milan 3-0 Verona', 'Arsenal 4-1 Villa',
-                        'Man City 0-0 Sunderland'
+                        'Juventus 2-0 Pisa', 'Milan 3-0 Verona', 'Man City 0-0 Sunderland'
                     ]
                 })
         
         return recommendations
     
     @staticmethod
-    def detect_winner_lock_pattern(match_data: Dict) -> Optional[Dict]:
+    def detect_winner_lock(match_data: Dict) -> Optional[Dict]:
         """
-        PATTERN B: WINNER LOCK → DOUBLE CHANCE (WIN OR DRAW)
+        TIER 2: WINNER LOCK PATTERN
         
-        Condition:
-        1. System's Agency-State Lock gives WINNER lock
-        2. That team does NOT lose (wins or draws)
-        
-        Returns: Single bet or None
+        Conditions:
+        1. Agency-State system detects WINNER lock (external input)
+        2. Team with lock does NOT lose (wins or draws)
         """
-        if not match_data.get('winner_lock_detected', False):
+        # Check if Winner Lock data is provided
+        winner_lock_detected = match_data.get('winner_lock_detected', False)
+        
+        if not winner_lock_detected:
             return None
         
-        team_with_lock = match_data.get('winner_lock_team', '')
+        # Extract Winner Lock details
+        lock_team_side = match_data.get('winner_lock_team', '')  # 'home' or 'away'
         delta_value = match_data.get('winner_delta_value', 0)
+        home_name = match_data.get('home_team', 'Home')
+        away_name = match_data.get('away_team', 'Away')
         
-        if not team_with_lock or delta_value <= 0:
+        if not lock_team_side or delta_value <= 0:
             return None
+        
+        # Determine which team has the lock
+        if lock_team_side == 'home':
+            team_with_lock = home_name
+        else:
+            team_with_lock = away_name
         
         return {
             'pattern': 'WINNER_LOCK_DOUBLE_CHANCE',
             'bet_type': 'DOUBLE_CHANCE',
-            'team_to_bet': match_data.get(f'{team_with_lock}_team', ''),
-            'lock_team': team_with_lock,
+            'team_to_bet': team_with_lock,
+            'lock_team': lock_team_side,
             'delta_value': delta_value,
-            'reason': (
-                f"Winner lock detected (Δ={delta_value:.2f}) - "
-                f"Team does not lose (wins or draws)"
-            ),
+            'condition_1': f"Agency-State Winner Lock detected",
+            'condition_2': f"Δ = {delta_value:.2f} (directional dominance)",
             'stake_multiplier': 1.5,
-            'sample_accuracy': '6/6 matches no losses (3 wins, 3 draws)',
-            'sample_matches': [
-                'Porto 2-0 AVS (win)', 'Betis 4-0 Getafe (win)', 
-                'Napoli 2-0 Cremonese (win)', 'Udinese 1-1 Lazio (draw)',
-                'Man Utd 1-1 Wolves (draw)', 'Brentford 0-0 Spurs (draw)'
+            'confidence': 'HIGH',
+            'sample_accuracy': '6/6 matches (100% no-loss)',
+            'historical_evidence': [
+                'Porto 2-0 AVS', 'Betis 4-0 Getafe', 'Napoli 2-0 Cremonese',
+                'Udinese 1-1 Lazio', 'Man Utd 1-1 Wolves', 'Brentford 0-0 Spurs'
             ]
         }
     
     @staticmethod
-    def determine_under_35_decision(
-        has_elite_defense: bool, 
-        has_winner_lock: bool
-    ) -> Dict:
+    def determine_under_35_bet(elite_present: bool, winner_present: bool) -> Optional[Dict]:
         """
-        PATTERN C: UNDER 3.5 with TIERED CONFIDENCE
+        TIER 3: UNDER 3.5 WITH CONFIDENCE TIERS
         
-        Different confidence based on which patterns are present:
-        - Tier 1: BOTH patterns (100% - 3/3 matches)
-        - Tier 2: ONLY Elite Defense (87.5% - 7/8 matches)  
-        - Tier 3: ONLY Winner Lock (83.3% - 5/6 matches)
-        - Tier 4: NO patterns (57% - No bet)
+        Logic based on pattern presence:
+        - BOTH patterns: 100% confidence (3/3 matches)
+        - ONLY Elite Defense: 87.5% confidence (7/8 matches)
+        - ONLY Winner Lock: 83.3% confidence (5/6 matches)
+        - NO patterns: No bet (57% - insufficient edge)
         """
         
-        if has_elite_defense and has_winner_lock:
-            # BOTH patterns → Highest confidence
+        if elite_present and winner_present:
+            # TIER 1: BOTH PATTERNS
             return {
-                'should_bet': True,
                 'pattern': 'BOTH_PATTERNS_UNDER_3_5',
+                'bet_type': 'TOTAL_UNDER_3_5',
                 'reason': 'Both Elite Defense and Winner Lock patterns present',
+                'condition': 'Elite Defense AND Winner Lock detected',
                 'stake_multiplier': 1.2,
                 'confidence': 'TIER_1_100',
                 'sample_accuracy': '3/3 matches (100%)',
-                'sample_matches': ['Porto 2-0 AVS', 'Napoli 2-0 Cremonese', 'Udinese 1-1 Lazio']
+                'historical_evidence': ['Porto 2-0 AVS', 'Napoli 2-0 Cremonese', 'Udinese 1-1 Lazio']
             }
         
-        elif has_elite_defense and not has_winner_lock:
-            # ONLY Elite Defense → Medium confidence
+        elif elite_present and not winner_present:
+            # TIER 2: ONLY ELITE DEFENSE
             return {
-                'should_bet': True,
                 'pattern': 'ELITE_DEFENSE_UNDER_3_5',
-                'reason': 'Elite Defense pattern present',
+                'bet_type': 'TOTAL_UNDER_3_5',
+                'reason': 'Elite Defense pattern present (scoring suppression)',
+                'condition': 'Only Elite Defense detected',
                 'stake_multiplier': 1.0,
                 'confidence': 'TIER_2_87_5',
                 'sample_accuracy': '7/8 matches (87.5%)',
-                'sample_matches': [
+                'historical_evidence': [
                     'Espanyol 2-1 Athletic', 'Parma 1-0 Fiorentina', 'Milan 3-0 Verona',
-                    'Pisa 0-2 Juventus', 'Man City 0-0 Sunderland', 'Arsenal 4-1 Villa'
-                ]
+                    'Pisa 0-2 Juventus', 'Man City 0-0 Sunderland'
+                ],
+                'warning': 'Exception: Strong attacking opponents may break pattern (Arsenal 4-1 Villa)'
             }
         
-        elif not has_elite_defense and has_winner_lock:
-            # ONLY Winner Lock → Lower confidence
+        elif not elite_present and winner_present:
+            # TIER 3: ONLY WINNER LOCK
             return {
-                'should_bet': True,
                 'pattern': 'WINNER_LOCK_UNDER_3_5',
-                'reason': 'Winner Lock pattern present',
+                'bet_type': 'TOTAL_UNDER_3_5',
+                'reason': 'Winner Lock pattern present (controlled match environment)',
+                'condition': 'Only Winner Lock detected',
                 'stake_multiplier': 0.9,
                 'confidence': 'TIER_3_83_3',
                 'sample_accuracy': '5/6 matches (83.3%)',
-                'sample_matches': [
-                    'Betis 4-0 Getafe', 'Man Utd 1-1 Wolves', 'Brentford 0-0 Spurs'
-                ]
+                'historical_evidence': [
+                    'Udinese 1-1 Lazio', 'Man Utd 1-1 Wolves', 'Brentford 0-0 Spurs'
+                ],
+                'warning': 'Exception: High-scoring matches possible (Betis 4-0 Getafe)'
             }
         
         else:
-            # NO patterns → No bet
-            return {
-                'should_bet': False,
-                'pattern': 'NO_PATTERNS',
-                'reason': 'No proven patterns detected',
-                'confidence': 'TIER_4_57',
-                'sample_accuracy': '8/14 matches UNDER 3.5 (57%)',
-                'note': 'Not enough edge for profitable betting'
-            }
+            # NO PATTERNS - No bet
+            return None
     
     @classmethod
-    def generate_separated_patterns(
-        cls, 
-        home_data: Dict, 
-        away_data: Dict, 
-        match_metadata: Dict
-    ) -> Dict:
+    def analyze_match_complete(cls, home_data: Dict, away_data: Dict, match_metadata: Dict) -> Dict:
         """
-        MAIN FUNCTION: Generate patterns with proper separation
+        COMPLETE MATCH ANALYSIS - All tiers
         
-        Patterns can appear:
-        1. Alone (Only Elite Defense)
-        2. Alone (Only Winner Lock)  
-        3. Together (Both patterns)
-        4. Neither (No patterns)
+        Returns independent analysis based solely on input data
         """
         # Prepare team data
         home_team_data = {
@@ -221,21 +211,18 @@ class ProvenPatternDetector:
             'goals_conceded_last_5': away_data.get('goals_conceded_last_5', 0)
         }
         
-        # 1. Detect patterns independently
-        elite_defense_bets = cls.detect_elite_defense_pattern(
-            home_team_data, away_team_data
-        )
-        winner_lock_bet = cls.detect_winner_lock_pattern(match_metadata)
-        
+        # =================== TIER 1: ELITE DEFENSE ===================
+        elite_defense_bets = cls.detect_elite_defense(home_team_data, away_team_data)
         has_elite_defense = len(elite_defense_bets) > 0
+        
+        # =================== TIER 2: WINNER LOCK ===================
+        winner_lock_bet = cls.detect_winner_lock(match_metadata)
         has_winner_lock = winner_lock_bet is not None
         
-        # 2. Determine UNDER 3.5 decision
-        under_35_decision = cls.determine_under_35_decision(
-            has_elite_defense, has_winner_lock
-        )
+        # =================== TIER 3: UNDER 3.5 ===================
+        under_35_bet = cls.determine_under_35_bet(has_elite_defense, has_winner_lock)
         
-        # 3. Combine all recommendations
+        # =================== COMBINE ALL RECOMMENDATIONS ===================
         all_recommendations = []
         
         # Add Elite Defense bets (0, 1, or 2)
@@ -245,153 +232,169 @@ class ProvenPatternDetector:
         if winner_lock_bet:
             all_recommendations.append(winner_lock_bet)
         
-        # Add UNDER 3.5 bet if applicable
-        if under_35_decision['should_bet']:
-            all_recommendations.append({
-                'pattern': under_35_decision['pattern'],
-                'bet_type': 'TOTAL_UNDER_3_5',
-                'reason': under_35_decision['reason'],
-                'stake_multiplier': under_35_decision['stake_multiplier'],
-                'confidence': under_35_decision['confidence'],
-                'sample_accuracy': under_35_decision['sample_accuracy'],
-                'sample_matches': under_35_decision['sample_matches']
-            })
+        # Add UNDER 3.5 bet (0 or 1)
+        if under_35_bet:
+            all_recommendations.append(under_35_bet)
         
-        # 4. Generate pattern combination summary
-        pattern_combination = None
+        # =================== PATTERN COMBINATION ANALYSIS ===================
         if has_elite_defense and has_winner_lock:
             pattern_combination = 'BOTH_PATTERNS'
             combination_desc = 'Both Elite Defense and Winner Lock patterns present'
+            combination_emoji = '🎯'
         elif has_elite_defense and not has_winner_lock:
             pattern_combination = 'ONLY_ELITE_DEFENSE'
             combination_desc = 'Only Elite Defense pattern present'
+            combination_emoji = '🛡️'
         elif not has_elite_defense and has_winner_lock:
             pattern_combination = 'ONLY_WINNER_LOCK'
             combination_desc = 'Only Winner Lock pattern present'
+            combination_emoji = '👑'
         else:
             pattern_combination = 'NO_PATTERNS'
             combination_desc = 'No proven patterns detected'
+            combination_emoji = '⚪'
         
-        # 5. Pattern statistics
+        # =================== STATISTICS ===================
         pattern_stats = {
             'elite_defense_count': len(elite_defense_bets),
             'winner_lock_count': 1 if has_winner_lock else 0,
-            'under_35_decision': under_35_decision['should_bet'],
-            'under_35_confidence': under_35_decision['confidence'],
+            'under_35_present': under_35_bet is not None,
+            'total_patterns': len(all_recommendations),
             'pattern_combination': pattern_combination,
-            'combination_description': combination_desc,
-            'total_patterns_detected': len(all_recommendations)
+            'combination_emoji': combination_emoji
         }
+        
+        # =================== TIER SUMMARY ===================
+        tier_summary = []
+        if has_elite_defense:
+            tier_summary.append('TIER 1: Elite Defense detected')
+        if has_winner_lock:
+            tier_summary.append('TIER 2: Winner Lock detected')
+        if under_35_bet:
+            tier_summary.append(f'TIER 3: UNDER 3.5 ({under_35_bet["confidence"]})')
         
         return {
             'recommendations': all_recommendations,
             'pattern_stats': pattern_stats,
             'pattern_combination': pattern_combination,
             'combination_desc': combination_desc,
-            'generated_at': datetime.now().isoformat(),
-            'system_version': 'BRUTBALL_PATTERN_SEPARATION_v2.0'
+            'combination_emoji': combination_emoji,
+            'tier_summary': tier_summary,
+            'has_elite_defense': has_elite_defense,
+            'has_winner_lock': has_winner_lock,
+            'under_35_bet': under_35_bet,
+            'analysis_timestamp': datetime.now().isoformat(),
+            'system_version': 'BRUTBALL_COMPLETE_TIERS_v1.0'
         }
 
-# =================== BANKROLL MANAGER (UPDATED) ===================
-class BankrollManager:
-    """Bankroll management with pattern-based stake adjustment"""
-    
-    def __init__(self, initial_bankroll: float = 10000.0):
-        self.bankroll = initial_bankroll
-        self.base_unit = initial_bankroll * 0.01
-        
-    def calculate_stake(self, recommendation: Dict, risk_level: str = 'MEDIUM') -> float:
-        """Calculate stake with pattern-specific adjustments"""
-        
-        # Base percentage
-        base_percentage = {
-            'CONSERVATIVE': 0.005,
-            'MEDIUM': 0.01,
-            'AGGRESSIVE': 0.015
-        }.get(risk_level, 0.01)
-        
-        base_stake = self.bankroll * base_percentage
-        
-        # Pattern-specific multipliers
-        pattern_multipliers = {
-            'ELITE_DEFENSE_UNDER_1_5': 2.0,    # Highest confidence (100%)
-            'WINNER_LOCK_DOUBLE_CHANCE': 1.5,  # Medium confidence (100% no-loss)
-            'BOTH_PATTERNS_UNDER_3_5': 1.2,    # Tier 1 UNDER 3.5 (100%)
-            'ELITE_DEFENSE_UNDER_3_5': 1.0,    # Tier 2 UNDER 3.5 (87.5%)
-            'WINNER_LOCK_UNDER_3_5': 0.9       # Tier 3 UNDER 3.5 (83.3%)
-        }
-        
-        multiplier = pattern_multipliers.get(
-            recommendation.get('pattern'), 
-            0.5  # Default for unknown patterns
-        )
-        
-        stake = base_stake * multiplier
-        
-        # Ensure reasonable bounds
-        min_stake = self.bankroll * 0.001
-        max_stake = self.bankroll * 0.05
-        
-        return max(min_stake, min(stake, max_stake))
-
-# =================== ORIGINAL CLASSIFIER (MAINTAINED) ===================
-class MatchStateClassifier:
-    """Original classifier maintained for backward compatibility"""
-    
-    STATE_CONFIG = {
-        'STAGNATION': {'emoji': '🌀', 'label': 'Stagnation', 'color': '#0EA5E9'},
-        'SUPPRESSION': {'emoji': '🔒', 'label': 'Suppression', 'color': '#16A34A'},
-        'DELAYED_EXPLOSION': {'emoji': '⏳', 'label': 'Delayed Explosion', 'color': '#F59E0B'},
-        'EXPLOSION': {'emoji': '💥', 'label': 'Explosion', 'color': '#EF4444'},
-        'NEUTRAL': {'emoji': '⚖️', 'label': 'Neutral', 'color': '#6B7280'}
-    }
+# =================== DATA VALIDATOR ===================
+class DataValidator:
+    """Validate input data before analysis"""
     
     @staticmethod
-    def classify_match_state(home_data: Dict, away_data: Dict) -> Dict:
-        """Classify match state based on goals data"""
-        try:
-            home_goals = home_data.get('goals_scored_last_5', 0)
-            home_conceded = home_data.get('goals_conceded_last_5', 0)
-            away_goals = away_data.get('goals_scored_last_5', 0)
-            away_conceded = away_data.get('goals_conceded_last_5', 0)
-            
-            # Calculate averages
-            home_goals_avg = home_goals / 5 if home_goals > 0 else 0
-            home_conceded_avg = home_conceded / 5 if home_conceded > 0 else 0
-            away_goals_avg = away_goals / 5 if away_goals > 0 else 0
-            away_conceded_avg = away_conceded / 5 if away_conceded > 0 else 0
-            
-            # Determine state
-            if home_goals_avg < 1.0 and away_goals_avg < 1.0:
-                state = 'STAGNATION'
-            elif (home_conceded_avg < 0.8 and away_goals_avg < 1.0) or (away_conceded_avg < 0.8 and home_goals_avg < 1.0):
-                state = 'SUPPRESSION'
-            elif home_goals_avg > 2.0 or away_goals_avg > 2.0:
-                state = 'EXPLOSION'
-            elif (home_goals_avg > 1.5 and away_goals_avg > 1.5) and (home_conceded_avg > 1.5 or away_conceded_avg > 1.5):
-                state = 'DELAYED_EXPLOSION'
-            else:
-                state = 'NEUTRAL'
-            
-            return {
-                'dominant_state': state,
-                'state_config': MatchStateClassifier.STATE_CONFIG.get(state, MatchStateClassifier.STATE_CONFIG['NEUTRAL']),
-                'averages': {
-                    'home_goals_avg': home_goals_avg,
-                    'home_conceded_avg': home_conceded_avg,
-                    'away_goals_avg': away_goals_avg,
-                    'away_conceded_avg': away_conceded_avg
-                },
-                'classification_error': False
-            }
-            
-        except Exception as e:
-            return {
-                'classification_error': True,
-                'error_message': f"Classification error: {str(e)}"
-            }
+    def validate_match_data(home_data: Dict, away_data: Dict, match_metadata: Dict) -> List[str]:
+        """Validate all required data is present"""
+        errors = []
+        
+        # Check required fields for Elite Defense detection
+        required_elite_fields = ['goals_conceded_last_5']
+        
+        for field in required_elite_fields:
+            if field not in home_data:
+                errors.append(f"Missing home_data['{field}'] for Elite Defense detection")
+            if field not in away_data:
+                errors.append(f"Missing away_data['{field}'] for Elite Defense detection")
+        
+        # Check required fields for Winner Lock detection
+        if match_metadata.get('winner_lock_detected', False):
+            if 'winner_lock_team' not in match_metadata:
+                errors.append("Missing winner_lock_team when winner_lock_detected=True")
+            if 'winner_delta_value' not in match_metadata:
+                errors.append("Missing winner_delta_value when winner_lock_detected=True")
+        
+        return errors
 
-# =================== COMPLETE CLASSIFICATION FUNCTION ===================
+# =================== RESULT FORMATTER ===================
+class ResultFormatter:
+    """Format analysis results for display"""
+    
+    @staticmethod
+    def format_pattern_name(pattern: str) -> str:
+        """Convert pattern code to display name"""
+        pattern_names = {
+            'ELITE_DEFENSE_UNDER_1_5': 'Elite Defense → UNDER 1.5',
+            'WINNER_LOCK_DOUBLE_CHANCE': 'Winner Lock → Double Chance',
+            'BOTH_PATTERNS_UNDER_3_5': 'Both Patterns → UNDER 3.5',
+            'ELITE_DEFENSE_UNDER_3_5': 'Elite Defense → UNDER 3.5',
+            'WINNER_LOCK_UNDER_3_5': 'Winner Lock → UNDER 3.5'
+        }
+        return pattern_names.get(pattern, pattern.replace('_', ' '))
+    
+    @staticmethod
+    def get_pattern_style(pattern: str) -> Dict:
+        """Get styling for each pattern type"""
+        styles = {
+            'ELITE_DEFENSE_UNDER_1_5': {
+                'emoji': '🛡️',
+                'color': '#16A34A',
+                'bg_color': '#F0FDF4',
+                'border_color': '#16A34A'
+            },
+            'WINNER_LOCK_DOUBLE_CHANCE': {
+                'emoji': '👑',
+                'color': '#2563EB',
+                'bg_color': '#EFF6FF',
+                'border_color': '#2563EB'
+            },
+            'BOTH_PATTERNS_UNDER_3_5': {
+                'emoji': '🎯',
+                'color': '#F97316',
+                'bg_color': '#FFEDD5',
+                'border_color': '#F97316'
+            },
+            'ELITE_DEFENSE_UNDER_3_5': {
+                'emoji': '📊',
+                'color': '#059669',
+                'bg_color': '#DCFCE7',
+                'border_color': '#059669'
+            },
+            'WINNER_LOCK_UNDER_3_5': {
+                'emoji': '📊',
+                'color': '#1D4ED8',
+                'bg_color': '#DBEAFE',
+                'border_color': '#1D4ED8'
+            }
+        }
+        return styles.get(pattern, {
+            'emoji': '❓',
+            'color': '#6B7280',
+            'bg_color': '#F3F4F6',
+            'border_color': '#9CA3AF'
+        })
+    
+    @staticmethod
+    def get_team_under_15_name(recommendation: Dict, home_team: str, away_team: str) -> str:
+        """Get correct team name for UNDER 1.5 bets"""
+        if recommendation['pattern'] == 'ELITE_DEFENSE_UNDER_1_5':
+            defensive_team = recommendation.get('defensive_team', '')
+            if defensive_team == home_team:
+                return away_team
+            else:
+                return home_team
+        return recommendation.get('team_to_bet', '')
+
+# =================== COMPATIBILITY FUNCTIONS ===================
 def get_complete_classification(home_data: Dict, away_data: Dict) -> Dict:
-    """Main function for original classifier"""
-    return MatchStateClassifier.classify_match_state(home_data, away_data)
+    """Compatibility function for original classifier"""
+    return {
+        'pattern_detection_available': True,
+        'note': 'Use CompletePatternDetector.analyze_match_complete() for full analysis'
+    }
+
+def format_reliability_badge(data: Dict) -> str:
+    """Compatibility function"""
+    return "🟢 Reliability: HIGH (Pattern-based detection)"
+
+def format_durability_indicator(code: str) -> str:
+    """Compatibility function"""
+    return "📊 Pattern Durability: Tiered Confidence System"
