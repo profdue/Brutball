@@ -3102,8 +3102,8 @@ if classification_result and 'state_classification' in result:
         averages = classification_result.get('averages', {})
         opponent_data = classification_result.get('opponent_under_15', {})
             
-            # Home Team Box
-            home_html = f"""
+        # Home Team Box
+        home_html = f"""
             <div class="perspective-box perspective-home">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                     <div style="font-weight: 700; color: #1E40AF;">{home_team}</div>
