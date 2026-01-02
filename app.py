@@ -2873,8 +2873,9 @@ def main():
         """, unsafe_allow_html=True)
     
     # Execute analysis
-    if st.button("⚡ EXECUTE INTEGRATED ANALYSIS v6.3", type="primary", use_container_width=True, key="execute_analysis"):
-        
+# After (properly indented):
+if st.button("⚡ EXECUTE INTEGRATED ANALYSIS v6.3", type="primary", use_container_width=True, key="execute_analysis"):
+    
         # Get data
         home_data = df[df['team'] == home_team].iloc[0].to_dict()
         away_data = df[df['team'] == away_team].iloc[0].to_dict()
@@ -2898,7 +2899,8 @@ def main():
         st.rerun()
     
     # Display results if analysis is complete
-    if st.session_state.analysis_complete and st.session_state.last_result:
+# After (consistent 4-space indentation):
+if st.session_state.analysis_complete and st.session_state.last_result:
         result = st.session_state.last_result
         
         # =================== BET-READY SIGNALS DISPLAY ===================
@@ -2970,6 +2972,7 @@ def main():
             if stats['total_predictions'] == 0:
                 st.info("No predictions recorded yet. Analyze matches and record results to build performance data.")
         
+# After (fixed indentation for the entire block):
         # =================== READ-ONLY STATE & DURABILITY CLASSIFICATION ===================
         # CRITICAL: This runs AFTER all betting logic is complete
         # Does NOT affect existing results, stakes, or decisions
