@@ -126,93 +126,67 @@ class PerformanceTracker:
 # Initialize performance tracker
 performance_tracker = PerformanceTracker()
 
-# =================== BET-READY SIGNALS DISPLAY ===================
-def display_bet_ready_signals(edge_locks: List[Dict], home_name: str, away_name: str):
-    """Display human-readable betting signals."""
+# =================== BET-READY SIGNALS DISPLAY (FIXED - NO RAW HTML) ===================
+def display_bet_ready_signals_streamlit(edge_locks: List[Dict], home_name: str, away_name: str):
+    """Display human-readable betting signals using Streamlit components only."""
     
     if not edge_locks:
         return
     
-    st.markdown("""
-    <div style="background: linear-gradient(135deg, #ECFDF5 0%, #A7F3D0 100%); 
-                padding: 1.5rem; border-radius: 10px; border: 3px solid #059669; 
-                margin: 1.5rem 0;">
-        <h3 style="color: #065F46; margin: 0 0 1rem 0;">🎯 BET-READY SIGNALS</h3>
-        <p style="color: #374151; margin-bottom: 1rem;">Clear, actionable betting recommendations based on defensive proof</p>
-    </div>
-    """, unsafe_allow_html=True)
+    # Header using Streamlit components
+    st.markdown("---")
+    st.markdown("### 🎯 BET-READY SIGNALS (Human-Readable)")
     
-    # Create a clean table for bet-ready signals
-    for lock in edge_locks:
-        # Determine confidence color
-        confidence_colors = {
-            "VERY STRONG": "#2563EB",
-            "STRONG": "#059669",
-            "WEAK": "#D97706",
-            "VERY WEAK": "#DC2626"
-        }
-        
-        confidence_color = confidence_colors.get(lock['confidence'], "#6B7280")
-        
-        # Display each signal
-        signal_html = f"""
-        <div style="background: white; padding: 1.5rem; border-radius: 8px; 
-                    border: 2px solid {confidence_color}; margin: 1rem 0;">
-            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
-                <div>
-                    <div style="font-size: 1.2rem; font-weight: 700; color: #1F2937;">
-                        {lock['market']}
-                    </div>
-                    <div style="font-size: 0.9rem; color: #6B7280; margin-top: 0.25rem;">
-                        Defensive context: {lock['defensive_team']} concedes {lock['defense_avg']:.2f} avg (last 5)
-                    </div>
-                </div>
-                <div style="text-align: center; min-width: 100px;">
-                    <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">
-                        {lock['confidence_emoji']}
-                    </div>
-                    <div style="font-weight: 700; color: {confidence_color};">
-                        {lock['confidence']}
-                    </div>
-                </div>
-            </div>
+    # Create a clean container for each signal
+    for i, lock in enumerate(edge_locks):
+        with st.container():
+            # Determine confidence color and background
+            confidence_colors = {
+                "VERY STRONG": ("#2563EB", "#EFF6FF", "🔵"),
+                "STRONG": ("#059669", "#F0FDF4", "🟢"),
+                "WEAK": ("#D97706", "#FFFBEB", "🟡"),
+                "VERY WEAK": ("#DC2626", "#FEF2F2", "🔴")
+            }
             
-            <div style="background: #F9FAFB; padding: 1rem; border-radius: 6px; margin: 0.5rem 0;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.5rem;">
-                    <div>
-                        <div style="font-size: 0.85rem; color: #6B7280;">Defensive Team</div>
-                        <div style="font-weight: 600; color: #374151;">{lock['defensive_team']}</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.85rem; color: #6B7280;">Avg Conceded</div>
-                        <div style="font-weight: 600; color: #059669;">{lock['defense_avg']:.2f}</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.85rem; color: #6B7280;">Opponent Attack</div>
-                        <div style="font-weight: 600; color: #DC2626;">{lock['opponent_attack_avg']:.2f}</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.85rem; color: #6B7280;">Capital Multiplier</div>
-                        <div style="font-weight: 600; color: #3B82F6;">{lock['capital_multiplier']:.1f}x</div>
-                    </div>
-                </div>
-                <div style="font-size: 0.9rem; color: #374151;">
-                    <strong>📈 Context:</strong> {lock['full_explanation']}
-                </div>
-            </div>
+            color, bg_color, emoji = confidence_colors.get(
+                lock['confidence'], ("#6B7280", "#F3F4F6", "⚪")
+            )
             
-            <div style="background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%); 
-                        padding: 0.75rem; border-radius: 6px; margin-top: 0.75rem; text-align: center;">
-                <div style="font-size: 1rem; font-weight: 700; color: #92400E;">
-                    {lock['bet_label']}
-                </div>
-                <div style="font-size: 0.85rem; color: #92400E; margin-top: 0.25rem;">
-                    Suggested bet: {lock['team_to_bet']} to score 0 or 1 goals
-                </div>
-            </div>
-        </div>
-        """
-        st.markdown(signal_html, unsafe_allow_html=True)
+            # Create a clean card using Streamlit columns and containers
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                st.markdown(f"#### {lock['market']}")
+                st.markdown(f"**Defensive team:** {lock['defensive_team']} (concedes {lock['defense_avg']:.2f} avg)")
+                st.markdown(f"**Opponent attack:** {lock['opponent_attack_avg']:.2f} avg goals")
+            
+            with col2:
+                st.markdown(f"<div style='text-align: center; font-size: 1.5rem;'>{emoji}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align: center; font-weight: 700; color: {color};'>{lock['confidence']}</div>", unsafe_allow_html=True)
+            
+            # Explanation
+            with st.expander("📈 Context & Bet Suggestion"):
+                col_a, col_b, col_c, col_d = st.columns(4)
+                
+                with col_a:
+                    st.metric("Defensive Team", lock['defensive_team'])
+                with col_b:
+                    st.metric("Avg Conceded", f"{lock['defense_avg']:.2f}")
+                with col_c:
+                    st.metric("Opponent Attack", f"{lock['opponent_attack_avg']:.2f}")
+                with col_d:
+                    st.metric("Multiplier", f"{lock['capital_multiplier']:.1f}x")
+                
+                st.markdown(f"**Context:** {lock['full_explanation']}")
+                
+                # Bet suggestion
+                st.markdown("---")
+                st.success(f"**🎯 Bet Suggestion:** {lock['bet_label']}")
+                st.info(f"**Suggested bet:** {lock['team_to_bet']} to score 0 or 1 goals")
+            
+            # Add spacing between signals
+            if i < len(edge_locks) - 1:
+                st.markdown("---")
 
 # =================== SYSTEM CONSTANTS (IMMUTABLE) ===================
 # v6.0 Edge Detection Engine Constants
@@ -337,7 +311,7 @@ LEAGUES = {
     }
 }
 
-# =================== CSS STYLING ===================
+# =================== CSS STYLING (RETAINED FOR CARDS) ===================
 st.markdown("""
     <style>
     .system-header {
@@ -1920,6 +1894,11 @@ class BrutballIntegratedArchitecture:
         if home_avg_concedes <= DEFENSIVE_PROOF_THRESHOLD:
             confidence, emoji, attack_context = get_confidence_level(away_avg_score)
             
+            # Fix for VERY WEAK confidence language issue
+            full_explanation = f"{away_name} faces {home_name}'s strong defense ({home_avg_concedes:.2f} avg conceded). {attack_context}."
+            if confidence == "VERY WEAK":
+                full_explanation = f"Despite {home_name}'s defensive strength ({home_avg_concedes:.2f} avg conceded), {away_name}'s very strong attack (>1.8 avg) introduces high variance."
+            
             edge_locks.append({
                 'team_to_bet': away_name,  # Team whose scoring we're predicting
                 'defensive_team': home_name,  # Team providing defensive context
@@ -1932,19 +1911,24 @@ class BrutballIntegratedArchitecture:
                 'confidence': confidence,
                 'confidence_emoji': emoji,
                 'attack_context': attack_context,
-                'capital_multiplier': 2.0,
+                'capital_multiplier': 1.0 if confidence == "VERY WEAK" else 2.0,  # Fix for capital multiplier issue
                 'reason': f"{away_name} faces {home_name} who concede {home_avg_concedes:.2f} avg goals (last 5)",
                 'details': f"Defensive proof: {home_name} concedes {home_avg_concedes:.2f} avg ≤ 1.0",
                 'capital_authorized': True,
                 'state_locked': True,
                 'bet_label': f"✅ BET: {away_name} to score UNDER 1.5 goals",
-                'full_explanation': f"{away_name} faces {home_name}'s strong defense ({home_avg_concedes:.2f} avg conceded). {attack_context}.",
+                'full_explanation': full_explanation,  # Updated with conditional language
                 'original_format': f"{home_name} UNDER 1.5"  # Keep for backward compatibility
             })
         
         # Check Away team for UNDER 1.5 lock (HOME team to score under 1.5)
         if away_avg_concedes <= DEFENSIVE_PROOF_THRESHOLD:
             confidence, emoji, attack_context = get_confidence_level(home_avg_score)
+            
+            # Fix for VERY WEAK confidence language issue
+            full_explanation = f"{home_name} faces {away_name}'s strong defense ({away_avg_concedes:.2f} avg conceded). {attack_context}."
+            if confidence == "VERY WEAK":
+                full_explanation = f"Despite {away_name}'s defensive strength ({away_avg_concedes:.2f} avg conceded), {home_name}'s very strong attack (>1.8 avg) introduces high variance."
             
             edge_locks.append({
                 'team_to_bet': home_name,  # Team whose scoring we're predicting
@@ -1958,13 +1942,13 @@ class BrutballIntegratedArchitecture:
                 'confidence': confidence,
                 'confidence_emoji': emoji,
                 'attack_context': attack_context,
-                'capital_multiplier': 2.0,
+                'capital_multiplier': 1.0 if confidence == "VERY WEAK" else 2.0,  # Fix for capital multiplier issue
                 'reason': f"{home_name} faces {away_name} who concede {away_avg_concedes:.2f} avg goals (last 5)",
                 'details': f"Defensive proof: {away_name} concedes {away_avg_concedes:.2f} avg ≤ 1.0",
                 'capital_authorized': True,
                 'state_locked': True,
                 'bet_label': f"✅ BET: {home_name} to score UNDER 1.5 goals",
-                'full_explanation': f"{home_name} faces {away_name}'s strong defense ({away_avg_concedes:.2f} avg conceded). {attack_context}.",
+                'full_explanation': full_explanation,  # Updated with conditional language
                 'original_format': f"{away_name} UNDER 1.5"  # Keep for backward compatibility
             })
         
@@ -1981,7 +1965,7 @@ class BrutballIntegratedArchitecture:
         integrated_log.append("⚖️🔒📊 BRUTBALL INTEGRATED ARCHITECTURE v6.3")
         integrated_log.append("=" * 80)
         integrated_log.append("THREE-TIER SYSTEM WITH BET-READY SIGNALS")
-        integrated_log.append("TIER 1: v6.0 Edge Detection Engine (Heuristic)")
+        integrated_log.append("TIER 1: v6.0 Edge Detection (Heuristic)")
         integrated_log.append("TIER 1+: Edge-Derived UNDER 1.5 Locks (Binary Gate with Attack Context)")
         integrated_log.append("TIER 2: Agency-State Lock Engine (4 Gates + State Preservation)")
         integrated_log.append("TIER 3: Totals Lock Engine (Trend-Based Binary Gate)")
@@ -2565,9 +2549,13 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    # Initialize session state
-    if 'selected_league' not in st.session_state:
-        st.session_state.selected_league = 'Premier League'
+    # Initialize session state for page refresh fix
+    if 'analysis_complete' not in st.session_state:
+        st.session_state.analysis_complete = False
+    if 'last_result' not in st.session_state:
+        st.session_state.last_result = None
+    if 'tracking_key_suffix' not in st.session_state:
+        st.session_state.tracking_key_suffix = 0
     
     # League selection
     st.markdown("### 🌍 League Selection")
@@ -2581,9 +2569,15 @@ def main():
             if st.button(
                 config['display_name'],
                 use_container_width=True,
-                type="primary" if st.session_state.selected_league == league else "secondary"
+                type="primary" if 'selected_league' in st.session_state and st.session_state.selected_league == league else "secondary",
+                key=f"league_btn_{league}"
             ):
                 st.session_state.selected_league = league
+                st.session_state.analysis_complete = False
+                st.rerun()
+    
+    if 'selected_league' not in st.session_state:
+        st.session_state.selected_league = 'Premier League'
     
     selected_league = st.session_state.selected_league
     config = LEAGUES[selected_league]
@@ -2600,10 +2594,10 @@ def main():
     st.markdown("### 🏟️ Match Analysis")
     col1, col2 = st.columns(2)
     with col1:
-        home_team = st.selectbox("Home Team", sorted(df['team'].unique()))
+        home_team = st.selectbox("Home Team", sorted(df['team'].unique()), key="home_team_select")
     with col2:
         away_options = [t for t in sorted(df['team'].unique()) if t != home_team]
-        away_team = st.selectbox("Away Team", away_options)
+        away_team = st.selectbox("Away Team", away_options, key="away_team_select")
     
     # Special test case button
     if home_team == "Manchester United" and away_team == "Wolverhampton":
@@ -2618,7 +2612,7 @@ def main():
         """, unsafe_allow_html=True)
     
     # Execute analysis
-    if st.button("⚡ EXECUTE INTEGRATED ANALYSIS v6.3", type="primary", use_container_width=True):
+    if st.button("⚡ EXECUTE INTEGRATED ANALYSIS v6.3", type="primary", use_container_width=True, key="execute_analysis"):
         
         # Get data
         home_data = df[df['team'] == home_team].iloc[0].to_dict()
@@ -2635,12 +2629,19 @@ def main():
             home_data, away_data, home_team, away_team, league_avg_xg
         )
         
-        # =================== BET-READY SIGNALS DISPLAY ===================
-        st.markdown("---")
-        st.markdown("### 🎯 BET-READY SIGNALS (Human-Readable)")
+        # Store result in session state
+        st.session_state.last_result = result
+        st.session_state.analysis_complete = True
+        st.session_state.tracking_key_suffix += 1  # Force new keys to prevent refresh
         
-        # Display bet-ready signals
-        display_bet_ready_signals(result['edge_derived_locks'], home_team, away_team)
+        st.rerun()
+    
+    # Display results if analysis is complete
+    if st.session_state.analysis_complete and st.session_state.last_result:
+        result = st.session_state.last_result
+        
+        # =================== BET-READY SIGNALS DISPLAY ===================
+        display_bet_ready_signals_streamlit(result['edge_derived_locks'], home_team, away_team)
         
         # =================== PERFORMANCE TRACKING ===================
         with st.expander("📊 Performance Dashboard", expanded=False):
@@ -2651,14 +2652,24 @@ def main():
             Record actual scores to improve system accuracy.
             """)
             
-            # Simple input for tracking
+            # Use session state to prevent refresh
+            tracking_key = f"tracking_{st.session_state.tracking_key_suffix}"
+            
             col1, col2 = st.columns(2)
             with col1:
-                actual_home = st.number_input(f"{home_team} actual goals", min_value=0, max_value=10, value=0, key="actual_home")
+                actual_home = st.number_input(
+                    f"{home_team} actual goals", 
+                    min_value=0, max_value=10, value=0, 
+                    key=f"actual_home_{tracking_key}"
+                )
             with col2:
-                actual_away = st.number_input(f"{away_team} actual goals", min_value=0, max_value=10, value=0, key="actual_away")
+                actual_away = st.number_input(
+                    f"{away_team} actual goals", 
+                    min_value=0, max_value=10, value=0, 
+                    key=f"actual_away_{tracking_key}"
+                )
             
-            if st.button("Record Match Result", key="record_result"):
+            if st.button("Record Match Result", key=f"record_result_{tracking_key}"):
                 # Record predictions
                 for lock in result['edge_derived_locks']:
                     match_info = f"{home_team} vs {away_team}"
@@ -2669,9 +2680,11 @@ def main():
                 actual_score = f"{actual_home}-{actual_away}"
                 performance_tracker.record_result(f"{home_team} vs {away_team}", actual_score)
                 st.success(f"✅ Recorded: {home_team} {actual_home}-{actual_away} {away_team}")
+                st.rerun()
             
             # Calculate and display stats
             stats = performance_tracker.calculate_accuracy()
+            
             st.markdown(f"""
             **Prediction Accuracy**
             - Total Predictions: {stats['total_predictions']}
