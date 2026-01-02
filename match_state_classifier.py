@@ -1,19 +1,25 @@
 """
-BRUTBALL MATCH STATE & DURABILITY CLASSIFIER v1.4
-READ-ONLY MODULE - NO SIDE EFFECTS
+BRUTBALL MATCH STATE & DURABILITY CLASSIFIER v1.5
+COMPLETE FIXED VERSION WITH DATA VALIDATION & UI INTEGRATION
 
-CRITICAL FIX: Added data validation guard rails
-- No more fabricating 0.00 averages from missing data
-- Classifier DISABLES itself if last-5 data is missing/invalid
-- Clear error messaging instead of misleading outputs
+CRITICAL FIXES:
+1. Added comprehensive data validation with error handling
+2. Fixed classifier logic to use actual data instead of fabricating zeros
+3. Added clean UI display functions for Streamlit integration
+4. Maintains read-only nature with no side effects
 
 PURPOSE:
 Classify matches into structural states, durability categories, and reliability scores.
 This does NOT affect betting logic, stakes, or existing tiers.
 It only labels reality to provide intelligent insights.
+
+USAGE:
+1. First validate data with validate_last5_data()
+2. If valid, run full classification
+3. Use display functions for clean UI output
 """
 
-from typing import Dict, Tuple, List, Optional
+from typing import Dict, Tuple, List, Optional, Any
 import pandas as pd
 
 
@@ -100,6 +106,16 @@ class MatchStateClassifier:
         }
     }
     
+    # Match state configurations
+    STATE_CONFIG = {
+        'TERMINAL_STAGNATION': {'emoji': '🌀', 'color': '#0EA5E9', 'label': 'Terminal Stagnation'},
+        'ASYMMETRIC_SUPPRESSION': {'emoji': '🛡️', 'color': '#16A34A', 'label': 'Asymmetric Suppression'},
+        'DELAYED_RELEASE': {'emoji': '⏳', 'color': '#F59E0B', 'label': 'Delayed Release'},
+        'FORCED_EXPLOSION': {'emoji': '💥', 'color': '#EF4444', 'label': 'Forced Explosion'},
+        'NEUTRAL': {'emoji': '⚖️', 'color': '#6B7280', 'label': 'Neutral'},
+        'CLASSIFIER_ERROR': {'emoji': '⚠️', 'color': '#DC2626', 'label': 'Classifier Error'}
+    }
+    
     # =================== DATA VALIDATION ===================
     
     @classmethod
@@ -137,10 +153,25 @@ class MatchStateClassifier:
             for team in ['home', 'away']:
                 for field in cls.MINIMUM_DATA_REQUIREMENTS:
                     value = validated_data[team][field]
+                    
+                    # Type validation
                     if not isinstance(value, (int, float)):
                         missing_fields.append(f"{team}.{field}_type_error")
-                    elif value < 0 or value > 50:  # Reasonable bounds for last 5 matches
+                        continue
+                    
+                    # Range validation for last 5 matches
+                    # Max reasonable: 5 matches × 10 goals/match = 50
+                    if value < 0 or value > 50:
                         missing_fields.append(f"{team}.{field}_range_error")
+                    
+                    # Zero-sum validation (if both are zero, likely missing data)
+                    if value == 0 and field == 'goals_scored_last_5':
+                        # Check if this is likely real data or missing data
+                        conceded_field = 'goals_conceded_last_5'
+                        conceded_value = validated_data[team].get(conceded_field, 0)
+                        if conceded_value == 0:
+                            # Both zero - likely missing data
+                            missing_fields.append(f"{team}.{field}_zero_data_suspected")
         
         is_valid = len(missing_fields) == 0
         
@@ -330,428 +361,361 @@ class MatchStateClassifier:
             }
         }
     
-    # =================== EXISTING MATCH STATE FUNCTIONS ===================
+    # =================== FULL CLASSIFICATION PIPELINE ===================
     
     @classmethod
-    def check_terminal_stagnation(cls, home_data: Dict, away_data: Dict) -> Tuple[bool, Dict, List[str]]:
+    def run_full_classification(cls, home_data: Dict, away_data: Dict, perspective: str = 'home') -> Dict:
         """
-        Existing function - preserved for backward compatibility
-        ASSUMES: Data has been validated by validate_last5_data()
+        RUN FULL CLASSIFICATION PIPELINE
+        
+        Validates data first, then runs all classification functions.
+        Returns complete classification results or error state.
+        
+        This is the MAIN ENTRY POINT for the classifier.
         """
-        rationale = []
-        
-        home_last5_goals = home_data.get('goals_scored_last_5', 0)
-        away_last5_goals = away_data.get('goals_scored_last_5', 0)
-        
-        home_avg = home_last5_goals / 5 if home_last5_goals is not None else 0
-        away_avg = away_last5_goals / 5 if away_last5_goals is not None else 0
-        
-        low_scoring = (home_avg <= 1.2) and (away_avg <= 1.2)
-        
-        home_setpiece = home_data.get('home_setpiece_pct', 0)
-        home_counter = home_data.get('home_counter_pct', 0)
-        away_setpiece = away_data.get('away_setpiece_pct', 0)
-        away_counter = away_data.get('away_counter_pct', 0)
-        
-        no_dominant_pathways = (
-            (home_setpiece < 0.3 and home_counter < 0.18) and
-            (away_setpiece < 0.3 and away_counter < 0.18)
-        )
-        
-        is_terminal_stagnation = low_scoring and no_dominant_pathways
-        
-        rationale.append(f"TERMINAL STAGNATION CHECK:")
-        rationale.append(f"• Home avg goals: {home_avg:.2f}")
-        rationale.append(f"• Away avg goals: {away_avg:.2f}")
-        rationale.append(f"• Low scoring: {'✅' if low_scoring else '❌'}")
-        rationale.append(f"• No dominant pathways: {'✅' if no_dominant_pathways else '❌'}")
-        
-        return is_terminal_stagnation, {
-            'home_avg': home_avg,
-            'away_avg': away_avg,
-            'low_scoring': low_scoring,
-            'no_dominant_pathways': no_dominant_pathways
-        }, rationale
-    
-    @classmethod
-    def check_asymmetric_suppression(cls, home_data: Dict, away_data: Dict) -> Tuple[bool, Dict, List[str]]:
-        """
-        Existing function - preserved for backward compatibility
-        ASSUMES: Data has been validated by validate_last5_data()
-        """
-        rationale = []
-        
-        home_xg = home_data.get('home_xg_per_match', 0)
-        away_xg = away_data.get('away_xg_per_match', 0)
-        
-        home_dominates = (home_xg > 1.4) and (home_xg - away_xg > 0.5)
-        away_dominates = (away_xg > 1.2) and (away_xg - home_xg > 0.5)
-        
-        home_suppressed = away_data.get('away_xg_per_match', 0) < 1.0
-        away_suppressed = home_data.get('home_xg_per_match', 0) < 1.0
-        
-        is_asymmetric = (
-            (home_dominates and home_suppressed) or
-            (away_dominates and away_suppressed)
-        )
-        
-        dominating_team = None
-        if home_dominates and home_suppressed:
-            dominating_team = "HOME"
-        elif away_dominates and away_suppressed:
-            dominating_team = "AWAY"
-        
-        rationale.append(f"ASYMMETRIC SUPPRESSION CHECK:")
-        rationale.append(f"• Home xG: {home_xg:.2f}")
-        rationale.append(f"• Away xG: {away_xg:.2f}")
-        rationale.append(f"• Home dominates: {'✅' if home_dominates else '❌'}")
-        rationale.append(f"• Away dominates: {'✅' if away_dominates else '❌'}")
-        rationale.append(f"• Home suppressed: {'✅' if home_suppressed else '❌'}")
-        rationale.append(f"• Away suppressed: {'✅' if away_suppressed else '❌'}")
-        
-        if is_asymmetric:
-            rationale.append(f"• Dominating team: {dominating_team}")
-        
-        return is_asymmetric, {
-            'home_xg': home_xg,
-            'away_xg': away_xg,
-            'home_dominates': home_dominates,
-            'away_dominates': away_dominates,
-            'home_suppressed': home_suppressed,
-            'away_suppressed': away_suppressed,
-            'dominating_team': dominating_team
-        }, rationale
-    
-    # =================== MAIN CLASSIFICATION FUNCTION ===================
-    
-    @classmethod
-    def classify_match_state(cls, home_data: Dict, away_data: Dict) -> Dict:
-        """
-        MAIN CLASSIFICATION FUNCTION - COMPLETE SYSTEM
-        
-        Returns ALL classifications in a single dictionary.
-        
-        IMPORTANT: This is 100% READ-ONLY and informational only.
-        Does NOT affect betting logic, stakes, or existing tiers.
-        Uses ONLY last 5 matches data for all calculations.
-        
-        CRITICAL FIX: If last-5 data is missing/invalid, classifier DISABLES itself
-        instead of fabricating 0.00 averages and misleading outputs.
-        """
-        
-        classification_log = []
-        classification_log.append("=" * 70)
-        classification_log.append("🧠 BRUTBALL INTELLIGENCE LAYER v1.4 (READ-ONLY)")
-        classification_log.append("=" * 70)
-        classification_log.append("PURPOSE: Structural classification for intelligent insights")
-        classification_log.append("RULES: Does not affect betting logic - informational only")
-        classification_log.append("DATA: Uses ONLY last 5 matches for all calculations")
-        classification_log.append("")
-        
-        # ========== 1. DATA VALIDATION CHECK ==========
-        classification_log.append("🔍 DATA VALIDATION CHECK:")
-        classification_log.append("-" * 40)
-        
+        # Step 1: Validate data
         is_valid, missing_fields, validated_data = cls.validate_last5_data(home_data, away_data)
         
         if not is_valid:
-            classification_log.append(f"❌ INSUFFICIENT DATA FOR CLASSIFICATION")
-            classification_log.append(f"• Missing or invalid fields: {', '.join(missing_fields)}")
-            classification_log.append(f"• Required fields: {', '.join(cls.MINIMUM_DATA_REQUIREMENTS)}")
-            classification_log.append(f"• Last 5 matches data required for all calculations")
-            classification_log.append(f"• Classifier DISABLED - No structural insights available")
-            classification_log.append("=" * 70)
-            
             return {
                 'classification_error': True,
-                'error_message': f"Insufficient last-5 data: {', '.join(missing_fields)}",
                 'error_type': 'MISSING_DATA',
+                'error_message': f'Missing/invalid last-5 data fields: {", ".join(missing_fields)}',
                 'missing_fields': missing_fields,
-                'classification_log': classification_log,
-                'is_read_only': True,
-                'metadata': {
-                    'version': '1.4',
-                    'status': 'DISABLED - INSUFFICIENT_DATA',
-                    'action': 'Check data source for goals_scored_last_5 and goals_conceded_last_5 fields',
-                    'data_requirements': cls.MINIMUM_DATA_REQUIREMENTS,
-                    'data_source': 'last_5_matches_only'
-                }
+                'is_valid': False,
+                'averages': {
+                    'home_goals_avg': 0.0,
+                    'home_conceded_avg': 0.0,
+                    'away_goals_avg': 0.0,
+                    'away_conceded_avg': 0.0
+                },
+                'dominant_state': 'CLASSIFIER_ERROR',
+                'totals_durability': 'NONE',
+                'under_suggestion': 'No Under recommendation',
+                'opponent_under_15': {},
+                'reliability_home': {
+                    'reliability_score': 0,
+                    'reliability_label': 'NONE',
+                    'reliability_description': 'Classifier unavailable due to missing data'
+                },
+                'validation_passed': False
             }
         
-        # Extract validated data for processing
-        home_validated = validated_data['home']
-        away_validated = validated_data['away']
+        # Step 2: Calculate averages for display
+        home_goals_avg = validated_data['home']['goals_scored_last_5'] / 5
+        home_conceded_avg = validated_data['home']['goals_conceded_last_5'] / 5
+        away_goals_avg = validated_data['away']['goals_scored_last_5'] / 5
+        away_conceded_avg = validated_data['away']['goals_conceded_last_5'] / 5
         
-        classification_log.append("✅ Last 5 matches data validation passed")
-        classification_log.append(f"• Home goals scored (last 5): {home_validated.get('goals_scored_last_5')}")
-        classification_log.append(f"• Away goals scored (last 5): {away_validated.get('goals_scored_last_5')}")
-        classification_log.append(f"• Home goals conceded (last 5): {home_validated.get('goals_conceded_last_5')}")
-        classification_log.append(f"• Away goals conceded (last 5): {away_validated.get('goals_conceded_last_5')}")
-        classification_log.append("")
+        # Step 3: Run all classification functions
+        totals_durability = cls.classify_totals_durability(
+            validated_data['home'], validated_data['away']
+        )
         
-        # ========== 2. TOTALS DURABILITY CLASSIFICATION ==========
-        classification_log.append("📊 TOTALS DURABILITY CLASSIFICATION (LAST 5 ONLY):")
-        classification_log.append("-" * 40)
+        opponent_under_15 = cls.classify_opponent_under_15(
+            validated_data['home'], validated_data['away']
+        )
         
-        totals_durability = cls.classify_totals_durability(home_validated, away_validated)
-        home_last5_goals = home_validated.get('goals_scored_last_5', 0)
-        away_last5_goals = away_validated.get('goals_scored_last_5', 0)
-        home_avg = home_last5_goals / 5 if home_last5_goals is not None else 0
-        away_avg = away_last5_goals / 5 if away_last5_goals is not None else 0
+        under_suggestion = cls.suggest_under_market(
+            validated_data['home'], validated_data['away']
+        )
         
-        classification_log.append(f"• Home avg goals (last 5): {home_avg:.2f}")
-        classification_log.append(f"• Away avg goals (last 5): {away_avg:.2f}")
-        classification_log.append(f"• Max avg: {max(home_avg, away_avg):.2f}")
-        classification_log.append(f"• Durability: {totals_durability}")
-        classification_log.append(f"• Thresholds: STABLE≤{cls.DURABILITY_STABLE_THRESHOLD}, FRAGILE≤{cls.DURABILITY_FRAGILE_THRESHOLD}")
-        classification_log.append("")
+        # Step 4: Determine dominant match state
+        dominant_state = cls.determine_dominant_match_state(
+            validated_data['home'], validated_data['away']
+        )
         
-        # ========== 3. OPPONENT UNDER 1.5 CLASSIFICATION ==========
-        classification_log.append("🛡️ OPPONENT UNDER 1.5 CLASSIFICATION (LAST 5 ONLY):")
-        classification_log.append("-" * 40)
-        classification_log.append("PERSPECTIVE-SENSITIVE: 'Opponent' depends on which team is backed")
-        classification_log.append("")
-        
-        opponent_under_15 = cls.classify_opponent_under_15(home_validated, away_validated)
-        
-        classification_log.append(f"• Home avg conceded (last 5): {opponent_under_15['home_avg_conceded']:.2f}")
-        classification_log.append(f"• Away avg conceded (last 5): {opponent_under_15['away_avg_conceded']:.2f}")
-        classification_log.append(f"• Home defense strong (≤{cls.OPPONENT_UNDER_15_THRESHOLD}): {'✅' if opponent_under_15['home_avg_conceded'] <= cls.OPPONENT_UNDER_15_THRESHOLD else '❌'}")
-        classification_log.append(f"• Away defense strong (≤{cls.OPPONENT_UNDER_15_THRESHOLD}): {'✅' if opponent_under_15['away_avg_conceded'] <= cls.OPPONENT_UNDER_15_THRESHOLD else '❌'}")
-        
-        # Show perspective-based signals
-        classification_log.append("")
-        classification_log.append("📋 PERSPECTIVE-BASED SIGNALS:")
-        classification_log.append(f"• {opponent_under_15['home_perspective']['interpretation']}")
-        classification_log.append(f"• Signal when backing HOME: {'✅ PRESENT' if opponent_under_15['home_perspective']['opponent_under_15'] else '❌ ABSENT'}")
-        classification_log.append("")
-        classification_log.append(f"• {opponent_under_15['away_perspective']['interpretation']}")
-        classification_log.append(f"• Signal when backing AWAY: {'✅ PRESENT' if opponent_under_15['away_perspective']['opponent_under_15'] else '❌ ABSENT'}")
-        classification_log.append("")
-        
-        # ========== 4. UNDER MARKET SUGGESTIONS ==========
-        classification_log.append("🎯 UNDER MARKET SUGGESTIONS:")
-        classification_log.append("-" * 40)
-        
-        under_suggestion = cls.suggest_under_market(home_validated, away_validated)
-        classification_log.append(f"• Based on {totals_durability} durability (from last 5):")
-        classification_log.append(f"• Suggestion: {under_suggestion}")
-        classification_log.append("")
-        
-        # ========== 5. EXISTING MATCH STATES (Preserved) ==========
-        classification_log.append("⚙️ STRUCTURAL MATCH STATES:")
-        classification_log.append("-" * 40)
-        
-        states = []
-        
-        # Check terminal stagnation
-        is_stagnation, stagnation_data, stagnation_rationale = cls.check_terminal_stagnation(home_validated, away_validated)
-        if is_stagnation:
-            states.append(('TERMINAL_STAGNATION', stagnation_data))
-        classification_log.extend(stagnation_rationale)
-        
-        # Check asymmetric suppression
-        is_asymmetric, asymmetric_data, asymmetric_rationale = cls.check_asymmetric_suppression(home_validated, away_validated)
-        if is_asymmetric:
-            states.append(('ASYMMETRIC_SUPPRESSION', asymmetric_data))
-        classification_log.extend(asymmetric_rationale)
-        
-        # Determine dominant state
-        dominant_state = "NEUTRAL"
-        state_hierarchy = ['TERMINAL_STAGNATION', 'ASYMMETRIC_SUPPRESSION']
-        for state in state_hierarchy:
-            if any(s[0] == state for s in states):
-                dominant_state = state
-                break
-        
-        classification_log.append(f"• Dominant Structural State: {dominant_state}")
-        classification_log.append("")
-        
-        # ========== 6. RELIABILITY SCORING ==========
-        classification_log.append("📈 RELIABILITY SCORING (0-5):")
-        classification_log.append("-" * 40)
-        
-        # Build intermediate classifications dict
-        intermediate_classifications = {
+        # Step 5: Compute reliability score
+        classifications = {
             'totals_durability': totals_durability,
             'under_suggestion': under_suggestion,
             'opponent_under_15': opponent_under_15
         }
         
-        # Compute reliability scores for both perspectives
-        reliability_home = cls.compute_reliability_score(intermediate_classifications, perspective='home')
-        reliability_away = cls.compute_reliability_score(intermediate_classifications, perspective='away')
+        reliability_home = cls.compute_reliability_score(classifications, 'home')
+        reliability_away = cls.compute_reliability_score(classifications, 'away')
         
-        classification_log.append(f"• Totals Durability: {totals_durability} (+{reliability_home['component_scores']['durability']})")
-        classification_log.append(f"• Under Suggestion: {under_suggestion} (+{reliability_home['component_scores']['under_suggestion']})")
-        classification_log.append(f"• Opponent Under 1.5 (HOME perspective): {'✅' if opponent_under_15['home_perspective']['opponent_under_15'] else '❌'} (+{reliability_home['component_scores']['opponent_under_15']})")
-        classification_log.append(f"• Opponent Under 1.5 (AWAY perspective): {'✅' if opponent_under_15['away_perspective']['opponent_under_15'] else '❌'} (+{reliability_away['component_scores']['opponent_under_15']})")
-        classification_log.append(f"• HOME Perspective Score: {reliability_home['reliability_score']}/5 - {reliability_home['reliability_label']}")
-        classification_log.append(f"• AWAY Perspective Score: {reliability_away['reliability_score']}/5 - {reliability_away['reliability_label']}")
-        classification_log.append("")
-        
-        # ========== 7. FINAL SUMMARY ==========
-        classification_log.append("🎯 INTELLIGENCE SUMMARY (LAST 5 DATA ONLY):")
-        classification_log.append("-" * 40)
-        
-        classification_log.append(f"1. Durability: {totals_durability}")
-        classification_log.append(f"2. Under Suggestion: {under_suggestion}")
-        classification_log.append(f"3. Opponent Under 1.5 - Backing HOME: {'PRESENT' if opponent_under_15['home_perspective']['opponent_under_15'] else 'ABSENT'}")
-        classification_log.append(f"4. Opponent Under 1.5 - Backing AWAY: {'PRESENT' if opponent_under_15['away_perspective']['opponent_under_15'] else 'ABSENT'}")
-        classification_log.append(f"5. Structural State: {dominant_state}")
-        classification_log.append(f"6. Reliability (HOME perspective): {reliability_home['reliability_label']} ({reliability_home['reliability_score']}/5)")
-        classification_log.append(f"7. Reliability (AWAY perspective): {reliability_away['reliability_label']} ({reliability_away['reliability_score']}/5)")
-        classification_log.append("")
-        
-        classification_log.append("⚠️ IMPORTANT: This is READ-ONLY INTELLIGENCE ONLY")
-        classification_log.append("   • Does NOT affect Tier 1-3 logic")
-        classification_log.append("   • Does NOT modify stakes or capital allocation")
-        classification_log.append("   • Does NOT create market locks")
-        classification_log.append("   • Informational insights for decision support only")
-        classification_log.append("=" * 70)
-        
-        # ========== 8. RETURN COMPLETE RESULTS ==========
+        # Step 6: Return complete results
         return {
-            # Core Classifications
+            'classification_error': False,
+            'error_type': None,
+            'error_message': None,
+            'is_valid': True,
+            'validation_passed': True,
+            'averages': {
+                'home_goals_avg': round(home_goals_avg, 2),
+                'home_conceded_avg': round(home_conceded_avg, 2),
+                'away_goals_avg': round(away_goals_avg, 2),
+                'away_conceded_avg': round(away_conceded_avg, 2)
+            },
+            'dominant_state': dominant_state,
             'totals_durability': totals_durability,
             'under_suggestion': under_suggestion,
             'opponent_under_15': opponent_under_15,
-            'dominant_state': dominant_state,
-            'all_states': [s[0] for s in states],
-            
-            # Reliability Scoring (both perspectives)
             'reliability_home': reliability_home,
             'reliability_away': reliability_away,
-            'reliability_score': reliability_home['reliability_score'],  # Default to home perspective
-            
-            # Data for display/analysis
-            'averages': {
-                'home_goals_avg': home_avg,
-                'away_goals_avg': away_avg,
-                'home_conceded_avg': opponent_under_15['home_avg_conceded'],
-                'away_conceded_avg': opponent_under_15['away_avg_conceded']
-            },
-            
-            # Validation info
-            'data_validated': True,
-            'validation_status': 'PASSED',
-            
-            # Logs and metadata
-            'classification_log': classification_log,
-            'is_read_only': True,  # CRITICAL SAFETY FLAG
+            'perspective_used': perspective,
             'metadata': {
-                'version': '1.4',
-                'purpose': 'Read-only intelligence layer for structural insights',
-                'no_side_effects': True,
-                'components': {
-                    'match_states': True,
-                    'totals_durability': True,
-                    'opponent_under_15': True,
-                    'under_suggestions': True,
-                    'reliability_scoring': True
-                },
+                'version': '1.5',
                 'data_source': 'last_5_matches_only',
-                'perspective_sensitive': True,
-                'data_validation': 'ENABLED'
+                'read_only': True,
+                'purpose': 'Informational classification only'
             }
         }
-
-
-# =================== INTEGRATION HELPER FUNCTIONS ===================
-
-def get_complete_classification(home_data: Dict, away_data: Dict) -> Dict:
-    """
-    SAFE INTEGRATION HELPER - MAIN ENTRY POINT
     
-    Use this function in app.py to get ALL classification results.
-    Ensures classification stays 100% read-only.
+    @classmethod
+    def determine_dominant_match_state(cls, home_data: Dict, away_data: Dict) -> str:
+        """
+        DETERMINE DOMINANT MATCH STATE
+        
+        Simplified state determination based on scoring/conceding patterns.
+        Uses last 5 matches data only.
+        
+        Returns one of: TERMINAL_STAGNATION, ASYMMETRIC_SUPPRESSION,
+        DELAYED_RELEASE, FORCED_EXPLOSION, or NEUTRAL
+        """
+        # Extract and calculate averages
+        home_goals_avg = home_data.get('goals_scored_last_5', 0) / 5
+        home_conceded_avg = home_data.get('goals_conceded_last_5', 0) / 5
+        away_goals_avg = away_data.get('goals_scored_last_5', 0) / 5
+        away_conceded_avg = away_data.get('goals_conceded_last_5', 0) / 5
+        
+        # State determination logic
+        if home_goals_avg <= 0.8 and away_goals_avg <= 0.8:
+            return "TERMINAL_STAGNATION"
+        elif home_conceded_avg <= 0.6 and away_goals_avg <= 0.8:
+            return "ASYMMETRIC_SUPPRESSION"
+        elif home_goals_avg >= 2.0 and away_goals_avg >= 1.8:
+            return "FORCED_EXPLOSION"
+        elif (home_goals_avg <= 1.0 and home_conceded_avg >= 1.8) or \
+             (away_goals_avg <= 1.0 and away_conceded_avg >= 1.8):
+            return "DELAYED_RELEASE"
+        else:
+            return "NEUTRAL"
     
-    CRITICAL FIX: Graceful error handling - classifier either works or disables
-    """
-    try:
-        return MatchStateClassifier.classify_match_state(home_data, away_data)
-    except Exception as e:
-        # Graceful fallback - classifier unavailable due to unexpected error
-        error_log = [
-            "=" * 70,
-            "🧠 BRUTBALL INTELLIGENCE LAYER v1.4 (READ-ONLY)",
-            "=" * 70,
-            "❌ CLASSIFIER ERROR",
-            f"Error: {str(e)}",
-            "Classifier DISABLED - Unexpected error during classification",
-            "=" * 70
-        ]
+    # =================== UI DISPLAY FUNCTIONS ===================
+    
+    @classmethod
+    def create_ui_display_data(cls, classification_result: Dict) -> Dict:
+        """
+        CREATE UI-FRIENDLY DISPLAY DATA
+        
+        Transforms classification results into a format suitable for
+        Streamlit UI display with clean formatting.
+        """
+        if classification_result.get('classification_error', False):
+            return {
+                'display_type': 'ERROR',
+                'error_message': classification_result.get('error_message', 'Unknown error'),
+                'missing_fields': classification_result.get('missing_fields', []),
+                'suggestion': 'Check CSV data for goals_scored_last_5 and goals_conceded_last_5 fields'
+            }
+        
+        # Extract data
+        averages = classification_result.get('averages', {})
+        totals_durability = classification_result.get('totals_durability', 'NONE')
+        under_suggestion = classification_result.get('under_suggestion', 'No Under recommendation')
+        dominant_state = classification_result.get('dominant_state', 'NEUTRAL')
+        reliability_home = classification_result.get('reliability_home', {})
+        
+        # Get state configuration
+        state_config = cls.STATE_CONFIG.get(dominant_state, cls.STATE_CONFIG['NEUTRAL'])
+        
+        # Determine durability display
+        durability_config = {
+            'STABLE': {'emoji': '🟢', 'color': '#16A34A', 'label': 'STABLE'},
+            'FRAGILE': {'emoji': '🟡', 'color': '#F59E0B', 'label': 'FRAGILE'},
+            'NONE': {'emoji': '⚫', 'color': '#6B7280', 'label': 'NONE'}
+        }
+        durability_info = durability_config.get(totals_durability, durability_config['NONE'])
+        
+        # Create UI data structure
+        return {
+            'display_type': 'CLASSIFICATION',
+            'averages': {
+                'home_goals': averages.get('home_goals_avg', 0.0),
+                'home_conceded': averages.get('home_conceded_avg', 0.0),
+                'away_goals': averages.get('away_goals_avg', 0.0),
+                'away_conceded': averages.get('away_conceded_avg', 0.0)
+            },
+            'match_state': {
+                'code': dominant_state,
+                'emoji': state_config['emoji'],
+                'color': state_config['color'],
+                'label': state_config['label']
+            },
+            'durability': {
+                'code': totals_durability,
+                'emoji': durability_info['emoji'],
+                'color': durability_info['color'],
+                'label': durability_info['label']
+            },
+            'under_suggestion': under_suggestion,
+            'reliability': {
+                'score': reliability_home.get('reliability_score', 0),
+                'label': reliability_home.get('reliability_label', 'NONE'),
+                'description': reliability_home.get('reliability_description', ''),
+                'color': reliability_home.get('reliability_color', 'gray'),
+                'breakdown': reliability_home.get('score_breakdown', {})
+            },
+            'defensive_analysis': {
+                'home_strong_defense': averages.get('home_conceded_avg', 0) <= cls.OPPONENT_UNDER_15_THRESHOLD,
+                'away_strong_defense': averages.get('away_conceded_avg', 0) <= cls.OPPONENT_UNDER_15_THRESHOLD,
+                'threshold': cls.OPPONENT_UNDER_15_THRESHOLD
+            },
+            'metadata': {
+                'data_source': 'Last 5 matches only',
+                'read_only': True,
+                'version': 'v1.5'
+            }
+        }
+    
+    @classmethod
+    def generate_streamlit_ui(cls, home_team: str, away_team: str, 
+                            home_data: Dict, away_data: Dict) -> Dict:
+        """
+        GENERATE COMPLETE STREAMLIT UI DATA
+        
+        One function to run everything and return data ready for Streamlit display.
+        This is the recommended integration point for your app.py.
+        """
+        # Step 1: Run full classification
+        classification_result = cls.run_full_classification(home_data, away_data)
+        
+        # Step 2: Create UI display data
+        ui_data = cls.create_ui_display_data(classification_result)
+        
+        # Step 3: Add team names for display
+        ui_data['teams'] = {
+            'home': home_team,
+            'away': away_team
+        }
+        
+        # Step 4: Add raw data for debugging if needed
+        ui_data['raw_data'] = {
+            'home': home_data,
+            'away': away_data
+        }
+        
+        return ui_data
+    
+    # =================== UTILITY FUNCTIONS ===================
+    
+    @classmethod
+    def get_data_requirements(cls) -> Dict:
+        """
+        GET DATA REQUIREMENTS FOR CSV/INPUT
+        
+        Returns the exact data fields needed for classification.
+        Helpful for CSV preparation and validation.
+        """
+        return {
+            'required_fields': cls.MINIMUM_DATA_REQUIREMENTS,
+            'data_format': 'Sum totals for last 5 matches (not averages)',
+            'examples': {
+                'goals_scored_last_5': 'Total goals scored in last 5 matches (e.g., 8)',
+                'goals_conceded_last_5': 'Total goals conceded in last 5 matches (e.g., 4)'
+            },
+            'validation_rules': [
+                'Values must be integers ≥ 0',
+                'Values represent SUM totals, not averages',
+                'Divide by 5 internally to get averages'
+            ]
+        }
+    
+    @classmethod
+    def check_data_quality(cls, home_data: Dict, away_data: Dict) -> Dict:
+        """
+        CHECK DATA QUALITY AND PROVIDE FEEDBACK
+        
+        Useful for debugging data issues before classification.
+        """
+        # Validate data
+        is_valid, missing_fields, validated_data = cls.validate_last5_data(home_data, away_data)
+        
+        # Calculate what averages would be
+        if is_valid:
+            home_goals_avg = validated_data['home']['goals_scored_last_5'] / 5
+            home_conceded_avg = validated_data['home']['goals_conceded_last_5'] / 5
+            away_goals_avg = validated_data['away']['goals_scored_last_5'] / 5
+            away_conceded_avg = validated_data['away']['goals_conceded_last_5'] / 5
+            
+            quality_score = 100  # Perfect if valid
+            
+            suggestions = []
+            if home_goals_avg == 0 and home_conceded_avg == 0:
+                suggestions.append("Home team data shows all zeros - verify this is correct")
+            if away_goals_avg == 0 and away_conceded_avg == 0:
+                suggestions.append("Away team data shows all zeros - verify this is correct")
+        else:
+            home_goals_avg = home_conceded_avg = away_goals_avg = away_conceded_avg = 0
+            quality_score = 0
+            suggestions = [f"Fix missing fields: {', '.join(missing_fields)}"]
         
         return {
-            'classification_error': True,
-            'error_message': f"Classifier error: {str(e)}",
-            'error_type': 'UNEXPECTED_ERROR',
-            'classification_log': error_log,
-            'is_read_only': True,
-            'metadata': {
-                'version': '1.4',
-                'status': 'DISABLED - UNEXPECTED_ERROR',
-                'action': 'Check data structure and classifier integrity',
-                'data_requirements': MatchStateClassifier.MINIMUM_DATA_REQUIREMENTS
-            }
+            'is_valid': is_valid,
+            'quality_score': quality_score,
+            'missing_fields': missing_fields,
+            'calculated_averages': {
+                'home_goals': round(home_goals_avg, 2),
+                'home_conceded': round(home_conceded_avg, 2),
+                'away_goals': round(away_goals_avg, 2),
+                'away_conceded': round(away_conceded_avg, 2)
+            },
+            'suggestions': suggestions,
+            'data_quality': 'GOOD' if is_valid else 'POOR',
+            'can_run_classifier': is_valid
         }
 
 
-def format_reliability_badge(reliability_data: Dict) -> str:
-    """
-    FORMAT RELIABILITY SCORE AS UI BADGE
-    
-    Returns HTML/emoji formatted badge for display in Streamlit.
-    """
-    score = reliability_data.get('reliability_score', 0)
-    label = reliability_data.get('reliability_label', 'NONE')
-    color = reliability_data.get('reliability_color', 'gray')
-    
-    # Emoji mapping
-    emoji_map = {
-        5: '🟢',  # Green
-        4: '🟡',  # Yellow
-        3: '🟠',  # Orange
-        2: '⚪',  # Light gray
-        1: '⚪',  # Light gray
-        0: '⚫'   # Gray
+# =================== EXAMPLE USAGE ===================
+if __name__ == "__main__":
+    # Example data (using SUM totals, not averages)
+    example_home_data = {
+        'goals_scored_last_5': 8,   # Sum of goals in last 5 matches
+        'goals_conceded_last_5': 4  # Sum of goals conceded in last 5 matches
     }
     
-    emoji = emoji_map.get(score, '⚫')
-    
-    # Return formatted badge
-    return f"{emoji} **Reliability: {label} ({score}/5)**"
-
-
-def format_durability_indicator(durability: str) -> str:
-    """
-    FORMAT DURABILITY AS UI INDICATOR
-    
-    Returns emoji-formatted durability indicator.
-    """
-    indicators = {
-        'STABLE': '🟢 STABLE',
-        'FRAGILE': '🟡 FRAGILE',
-        'NONE': '⚫ NONE'
+    example_away_data = {
+        'goals_scored_last_5': 6,
+        'goals_conceded_last_5': 5
     }
-    return indicators.get(durability, '⚫ NONE')
-
-
-def get_classifier_status_message(classification_result: Dict) -> str:
-    """
-    GET CLASSIFIER STATUS MESSAGE FOR DISPLAY
     
-    Returns appropriate message based on classifier state.
-    """
-    if classification_result.get('classification_error', False):
-        error_type = classification_result.get('error_type', 'UNKNOWN_ERROR')
-        error_message = classification_result.get('error_message', 'Unknown error')
-        
-        if error_type == 'MISSING_DATA':
-            return f"⚠️ Classifier unavailable: Missing last-5 data ({error_message})"
-        elif error_type == 'UNEXPECTED_ERROR':
-            return f"⚠️ Classifier error: {error_message}"
-        else:
-            return f"⚠️ Classifier unavailable: {error_message}"
+    # Example 1: Check data quality
+    print("=== DATA QUALITY CHECK ===")
+    quality_report = MatchStateClassifier.check_data_quality(
+        example_home_data, example_away_data
+    )
+    print(f"Data valid: {quality_report['is_valid']}")
+    print(f"Quality score: {quality_report['quality_score']}")
+    print(f"Calculated averages: {quality_report['calculated_averages']}")
+    
+    # Example 2: Run full classification
+    print("\n=== FULL CLASSIFICATION ===")
+    classification = MatchStateClassifier.run_full_classification(
+        example_home_data, example_away_data
+    )
+    
+    if classification['classification_error']:
+        print(f"ERROR: {classification['error_message']}")
     else:
-        return "✅ Classifier active - Read-only insights available"
+        print(f"Match state: {classification['dominant_state']}")
+        print(f"Durability: {classification['totals_durability']}")
+        print(f"Under suggestion: {classification['under_suggestion']}")
+        print(f"Reliability score: {classification['reliability_home']['reliability_score']}")
+    
+    # Example 3: Generate UI data
+    print("\n=== UI DISPLAY DATA ===")
+    ui_data = MatchStateClassifier.generate_streamlit_ui(
+        home_team="Arsenal",
+        away_team="Aston Villa",
+        home_data=example_home_data,
+        away_data=example_away_data
+    )
+    
+    print(f"UI display type: {ui_data['display_type']}")
+    if ui_data['display_type'] == 'CLASSIFICATION':
+        print(f"Home goals avg: {ui_data['averages']['home_goals']}")
+        print(f"Away conceded avg: {ui_data['averages']['away_conceded']}")
+        print(f"Match state: {ui_data['match_state']['label']} {ui_data['match_state']['emoji']}")
+        print(f"Reliability: {ui_data['reliability']['score']}/5 - {ui_data['reliability']['label']}")
