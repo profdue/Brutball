@@ -53,8 +53,6 @@ class AutomatedWinnerLockDetector:
                 'raw_line': None
             }
         
-        # Normalize text for parsing
-        text = output_text.upper()
         lines = [line.strip() for line in output_text.split('\n') if line.strip()]
         
         winner_lock_data = {
@@ -157,7 +155,7 @@ class AutomatedWinnerLockDetector:
             f"""🔐 TIER 2: AGENCY-STATE LOCKS v6.2
 AGENCY-STATE CONTROL DETECTED
 1 market(s) structurally locked
-Strongest lock: WINNER (Δ = +{np.random.choice(['0.85', '0.92', '1.08', '1.15'])})
+Strongest lock: WINNER (Δ = +1.08)
 WINNER: {home_team}""",
             
             f"""AGENCY-STATE SYSTEM OUTPUT
@@ -448,110 +446,6 @@ def display_winner_lock_result(detection_result: Dict):
         </div>
         """, unsafe_allow_html=True)
 
-def display_pattern_card(recommendation: Dict, home_team: str, away_team: str):
-    """Display a pattern recommendation card"""
-    formatter = ResultFormatter()
-    style = formatter.get_pattern_style(recommendation['pattern'])
-    
-    # Get bet description
-    if recommendation['pattern'] == 'ELITE_DEFENSE_UNDER_1_5':
-        team_to_bet = formatter.get_team_under_15_name(recommendation, home_team, away_team)
-        bet_desc = f"{team_to_bet} to score UNDER 1.5 goals"
-    elif recommendation['pattern'] == 'WINNER_LOCK_DOUBLE_CHANCE':
-        bet_desc = f"{recommendation.get('team_to_bet', 'Team')} Double Chance"
-        # Add automated detection note
-        if 'Automated Winner Lock detection' in recommendation.get('reason', ''):
-            bet_desc += " 🤖"
-    else:
-        bet_desc = f"Total UNDER 3.5 goals"
-    
-    # Format pattern name
-    pattern_name = formatter.format_pattern_name(recommendation['pattern'])
-    
-    st.markdown(f"""
-    <div class="brutball-card-wrapper">
-        <div class="pattern-card" style="border-color: {style['border_color']}; border-left: 6px solid {style['border_color']};">
-            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem; flex-wrap: wrap;">
-                <div style="flex: 1; min-width: 250px;">
-                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                        <span style="font-size: 1.5rem;">{style['emoji']}</span>
-                        <h3 style="color: {style['color']}; margin: 0;">{recommendation['bet_type']}</h3>
-                    </div>
-                    <div style="font-weight: 700; color: #374151; margin-bottom: 0.25rem; font-size: 1.1rem;">
-                        {bet_desc}
-                    </div>
-                    <div style="color: #6B7280; font-size: 0.9rem; margin-bottom: 0.5rem;">
-                        {recommendation.get('reason', recommendation.get('condition_1', ''))}
-                    </div>
-                    <div style="font-size: 0.85rem; color: #4B5563;">
-                        <strong>Pattern:</strong> {pattern_name}
-                    </div>
-                </div>
-                <div style="text-align: right; min-width: 100px;">
-                    <div style="background: {style['color']}; color: white; padding: 0.25rem 0.75rem; 
-                            border-radius: 20px; font-size: 0.85rem; font-weight: 700; display: inline-block;">
-                        {recommendation['stake_multiplier']:.1f}x
-                    </div>
-                    <div style="font-size: 0.8rem; color: #6B7280; margin-top: 0.25rem;">Stake Multiplier</div>
-                </div>
-            </div>
-            
-            <div style="background: rgba(255, 255, 255, 0.7); padding: 0.75rem; border-radius: 6px; margin-top: 0.75rem;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; flex-wrap: wrap;">
-                    <div style="margin-bottom: 0.5rem;">
-                        <div style="font-size: 0.85rem; color: #6B7280;">Confidence</div>
-                        <div style="font-weight: 600; color: {style['color']};">
-                            {recommendation.get('confidence', recommendation.get('sample_accuracy', 'N/A'))}
-                        </div>
-                    </div>
-                    <div style="margin-bottom: 0.5rem;">
-                        <div style="font-size: 0.85rem; color: #6B7280;">Historical Accuracy</div>
-                        <div style="font-weight: 600; color: #059669;">{recommendation.get('sample_accuracy', 'N/A')}</div>
-                    </div>
-                </div>
-                
-                {'<div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(0,0,0,0.1); font-size: 0.85rem; color: #DC2626;"><strong>⚠️ Warning:</strong> ' + recommendation.get('warning', '') + '</div>' if 'warning' in recommendation else ''}
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-def display_pattern_combination(analysis_result: Dict):
-    """Display pattern combination result"""
-    stats = analysis_result['pattern_stats']
-    
-    combination_colors = {
-        'BOTH_PATTERNS': {'color': '#9A3412', 'bg': '#FFEDD5', 'border': '#F97316'},
-        'ONLY_ELITE_DEFENSE': {'color': '#065F46', 'bg': '#F0FDF4', 'border': '#16A34A'},
-        'ONLY_WINNER_LOCK': {'color': '#1E40AF', 'bg': '#EFF6FF', 'border': '#2563EB'},
-        'NO_PATTERNS': {'color': '#6B7280', 'bg': '#F3F4F6', 'border': '#9CA3AF'}
-    }
-    
-    combo = stats['pattern_combination']
-    colors = combination_colors.get(combo, combination_colors['NO_PATTERNS'])
-    
-    st.markdown(f"""
-    <div class="brutball-card-wrapper">
-        <div style="
-            background: {colors['bg']};
-            padding: 2rem;
-            border-radius: 10px;
-            border: 3px solid {colors['border']};
-            text-align: center;
-            margin: 1.5rem 0;
-            box-sizing: border-box;
-        ">
-            <div style="font-size: 3rem; margin-bottom: 0.5rem;">{stats['combination_emoji']}</div>
-            <h2 style="color: {colors['color']}; margin: 0 0 0.5rem 0;">
-                {analysis_result['combination_desc'].upper()}
-            </h2>
-            <div style="color: #374151; font-size: 0.9rem;">
-                {analysis_result['combination_desc']}
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
 # =================== MAIN APPLICATION ===================
 def main():
     """Complete independent pattern detection application - AUTOMATED VERSION"""
@@ -668,7 +562,10 @@ def main():
         detect Winner Lock patterns without any manual selection. Based on 25-match historical analysis.
         """)
         
-        # Text area for Agency-State output - FIXED: Don't assign to session_state in widget
+        # FIXED: Use a different key for the widget to avoid session state conflict
+        agency_output_key = "agency_output_widget"
+        
+        # Text area for Agency-State output
         agency_output = st.text_area(
             "Paste Agency-State System Output:",
             height=150,
@@ -679,19 +576,25 @@ AGENCY-STATE CONTROL DETECTED
 Strongest lock: WINNER (Δ = +1.08)
 WINNER: Real Betis""",
             value=st.session_state.agency_output,
-            key="agency_output"
+            key=agency_output_key
         )
-        
-        # Update session state after widget creation
-        st.session_state.agency_output = agency_output
         
         # Parse Agency-State output automatically
         if agency_output and home_team and away_team:
             detector = AutomatedWinnerLockDetector()
             winner_lock_result = detector.parse_agency_state_output(agency_output, home_team, away_team)
             st.session_state.winner_lock_detected = winner_lock_result
+            st.session_state.agency_output = agency_output
             
             # Display automated detection result
+            display_winner_lock_result(winner_lock_result)
+        elif st.session_state.agency_output and home_team and away_team:
+            # Use stored agency output if available
+            detector = AutomatedWinnerLockDetector()
+            winner_lock_result = detector.parse_agency_state_output(
+                st.session_state.agency_output, home_team, away_team
+            )
+            st.session_state.winner_lock_detected = winner_lock_result
             display_winner_lock_result(winner_lock_result)
         
         # Test mode option
@@ -803,71 +706,130 @@ WINNER: Real Betis""",
         home_team = st.session_state.current_home_team
         away_team = st.session_state.current_away_team
         
-        # Display pattern combination
-        st.markdown("### 🎯 PATTERN COMBINATION DETECTED")
-        display_pattern_combination(analysis_result)
+        # Create a simple result display since we don't have formatter
+        st.markdown("### 🎯 ANALYSIS RESULTS")
         
-        # Display recommendations
-        if analysis_result['recommendations']:
-            st.markdown("### 📊 RECOMMENDED BETS")
+        # Display pattern combination if available
+        if 'pattern_stats' in analysis_result:
+            stats = analysis_result['pattern_stats']
             
-            for rec in analysis_result['recommendations']:
-                display_pattern_card(rec, home_team, away_team)
-        
-        # Display statistics
-        stats = analysis_result['pattern_stats']
-        st.markdown("### 📈 ANALYSIS STATISTICS")
-        
-        st.markdown(f"""
-        <div class="brutball-card-wrapper">
-            <div style="background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
-                    padding: 1.5rem; border-radius: 10px; border: 2px solid #E2E8F0; 
-                    margin: 1rem 0;">
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
-                    <div style="text-align: center;">
-                        <div style="font-size: 0.9rem; color: #6B7280;">Elite Defense</div>
-                        <div style="font-size: 1.5rem; font-weight: 700; color: #16A34A;">{stats['elite_defense_count']}</div>
-                    </div>
-                    <div style="text-align: center;">
-                        <div style="font-size: 0.9rem; color: #6B7280;">Winner Lock</div>
-                        <div style="font-size: 1.5rem; font-weight: 700; color: #2563EB;">{stats['winner_lock_count']}</div>
-                        <div style="font-size: 0.7rem; color: #2563EB;">🤖 Automated</div>
-                    </div>
-                    <div style="text-align: center;">
-                        <div style="font-size: 0.9rem; color: #6B7280;">UNDER 3.5</div>
-                        <div style="font-size: 1.5rem; font-weight: 700; color: {'#059669' if stats['under_35_present'] else '#DC2626'}">
-                            {'✅ Yes' if stats['under_35_present'] else '❌ No'}
-                        </div>
-                    </div>
-                    <div style="text-align: center;">
-                        <div style="font-size: 0.9rem; color: #6B7280;">Total Patterns</div>
-                        <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">{stats['total_patterns']}</div>
+            combination_colors = {
+                'BOTH_PATTERNS': {'color': '#9A3412', 'bg': '#FFEDD5', 'border': '#F97316'},
+                'ONLY_ELITE_DEFENSE': {'color': '#065F46', 'bg': '#F0FDF4', 'border': '#16A34A'},
+                'ONLY_WINNER_LOCK': {'color': '#1E40AF', 'bg': '#EFF6FF', 'border': '#2563EB'},
+                'NO_PATTERNS': {'color': '#6B7280', 'bg': '#F3F4F6', 'border': '#9CA3AF'}
+            }
+            
+            combo = stats.get('pattern_combination', 'NO_PATTERNS')
+            colors = combination_colors.get(combo, combination_colors['NO_PATTERNS'])
+            
+            st.markdown(f"""
+            <div class="brutball-card-wrapper">
+                <div style="
+                    background: {colors['bg']};
+                    padding: 2rem;
+                    border-radius: 10px;
+                    border: 3px solid {colors['border']};
+                    text-align: center;
+                    margin: 1.5rem 0;
+                    box-sizing: border-box;
+                ">
+                    <h2 style="color: {colors['color']}; margin: 0 0 0.5rem 0;">
+                        {combo.replace('_', ' ').title()}
+                    </h2>
+                    <div style="color: #374151; font-size: 0.9rem;">
+                        Patterns Detected: {stats.get('total_patterns', 0)}
                     </div>
                 </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
         
-        # Tier summary
-        if analysis_result['tier_summary']:
-            st.markdown("### 🏆 TIER SUMMARY")
+        # Display recommendations
+        if 'recommendations' in analysis_result and analysis_result['recommendations']:
+            st.markdown("### 📊 RECOMMENDED BETS")
             
-            for tier in analysis_result['tier_summary']:
-                if "TIER 1" in tier:
-                    color = "#F97316"
-                elif "TIER 2" in tier:
-                    color = "#16A34A"
+            for rec in analysis_result['recommendations']:
+                pattern = rec.get('pattern', '')
+                bet_type = rec.get('bet_type', '')
+                reason = rec.get('reason', '')
+                confidence = rec.get('confidence', 'N/A')
+                
+                # Determine styling based on pattern
+                if 'ELITE_DEFENSE' in pattern:
+                    color = '#F97316'
+                    emoji = '🛡️'
+                elif 'WINNER_LOCK' in pattern:
+                    color = '#16A34A'
+                    emoji = '🤖'
                 else:
-                    color = "#2563EB"
+                    color = '#2563EB'
+                    emoji = '📊'
                 
                 st.markdown(f"""
                 <div class="brutball-card-wrapper">
-                    <div style="background: white; padding: 1rem; border-radius: 8px; 
-                            border-left: 4px solid {color}; margin: 0.5rem 0;">
-                        <strong>{tier}</strong>
+                    <div class="pattern-card" style="border-color: {color}; border-left: 6px solid {color};">
+                        <div style="display: flex; align-items: start; gap: 1rem; margin-bottom: 1rem;">
+                            <span style="font-size: 2rem;">{emoji}</span>
+                            <div style="flex: 1;">
+                                <h3 style="color: {color}; margin: 0 0 0.5rem 0;">{bet_type}</h3>
+                                <div style="color: #374151; font-weight: 600; margin-bottom: 0.5rem;">
+                                    {pattern.replace('_', ' ').title()}
+                                </div>
+                                <div style="color: #6B7280; font-size: 0.9rem;">
+                                    {reason}
+                                </div>
+                            </div>
+                        </div>
+                        <div style="background: rgba(255, 255, 255, 0.7); padding: 0.75rem; border-radius: 6px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <div>
+                                    <div style="font-size: 0.85rem; color: #6B7280;">Confidence</div>
+                                    <div style="font-weight: 600; color: {color};">{confidence}</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.85rem; color: #6B7280;">Stake Multiplier</div>
+                                    <div style="font-weight: 600; color: {color};">{rec.get('stake_multiplier', '1.0')}x</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
+        
+        # Display statistics
+        if 'pattern_stats' in analysis_result:
+            stats = analysis_result['pattern_stats']
+            st.markdown("### 📈 ANALYSIS STATISTICS")
+            
+            st.markdown(f"""
+            <div class="brutball-card-wrapper">
+                <div style="background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+                        padding: 1.5rem; border-radius: 10px; border: 2px solid #E2E8F0; 
+                        margin: 1rem 0;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.9rem; color: #6B7280;">Elite Defense</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #16A34A;">{stats.get('elite_defense_count', 0)}</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.9rem; color: #6B7280;">Winner Lock</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #2563EB;">{stats.get('winner_lock_count', 0)}</div>
+                            <div style="font-size: 0.7rem; color: #2563EB;">🤖 Automated</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.9rem; color: #6B7280;">UNDER 3.5</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: {'#059669' if stats.get('under_35_present', False) else '#DC2626'}">
+                                {'✅ Yes' if stats.get('under_35_present', False) else '❌ No'}
+                            </div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.9rem; color: #6B7280;">Total Patterns</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: #7C3AED;">{stats.get('total_patterns', 0)}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
     
     # Historical validation section
     st.markdown("---")
