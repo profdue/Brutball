@@ -2713,23 +2713,67 @@ def main():
         # =================== READ-ONLY STATE & DURABILITY CLASSIFICATION ===================
         # CRITICAL: This runs AFTER all betting logic is complete
         # Does NOT affect existing results, stakes, or decisions
+        # NOW WITH DSF PROTECTION (v1.6)
         classification_result = None
-        if STATE_CLASSIFIER_AVAILABLE and get_complete_classification:
+        if STATE_CLASSIFIER_AVAILABLE:
             try:
-                classification_result = get_complete_classification(home_data, away_data)
-                # Add as separate, read-only fields
+                # NEW: Use the unified classifier with DSF
+                from match_state_classifier import MatchStateClassifier
+                
+                # Check if we have DSF data (concede distribution)
+                has_dsf_data = (
+                    'concede_last_5_list' in home_data and 
+                    'concede_last_5_list' in away_data and
+                    isinstance(home_data['concede_last_5_list'], list) and
+                    isinstance(away_data['concede_last_5_list'], list)
+                )
+                
+                # Run classification WITH DSF if data available
+                classification_result = MatchStateClassifier.run_full_classification(
+                    home_data=home_data,
+                    away_data=away_data,
+                    include_dsf=has_dsf_data  # Auto-enable DSF if data available
+                )
+                
+                # Also generate UI-ready data for display
+                ui_display_data = MatchStateClassifier.create_ui_display_data(classification_result)
+                
+                # Add both to results
                 result['state_classification'] = classification_result
+                result['ui_classification_data'] = ui_display_data  # NEW: For easy UI display
                 result['classification_is_read_only'] = True
                 result['classification_does_not_affect_betting'] = True
+                result['dsf_applied'] = has_dsf_data  # NEW: Track if DSF was used
+                result['dsf_available'] = has_dsf_data  # NEW: Track DSF capability
+                
+                # Special: Check for Chelsea/Bournemouth pattern
+                if has_dsf_data:
+                    # Check both teams for the problematic pattern
+                    chelsea_check_home = MatchStateClassifier.analyze_chelsea_bournemouth_pattern(
+                        home_data['concede_last_5_list']
+                    )
+                    chelsea_check_away = MatchStateClassifier.analyze_chelsea_bournemouth_pattern(
+                        away_data['concede_last_5_list']
+                    )
+                    
+                    if chelsea_check_home['is_chelsea_pattern'] or chelsea_check_away['is_chelsea_pattern']:
+                        result['chelsea_pattern_detected'] = True
+                        result['dsf_protection_applied'] = True
+                        result['false_positive_prevented'] = True
+                
             except Exception as e:
                 # Fail gracefully - classification is optional
                 classification_result = {
+                    'classification_error': True,
                     'dominant_state': 'CLASSIFIER_ERROR',
                     'error': str(e),
                     'is_read_only': True,
-                    'does_not_affect_betting': True
+                    'does_not_affect_betting': True,
+                    'dsf_applied': False
                 }
                 result['state_classification'] = classification_result
+                result['classification_is_read_only'] = True
+                result['classification_does_not_affect_betting'] = True
         
         # =================== INTEGRATED SYSTEM VERDICT ===================
         st.markdown("### 🎯 INTEGRATED SYSTEM VERDICT v6.3")
