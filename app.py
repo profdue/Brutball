@@ -14,8 +14,7 @@ try:
         BankrollManager,
         get_complete_classification, 
         format_reliability_badge, 
-        format_durability_indicator,
-        format_pattern_badge
+        format_durability_indicator
     )
     STATE_CLASSIFIER_AVAILABLE = True
 except ImportError:
@@ -24,7 +23,6 @@ except ImportError:
     get_complete_classification = None
     format_reliability_badge = None
     format_durability_indicator = None
-    format_pattern_badge = None
 
 # =================== EXISTING DATA EXTRACTION FUNCTIONS ===================
 def extract_pure_team_data(df: pd.DataFrame, team_name: str) -> Dict:
@@ -105,65 +103,95 @@ def verify_data_integrity(df: pd.DataFrame, home_team: str, away_team: str):
     print("="*80)
     return True
 
-# =================== PROVEN PATTERNS DISPLAY (FIXED - NO HTML) ===================
+# =================== PROVEN PATTERNS DISPLAY ===================
 def display_proven_patterns_results(pattern_results: Dict, home_team: str, away_team: str):
-    """Beautiful display for proven pattern detection results using Streamlit components"""
+    """Beautiful display for proven pattern detection results"""
     
     if not pattern_results or pattern_results['patterns_detected'] == 0:
-        st.info("🎯 No proven patterns detected for this match.")
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%); 
+                padding: 2.5rem; border-radius: 12px; border: 3px dashed #9CA3AF; 
+                text-align: center; margin: 1.5rem 0;">
+            <h3 style="color: #6B7280; margin: 0 0 1rem 0;">🎯 NO PROVEN PATTERNS DETECTED</h3>
+            <div style="color: #374151; margin-bottom: 1rem;">
+                This match doesn't meet the criteria for our 25-match empirical patterns
+            </div>
+            <div style="font-size: 0.9rem; color: #6B7280;">
+                Patterns require Elite Defense (≤4 goals last 5) or Winner Lock detection
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         return
     
     # Header with pattern count
     patterns_count = pattern_results['patterns_detected']
     
-    # Create a nice header with columns
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.markdown(f"### 🎯 {patterns_count} Proven Pattern(s) Found")
-        st.caption("Based on 25-match empirical analysis")
-    with col2:
-        st.metric("Patterns Detected", patterns_count)
+    # Use Streamlit native components for header
+    st.markdown(f"### 🎯 PROVEN PATTERNS DETECTED")
+    st.markdown(f"**{patterns_count} Pattern(s) Found** - Based on 25-match empirical analysis (100% & 83.3% accuracy)")
     
-    # Display each recommendation in beautiful Streamlit cards
+    # Display each recommendation in beautiful cards using Streamlit
     for idx, rec in enumerate(pattern_results['recommendations']):
-        # Create expandable container for each pattern
-        with st.expander(f"**{rec['bet_type']}** - {rec.get('team_to_bet', 'Match')}", expanded=True):
+        # Pattern-specific styling
+        pattern_styles = {
+            'ELITE_DEFENSE_UNDER_1_5': {
+                'emoji': '🛡️',
+                'title_color': '#065F46',
+                'border_color': '#16A34A'
+            },
+            'WINNER_LOCK_DOUBLE_CHANCE': {
+                'emoji': '👑',
+                'title_color': '#1E40AF',
+                'border_color': '#2563EB'
+            },
+            'PATTERN_DRIVEN_UNDER_3_5': {
+                'emoji': '📊',
+                'title_color': '#5B21B6',
+                'border_color': '#7C3AED'
+            }
+        }
+        
+        style = pattern_styles.get(rec['pattern'], pattern_styles['ELITE_DEFENSE_UNDER_1_5'])
+        
+        # Create card using Streamlit columns
+        col1, col2 = st.columns([4, 1])
+        
+        with col1:
+            # FIXED: Show clear team name for UNDER 1.5 predictions
+            if rec['pattern'] == 'ELITE_DEFENSE_UNDER_1_5':
+                st.markdown(f"### {style['emoji']} {rec['team_to_bet']} to score UNDER 1.5 goals")
+            elif rec['pattern'] == 'WINNER_LOCK_DOUBLE_CHANCE':
+                st.markdown(f"### {style['emoji']} {rec['team_to_bet']} - DOUBLE CHANCE (Win or Draw)")
+            else:
+                st.markdown(f"### {style['emoji']} {rec['bet_type']}")
             
-            # Create columns for better layout
-            col_a, col_b = st.columns([3, 1])
+            st.markdown(f"**Reason:** {rec['reason']}")
             
+        with col2:
+            st.markdown(f"<div style='background: {style['border_color']}; color: white; padding: 0.5rem 1rem; border-radius: 8px; text-align: center;'><strong>{rec['stake_multiplier']:.1f}x</strong><br><small>Stake Multiplier</small></div>", unsafe_allow_html=True)
+        
+        # Pattern details in expander
+        with st.expander("📊 Pattern Details & Historical Evidence"):
+            col_a, col_b = st.columns(2)
             with col_a:
-                # Pattern-specific emoji and title
-                if rec['pattern'] == 'ELITE_DEFENSE_UNDER_1_5':
-                    st.markdown(f"##### 🛡️ {rec['team_to_bet']} to score UNDER 1.5 goals")
-                    st.write(f"**Reason:** {rec['reason']}")
-                elif rec['pattern'] == 'WINNER_LOCK_DOUBLE_CHANCE':
-                    st.markdown(f"##### 👑 {rec['team_to_bet']} Double Chance (Win or Draw)")
-                    st.write(f"**Reason:** {rec['reason']}")
-                else:  # PATTERN_DRIVEN_UNDER_3_5
-                    st.markdown(f"##### 📊 Total UNDER 3.5 goals")
-                    st.write(f"**Reason:** {rec['reason']}")
-            
+                st.metric("Pattern", rec['pattern'].replace('_', ' '))
             with col_b:
-                # Stake multiplier in a nice metric
-                st.metric("Stake Multiplier", f"{rec['stake_multiplier']:.1f}x")
+                st.metric("Sample Accuracy", rec['sample_accuracy'])
             
-            # Pattern details in columns
-            col1, col2 = st.columns(2)
-            with col1:
-                st.info(f"**Pattern:** {rec['pattern'].replace('_', ' ')}")
-            with col2:
-                st.success(f"**Sample Accuracy:** {rec['sample_accuracy']}")
+            st.markdown("**Historical Evidence:**")
+            matches_text = ", ".join(rec['sample_matches'][:3])
+            st.info(f"{matches_text}")
             
-            # Historical evidence
-            with st.container():
-                st.markdown("**📜 Historical Evidence:**")
-                matches = rec['sample_matches'][:3]  # Show first 3 examples
-                for match in matches:
-                    st.markdown(f"- {match}")
-            
-            # Add spacing between patterns
-            st.divider()
+            # Show defensive data for Elite Defense pattern
+            if rec['pattern'] == 'ELITE_DEFENSE_UNDER_1_5':
+                st.markdown("**Defensive Analysis:**")
+                col_c, col_d = st.columns(2)
+                with col_c:
+                    st.metric(f"{rec['defensive_team']} Conceded", f"{rec['home_conceded']}/5")
+                with col_d:
+                    st.metric("Defense Gap", f"+{rec['defense_gap']}")
+        
+        st.markdown("---")
 
 # =================== PERFORMANCE TRACKER ===================
 class PerformanceTracker:
@@ -238,13 +266,20 @@ def main():
     """Main application with Proven Pattern Detection"""
     
     # Header with pattern detection emphasis
-    st.title("🎯 BRUTBALL INTEGRATED v6.3 + PROVEN PATTERNS")
-    st.markdown("### THREE PROVEN PATTERNS FROM 25-MATCH EMPIRICAL ANALYSIS")
+    st.markdown('<div class="system-header">🎯🔒📊 BRUTBALL INTEGRATED v6.3 + PROVEN PATTERNS</div>', unsafe_allow_html=True)
     
-    # Empirical Proof Display using Streamlit columns
-    st.markdown("---")
-    st.subheader("📊 EMPIRICAL PROOF (25-MATCH ANALYSIS)")
+    st.markdown("""
+    <div class="system-subheader">
+        <p><strong>THREE PROVEN PATTERNS FROM 25-MATCH EMPIRICAL ANALYSIS</strong></p>
+        <p>Pattern A: Elite Defense → Opponent UNDER 1.5 (100% - 8 matches)</p>
+        <p>Pattern B: Winner Lock → Double Chance (100% - 6 matches)</p>
+        <p>Pattern C: UNDER 3.5 When Patterns Present (83.3% - 10/12 matches)</p>
+        <p><strong>NEW:</strong> Beautiful UI with clear betting recommendations & stake calculations</p>
+    </div>
+    """, unsafe_allow_html=True)
     
+    # Empirical Proof Display using Streamlit
+    st.markdown("### 📊 EMPIRICAL PROOF (25-MATCH ANALYSIS)")
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Elite Defense Pattern", "100%", "8/8 matches")
@@ -253,49 +288,30 @@ def main():
     with col3:
         st.metric("Under 3.5 Pattern", "83.3%", "10/12 matches")
     
-    # Pattern Conditions Display
-    st.markdown("---")
-    st.subheader("🎯 PATTERN CONDITIONS")
+    # Pattern Conditions using Streamlit
+    st.markdown("### 🎯 PATTERN CONDITIONS")
     
-    # Create tabs for each pattern
-    tab1, tab2, tab3 = st.tabs(["🛡️ Elite Defense", "👑 Winner Lock", "📊 Under 3.5"])
+    with st.expander("🛡️ ELITE DEFENSE", expanded=True):
+        st.markdown("""
+        - **Condition:** Team concedes ≤4 goals TOTAL in last 5 matches
+        - **Condition:** Defense gap > 2.0 goals vs opponent  
+        - **Bet:** Opponent UNDER 1.5 goals
+        - **Sample Accuracy:** 8/8 matches (100%)
+        """)
     
-    with tab1:
+    with st.expander("👑 WINNER LOCK", expanded=False):
         st.markdown("""
-        **Pattern A: Elite Defense → Opponent UNDER 1.5 Goals**
-        
-        **Conditions:**
-        1. Team concedes ≤4 goals TOTAL in last 5 matches
-        2. Defense gap > 2.0 goals vs opponent
-        
-        **Bet:** Opponent to score UNDER 1.5 goals
-        
-        **Accuracy:** 100% (8/8 matches)
+        - **Condition:** Agency-State Lock gives WINNER lock
+        - **Condition:** Team does NOT lose (wins or draws)
+        - **Bet:** DOUBLE CHANCE (Win or Draw)
+        - **Sample Accuracy:** 6/6 matches (100% no-loss)
         """)
-        
-    with tab2:
+    
+    with st.expander("📊 UNDER 3.5 WHEN PATTERNS PRESENT", expanded=False):
         st.markdown("""
-        **Pattern B: Winner Lock → Double Chance**
-        
-        **Conditions:**
-        1. Agency-State Lock gives WINNER lock
-        2. Team does NOT lose (wins or draws)
-        
-        **Bet:** DOUBLE CHANCE (Win or Draw)
-        
-        **Accuracy:** 100% no-loss (6/6 matches)
-        """)
-        
-    with tab3:
-        st.markdown("""
-        **Pattern C: UNDER 3.5 When Patterns Present**
-        
-        **Conditions:**
-        1. EITHER Elite Defense OR Winner Lock pattern present
-        
-        **Bet:** TOTAL UNDER 3.5 goals
-        
-        **Accuracy:** 83.3% (10/12 matches)
+        - **Condition:** EITHER Elite Defense OR Winner Lock pattern present
+        - **Bet:** TOTAL UNDER 3.5 goals
+        - **Sample Accuracy:** 10/12 matches (83.3%)
         """)
     
     # Initialize session state
@@ -306,27 +322,15 @@ def main():
     if 'selected_league' not in st.session_state:
         st.session_state.selected_league = 'Premier League'
     
-    # League selection
-    st.markdown("---")
-    st.subheader("🌍 League Selection")
-    
-    cols = st.columns(8)
-    leagues = list(LEAGUES.keys())
-    
-    for idx, (col, league) in enumerate(zip(cols, leagues)):
-        with col:
-            config = LEAGUES[league]
-            if st.button(
-                config['display_name'],
-                use_container_width=True,
-                type="primary" if st.session_state.selected_league == league else "secondary",
-                key=f"league_btn_{league}"
-            ):
-                st.session_state.selected_league = league
-                st.session_state.analysis_complete = False
-                st.rerun()
-    
-    selected_league = st.session_state.selected_league
+    # League selection using buttons
+    st.markdown("### 🌍 League Selection")
+    selected_league = st.selectbox(
+        "Choose League",
+        list(LEAGUES.keys()),
+        index=list(LEAGUES.keys()).index(st.session_state.selected_league) if st.session_state.selected_league in LEAGUES else 0,
+        key="league_select"
+    )
+    st.session_state.selected_league = selected_league
     config = LEAGUES[selected_league]
     
     # Load data
@@ -338,9 +342,7 @@ def main():
         return
     
     # Team selection
-    st.markdown("---")
-    st.subheader("🏟️ Match Analysis")
-    
+    st.markdown("### 🏟️ Match Analysis")
     col1, col2 = st.columns(2)
     with col1:
         home_team = st.selectbox("Home Team", sorted(df['team'].unique()), key="home_team_select")
@@ -348,12 +350,15 @@ def main():
         away_options = [t for t in sorted(df['team'].unique()) if t != home_team]
         away_team = st.selectbox("Away Team", away_options, key="away_team_select")
     
+    # Test case indicator
+    if home_team == "FC Porto" and away_team == "AVS Futebol SAD":
+        st.success("✅ **Porto vs AVS Test Case Loaded** - This is the original pattern validation match!")
+    
     # Get data for pattern detection
     home_data = extract_pure_team_data(df, home_team)
     away_data = extract_pure_team_data(df, away_team)
     
     # Execute analysis button
-    st.markdown("---")
     if st.button("⚡ DETECT PROVEN PATTERNS", type="primary", use_container_width=True, key="detect_patterns"):
         
         # Prepare data for pattern detection
@@ -380,21 +385,19 @@ def main():
     if st.session_state.analysis_complete and st.session_state.pattern_results:
         pattern_results = st.session_state.pattern_results
         
-        # Display Proven Patterns
-        st.markdown("---")
-        st.subheader("🎯 PROVEN PATTERN DETECTION RESULTS")
+        # Display Proven Patterns using the fixed function
         display_proven_patterns_results(pattern_results, home_team, away_team)
         
         # Bankroll and Stake Management
-        st.markdown("---")
-        st.subheader("💰 BANKROLL MANAGEMENT")
+        st.markdown("### 💰 BANKROLL MANAGEMENT")
         
         col1, col2, col3 = st.columns(3)
         with col1:
             risk_level = st.selectbox(
                 "Risk Level",
                 ["CONSERVATIVE (0.5%)", "MEDIUM (1.0%)", "AGGRESSIVE (1.5%)"],
-                index=1
+                index=1,
+                key="risk_level"
             )
         
         with col2:
@@ -412,58 +415,59 @@ def main():
         
         # Calculate stakes for each recommendation
         if pattern_results['patterns_detected'] > 0:
-            st.markdown("---")
-            st.subheader("📊 RECOMMENDED STAKES")
+            st.markdown("#### 📊 RECOMMENDED STAKES")
             
             total_stake = 0
+            stakes = []
+            
             for idx, rec in enumerate(pattern_results['recommendations']):
                 stake = bankroll_manager.calculate_stake(rec, risk_level.split()[0])
+                stakes.append(stake)
                 total_stake += stake
                 
-                # Create a nice card for each stake
+                # Create stake card using Streamlit
                 with st.container():
-                    col_a, col_b = st.columns([3, 1])
-                    
+                    col_a, col_b, col_c = st.columns([3, 1, 1])
                     with col_a:
-                        # FIXED: Display the correct team name for UNDER 1.5 bets
+                        # FIXED: Show clear team name
                         if rec['pattern'] == 'ELITE_DEFENSE_UNDER_1_5':
-                            bet_label = f"**{rec['team_to_bet']} to score UNDER 1.5 goals**"
+                            st.markdown(f"**{rec['team_to_bet']} to score UNDER 1.5 goals**")
                         elif rec['pattern'] == 'WINNER_LOCK_DOUBLE_CHANCE':
-                            bet_label = f"**{rec['team_to_bet']} Double Chance**"
+                            st.markdown(f"**{rec['team_to_bet']} - DOUBLE CHANCE**")
                         else:
-                            bet_label = "**Total UNDER 3.5 goals**"
+                            st.markdown(f"**{rec['bet_type']}**")
                         
-                        st.markdown(bet_label)
-                        st.caption(f"Pattern: {rec['pattern'].replace('_', ' ')}")
+                        # Show defensive context for Elite Defense
+                        if rec['pattern'] == 'ELITE_DEFENSE_UNDER_1_5':
+                            st.caption(f"{rec['defensive_team']} elite defense: {rec['home_conceded']}/5 goals conceded")
                     
                     with col_b:
-                        st.metric("Stake", f"${stake:.2f}", f"{stake/bankroll_manager.bankroll*100:.1f}%")
+                        st.markdown(f"**${stake:.2f}**")
+                        st.caption(f"{stake/bankroll_manager.bankroll*100:.1f}%")
                     
-                    # Progress bar for stake percentage
-                    stake_pct = stake / bankroll_manager.bankroll * 100
-                    st.progress(min(stake_pct / 5, 1.0), text=f"Risk: {stake_pct:.1f}% of bankroll")
+                    with col_c:
+                        st.markdown(f"**{rec['stake_multiplier']:.1f}x**")
+                        st.caption("Multiplier")
                     
-                st.divider()
+                    st.progress(stake / (bankroll_manager.bankroll * 0.05))  # Progress bar relative to 5% max
             
-            # Total stake warning
+            # Total stake summary
             risk_percentage = (total_stake / bankroll_manager.bankroll) * 100
             
-            if risk_percentage < 10:
-                risk_color = "green"
-            elif risk_percentage < 20:
-                risk_color = "orange"
-            else:
-                risk_color = "red"
+            st.markdown("---")
+            col_sum1, col_sum2, col_sum3 = st.columns(3)
+            with col_sum1:
+                st.metric("Total Stake", f"${total_stake:.2f}")
+            with col_sum2:
+                st.metric("Bankroll %", f"{risk_percentage:.1f}%")
+            with col_sum3:
+                st.metric("Patterns", pattern_results['patterns_detected'])
             
-            st.success(f"""
-            **Total Stake for This Match:** ${total_stake:.2f}
-            
-            **Risk Level:** {risk_percentage:.1f}% of bankroll • {pattern_results['patterns_detected']} pattern(s)
-            """)
+            if risk_percentage > 10:
+                st.warning(f"⚠️ Total stake ({risk_percentage:.1f}% of bankroll) is above recommended 10% limit")
         
         # Performance Tracking
-        st.markdown("---")
-        st.subheader("📈 PERFORMANCE TRACKING")
+        st.markdown("### 📈 PERFORMANCE TRACKING")
         
         col1, col2 = st.columns(2)
         with col1:
@@ -479,18 +483,18 @@ def main():
                 key="actual_away"
             )
         
-        if st.button("Record Match Result", type="secondary", use_container_width=True):
+        if st.button("📝 Record Match Result", type="secondary"):
             # Record predictions
             for rec in pattern_results['recommendations']:
                 match_info = f"{home_team} vs {away_team}"
                 
-                # FIXED: Use the correct team name for UNDER 1.5 bets
+                # FIXED: Clear prediction text
                 if rec['pattern'] == 'ELITE_DEFENSE_UNDER_1_5':
                     prediction = f"{rec['team_to_bet']} to score UNDER 1.5 goals"
                 elif rec['pattern'] == 'WINNER_LOCK_DOUBLE_CHANCE':
-                    prediction = f"{rec['team_to_bet']} Double Chance (Win or Draw)"
+                    prediction = f"{rec['team_to_bet']} - DOUBLE CHANCE (Win or Draw)"
                 else:
-                    prediction = "Total UNDER 3.5 goals"
+                    prediction = f"{rec['bet_type']}"
                 
                 accuracy = rec['sample_accuracy'].split('(')[0].strip()
                 performance_tracker.record_prediction(match_info, prediction, accuracy)
@@ -503,12 +507,12 @@ def main():
             actual_total = actual_home + actual_away
             profit_loss = 0
             
-            for rec in pattern_results['recommendations']:
-                stake = bankroll_manager.calculate_stake(rec, risk_level.split()[0])
+            for idx, rec in enumerate(pattern_results['recommendations']):
+                stake = stakes[idx] if idx < len(stakes) else bankroll_manager.calculate_stake(rec, risk_level.split()[0])
                 
                 # Check if bet would win
                 if rec['pattern'] == 'ELITE_DEFENSE_UNDER_1_5':
-                    # FIXED: Check the correct team for UNDER 1.5
+                    # Bet: Team to score UNDER 1.5 goals
                     if rec['team_to_bet'] == away_team:
                         would_win = actual_away <= 1
                     else:
@@ -538,14 +542,14 @@ def main():
             bankroll_manager.update_after_result(profit_loss)
             
             # Show result
-            if profit_loss >= 0:
-                st.success(f"✅ Recorded: {home_team} {actual_home}-{actual_away} {away_team}")
-                st.success(f"**Profit/Loss:** +${profit_loss:.2f}")
-            else:
-                st.warning(f"⚠️ Recorded: {home_team} {actual_home}-{actual_away} {away_team}")
-                st.error(f"**Profit/Loss:** -${abs(profit_loss):.2f}")
+            result_color = "green" if profit_loss >= 0 else "red"
+            st.success(f"""
+            ✅ **Match Result Recorded:** {home_team} {actual_home}-{actual_away} {away_team}
             
-            st.info(f"**New Bankroll:** ${bankroll_manager.bankroll:.2f}")
+            **Profit/Loss:** :{result_color}[**${profit_loss:+.2f}**]
+            
+            **New Bankroll:** ${bankroll_manager.bankroll:.2f}
+            """)
             
             # Check if should continue
             should_continue, message = bankroll_manager.should_continue_betting()
@@ -558,24 +562,29 @@ def main():
         stats = performance_tracker.calculate_accuracy()
         bankroll_status = bankroll_manager.get_status()
         
-        col1, col2, col3 = st.columns(3)
+        st.markdown("#### 📊 System Performance")
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Total Predictions", stats['total_predictions'])
         with col2:
             st.metric("Accuracy", f"{stats['accuracy']:.1f}%")
         with col3:
             st.metric("Bankroll", f"${bankroll_status['bankroll']:.2f}")
+        with col4:
+            st.metric("Daily P/L", f"${bankroll_status['daily_profit_loss']:+.2f}")
         
-        # Export functionality - FIXED: Proper datetime import
+        # Export functionality - FIXED datetime import issue
         st.markdown("---")
-        st.subheader("📤 Export Analysis")
+        st.markdown("#### 📤 Export Analysis")
         
-        # Prepare export text
+        # FIXED: Use datetime.now() properly
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
         export_text = f"""BRUTBALL PROVEN PATTERNS ANALYSIS
 ===========================================
 League: {selected_league}
 Match: {home_team} vs {away_team}
-Analysis Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Analysis Time: {current_time}
 
 EMPRICAL PROOF (25-MATCH ANALYSIS):
 • Pattern A: Elite Defense → Opponent UNDER 1.5 (100% - 8 matches)
@@ -590,15 +599,13 @@ RECOMMENDED BETS:
 """
         
         for idx, rec in enumerate(pattern_results['recommendations']):
-            # FIXED: Display correct team name in export
+            # FIXED: Clear bet description
             if rec['pattern'] == 'ELITE_DEFENSE_UNDER_1_5':
                 bet_desc = f"{rec['team_to_bet']} to score UNDER 1.5 goals"
             elif rec['pattern'] == 'WINNER_LOCK_DOUBLE_CHANCE':
-                bet_desc = f"{rec['team_to_bet']} Double Chance (Win or Draw)"
+                bet_desc = f"{rec['team_to_bet']} - DOUBLE CHANCE (Win or Draw)"
             else:
-                bet_desc = "Total UNDER 3.5 goals"
-            
-            stake = bankroll_manager.calculate_stake(rec, risk_level.split()[0])
+                bet_desc = f"{rec['bet_type']}"
             
             export_text += f"""
 {idx+1}. {bet_desc}
@@ -606,7 +613,6 @@ RECOMMENDED BETS:
    • Reason: {rec['reason']}
    • Sample Accuracy: {rec['sample_accuracy']}
    • Stake Multiplier: {rec['stake_multiplier']:.1f}x
-   • Recommended Stake: ${stake:.2f} ({stake/bankroll_manager.bankroll*100:.1f}% of bankroll)
 """
         
         export_text += f"""
@@ -635,108 +641,25 @@ DATA SOURCE:
             data=export_text,
             file_name=f"brutball_patterns_{selected_league.replace(' ', '_')}_{home_team}_vs_{away_team}.txt",
             mime="text/plain",
-            use_container_width=True
+            use_container_width=True,
+            key="export_button"
         )
     
     # Footer with pattern examples
     st.markdown("---")
-    st.caption("**BRUTBALL PROVEN PATTERNS v1.0** - Based on 25-match empirical analysis")
-    st.caption("Historical Proof: Porto 2-0 AVS • Espanyol 2-1 Athletic • Parma 1-0 Fiorentina")
-
-# =================== DATA LOADING ===================
-@st.cache_data(ttl=3600, show_spinner="Loading league data...")
-def load_and_prepare_data(league_name: str) -> Optional[pd.DataFrame]:
-    """Load and prepare league data"""
-    try:
-        if league_name not in LEAGUES:
-            st.error(f"❌ Unknown league: {league_name}")
-            return None
-        
-        league_config = LEAGUES[league_name]
-        filename = league_config['filename']
-        
-        data_sources = [
-            f'leagues/{filename}',
-            f'./leagues/{filename}',
-            filename,
-            f'https://raw.githubusercontent.com/profdue/Brutball/main/leagues/{filename}'
-        ]
-        
-        df = None
-        for source in data_sources:
-            try:
-                df = pd.read_csv(source)
-                break
-            except Exception:
-                continue
-        
-        if df is None:
-            st.error(f"❌ Failed to load data for {league_config['display_name']}")
-            return None
-        
-        # Calculate derived metrics
-        df = calculate_derived_metrics(df)
-        
-        # Store metadata
-        df.attrs['league_name'] = league_name
-        df.attrs['display_name'] = league_config['display_name']
-        df.attrs['color'] = league_config['color']
-        
-        return df
-        
-    except Exception as e:
-        st.error(f"❌ Data preparation error: {str(e)}")
-        return None
-
-def calculate_derived_metrics(df: pd.DataFrame) -> pd.DataFrame:
-    """Calculate derived metrics from CSV structure"""
-    
-    # Goals scored
-    df['home_goals_scored'] = (
-        df['home_goals_openplay_for'].fillna(0) +
-        df['home_goals_counter_for'].fillna(0) +
-        df['home_goals_setpiece_for'].fillna(0) +
-        df['home_goals_penalty_for'].fillna(0) +
-        df['home_goals_owngoal_for'].fillna(0)
-    )
-    
-    df['away_goals_scored'] = (
-        df['away_goals_openplay_for'].fillna(0) +
-        df['away_goals_counter_for'].fillna(0) +
-        df['away_goals_setpiece_for'].fillna(0) +
-        df['away_goals_penalty_for'].fillna(0) +
-        df['away_goals_owngoal_for'].fillna(0)
-    )
-    
-    # Goals conceded
-    df['home_goals_conceded'] = (
-        df['home_goals_openplay_against'].fillna(0) +
-        df['home_goals_counter_against'].fillna(0) +
-        df['home_goals_setpiece_against'].fillna(0) +
-        df['home_goals_penalty_against'].fillna(0) +
-        df['home_goals_owngoal_against'].fillna(0)
-    )
-    
-    df['away_goals_conceded'] = (
-        df['away_goals_openplay_against'].fillna(0) +
-        df['away_goals_counter_against'].fillna(0) +
-        df['away_goals_setpiece_against'].fillna(0) +
-        df['away_goals_penalty_against'].fillna(0) +
-        df['away_goals_owngoal_against'].fillna(0)
-    )
-    
-    # Per-match averages
-    df['home_goals_per_match'] = df['home_goals_scored'] / df['home_matches_played'].replace(0, np.nan)
-    df['away_goals_per_match'] = df['away_goals_scored'] / df['away_matches_played'].replace(0, np.nan)
-    df['home_xg_per_match'] = df['home_xg_for'] / df['home_matches_played'].replace(0, np.nan)
-    df['away_xg_per_match'] = df['away_xg_for'] / df['away_matches_played'].replace(0, np.nan)
-    
-    # Fill NaN
-    for col in df.columns:
-        if df[col].dtype in ['float64', 'int64']:
-            df[col] = df[col].fillna(0)
-    
-    return df
+    st.markdown("""
+    ### 📋 Historical Proof Examples
+    - **Porto 2-0 AVS** (Elite Defense pattern)
+    - **Espanyol 2-1 Athletic** (Elite Defense pattern)  
+    - **Parma 1-0 Fiorentina** (Elite Defense pattern)
+    - **Juventus 2-0 Pisa** (Elite Defense pattern)
+    - **Milan 3-0 Verona** (Elite Defense pattern)
+    - **Arsenal 4-1 Villa** (Elite Defense pattern)
+    - **Man City 0-0 Sunderland** (Elite Defense pattern)
+    - **Udinese 1-1 Lazio** (Winner Lock pattern)
+    - **Man Utd 1-1 Wolves** (Winner Lock pattern)
+    - **Brentford 0-0 Spurs** (Winner Lock pattern)
+    """)
 
 if __name__ == "__main__":
     main()
