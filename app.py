@@ -127,95 +127,94 @@ class PerformanceTracker:
 performance_tracker = PerformanceTracker()
 
 # =================== BET-READY SIGNALS DISPLAY ===================
-def display_bet_ready_signals(edge_locks: List[Dict], home_name: str, away_name: str):
-    """Display human-readable betting signals."""
+def display_bet_ready_signals_streamlit(edge_locks: List[Dict], home_name: str, away_name: str):
+    """Display human-readable betting signals using Streamlit components only."""
     
     if not edge_locks:
+        st.info("No bet-ready signals detected for this match.")
         return
     
     # Header
-    st.markdown("""
-    <div style="background: linear-gradient(135deg, #ECFDF5 0%, #A7F3D0 100%); 
-                padding: 1.5rem; border-radius: 10px; border: 3px solid #059669; 
-                margin: 1.5rem 0;">
-        <h3 style="color: #065F46; margin: 0 0 1rem 0;">🎯 BET-READY SIGNALS</h3>
-        <p style="color: #374151; margin-bottom: 1rem;">Clear, actionable betting recommendations based on defensive proof</p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("---")
+    st.markdown("### 🎯 BET-READY SIGNALS (Clear, Actionable Recommendations)")
     
-    # Create a clean table for bet-ready signals
-    for lock in edge_locks:
-        # Determine confidence color
+    # Add explanatory text
+    st.markdown("""
+    **Clear labeling:** "Team to score UNDER 1.5 goals" (no confusion)  
+    **Attack context:** Tiered confidence based on opponent scoring average  
+    **Human-readable:** Shows exactly what to bet, why, and with what confidence
+    """)
+    
+    # Create clean signals for each lock
+    for i, lock in enumerate(edge_locks, 1):
+        # Determine confidence color and description
         confidence_colors = {
-            "VERY STRONG": "#2563EB",
-            "STRONG": "#059669",
-            "WEAK": "#D97706",
-            "VERY WEAK": "#DC2626"
+            "VERY STRONG": "🔵",
+            "STRONG": "🟢", 
+            "WEAK": "🟡",
+            "VERY WEAK": "🔴"
         }
         
-        confidence_color = confidence_colors.get(lock['confidence'], "#6B7280")
+        confidence_emoji = confidence_colors.get(lock['confidence'], "⚪")
         
-        # Build the HTML for this signal
-        signal_html = f"""
-        <div style="background: white; padding: 1.5rem; border-radius: 8px; 
-                    border: 2px solid {confidence_color}; margin: 1rem 0;">
-            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
-                <div>
-                    <div style="font-size: 1.2rem; font-weight: 700; color: #1F2937;">
-                        {lock['market']}
-                    </div>
-                    <div style="font-size: 0.9rem; color: #6B7280; margin-top: 0.25rem;">
-                        Defensive context: {lock['defensive_team']} concedes {lock['defense_avg']:.2f} avg (last 5)
-                    </div>
-                </div>
-                <div style="text-align: center; min-width: 100px;">
-                    <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">
-                        {lock['confidence_emoji']}
-                    </div>
-                    <div style="font-weight: 700; color: {confidence_color};">
-                        {lock['confidence']}
-                    </div>
-                </div>
-            </div>
-            
-            <div style="background: #F9FAFB; padding: 1rem; border-radius: 6px; margin: 0.5rem 0;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.5rem;">
-                    <div>
-                        <div style="font-size: 0.85rem; color: #6B7280;">Defensive Team</div>
-                        <div style="font-weight: 600; color: #374151;">{lock['defensive_team']}</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.85rem; color: #6B7280;">Avg Conceded</div>
-                        <div style="font-weight: 600; color: #059669;">{lock['defense_avg']:.2f}</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.85rem; color: #6B7280;">Opponent Attack</div>
-                        <div style="font-weight: 600; color: #DC2626;">{lock['opponent_attack_avg']:.2f}</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.85rem; color: #6B7280;">Capital Multiplier</div>
-                        <div style="font-weight: 600; color: #3B82F6;">{lock['capital_multiplier']:.1f}x</div>
-                    </div>
-                </div>
-                <div style="font-size: 0.9rem; color: #374151;">
-                    <strong>📈 Context:</strong> {lock['full_explanation']}
-                </div>
-            </div>
-            
-            <div style="background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%); 
-                        padding: 0.75rem; border-radius: 6px; margin-top: 0.75rem; text-align: center;">
-                <div style="font-size: 1rem; font-weight: 700; color: #92400E;">
-                    {lock['bet_label']}
-                </div>
-                <div style="font-size: 0.85rem; color: #92400E; margin-top: 0.25rem;">
-                    Suggested bet: {lock['team_to_bet']} to score 0 or 1 goals
-                </div>
-            </div>
-        </div>
-        """
+        # Determine risk description based on confidence
+        risk_descriptions = {
+            "VERY STRONG": "Low risk - opponent has weak attack",
+            "STRONG": "Moderate risk - opponent attack is manageable",
+            "WEAK": "High risk - opponent has strong attack capability",
+            "VERY WEAK": "Very high risk - opponent has very strong attack"
+        }
         
-        # Render the HTML
-        st.markdown(signal_html, unsafe_allow_html=True)
+        risk_desc = risk_descriptions.get(lock['confidence'], "")
+        
+        # Create expandable container for each signal
+        with st.expander(f"**Signal {i}: {lock['market']}**", expanded=True):
+            # Top row with market and confidence
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.markdown(f"**Market:** {lock['market']}")
+            with col2:
+                st.markdown(f"**{confidence_emoji} {lock['confidence']}**")
+            
+            # Risk warning for weak/very weak
+            if lock['confidence'] in ["WEAK", "VERY WEAK"]:
+                st.warning(f"{risk_desc}. Consider reducing stake or avoiding.")
+            
+            # Defensive context
+            st.markdown("**Defensive Context:**")
+            st.markdown(f"- Defensive team: **{lock['defensive_team']}**")
+            st.markdown(f"- Avg goals conceded (last 5): **{lock['defense_avg']:.2f}** {'✅ ≤ 1.0' if lock['defense_avg'] <= 1.0 else '❌ > 1.0'}")
+            st.markdown(f"- Opponent ({lock['team_to_bet']}) attack avg: **{lock['opponent_attack_avg']:.2f}**")
+            
+            # Capital multiplier with confidence-based adjustment
+            st.markdown("**Capital Allocation:**")
+            
+            # Adjust multiplier based on confidence
+            multiplier_map = {
+                "VERY STRONG": 2.0,
+                "STRONG": 1.5,
+                "WEAK": 1.0,
+                "VERY WEAK": 0.5
+            }
+            
+            adjusted_multiplier = multiplier_map.get(lock['confidence'], 1.0)
+            st.markdown(f"- Capital multiplier: **{adjusted_multiplier:.1f}x** (adjusted for {lock['confidence']} confidence)")
+            
+            # Bet suggestion
+            st.markdown("**Bet Suggestion:**")
+            st.markdown(f"✅ **Bet:** {lock['team_to_bet']} to score 0 or 1 goals")
+            
+            # Context explanation
+            st.markdown("**Why this qualifies:**")
+            
+            # Adjust language based on confidence
+            if lock['confidence'] in ["VERY WEAK", "WEAK"]:
+                st.markdown(f"Despite {lock['defensive_team']}'s defensive strength ({lock['defense_avg']:.2f} avg conceded), {lock['team_to_bet']}'s strong attack ({lock['opponent_attack_avg']:.2f} avg) introduces significant variance.")
+            else:
+                st.markdown(f"{lock['team_to_bet']} faces {lock['defensive_team']}'s strong defense ({lock['defense_avg']:.2f} avg conceded). {lock['attack_context']}.")
+            
+            # Metadata
+            st.caption(f"Source: Tier 1+ Edge-Derived • Data: Last 5 matches only • Signal ID: {hash(lock['market']) % 10000:04d}")
 
 # =================== SYSTEM CONSTANTS (IMMUTABLE) ===================
 # v6.0 Edge Detection Engine Constants
@@ -343,6 +342,7 @@ LEAGUES = {
 # =================== CSS STYLING ===================
 st.markdown("""
     <style>
+    /* Keep minimal CSS for structure but remove all HTML leakage */
     .system-header {
         font-size: 2.2rem;
         font-weight: 800;
@@ -358,502 +358,113 @@ st.markdown("""
         margin-bottom: 2rem;
         font-size: 0.95rem;
     }
-    .agency-state-display {
-        padding: 2.5rem;
-        border-radius: 12px;
-        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
-        border: 4px solid #16A34A;
-        text-align: center;
-        margin: 1.5rem 0;
-        box-shadow: 0 6px 16px rgba(22, 163, 74, 0.15);
-    }
-    .totals-lock-display {
-        padding: 2.5rem;
-        border-radius: 12px;
-        background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
-        border: 4px solid #0EA5E9;
-        text-align: center;
-        margin: 1.5rem 0;
-        box-shadow: 0 6px 16px rgba(14, 165, 233, 0.15);
-    }
-    .edge-derived-display {
-        padding: 2.5rem;
-        border-radius: 12px;
-        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
-        border: 4px solid #3B82F6;
-        text-align: center;
-        margin: 1.5rem 0;
-        box-shadow: 0 6px 16px rgba(59, 130, 246, 0.15);
-    }
-    .market-locked-display {
-        padding: 1.5rem;
-        border-radius: 10px;
-        background: linear-gradient(135deg, #ECFDF5 0%, #A7F3D0 100%);
-        border: 3px solid #059669;
-        margin: 1rem 0;
-        text-align: left;
-    }
-    .market-totals-locked {
-        padding: 1.5rem;
-        border-radius: 10px;
-        background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
-        border: 3px solid #0EA5E9;
-        margin: 1rem 0;
-        text-align: left;
-    }
-    .market-edge-derived {
-        padding: 1.5rem;
-        border-radius: 10px;
-        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
-        border: 3px solid #3B82F6;
-        margin: 1rem 0;
-        text-align: left;
-    }
-    .market-available-display {
-        padding: 1.5rem;
-        border-radius: 10px;
-        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
-        border: 3px solid #3B82F6;
-        margin: 1rem 0;
-        text-align: left;
-    }
-    .market-unavailable-display {
-        padding: 1.5rem;
-        border-radius: 10px;
-        background: linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%);
-        border: 3px solid #9CA3AF;
-        margin: 1rem 0;
-        text-align: left;
-        opacity: 0.7;
-    }
-    .capital-mode-box {
+    .capital-box {
         padding: 1.5rem;
         border-radius: 10px;
         margin: 1rem 0;
         text-align: center;
         font-weight: 700;
+        border-width: 3px;
+        border-style: solid;
     }
     .edge-mode {
         background: #EFF6FF;
         color: #1E40AF;
-        border: 3px solid #3B82F6;
+        border-color: #3B82F6;
     }
     .lock-mode {
         background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
         color: #166534;
-        border: 3px solid #16A34A;
+        border-color: #16A34A;
     }
     .totals-lock-mode {
         background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
         color: #0C4A6E;
-        border: 3px solid #0EA5E9;
+        border-color: #0EA5E9;
     }
     .edge-derived-mode {
         background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
         color: #1E40AF;
-        border: 3px solid #3B82F6;
+        border-color: #3B82F6;
     }
-    .gate-passed {
+    .bet-ready-signal {
+        border-left: 4px solid;
+        padding-left: 1rem;
+        margin: 1rem 0;
+    }
+    .signal-very-strong {
+        border-left-color: #2563EB;
+        background-color: #EFF6FF;
+    }
+    .signal-strong {
+        border-left-color: #059669;
+        background-color: #F0FDF4;
+    }
+    .signal-weak {
+        border-left-color: #D97706;
+        background-color: #FEF3C7;
+    }
+    .signal-very-weak {
+        border-left-color: #DC2626;
+        background-color: #FEF2F2;
+    }
+    .metric-card {
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid #E5E7EB;
+        margin: 0.5rem 0;
+    }
+    .info-banner {
+        background: #F0F9FF;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #0EA5E9;
+        margin: 1rem 0;
+    }
+    .warning-banner {
+        background: #FEF3C7;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #F59E0B;
+        margin: 1rem 0;
+    }
+    .success-banner {
         background: #F0FDF4;
         padding: 1rem;
         border-radius: 8px;
         border-left: 4px solid #16A34A;
-        margin: 0.75rem 0;
-        font-size: 0.9rem;
+        margin: 1rem 0;
     }
-    .gate-failed {
+    .danger-banner {
         background: #FEF2F2;
         padding: 1rem;
         border-radius: 8px;
         border-left: 4px solid #DC2626;
-        margin: 0.75rem 0;
-        font-size: 0.9rem;
-    }
-    .trend-check {
-        background: #E0F2FE;
-        padding: 1rem;
-        border-radius: 8px;
-        border-left: 4px solid #0EA5E9;
-        margin: 0.75rem 0;
-        font-size: 0.9rem;
-    }
-    .state-classification-display {
-        background: linear-gradient(135deg, #FFEDD5 0%, #FED7AA 100%);
-        padding: 2rem;
-        border-radius: 12px;
-        border: 4px solid #F97316;
-        text-align: center;
-        margin: 1.5rem 0;
-        box-shadow: 0 6px 16px rgba(249, 115, 22, 0.15);
+        margin: 1rem 0;
     }
     .state-badge {
-        display: inline-block;
-        padding: 0.5rem 1.25rem;
-        border-radius: 25px;
-        font-size: 1rem;
-        font-weight: 700;
-        margin: 0.5rem;
-    }
-    .badge-stagnation {
-        background: #0EA5E9;
-        color: white;
-        border: 2px solid #0284C7;
-    }
-    .badge-suppression {
-        background: #16A34A;
-        color: white;
-        border: 2px solid #059669;
-    }
-    .badge-delayed {
-        background: #F59E0B;
-        color: white;
-        border: 2px solid #D97706;
-    }
-    .badge-explosion {
-        background: #EF4444;
-        color: white;
-        border: 2px solid #DC2626;
-    }
-    .badge-neutral {
-        background: #6B7280;
-        color: white;
-        border: 2px solid #4B5563;
-    }
-    .read-only-badge {
-        background: #F3F4F6;
-        color: #6B7280;
-        border: 1px solid #D1D5DB;
-        font-size: 0.8rem;
-        padding: 0.25rem 0.75rem;
-        border-radius: 12px;
-        display: inline-block;
-        margin-left: 0.5rem;
-    }
-    .market-badge {
         display: inline-block;
         padding: 0.25rem 0.75rem;
         border-radius: 20px;
         font-size: 0.85rem;
         font-weight: 600;
         margin: 0.25rem;
-    }
-    .badge-state {
-        background: #DCFCE7;
-        color: #16A34A;
-        border: 1px solid #86EFAC;
-    }
-    .badge-totals {
-        background: #BAE6FD;
-        color: #0C4A6E;
-        border: 1px solid #7DD3FC;
-    }
-    .badge-edge-derived {
-        background: #DBEAFE;
-        color: #1E40AF;
-        border: 1px solid #93C5FD;
     }
     .badge-locked {
         background: #A7F3D0;
         color: #065F46;
         border: 1px solid #10B981;
-        font-weight: 800;
     }
     .badge-totals-locked {
         background: #7DD3FC;
         color: #0C4A6E;
         border: 1px solid #38BDF8;
-        font-weight: 800;
     }
     .badge-edge-locked {
         background: #C7D2FE;
         color: #3730A3;
         border: 1px solid #818CF8;
-        font-weight: 800;
-    }
-    .badge-noise {
-        background: #F3F4F6;
-        color: #6B7280;
-        border: 1px solid #D1D5DB;
-    }
-    .agency-insight {
-        background: #E0F2FE;
-        padding: 1.5rem;
-        border-radius: 10px;
-        border: 2px solid #38BDF8;
-        margin: 1rem 0;
-    }
-    .totals-insight {
-        background: #F0F9FF;
-        padding: 1.5rem;
-        border-radius: 10px;
-        border: 2px solid #0EA5E9;
-        margin: 1rem 0;
-    }
-    .edge-derived-insight {
-        background: #EFF6FF;
-        padding: 1.5rem;
-        border-radius: 10px;
-        border: 2px solid #93C5FD;
-        margin: 1rem 0;
-    }
-    .metric-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin: 0.5rem 0;
-        padding: 0.5rem;
-        border-radius: 4px;
-    }
-    .metric-row-state {
-        background: #F0FDF4;
-        border-left: 3px solid #16A34A;
-    }
-    .metric-row-totals {
-        background: #E0F2FE;
-        border-left: 3px solid #0EA5E9;
-    }
-    .metric-row-agency {
-        background: #E0F2FE;
-        border-left: 3px solid #38BDF8;
-    }
-    .metric-row-edge {
-        background: #EFF6FF;
-        border-left: 3px solid #3B82F6;
-    }
-    .architecture-diagram {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 10px;
-        border: 2px solid #E5E7EB;
-        margin: 1rem 0;
-        text-align: center;
-    }
-    .three-tier-architecture {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 0.5rem;
-        margin: 2rem 0;
-    }
-    .tier-level {
-        width: 300px;
-        padding: 1rem;
-        border-radius: 8px;
-        text-align: center;
-        position: relative;
-    }
-    .tier-3 {
-        background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
-        border: 3px solid #0EA5E9;
-        color: #0C4A6E;
-        font-weight: 900;
-    }
-    .tier-2 {
-        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
-        border: 3px solid #16A34A;
-        color: #166534;
-        font-weight: 700;
-    }
-    .tier-1-edge-derived {
-        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
-        border: 3px dashed #3B82F6;
-        color: #1E40AF;
-        font-weight: 700;
-    }
-    .tier-1 {
-        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
-        border: 3px solid #3B82F6;
-        color: #1E40AF;
-    }
-    .state-principle {
-        background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
-        padding: 1.5rem;
-        border-radius: 10px;
-        border: 3px solid #38BDF8;
-        margin: 1rem 0;
-    }
-    .state-bound-list {
-        background: #F0FDF4;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 2px solid #86EFAC;
-        margin: 0.5rem 0;
-    }
-    .totals-lock-list {
-        background: #E0F2FE;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 2px solid #7DD3FC;
-        margin: 0.5rem 0;
-    }
-    .edge-derived-list {
-        background: #EFF6FF;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 2px solid #93C5FD;
-        margin: 0.5rem 0;
-    }
-    .noise-list {
-        background: #F3F4F6;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 2px solid #D1D5DB;
-        margin: 0.5rem 0;
-    }
-    .trend-indicator {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.25rem 0.75rem;
-        border-radius: 20px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        margin: 0.25rem;
-    }
-    .trend-good {
-        background: #DCFCE7;
-        color: #16A34A;
-        border: 1px solid #86EFAC;
-    }
-    .trend-poor {
-        background: #FEF3C7;
-        color: #D97706;
-        border: 1px solid #FCD34D;
-    }
-    .binary-gate {
-        background: #F0F9FF;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 3px solid #0EA5E9;
-        margin: 1rem 0;
-        text-align: center;
-        font-weight: 700;
-    }
-    .strict-binary {
-        background: #FFEDD5;
-        padding: 0.5rem;
-        border-radius: 6px;
-        border: 2px solid #F97316;
-        margin: 0.5rem 0;
-        text-align: center;
-    }
-    .law-display {
-        background: #FEFCE8;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 2px solid #FACC15;
-        margin: 1rem 0;
-    }
-    .preservation-law {
-        background: linear-gradient(135deg, #FFEDD5 0%, #FED7AA 100%);
-        padding: 1.5rem;
-        border-radius: 10px;
-        border: 3px solid #F97316;
-        margin: 1rem 0;
-        font-weight: 700;
-    }
-    .read-only-note {
-        background: #F0F9FF;
-        padding: 0.75rem;
-        border-radius: 6px;
-        border-left: 4px solid #0EA5E9;
-        margin: 0.5rem 0;
-        font-size: 0.85rem;
-        color: #374151;
-    }
-    .perspective-display {
-        background: #F0F9FF;
-        padding: 1.5rem;
-        border-radius: 10px;
-        border: 2px solid #0EA5E9;
-        margin: 1rem 0;
-    }
-    .perspective-box {
-        background: white;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 2px solid #E5E7EB;
-        margin: 0.75rem 0;
-    }
-    .perspective-home {
-        border-left: 4px solid #3B82F6;
-    }
-    .perspective-away {
-        border-left: 4px solid #EF4444;
-    }
-    .stay-out-badge {
-        background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
-        color: #92400E;
-        border: 2px solid #F59E0B;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-weight: 700;
-        display: inline-block;
-        margin: 0.5rem 0;
-    }
-    .edge-derived-badge {
-        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
-        color: #1E40AF;
-        border: 2px solid #3B82F6;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-weight: 700;
-        display: inline-block;
-        margin: 0.5rem 0;
-    }
-    .classification-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1rem;
-        margin: 1.5rem 0;
-    }
-    .classification-card {
-        background: white;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 1px solid #E5E7EB;
-    }
-    .classification-title {
-        font-size: 0.9rem;
-        color: #6B7280;
-        margin-bottom: 0.5rem;
-    }
-    .classification-value {
-        font-size: 1.2rem;
-        font-weight: 700;
-    }
-    .reliability-display {
-        margin: 1rem 0;
-        padding: 1rem;
-        background: #F0F9FF;
-        border-radius: 8px;
-        border: 1px solid #BAE6FD;
-    }
-    .bet-ready-signal {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 8px;
-        border: 2px solid;
-        margin: 1rem 0;
-    }
-    .bet-ready-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: start;
-        margin-bottom: 1rem;
-    }
-    .bet-ready-body {
-        background: #F9FAFB;
-        padding: 1rem;
-        border-radius: 6px;
-        margin: 0.5rem 0;
-    }
-    .bet-ready-footer {
-        background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
-        padding: 0.75rem;
-        border-radius: 6px;
-        margin-top: 0.75rem;
-        text-align: center;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -1923,6 +1534,12 @@ class BrutballIntegratedArchitecture:
         if home_avg_concedes <= DEFENSIVE_PROOF_THRESHOLD:
             confidence, emoji, attack_context = get_confidence_level(away_avg_score)
             
+            # Adjust explanation based on confidence
+            if confidence in ["VERY WEAK", "WEAK"]:
+                explanation = f"Despite {home_name}'s defensive strength ({home_avg_concedes:.2f} avg conceded), {away_name}'s strong attack ({away_avg_score:.2f} avg) introduces significant variance."
+            else:
+                explanation = f"{away_name} faces {home_name}'s strong defense ({home_avg_concedes:.2f} avg conceded). {attack_context}."
+            
             edge_locks.append({
                 'team_to_bet': away_name,  # Team whose scoring we're predicting
                 'defensive_team': home_name,  # Team providing defensive context
@@ -1941,13 +1558,19 @@ class BrutballIntegratedArchitecture:
                 'capital_authorized': True,
                 'state_locked': True,
                 'bet_label': f"✅ BET: {away_name} to score UNDER 1.5 goals",
-                'full_explanation': f"{away_name} faces {home_name}'s strong defense ({home_avg_concedes:.2f} avg conceded). {attack_context}.",
+                'full_explanation': explanation,
                 'original_format': f"{home_name} UNDER 1.5"  # Keep for backward compatibility
             })
         
         # Check Away team for UNDER 1.5 lock (HOME team to score under 1.5)
         if away_avg_concedes <= DEFENSIVE_PROOF_THRESHOLD:
             confidence, emoji, attack_context = get_confidence_level(home_avg_score)
+            
+            # Adjust explanation based on confidence
+            if confidence in ["VERY WEAK", "WEAK"]:
+                explanation = f"Despite {away_name}'s defensive strength ({away_avg_concedes:.2f} avg conceded), {home_name}'s strong attack ({home_avg_score:.2f} avg) introduces significant variance."
+            else:
+                explanation = f"{home_name} faces {away_name}'s strong defense ({away_avg_concedes:.2f} avg conceded). {attack_context}."
             
             edge_locks.append({
                 'team_to_bet': home_name,  # Team whose scoring we're predicting
@@ -1967,7 +1590,7 @@ class BrutballIntegratedArchitecture:
                 'capital_authorized': True,
                 'state_locked': True,
                 'bet_label': f"✅ BET: {home_name} to score UNDER 1.5 goals",
-                'full_explanation': f"{home_name} faces {away_name}'s strong defense ({away_avg_concedes:.2f} avg conceded). {attack_context}.",
+                'full_explanation': explanation,
                 'original_format': f"{away_name} UNDER 1.5"  # Keep for backward compatibility
             })
         
@@ -2408,165 +2031,151 @@ def main():
     """, unsafe_allow_html=True)
     
     # Bet-Ready Signals Explanation
-    st.markdown("""
-    <div class="state-principle">
-        <h4>🎯 BET-READY SIGNALS (v6.3 - NEW)</h4>
-        <div style="margin: 1rem 0;">
-            <div class="edge-derived-list">
-                <strong>✅ CLEAR, ACTIONABLE BETTING RECOMMENDATIONS</strong>
-                <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-                    <li><strong>Fixed Labeling:</strong> "Bournemouth to score UNDER 1.5 goals" (no confusion)</li>
-                    <li><strong>Attack Context:</strong> Tiered confidence based on opponent scoring average</li>
-                    <li><strong>Human-Readable:</strong> Shows exactly what to bet, why, and with what confidence</li>
-                    <li><strong>Performance Tracking:</strong> Records predictions vs actual results</li>
-                </ul>
-            </div>
-            <div class="strict-binary">
-                <strong>🎯 CONFIDENCE TIERS (Based on Opponent Attack):</strong><br>
-                <strong>≤1.4 avg goals:</strong> VERY STRONG 🔵 (weak opponent attack)<br>
-                <strong>≤1.6 avg goals:</strong> STRONG 🟢 (moderate opponent attack)<br>
-                <strong>≤1.8 avg goals:</strong> WEAK 🟡 (strong opponent attack)<br>
-                <strong>>1.8 avg goals:</strong> VERY WEAK 🔴 (very strong opponent attack)<br>
-                Prevents Chelsea vs Bournemouth 2–2 type false positives
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    with st.container():
+        st.markdown("### 🎯 BET-READY SIGNALS (v6.3 - NEW)")
+        st.markdown("""
+        **✅ CLEAR, ACTIONABLE BETTING RECOMMENDATIONS**
+        - **Fixed Labeling:** "Bournemouth to score UNDER 1.5 goals" (no confusion)
+        - **Attack Context:** Tiered confidence based on opponent scoring average
+        - **Human-Readable:** Shows exactly what to bet, why, and with what confidence
+        - **Performance Tracking:** Records predictions vs actual results
+        """)
+        
+        st.markdown("### 🎯 CONFIDENCE TIERS (Based on Opponent Attack)")
+        cols = st.columns(4)
+        with cols[0]:
+            st.markdown("**≤1.4 avg goals:**")
+            st.markdown("VERY STRONG 🔵")
+            st.markdown("*(weak opponent attack)*")
+        with cols[1]:
+            st.markdown("**≤1.6 avg goals:**")
+            st.markdown("STRONG 🟢")
+            st.markdown("*(moderate opponent attack)*")
+        with cols[2]:
+            st.markdown("**≤1.8 avg goals:**")
+            st.markdown("WEAK 🟡")
+            st.markdown("*(strong opponent attack)*")
+        with cols[3]:
+            st.markdown("**>1.8 avg goals:**")
+            st.markdown("VERY WEAK 🔴")
+            st.markdown("*(very strong opponent attack)*")
+        st.markdown("*Prevents Chelsea vs Bournemouth 2–2 type false positives*")
     
     # State Preservation Law Display
-    st.markdown("""
-    <div class="preservation-law">
-        <h4>⚖️ STATE PRESERVATION LAW (v6.2)</h4>
-        <div style="margin: 1rem 0; font-size: 1.1rem;">
-            <strong>A state cannot be locked unless it can be PRESERVED.</strong>
-        </div>
-        <div style="margin: 0.5rem 0;">
-            <strong>Gate 4A OVERRIDES Gates 1-3 for defensive markets.</strong>
-        </div>
-        <div style="margin: 0.5rem 0; font-size: 0.95rem;">
-            Dominance ≠ Protection • Creation ≠ Suppression • Control ≠ Safety
-        </div>
-        <div style="margin-top: 1rem; padding: 0.75rem; background: #FEF3C7; border-radius: 6px;">
-            <strong>Manchester United vs Wolves:</strong> Passed Gates 1-3 (creation), FAILED Gate 4A (preservation)
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    with st.container():
+        st.markdown("### ⚖️ STATE PRESERVATION LAW (v6.2)")
+        st.markdown("**A state cannot be locked unless it can be PRESERVED.**")
+        st.markdown("**Gate 4A OVERRIDES Gates 1-3 for defensive markets.**")
+        st.markdown("*Dominance ≠ Protection • Creation ≠ Suppression • Control ≠ Safety*")
+        
+        st.info("""
+        **Manchester United vs Wolves:** 
+        Passed Gates 1-3 (creation), FAILED Gate 4A (preservation)
+        """)
     
     # Pre-Match Intelligence Principles
-    st.markdown("""
-    <div class="state-principle">
-        <h4>🧠 PRE-MATCH INTELLIGENCE PRINCIPLES</h4>
-        <div style="margin: 1rem 0;">
-            <div class="state-bound-list">
-                <strong>✅ LAST-5 DATA ONLY (NO SEASON AVERAGES)</strong>
-                <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-                    <li><strong>Totals Lock:</strong> Binary gate (both teams ≤ 1.2 avg goals scored)</li>
-                    <li><strong>Durability:</strong> STABLE / FRAGILE / NONE based on last 5</li>
-                    <li><strong>Edge-Derived Locks:</strong> PRESENT/ABSENT from conceded avg last 5</li>
-                    <li><strong>Direct team locks:</strong> No "opponent/backing" confusion</li>
-                </ul>
-            </div>
-            <div class="noise-list">
-                <strong>✅ READ-ONLY INTELLIGENCE LAYER</strong>
-                <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
-                    <li>Does NOT affect bets, stakes, or Tier 1–3 logic</li>
-                    <li>Informational only for pre-match assessment</li>
-                    <li>Mathematically consistent with last-5 data</li>
-                    <li>No external assumptions or season averages</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    with st.container():
+        st.markdown("### 🧠 PRE-MATCH INTELLIGENCE PRINCIPLES")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**✅ LAST-5 DATA ONLY (NO SEASON AVERAGES)**")
+            st.markdown("""
+            - **Totals Lock:** Binary gate (both teams ≤ 1.2 avg goals scored)
+            - **Durability:** STABLE / FRAGILE / NONE based on last 5
+            - **Edge-Derived Locks:** PRESENT/ABSENT from conceded avg last 5
+            - **Direct team locks:** No "opponent/backing" confusion
+            """)
+        
+        with col2:
+            st.markdown("**✅ READ-ONLY INTELLIGENCE LAYER**")
+            st.markdown("""
+            - Does NOT affect bets, stakes, or Tier 1–3 logic
+            - Informational only for pre-match assessment
+            - Mathematically consistent with last-5 data
+            - No external assumptions or season averages
+            """)
     
     # Show State Classifier availability
     if STATE_CLASSIFIER_AVAILABLE:
-        st.markdown("""
-        <div class="read-only-note">
-            <strong>🔍 STATE & DURABILITY CLASSIFIER AVAILABLE (READ-ONLY)</strong>
-            <p>Match state classification, durability scoring, and reliability assessment will be displayed after analysis</p>
-            <p>Includes: Totals Durability (STABLE/FRAGILE/NONE), Under Market Suggestions, Defensive strength signals</p>
-            <p><strong>CRITICAL:</strong> Classification does NOT affect betting logic, stakes, or existing tiers</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.info("""
+        **🔍 STATE & DURABILITY CLASSIFIER AVAILABLE (READ-ONLY)**
+        Match state classification, durability scoring, and reliability assessment will be displayed after analysis.
+        Includes: Totals Durability (STABLE/FRAGILE/NONE), Under Market Suggestions, Defensive strength signals.
+        
+        **CRITICAL:** Classification does NOT affect betting logic, stakes, or existing tiers.
+        """)
     
-    # Updated Architecture diagram with Bet-Ready Signals
-    st.markdown("""
-    <div class="architecture-diagram">
-        <h4>🏗️ FOUR-LAYER ARCHITECTURE v6.3 with BET-READY SIGNALS</h4>
-        <div class="three-tier-architecture">
-            <div class="tier-level tier-3">
-                <div style="font-size: 1.1rem; font-weight: 700;">TIER 3: TOTALS LOCK ENGINE</div>
-                <div style="font-size: 0.9rem;">Trend-Based • Dual Low-Offense</div>
-                <div style="font-size: 0.85rem; color: #0C4A6E; margin-top: 0.5rem;">
-                    Binary Gate: Both teams ≤ 1.2 avg goals (last 5)
-                </div>
-                <div style="margin-top: 0.5rem;">
-                    <span class="market-badge badge-totals-locked">Totals ≤2.5 ONLY</span>
-                </div>
-            </div>
-            <div class="arrow-down" style="font-size: 1.5rem; font-weight: 800;">↓</div>
-            <div class="tier-level tier-2">
-                <div style="font-size: 1.1rem; font-weight: 700;">TIER 2: AGENCY-STATE LOCK ENGINE v6.2</div>
-                <div style="font-size: 0.9rem;">Agency-Based • 4 Gates + State Preservation</div>
-                <div style="font-size: 0.85rem; color: #059669; margin-top: 0.5rem;">
-                    <strong>NEW: Gate 4A OVERRIDES Gates 1-3 for defensive markets</strong>
-                </div>
-                <div style="margin-top: 0.5rem;">
-                    <span class="market-badge badge-state">Winner</span>
-                    <span class="market-badge badge-state">Clean Sheet</span>
-                    <span class="market-badge badge-state">Team No Score</span>
-                    <span class="market-badge badge-state">Opponent Under 1.5</span>
-                </div>
-            </div>
-            <div class="arrow-down" style="font-size: 1.5rem; font-weight: 800;">↓</div>
-            <div class="tier-level tier-1-edge-derived">
-                <div style="font-size: 1rem; font-weight: 700;">TIER 1+: EDGE-DERIVED UNDER 1.5 LOCKS</div>
-                <div style="font-size: 0.9rem;">Defensive Proof • Attack Context • Bet-Ready Signals</div>
-                <div style="font-size: 0.85rem; color: #1E40AF; margin-top: 0.5rem;">
-                    <strong>Clear labels: "Team to score UNDER 1.5 goals" • Tiered confidence</strong>
-                </div>
-                <div style="margin-top: 0.5rem;">
-                    <span class="market-badge badge-edge-locked">UNDER 1.5 ONLY</span>
-                    <span class="market-badge badge-edge-locked">Bet-Ready Signals</span>
-                    <span class="market-badge badge-edge-locked">Attack Context</span>
-                </div>
-            </div>
-            <div class="arrow-down" style="font-size: 1.5rem; font-weight: 800;">↓</div>
-            <div class="tier-level tier-1">
-                <div style="font-size: 1rem;">TIER 1: v6.0 EDGE DETECTION</div>
-                <div style="font-size: 0.9rem;">Heuristic • 4 Control Criteria</div>
-                <div style="font-size: 0.85rem; color: #3B82F6; margin-top: 0.5rem;">
-                    Always runs • Provides base stake and action
-                </div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Architecture diagram
+    st.markdown("### 🏗️ FOUR-LAYER ARCHITECTURE v6.3 with BET-READY SIGNALS")
+    
+    # Tier 3
+    with st.container():
+        st.markdown("**TIER 3: TOTALS LOCK ENGINE**")
+        st.markdown("Trend-Based • Dual Low-Offense")
+        st.markdown("*Binary Gate: Both teams ≤ 1.2 avg goals (last 5)*")
+        st.markdown("**Totals ≤2.5 ONLY**")
+        st.markdown("---")
+    
+    # Tier 2
+    with st.container():
+        st.markdown("**TIER 2: AGENCY-STATE LOCK ENGINE v6.2**")
+        st.markdown("Agency-Based • 4 Gates + State Preservation")
+        st.markdown("*NEW: Gate 4A OVERRIDES Gates 1-3 for defensive markets*")
+        cols = st.columns(4)
+        with cols[0]:
+            st.markdown("**Winner**")
+        with cols[1]:
+            st.markdown("**Clean Sheet**")
+        with cols[2]:
+            st.markdown("**Team No Score**")
+        with cols[3]:
+            st.markdown("**Opponent Under 1.5**")
+        st.markdown("---")
+    
+    # Tier 1+
+    with st.container():
+        st.markdown("**TIER 1+: EDGE-DERIVED UNDER 1.5 LOCKS**")
+        st.markdown("Defensive Proof • Attack Context • Bet-Ready Signals")
+        st.markdown("*Clear labels: 'Team to score UNDER 1.5 goals' • Tiered confidence*")
+        cols = st.columns(3)
+        with cols[0]:
+            st.markdown("**UNDER 1.5 ONLY**")
+        with cols[1]:
+            st.markdown("**Bet-Ready Signals**")
+        with cols[2]:
+            st.markdown("**Attack Context**")
+        st.markdown("---")
+    
+    # Tier 1
+    with st.container():
+        st.markdown("**TIER 1: v6.0 EDGE DETECTION**")
+        st.markdown("Heuristic • 4 Control Criteria")
+        st.markdown("*Always runs • Provides base stake and action*")
     
     # Strict binary gate warning
-    st.markdown("""
-    <div class="binary-gate">
-        <h4>⚖️ STATE PRESERVATION LAW: HARD BINARY RULES</h4>
-        <div class="strict-binary">
-            <strong>DEFENSIVE MARKETS REQUIRE RECENT DEFENSIVE PROOF</strong><br>
-            <strong>Clean Sheet:</strong> Recent concede avg ≤ 0.8<br>
-            <strong>Team No Score:</strong> Recent concede avg ≤ 0.6<br>
-            <strong>Opponent Under 1.5:</strong> Recent concede avg ≤ 1.0<br>
-            <strong>Edge-Derived Under 1.5:</strong> Recent concede avg ≤ 1.0 (direct team locks)<br>
-            <strong>DATA:</strong> *_goals_conceded_last_5 / 5 ONLY<br>
-            <strong>NO EXCEPTIONS:</strong> If fails → NO LOCK (regardless of Gates 1-3)
-        </div>
-        <div style="margin-top: 1rem; padding: 0.75rem; background: #EFF6FF; border-radius: 6px;">
-            <strong>🎯 BET-READY SIGNALS v6.3:</strong> Clear labeling, attack context, performance tracking
-        </div>
-        <div style="margin-top: 1rem; padding: 0.75rem; background: #FEF3C7; border-radius: 6px;">
-            <strong>Manchester United vs Wolves Test Case:</strong><br>
-            United concedes 1.6 avg (last 5) → Clean Sheet/Team No Score locks are INVALID<br>
-            However: Could still have Edge-Derived lock if Wolves concedes ≤1.0
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    with st.container():
+        st.markdown("### ⚖️ STATE PRESERVATION LAW: HARD BINARY RULES")
+        st.warning("""
+        **DEFENSIVE MARKETS REQUIRE RECENT DEFENSIVE PROOF**
+        
+        **Clean Sheet:** Recent concede avg ≤ 0.8  
+        **Team No Score:** Recent concede avg ≤ 0.6  
+        **Opponent Under 1.5:** Recent concede avg ≤ 1.0  
+        **Edge-Derived Under 1.5:** Recent concede avg ≤ 1.0 (direct team locks)  
+        **DATA:** *_goals_conceded_last_5 / 5 ONLY  
+        **NO EXCEPTIONS:** If fails → NO LOCK (regardless of Gates 1-3)
+        """)
+        
+        st.info("""
+        **🎯 BET-READY SIGNALS v6.3:** Clear labeling, attack context, performance tracking
+        """)
+        
+        st.info("""
+        **Manchester United vs Wolves Test Case:**  
+        United concedes 1.6 avg (last 5) → Clean Sheet/Team No Score locks are INVALID  
+        However: Could still have Edge-Derived lock if Wolves concedes ≤1.0
+        """)
     
     # Initialize session state
     if 'selected_league' not in st.session_state:
@@ -2610,15 +2219,17 @@ def main():
     
     # Special test case button
     if home_team == "Manchester United" and away_team == "Wolverhampton":
-        st.markdown("""
-        <div style="background: #FEF3C7; padding: 1rem; border-radius: 8px; border: 2px solid #F59E0B; margin: 1rem 0;">
-            <strong>🧪 STATE PRESERVATION LAW TEST CASE</strong>
-            <p>Manchester United vs Wolves is the empirical proof of State Preservation Law.</p>
-            <p><strong>Expected Result:</strong> United may pass Winner lock, but MUST FAIL Clean Sheet/Team No Score locks.</p>
-            <p><strong>Reason:</strong> United concedes 1.6 avg goals recently (last 5) → cannot preserve defensive states.</p>
-            <p><strong>Edge-Derived Lock Test:</strong> If Wolves concedes ≤1.0 avg goals → actionable UNDER 1.5 lock for Wolves</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.warning("""
+        **🧪 STATE PRESERVATION LAW TEST CASE**
+        
+        Manchester United vs Wolves is the empirical proof of State Preservation Law.
+        
+        **Expected Result:** United may pass Winner lock, but MUST FAIL Clean Sheet/Team No Score locks.
+        
+        **Reason:** United concedes 1.6 avg goals recently (last 5) → cannot preserve defensive states.
+        
+        **Edge-Derived Lock Test:** If Wolves concedes ≤1.0 avg goals → actionable UNDER 1.5 lock for Wolves
+        """)
     
     # Execute analysis
     if st.button("⚡ EXECUTE INTEGRATED ANALYSIS v6.3", type="primary", use_container_width=True):
@@ -2640,19 +2251,14 @@ def main():
         
         # =================== BET-READY SIGNALS DISPLAY ===================
         st.markdown("---")
-        st.markdown("### 🎯 BET-READY SIGNALS (Human-Readable)")
         
-        # Display bet-ready signals
+        # Display bet-ready signals using Streamlit components
         display_bet_ready_signals_streamlit(result['edge_derived_locks'], home_team, away_team)
         
         # =================== PERFORMANCE TRACKING ===================
         with st.expander("📊 Performance Dashboard", expanded=False):
-            st.markdown("""
-            **System Prediction Tracking**
-            
-            Tracks Edge-Derived UNDER 1.5 predictions vs actual results.
-            Record actual scores to improve system accuracy.
-            """)
+            st.markdown("**System Prediction Tracking**")
+            st.markdown("Tracks Edge-Derived UNDER 1.5 predictions vs actual results. Record actual scores to improve system accuracy.")
             
             # Simple input for tracking
             col1, col2 = st.columns(2)
@@ -2675,48 +2281,43 @@ def main():
             
             # Calculate and display stats
             stats = performance_tracker.calculate_accuracy()
-            st.markdown(f"""
-            **Prediction Accuracy**
-            - Total Predictions: {stats['total_predictions']}
-            - Matched Results: {stats['matched_pairs']}
-            - Accuracy: {stats['accuracy']:.1f}%
             
-            **Current Match Predictions**
-            """)
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Predictions", stats['total_predictions'])
+            with col2:
+                st.metric("Matched Results", stats['matched_pairs'])
+            with col3:
+                st.metric("Accuracy", f"{stats['accuracy']:.1f}%")
+            
+            st.markdown("**Current Match Predictions**")
             
             for lock in result['edge_derived_locks']:
                 # Check if prediction would be correct
                 actual_goals = actual_away if lock['team_to_bet'] == away_team else actual_home
                 correct = actual_goals <= 1
                 
-                st.markdown(f"""
-                - **{lock['market']}**: {lock['confidence']} confidence
-                  - Predicted: {lock['team_to_bet']} to score 0-1 goals
-                  - Actual: {lock['team_to_bet']} scored {actual_goals} goals
-                  - Result: {'✅ CORRECT' if correct else '❌ INCORRECT'}
-                """)
+                with st.container():
+                    st.markdown(f"**{lock['market']}**: {lock['confidence']} confidence")
+                    st.markdown(f"- Predicted: {lock['team_to_bet']} to score 0-1 goals")
+                    st.markdown(f"- Actual: {lock['team_to_bet']} scored {actual_goals} goals")
+                    if actual_home > 0 or actual_away > 0:  # Only show result if scores entered
+                        st.markdown(f"- Result: **{'✅ CORRECT' if correct else '❌ INCORRECT'}**")
             
             if stats['total_predictions'] == 0:
                 st.info("No predictions recorded yet. Analyze matches and record results to build performance data.")
         
         # =================== READ-ONLY STATE & DURABILITY CLASSIFICATION ===================
-        # CRITICAL: This runs AFTER all betting logic is complete
-        # Does NOT affect existing results, stakes, or decisions
         classification_result = None
         if STATE_CLASSIFIER_AVAILABLE and get_complete_classification:
             try:
                 classification_result = get_complete_classification(home_data, away_data)
-                # Add as separate, read-only fields
                 result['state_classification'] = classification_result
-                result['classification_is_read_only'] = True
-                result['classification_does_not_affect_betting'] = True
             except Exception as e:
-                # Fail gracefully - classification is optional
                 classification_result = {
                     'dominant_state': 'CLASSIFIER_ERROR',
                     'error': str(e),
-                    'is_read_only': True,
-                    'does_not_affect_betting': True
+                    'is_read_only': True
                 }
                 result['state_classification'] = classification_result
         
@@ -2742,8 +2343,8 @@ def main():
             capital_class = "edge-mode"
             capital_color = "#1E40AF"
         
-        capital_html = f"""
-        <div class="capital-mode-box {capital_class}">
+        st.markdown(f"""
+        <div class="capital-box {capital_class}">
             <h2 style="margin: 0; font-size: 2rem;">{capital_display}</h2>
             <div style="font-size: 1.2rem; margin-top: 0.5rem;">
                 Stake: <strong>{result['final_stake']:.2f}%</strong> ({result['v6_result']['stake_pct']:.1f}% × {result['stake_multiplier']:.1f}x)
@@ -2752,81 +2353,44 @@ def main():
                 {result['system_verdict']}
             </div>
         </div>
-        """
-        st.markdown(capital_html, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
         
         # =================== STATE & DURABILITY CLASSIFICATION DISPLAY ===================
         if classification_result and 'state_classification' in result:
             st.markdown("#### 🔍 PRE-MATCH STRUCTURAL INTELLIGENCE (READ-ONLY)")
             
             # Display the perspective boxes
-            st.markdown("""
-            <div class="perspective-display">
-                <h4>📊 STRUCTURAL ANALYSIS (Last 5 Matches Only)</h4>
-                <p style="color: #374151; margin-bottom: 1rem;">All calculations use LAST 5 MATCHES only. Does NOT affect betting logic.</p>
-            """, unsafe_allow_html=True)
-            
-            # Get classification data
-            averages = classification_result.get('averages', {})
-            opponent_data = classification_result.get('opponent_under_15', {})
-            
-            # Home Team Box
-            home_html = f"""
-            <div class="perspective-box perspective-home">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                    <div style="font-weight: 700; color: #1E40AF;">{home_team}</div>
-                    <div style="font-size: 0.9rem; color: #6B7280;">Last 5 matches data</div>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
-                    <div>
-                        <div style="font-size: 0.85rem; color: #6B7280;">Avg Goals</div>
-                        <div style="font-weight: 600;">{averages.get('home_goals_avg', 0):.2f}</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.85rem; color: #6B7280;">Avg Conceded</div>
-                        <div style="font-weight: 600; color: {'#16A34A' if averages.get('home_conceded_avg', 0) <= 1.0 else '#DC2626'}">
-                            {averages.get('home_conceded_avg', 0):.2f}
-                        </div>
-                    </div>
-                </div>
-                <div style="color: #374151; font-size: 0.9rem;">
-                    Defensive strength: {'✅ Strong' if averages.get('home_conceded_avg', 0) <= 1.0 else '❌ Weak'}
-                </div>
-            </div>
-            """
-            st.markdown(home_html, unsafe_allow_html=True)
-            
-            # Away Team Box
-            away_html = f"""
-            <div class="perspective-box perspective-away">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                    <div style="font-weight: 700; color: #DC2626;">{away_team}</div>
-                    <div style="font-size: 0.9rem; color: #6B7280;">Last 5 matches data</div>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
-                    <div>
-                        <div style="font-size: 0.85rem; color: #6B7280;">Avg Goals</div>
-                        <div style="font-weight: 600;">{averages.get('away_goals_avg', 0):.2f}</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.85rem; color: #6B7280;">Avg Conceded</div>
-                        <div style="font-weight: 600; color: {'#16A34A' if averages.get('away_conceded_avg', 0) <= 1.0 else '#DC2626'}">
-                            {averages.get('away_conceded_avg', 0):.2f}
-                        </div>
-                    </div>
-                </div>
-                <div style="color: #374151; font-size: 0.9rem;">
-                    Defensive strength: {'✅ Strong' if averages.get('away_conceded_avg', 0) <= 1.0 else '❌ Weak'}
-                </div>
-            </div>
-            """
-            st.markdown(away_html, unsafe_allow_html=True)
-            
-            st.markdown("</div>", unsafe_allow_html=True)
+            with st.container():
+                st.markdown("**📊 STRUCTURAL ANALYSIS (Last 5 Matches Only)**")
+                st.markdown("*All calculations use LAST 5 MATCHES only. Does NOT affect betting logic.*")
+                
+                # Get classification data
+                averages = classification_result.get('averages', {})
+                
+                # Home Team Box
+                col1, col2 = st.columns(2)
+                with col1:
+                    with st.container():
+                        st.markdown(f"**{home_team}**")
+                        st.metric("Avg Goals", f"{averages.get('home_goals_avg', 0):.2f}")
+                        concede_avg = averages.get('home_conceded_avg', 0)
+                        st.metric("Avg Conceded", f"{concede_avg:.2f}", 
+                                 delta="Strong" if concede_avg <= 1.0 else "Weak",
+                                 delta_color="normal" if concede_avg <= 1.0 else "inverse")
+                        st.markdown(f"Defensive strength: **{'✅ Strong' if concede_avg <= 1.0 else '❌ Weak'}**")
+                
+                # Away Team Box
+                with col2:
+                    with st.container():
+                        st.markdown(f"**{away_team}**")
+                        st.metric("Avg Goals", f"{averages.get('away_goals_avg', 0):.2f}")
+                        concede_avg = averages.get('away_conceded_avg', 0)
+                        st.metric("Avg Conceded", f"{concede_avg:.2f}",
+                                 delta="Strong" if concede_avg <= 1.0 else "Weak",
+                                 delta_color="normal" if concede_avg <= 1.0 else "inverse")
+                        st.markdown(f"Defensive strength: **{'✅ Strong' if concede_avg <= 1.0 else '❌ Weak'}**")
             
             # =================== STREAMLIT-NATIVE CLASSIFICATION DISPLAY ===================
-            # Using pure Streamlit components, no HTML
-            
             # Map state to emoji and color
             state_info = {
                 'TERMINAL_STAGNATION': {'emoji': '🌀', 'color': '#0EA5E9', 'label': 'Terminal Stagnation'},
@@ -2954,70 +2518,30 @@ def main():
         if result['has_edge_derived_locks']:
             st.markdown("#### 🔓 TIER 1+: EDGE-DERIVED UNDER 1.5 LOCKS")
             
-            edge_html = f"""
-            <div class="edge-derived-display">
-                <h3 style="color: #1E40AF; margin: 0 0 1rem 0;">EDGE-DERIVED DEFENSIVE CONTROL DETECTED</h3>
-                <div style="font-size: 1.2rem; color: #3B82F6; margin-bottom: 0.5rem;">
-                    {len(result['edge_derived_locks'])} UNDER 1.5 lock(s) from Tier 1+ Edge-Derived analysis
-                </div>
-                <div style="color: #374151; margin-bottom: 1rem;">
-                    Binary gate: Team concedes ≤ 1.0 avg goals (last 5 matches) • Direct team locks
-                </div>
-                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;">
-                    <span class="market-badge badge-edge-locked">Edge-Derived</span>
-                    <span class="market-badge badge-edge-locked">UNDER 1.5</span>
-                    <span class="market-badge badge-edge-locked">Direct Team Locks</span>
-                </div>
-            </div>
-            """
-            st.markdown(edge_html, unsafe_allow_html=True)
+            st.info(f"""
+            **EDGE-DERIVED DEFENSIVE CONTROL DETECTED**
             
-            # Show individual edge-derived locks (backward compatible display)
+            {len(result['edge_derived_locks'])} UNDER 1.5 lock(s) from Tier 1+ Edge-Derived analysis
+            
+            Binary gate: Team concedes ≤ 1.0 avg goals (last 5 matches) • Direct team locks
+            """)
+            
+            # Show individual edge-derived locks
             for lock in result['edge_locks_for_display']:
-                # Safely handle the declaration split
-                first_line, second_line = safe_split_declaration(
-                    lock['declaration'], 
-                    lock.get('details', 'Defensive proof confirmed')
-                )
-                
-                lock_html = f"""
-                <div class="market-edge-derived">
-                    <div style="display: flex; align-items: center; margin-bottom: 0.5rem;">
-                        <div style="font-size: 1.5rem; margin-right: 0.5rem;">🔓</div>
-                        <div>
-                            <div style="font-size: 1.1rem; font-weight: 700; color: #1E40AF;">
-                                {first_line}
-                            </div>
-                            <div style="font-size: 0.9rem; color: #6B7280;">
-                                {second_line}
-                            </div>
-                        </div>
-                    </div>
-                    <div style="background: #EFF6FF; padding: 0.75rem; border-radius: 6px; margin-top: 0.5rem;">
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 0.5rem;">
-                            <div>
-                                <div style="font-size: 0.85rem; color: #6B7280;">Team</div>
-                                <div style="font-weight: 600; color: #1E40AF;">{lock['team']}</div>
-                            </div>
-                            <div>
-                                <div style="font-size: 0.85rem; color: #6B7280;">Avg Conceded</div>
-                                <div style="font-weight: 600; color: #3B82F6;">{lock['defense_avg']:.2f}</div>
-                            </div>
-                            <div>
-                                <div style="font-size: 0.85rem; color: #6B7280;">Multiplier</div>
-                                <div style="font-weight: 600; color: #059669;">{lock['capital_multiplier']:.1f}x</div>
-                            </div>
-                        </div>
-                        <div style="font-size: 0.9rem; color: #374151;">
-                            <strong>Lock Type:</strong> {lock['lock_type']}
-                        </div>
-                        <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">
-                            <strong>Source:</strong> Tier 1+ Edge-Derived • <strong>Data:</strong> Last 5 matches only • <strong>No opponent/backing confusion</strong>
-                        </div>
-                    </div>
-                </div>
-                """
-                st.markdown(lock_html, unsafe_allow_html=True)     
+                with st.container():
+                    st.markdown(f"**🔓 {lock['market']}**")
+                    st.markdown(f"*{lock.get('details', 'Defensive proof confirmed')}*")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Team", lock['team'])
+                    with col2:
+                        st.metric("Avg Conceded", f"{lock['defense_avg']:.2f}")
+                    with col3:
+                        st.metric("Multiplier", f"{lock['capital_multiplier']:.1f}x")
+                    
+                    st.markdown(f"**Lock Type:** {lock['lock_type']}")
+                    st.caption(f"Source: Tier 1+ Edge-Derived • Data: Last 5 matches only • No opponent/backing confusion")
         
         # Check for State Preservation failures and show "Stay-Out" badge
         preservation_failures = []
@@ -3026,40 +2550,25 @@ def main():
                 preservation_failures.append(market.replace('_', ' '))
         
         if preservation_failures:
-            stay_out_html = f"""
-            <div style="text-align: center; margin: 1.5rem 0;">
-                <div class="stay-out-badge">
-                    ⚠️ STAY-OUT RECOMMENDED
-                </div>
-                <div style="color: #92400E; margin-top: 0.5rem; font-size: 0.9rem;">
-                    {', '.join(preservation_failures)} failed State Preservation Law
-                </div>
-                <div style="color: #6B7280; font-size: 0.85rem; margin-top: 0.25rem;">
-                    Recent defensive proof insufficient for these markets
-                </div>
-            </div>
-            """
-            st.markdown(stay_out_html, unsafe_allow_html=True)
+            st.error(f"""
+            **⚠️ STAY-OUT RECOMMENDED**
+            
+            {', '.join(preservation_failures)} failed State Preservation Law
+            
+            Recent defensive proof insufficient for these markets
+            """)
         
         # v6.0 Edge Detection Display
         st.markdown("#### 🔍 TIER 1: v6.0 EDGE DETECTION")
         
         v6_result = result['v6_result']
-        edge_html = f"""
-        <div class="edge-analysis-display">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <h3 style="color: #1E40AF; margin: 0;">{v6_result['primary_action']}</h3>
-                    <p style="color: #6B7280; margin: 0.5rem 0 0 0;">{v6_result['secondary_logic']}</p>
-                </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 1.5rem; font-weight: 800; color: #3B82F6;">{v6_result['confidence']:.1f}/10</div>
-                    <div style="font-size: 0.9rem; color: #6B7280;">Confidence</div>
-                </div>
-            </div>
-        </div>
-        """
-        st.markdown(edge_html, unsafe_allow_html=True)
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.markdown(f"**{v6_result['primary_action']}**")
+            st.markdown(f"*{v6_result['secondary_logic']}*")
+        with col2:
+            st.metric("Confidence", f"{v6_result['confidence']:.1f}/10")
         
         # Agency-State Market Evaluation
         st.markdown("#### 🔐 TIER 2: AGENCY-STATE LOCKS v6.2")
@@ -3067,48 +2576,25 @@ def main():
         if result['has_agency_lock']:
             strongest = result['strongest_market']
             
-            # Generate market badges HTML
-            market_badges = ""
-            for market_info in result['agency_locked_markets']:
-                market_badges += f'<span class="market-badge badge-locked">{market_info["market"]}</span>'
+            st.success(f"""
+            **AGENCY-STATE CONTROL DETECTED**
             
-            agency_html = f"""
-            <div class="agency-state-display">
-                <h3 style="color: #16A34A; margin: 0 0 1rem 0;">AGENCY-STATE CONTROL DETECTED</h3>
-                <div style="font-size: 1.2rem; color: #059669; margin-bottom: 0.5rem;">
-                    {len(result['agency_locked_markets'])} market(s) structurally locked
-                </div>
-                <div style="color: #374151; margin-bottom: 1rem;">
-                    Strongest lock: <strong>{strongest['market']}</strong> (Δ = {strongest['delta']:+.2f})
-                </div>
-                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;">
-                    {market_badges}
-                </div>
-            </div>
-            """
-            st.markdown(agency_html, unsafe_allow_html=True)
+            {len(result['agency_locked_markets'])} market(s) structurally locked
+            
+            Strongest lock: **{strongest['market']}** (Δ = {strongest['delta']:+.2f})
+            """)
             
             # Show defensive preservation status
             defensive_locks = [m for m in result['agency_locked_markets'] if m['market'] != 'WINNER']
             if defensive_locks:
-                st.markdown("""
-                <div class="gate-passed">
-                    <strong>✅ STATE PRESERVATION LAW SATISFIED</strong>
-                    <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">
-                        All defensive locks passed Gate 4A (recent defensive proof confirmed)
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
+                st.info("""
+                **✅ STATE PRESERVATION LAW SATISFIED**
+                
+                All defensive locks passed Gate 4A (recent defensive proof confirmed)
+                """)
         else:
-            no_agency_html = f"""
-            <div class="no-declaration-display">
-                <h3 style="color: #6B7280; margin: 0 0 1rem 0;">NO AGENCY-STATE LOCKS DETECTED</h3>
-                <div style="color: #374151;">
-                    No markets meet agency-suppression criteria
-                </div>
-            </div>
-            """
-            st.markdown(no_agency_html, unsafe_allow_html=True)
+            st.info("**NO AGENCY-STATE LOCKS DETECTED**")
+            st.markdown("*No markets meet agency-suppression criteria*")
             
             # Check if any failed on State Preservation
             preservation_failures_display = []
@@ -3117,72 +2603,43 @@ def main():
                     preservation_failures_display.append(market.replace('_', ' '))
             
             if preservation_failures_display:
-                preservation_html = f"""
-                <div class="gate-failed">
-                    <strong>❌ STATE PRESERVATION LAW FAILURES DETECTED</strong>
-                    <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">
-                        Markets failed on recent defensive proof: {', '.join(preservation_failures_display)}
-                    </p>
-                    <p style="margin: 0.5rem 0 0 0; font-size: 0.85rem; color: #DC2626;">
-                        Manchester United vs Wolves pattern detected
-                    </p>
-                </div>
-                """
-                st.markdown(preservation_html, unsafe_allow_html=True)
+                st.error(f"""
+                **❌ STATE PRESERVATION LAW FAILURES DETECTED**
+                
+                Markets failed on recent defensive proof: {', '.join(preservation_failures_display)}
+                
+                Manchester United vs Wolves pattern detected
+                """)
         
         # Totals Lock Display
         st.markdown("#### 📊 TIER 3: TOTALS LOCK")
         
         if result['has_totals_lock']:
             trend_data = result['totals_result']['trend_data']
-            totals_html = f"""
-            <div class="totals-lock-display">
-                <h3 style="color: #0EA5E9; margin: 0 0 1rem 0;">TOTALS LOCK DETECTED</h3>
-                <div style="font-size: 1.2rem; color: #0284C7; margin-bottom: 0.5rem;">
-                    Dual Low-Offense Trend Confirmed
-                </div>
-                <div style="color: #374151; margin-bottom: 1rem;">
-                    Both teams exhibit sustained low-scoring trends (last 5 matches)
-                </div>
-                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center;">
-                    <span class="market-badge badge-totals-locked">TOTALS ≤2.5 LOCKED</span>
-                </div>
-            </div>
-            """
-            st.markdown(totals_html, unsafe_allow_html=True)
+            
+            st.success(f"""
+            **TOTALS LOCK DETECTED**
+            
+            Dual Low-Offense Trend Confirmed
+            
+            Both teams exhibit sustained low-scoring trends (last 5 matches)
+            """)
             
             # Show trend data
-            trend_html = f"""
-            <div class="trend-check">
-                <h4 style="color: #0C4A6E; margin: 0 0 0.5rem 0;">📊 LAST 5 MATCHES TREND DATA</h4>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
-                    <div>
-                        <div style="font-weight: 600; color: #374151;">{home_team}</div>
-                        <div style="font-size: 1.5rem; color: #0EA5E9; font-weight: 700;">{trend_data['home_last5_avg']:.2f}</div>
-                        <div style="font-size: 0.9rem; color: #6B7280;">avg goals (last 5)</div>
-                    </div>
-                    <div>
-                        <div style="font-weight: 600; color: #374151;">{away_team}</div>
-                        <div style="font-size: 1.5rem; color: #0EA5E9; font-weight: 700;">{trend_data['away_last5_avg']:.2f}</div>
-                        <div style="font-size: 0.9rem; color: #6B7280;">avg goals (last 5)</div>
-                    </div>
-                </div>
-                <div style="margin-top: 1rem; padding: 0.75rem; background: #F0F9FF; border-radius: 6px;">
-                    <strong>Condition Met:</strong> Both ≤ {TOTALS_LOCK_THRESHOLD} avg goals (last 5 matches)
-                </div>
-            </div>
-            """
-            st.markdown(trend_html, unsafe_allow_html=True)
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric(f"{home_team} avg goals", f"{trend_data['home_last5_avg']:.2f}", 
+                         delta="≤1.2" if trend_data['home_last5_avg'] <= 1.2 else ">1.2",
+                         delta_color="normal" if trend_data['home_last5_avg'] <= 1.2 else "inverse")
+            with col2:
+                st.metric(f"{away_team} avg goals", f"{trend_data['away_last5_avg']:.2f}",
+                         delta="≤1.2" if trend_data['away_last5_avg'] <= 1.2 else ">1.2",
+                         delta_color="normal" if trend_data['away_last5_avg'] <= 1.2 else "inverse")
+            
+            st.info(f"**Condition Met:** Both ≤ {TOTALS_LOCK_THRESHOLD} avg goals (last 5 matches)")
         else:
-            no_totals_html = f"""
-            <div class="no-declaration-display">
-                <h3 style="color: #6B7280; margin: 0 0 1rem 0;">NO TOTALS LOCK DETECTED</h3>
-                <div style="color: #374151;">
-                    {result['totals_result']['reason']}
-                </div>
-            </div>
-            """
-            st.markdown(no_totals_html, unsafe_allow_html=True)
+            st.info("**NO TOTALS LOCK DETECTED**")
+            st.markdown(f"*{result['totals_result']['reason']}*")
         
         # Export functionality
         st.markdown("---")
@@ -3353,15 +2810,18 @@ Pre-Match Intelligence: Last-5 data only, read-only, no betting logic impact
     # Footer
     st.markdown("---")
     st.markdown("""
-    <div style="text-align: center; color: #6B7280; font-size: 0.9rem; padding: 1rem;">
-        <p><strong>BRUTBALL INTEGRATED ARCHITECTURE v6.3</strong></p>
-        <p>Four-Layer System with Bet-Ready Signals</p>
-        <p>Tier 1: v6.0 Edge Detection • Tier 1+: Edge-Derived UNDER 1.5 Locks • Tier 2: Agency-State Lock • Tier 3: Totals Lock</p>
-        <p><strong>BET-READY SIGNALS:</strong> Clear labeling, attack context, performance tracking</p>
-        <p><strong>STATE PRESERVATION LAW:</strong> Gate 4A OVERRIDES Gates 1-3 for defensive markets</p>
-        <p><strong>PRE-MATCH INTELLIGENCE:</strong> Last-5 data only, read-only, no betting logic impact</p>
-    </div>
-    """, unsafe_allow_html=True)
+    **BRUTBALL INTEGRATED ARCHITECTURE v6.3**
+    
+    Four-Layer System with Bet-Ready Signals
+    
+    Tier 1: v6.0 Edge Detection • Tier 1+: Edge-Derived UNDER 1.5 Locks • Tier 2: Agency-State Lock • Tier 3: Totals Lock
+    
+    **BET-READY SIGNALS:** Clear labeling, attack context, performance tracking
+    
+    **STATE PRESERVATION LAW:** Gate 4A OVERRIDES Gates 1-3 for defensive markets
+    
+    **PRE-MATCH INTELLIGENCE:** Last-5 data only, read-only, no betting logic impact
+    """)
 
 if __name__ == "__main__":
     main()
