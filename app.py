@@ -22,56 +22,66 @@ def load_league_csv(league_name: str, filename: str) -> Optional[pd.DataFrame]:
         # Clean column names for Agency-State analysis
         df.columns = [col.strip().lower().replace(' ', '_') for col in df.columns]
         
-        # AGENCY-STATE CRITICAL METRICS (from CSV)
-        required_metrics = [
-            'xg_for', 'xg_against', 'goals_scored', 'goals_conceded',
-            'goals_openplay_for', 'goals_counter_for', 'goals_setpiece_for', 'goals_penalty_for',
-            'goals_openplay_against', 'goals_counter_against', 'goals_setpiece_against', 'goals_penalty_against',
-            'home_goals_for', 'home_goals_against', 'away_goals_for', 'away_goals_against',
-            'home_xg_for', 'home_xg_against', 'away_xg_for', 'away_xg_against',
-            'goals_scored_last_5', 'goals_conceded_last_5',
-            'home_form_last_5', 'away_form_last_5',
-            'matches_played', 'home_matches_played', 'away_matches_played'
-        ]
+        # Calculate total goals scored from home and away
+        df['goals_scored'] = df['home_goals_scored'] + df['away_goals_scored']
+        df['goals_conceded'] = df['home_goals_conceded'] + df['away_goals_conceded']
+        df['xg_for'] = df['home_xg_for'] + df['away_xg_for']
+        df['xg_against'] = df['home_xg_against'] + df['away_xg_against']
         
-        # Create metric placeholders if missing
-        for metric in required_metrics:
-            if metric not in df.columns:
-                if 'xg' in metric:
-                    # Estimate xG from goals (conservative: xG = goals * 0.85)
-                    if 'for' in metric:
-                        df[metric] = df['goals_scored'] * 0.85
-                    else:
-                        df[metric] = df['goals_conceded'] * 0.85
-                elif 'last_5' in metric:
-                    # Estimate from season averages
-                    if 'conceded' in metric:
-                        df[metric] = df['goals_conceded'] / df['matches_played'] * 5
-                    else:
-                        df[metric] = df['goals_scored'] / df['matches_played'] * 5
-                else:
-                    df[metric] = 0
+        # Calculate matches played
+        df['matches_played'] = df['home_matches_played'] + df['away_matches_played']
+        
+        # Calculate per-match averages
+        df['goals_per_match'] = df['goals_scored'] / df['matches_played'].replace(0, 1)
+        df['xg_per_match'] = df['xg_for'] / df['matches_played'].replace(0, 1)
+        df['conceded_per_match'] = df['goals_conceded'] / df['matches_played'].replace(0, 1)
+        
+        # Calculate home/away specific averages
+        df['home_goals_per_match'] = df['home_goals_scored'] / df['home_matches_played'].replace(0, 1)
+        df['away_goals_per_match'] = df['away_goals_scored'] / df['away_matches_played'].replace(0, 1)
+        df['home_xg_per_match'] = df['home_xg_for'] / df['home_matches_played'].replace(0, 1)
+        df['away_xg_per_match'] = df['away_xg_for'] / df['away_matches_played'].replace(0, 1)
+        df['home_conceded_per_match'] = df['home_goals_conceded'] / df['home_matches_played'].replace(0, 1)
+        df['away_conceded_per_match'] = df['away_goals_conceded'] / df['away_matches_played'].replace(0, 1)
         
         # Calculate percentages for Agency-State
         df['efficiency'] = df['goals_scored'] / df['xg_for'].replace(0, 1)
-        df['setpiece_pct'] = df['goals_setpiece_for'] / df['goals_scored'].replace(0, 1)
-        df['counter_pct'] = df['goals_counter_for'] / df['goals_scored'].replace(0, 1)
-        df['openplay_pct'] = df['goals_openplay_for'] / df['goals_scored'].replace(0, 1)
         
-        df['home_xg_per_match'] = df['home_xg_for'] / df['home_matches_played'].replace(0, 1)
-        df['away_xg_per_match'] = df['away_xg_for'] / df['away_matches_played'].replace(0, 1)
+        # Calculate scoring type percentages
+        df['home_goals_setpiece_for'] = df['home_goals_setpiece_for'] + df['home_goals_penalty_for']
+        df['away_goals_setpiece_for'] = df['away_goals_setpiece_for'] + df['away_goals_penalty_for']
         
-        # Calculate averages
+        df['total_goals_openplay'] = df['home_goals_openplay_for'] + df['away_goals_openplay_for']
+        df['total_goals_counter'] = df['home_goals_counter_for'] + df['away_goals_counter_for']
+        df['total_goals_setpiece'] = df['home_goals_setpiece_for'] + df['away_goals_setpiece_for']
+        
+        df['setpiece_pct'] = df['total_goals_setpiece'] / df['goals_scored'].replace(0, 1)
+        df['counter_pct'] = df['total_goals_counter'] / df['goals_scored'].replace(0, 1)
+        df['openplay_pct'] = df['total_goals_openplay'] / df['goals_scored'].replace(0, 1)
+        
+        # Calculate last 5 averages
         df['avg_goals_scored_last_5'] = df['goals_scored_last_5'] / 5
         df['avg_goals_conceded_last_5'] = df['goals_conceded_last_5'] / 5
         
-        # League averages (will be calculated per league)
-        df['league_avg_goals'] = df['goals_scored'].mean() / df['matches_played'].mean()
+        # League averages
+        df['league_avg_goals'] = df['goals_per_match'].mean()
+        df['league_avg_conceded'] = df['conceded_per_match'].mean()
+        df['league_avg_xg'] = df['xg_per_match'].mean()
+        
+        # Form indicators
+        if 'form_last_5_overall' in df.columns:
+            df['form_points_last_5'] = df['form_last_5_overall'].apply(lambda x: len([c for c in str(x) if c in ['W', 'D']]))
+        else:
+            df['form_points_last_5'] = 0
+        
+        # Defensive indicators
+        df['defensive_solidity'] = df['conceded_per_match'] / df['league_avg_conceded']
         
         return df.fillna(0)
         
     except Exception as e:
         st.error(f"Error loading {league_name}: {str(e)}")
+        st.write(f"Available columns: {list(df.columns) if 'df' in locals() else 'No dataframe loaded'}")
         return None
 
 # =================== SYSTEM CONSTANTS v8.0 ===================
@@ -145,17 +155,53 @@ class AgencyState4GateSystem:
     """REAL 4-GATE AGENCY-STATE ANALYSIS (Not simulated)"""
     
     @staticmethod
+    def get_team_data_for_perspective(data: Dict, is_home: bool) -> Dict:
+        """Get the correct metrics for home/away perspective"""
+        if is_home:
+            return {
+                'xg_per_match': data.get('home_xg_per_match', data.get('xg_per_match', 1.2)),
+                'efficiency': data.get('efficiency', 0.8),
+                'setpiece_pct': data.get('setpiece_pct', 0.2),
+                'openplay_pct': data.get('openplay_pct', 0.6),
+                'counter_pct': data.get('counter_pct', 0.1),
+                'goals_per_match': data.get('home_goals_per_match', data.get('goals_per_match', 1.2)),
+                'conceded_per_match': data.get('home_conceded_per_match', data.get('conceded_per_match', 1.2)),
+                'avg_goals_scored_last_5': data.get('avg_goals_scored_last_5', 1.3),
+                'avg_goals_conceded_last_5': data.get('avg_goals_conceded_last_5', 1.3),
+                'league_avg_goals': data.get('league_avg_goals', 1.3),
+                'goals_scored_last_5': data.get('goals_scored_last_5', 6),
+                'goals_conceded_last_5': data.get('goals_conceded_last_5', 6),
+            }
+        else:
+            return {
+                'xg_per_match': data.get('away_xg_per_match', data.get('xg_per_match', 1.2)),
+                'efficiency': data.get('efficiency', 0.8),
+                'setpiece_pct': data.get('setpiece_pct', 0.2),
+                'openplay_pct': data.get('openplay_pct', 0.6),
+                'counter_pct': data.get('counter_pct', 0.1),
+                'goals_per_match': data.get('away_goals_per_match', data.get('goals_per_match', 1.2)),
+                'conceded_per_match': data.get('away_conceded_per_match', data.get('conceded_per_match', 1.2)),
+                'avg_goals_scored_last_5': data.get('avg_goals_scored_last_5', 1.3),
+                'avg_goals_conceded_last_5': data.get('avg_goals_conceded_last_5', 1.3),
+                'league_avg_goals': data.get('league_avg_goals', 1.3),
+                'goals_scored_last_5': data.get('goals_scored_last_5', 6),
+                'goals_conceded_last_5': data.get('goals_conceded_last_5', 6),
+            }
+    
+    @staticmethod
     def gate1_quiet_control(home_data: Dict, away_data: Dict, is_home_perspective: bool) -> Dict:
         """GATE 1: Quiet Control Identification"""
-        # Select appropriate data based on perspective
-        if is_home_perspective:
-            controller_data = home_data
-            opponent_data = away_data
-            controller_label = "HOME"
-        else:
-            controller_data = away_data
-            opponent_data = home_data
-            controller_label = "AWAY"
+        # Get perspective-correct data
+        controller_data = AgencyState4GateSystem.get_team_data_for_perspective(
+            home_data if is_home_perspective else away_data, 
+            is_home_perspective
+        )
+        opponent_data = AgencyState4GateSystem.get_team_data_for_perspective(
+            away_data if is_home_perspective else home_data, 
+            not is_home_perspective
+        )
+        
+        controller_label = "HOME" if is_home_perspective else "AWAY"
         
         # Criteria weights
         criteria_weights = {
@@ -170,13 +216,11 @@ class AgencyState4GateSystem:
         opponent_scores = {}
         
         # 1. Tempo Dominance (xG per match > 1.4)
-        controller_xg_per_match = controller_data.get('xg_per_match', 
-            controller_data.get('home_xg_per_match' if is_home_perspective else 'away_xg_per_match', 1.0))
-        opponent_xg_per_match = opponent_data.get('xg_per_match', 
-            opponent_data.get('away_xg_per_match' if is_home_perspective else 'home_xg_per_match', 1.0))
+        controller_xg = controller_data.get('xg_per_match', 1.0)
+        opponent_xg = opponent_data.get('xg_per_match', 1.0)
         
-        controller_scores['tempo_dominance'] = 1 if controller_xg_per_match > AGENCY_STATE_THRESHOLDS['TEMPO_DOMINANCE'] else 0
-        opponent_scores['tempo_dominance'] = 1 if opponent_xg_per_match > AGENCY_STATE_THRESHOLDS['TEMPO_DOMINANCE'] else 0
+        controller_scores['tempo_dominance'] = 1 if controller_xg > AGENCY_STATE_THRESHOLDS['TEMPO_DOMINANCE'] else 0
+        opponent_scores['tempo_dominance'] = 1 if opponent_xg > AGENCY_STATE_THRESHOLDS['TEMPO_DOMINANCE'] else 0
         
         # 2. Scoring Efficiency (Goals/xG > 90%)
         controller_efficiency = controller_data.get('efficiency', 0.8)
@@ -241,7 +285,7 @@ class AgencyState4GateSystem:
         return {
             'gate_passed': False,
             'result': 'NO_CONTROLLER',
-            'reason': f'Insufficient control criteria (Home: {controller_criteria_met}/4, Away: {opponent_criteria_met}/4)'
+            'reason': f'Insufficient control criteria (Controller: {controller_criteria_met}/4, Opponent: {opponent_criteria_met}/4)'
         }
     
     @staticmethod
@@ -355,7 +399,7 @@ class AgencyState4GateSystem:
         else:
             defensive_threshold = AGENCY_STATE_THRESHOLDS['ENFORCEMENT_DEFENSIVE_AWAY']
         
-        concede_avg = controller_data.get('avg_goals_conceded_last_5', 1.2)
+        concede_avg = controller_data.get('conceded_per_match', 1.2)
         if concede_avg < defensive_threshold:
             methods.append('DEFENSIVE_SOLIDITY')
         
@@ -404,8 +448,12 @@ class AgencyState4GateSystem:
         
         if home_perspective['gate1']['gate_passed']:
             # Get controller data for remaining gates
-            controller_data = home_data if home_perspective['gate1']['controller'] == 'HOME' else away_data
-            opponent_data = away_data if home_perspective['gate1']['controller'] == 'HOME' else home_data
+            if home_perspective['gate1']['controller'] == 'HOME':
+                controller_data = AgencyState4GateSystem.get_team_data_for_perspective(home_data, True)
+                opponent_data = AgencyState4GateSystem.get_team_data_for_perspective(away_data, False)
+            else:
+                controller_data = AgencyState4GateSystem.get_team_data_for_perspective(away_data, False)
+                opponent_data = AgencyState4GateSystem.get_team_data_for_perspective(home_data, True)
             
             home_perspective['gate2'] = AgencyState4GateSystem.gate2_directional_dominance(
                 controller_data, opponent_data, market='WINNER'
@@ -428,8 +476,12 @@ class AgencyState4GateSystem:
         )
         
         if away_perspective['gate1']['gate_passed']:
-            controller_data = away_data if away_perspective['gate1']['controller'] == 'AWAY' else home_data
-            opponent_data = home_data if away_perspective['gate1']['controller'] == 'AWAY' else away_data
+            if away_perspective['gate1']['controller'] == 'AWAY':
+                controller_data = AgencyState4GateSystem.get_team_data_for_perspective(away_data, False)
+                opponent_data = AgencyState4GateSystem.get_team_data_for_perspective(home_data, True)
+            else:
+                controller_data = AgencyState4GateSystem.get_team_data_for_perspective(home_data, True)
+                opponent_data = AgencyState4GateSystem.get_team_data_for_perspective(away_data, False)
             
             away_perspective['gate2'] = AgencyState4GateSystem.gate2_directional_dominance(
                 controller_data, opponent_data, market='WINNER'
@@ -448,16 +500,16 @@ class AgencyState4GateSystem:
         # Determine if ANY perspective has WINNER LOCK
         home_winner_lock = all([
             home_perspective['gate1']['gate_passed'],
-            home_perspective['gate2']['gate_passed'],
-            home_perspective['gate3']['gate_passed'],
-            home_perspective['gate4']['gate_passed']
+            home_perspective['gate2'].get('gate_passed', False),
+            home_perspective['gate3'].get('gate_passed', False),
+            home_perspective['gate4'].get('gate_passed', False)
         ])
         
         away_winner_lock = all([
             away_perspective['gate1']['gate_passed'],
-            away_perspective['gate2']['gate_passed'],
-            away_perspective['gate3']['gate_passed'],
-            away_perspective['gate4']['gate_passed']
+            away_perspective['gate2'].get('gate_passed', False),
+            away_perspective['gate3'].get('gate_passed', False),
+            away_perspective['gate4'].get('gate_passed', False)
         ])
         
         winner_lock_detected = home_winner_lock or away_winner_lock
@@ -479,9 +531,9 @@ class AgencyState4GateSystem:
                 'gates': gates,
                 'gate_summary': {
                     'gate1': gates['gate1']['result'],
-                    'gate2': gates['gate2']['result'],
-                    'gate3': gates['gate3']['result'],
-                    'gate4': gates['gate4']['result']
+                    'gate2': gates['gate2'].get('result', 'FAILED'),
+                    'gate3': gates['gate3'].get('result', 'FAILED'),
+                    'gate4': gates['gate4'].get('result', 'FAILED')
                 },
                 'reason': f'4-Gate Agency-State analysis confirms {controller_team} as market controller',
                 'accuracy_claim': '80% (4/5 backtest)',
@@ -492,8 +544,8 @@ class AgencyState4GateSystem:
             'winner_lock': False,
             'reason': 'No Winner Lock detected - insufficient Agency-State control',
             'gate_summary': {
-                'home_perspective': {k: v['result'] for k, v in home_perspective.items()},
-                'away_perspective': {k: v['result'] for k, v in away_perspective.items()}
+                'home_perspective': {k: v.get('result', 'FAILED') for k, v in home_perspective.items()},
+                'away_perspective': {k: v.get('result', 'FAILED') for k, v in away_perspective.items()}
             }
         }
 
@@ -517,6 +569,8 @@ class EliteDefensePattern:
         # Check requirements
         absolute_defense = total_conceded_last_5 <= ELITE_DEFENSE_THRESHOLDS['ABSOLUTE_DEFENSE']
         avg_defense = avg_conceded <= ELITE_DEFENSE_THRESHOLDS['AVG_CONCEDED']
+        
+        # Use either gap condition OR relative advantage
         gap_condition = defense_gap > ELITE_DEFENSE_THRESHOLDS['DEFENSE_GAP']
         relative_advantage = avg_conceded < opponent_avg_conceded * 0.6  # 40% better
         
@@ -551,10 +605,13 @@ class TotalUnderConditions:
         """Check all three paths for Total Under 2.5"""
         paths = []
         
-        # PATH A: Offensive Incapacity
-        home_avg_scored = home_data.get('avg_goals_scored_last_5', 1.3)
-        away_avg_scored = away_data.get('avg_goals_scored_last_5', 1.3)
+        # Get averages
+        home_avg_scored = home_data.get('avg_goals_scored_last_5', home_data.get('goals_scored_last_5', 6) / 5)
+        away_avg_scored = away_data.get('avg_goals_scored_last_5', away_data.get('goals_scored_last_5', 6) / 5)
+        home_avg_conceded = home_data.get('avg_goals_conceded_last_5', home_data.get('goals_conceded_last_5', 6) / 5)
+        away_avg_conceded = away_data.get('avg_goals_conceded_last_5', away_data.get('goals_conceded_last_5', 6) / 5)
         
+        # PATH A: Offensive Incapacity
         if (home_avg_scored <= TOTAL_UNDER_THRESHOLDS['OFFENSIVE_INCAPACITY'] and 
             away_avg_scored <= TOTAL_UNDER_THRESHOLDS['OFFENSIVE_INCAPACITY']):
             paths.append({
@@ -566,9 +623,6 @@ class TotalUnderConditions:
             })
         
         # PATH B: Defensive Strength
-        home_avg_conceded = home_data.get('avg_goals_conceded_last_5', 1.3)
-        away_avg_conceded = away_data.get('avg_goals_conceded_last_5', 1.3)
-        
         if (home_avg_conceded <= TOTAL_UNDER_THRESHOLDS['DEFENSIVE_STRENGTH'] and 
             away_avg_conceded <= TOTAL_UNDER_THRESHOLDS['DEFENSIVE_STRENGTH']):
             paths.append({
@@ -737,6 +791,10 @@ class DecisionFlowEngineV80:
                              home_name: str, away_name: str) -> Dict:
         """Execute complete v8.0 decision flow"""
         all_results = {}
+        
+        # Store team names
+        all_results['home_name'] = home_name
+        all_results['away_name'] = away_name
         
         # ========== STEP 1: RUN AGENCY-STATE 4-GATE ANALYSIS ==========
         agency_state = AgencyState4GateSystem()
@@ -998,6 +1056,15 @@ def main():
                         st.session_state.analysis_result = None
                         st.success(f"✅ Loaded {len(df)} teams with Agency-State metrics")
                         st.rerun()
+        
+        # Debug info
+        if st.session_state.df is not None:
+            st.markdown("---")
+            st.markdown("### 📊 Data Info")
+            st.write(f"Teams: {len(st.session_state.df)}")
+            st.write(f"Columns: {len(st.session_state.df.columns)}")
+            if st.checkbox("Show sample data"):
+                st.dataframe(st.session_state.df.head(3))
     
     # Main content
     if st.session_state.df is None:
@@ -1031,6 +1098,7 @@ def main():
         if not home_row.empty:
             home_data = home_row.iloc[0].to_dict()
             st.info(f"**Agency-State Metrics:** {home_data.get('xg_per_match', 1.2):.2f} xG/match, {home_data.get('efficiency', 0.8)*100:.0f}% efficiency")
+            st.info(f"**Last 5:** {home_data.get('goals_scored_last_5', 0)} scored, {home_data.get('goals_conceded_last_5', 0)} conceded")
     
     with col2:
         away_options = [t for t in teams if t != home_team]
@@ -1041,6 +1109,7 @@ def main():
         if not away_row.empty:
             away_data = away_row.iloc[0].to_dict()
             st.info(f"**Agency-State Metrics:** {away_data.get('xg_per_match', 1.2):.2f} xG/match, {away_data.get('efficiency', 0.8)*100:.0f}% efficiency")
+            st.info(f"**Last 5:** {away_data.get('goals_scored_last_5', 0)} scored, {away_data.get('goals_conceded_last_5', 0)} conceded")
     
     # Run analysis button
     if st.button("🚀 RUN AGENCY-STATE ANALYSIS v8.0", type="primary", use_container_width=True):
@@ -1113,6 +1182,13 @@ def main():
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div style="background: #F3F4F6; padding: 1.5rem; border-radius: 10px; text-align: center;">
+                    <div style="font-size: 2rem; color: #9CA3AF;">🎯</div>
+                    <h3 style="margin: 0.5rem 0; color: #6B7280;">NO WINNER LOCK</h3>
+                </div>
+                """, unsafe_allow_html=True)
         
         with col2:
             if result['has_elite_defense']:
@@ -1128,6 +1204,13 @@ def main():
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div style="background: #F3F4F6; padding: 1.5rem; border-radius: 10px; text-align: center;">
+                    <div style="font-size: 2rem; color: #9CA3AF;">🛡️</div>
+                    <h3 style="margin: 0.5rem 0; color: #6B7280;">NO ELITE DEFENSE</h3>
+                </div>
+                """, unsafe_allow_html=True)
         
         with col3:
             if result['has_total_under']:
@@ -1141,6 +1224,13 @@ def main():
                             📈 70% accuracy (7/10)
                         </div>
                     </div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div style="background: #F3F4F6; padding: 1.5rem; border-radius: 10px; text-align: center;">
+                    <div style="font-size: 2rem; color: #9CA3AF;">📉</div>
+                    <h3 style="margin: 0.5rem 0; color: #6B7280;">NO TOTAL UNDER</h3>
                 </div>
                 """, unsafe_allow_html=True)
         
@@ -1159,6 +1249,8 @@ def main():
                         st.metric("Confidence", rec['confidence'], rec['accuracy'])
                     with cols[3]:
                         st.caption(f"**{rec['stake_sizing']}**")
+        else:
+            st.info("No bet recommendations - consider staying away")
         
         # Agency-State Gate Details
         if result['winner_lock']:
@@ -1168,9 +1260,9 @@ def main():
             gate_cols = st.columns(4)
             gate_data = [
                 ("GATE 1", "Quiet Control", gates['gate1']['result'], gates['gate1']['reason']),
-                ("GATE 2", "Directional Dominance", gates['gate2']['result'], gates['gate2']['reason']),
-                ("GATE 3", "State-Flip Capacity", gates['gate3']['result'], gates['gate3'].get('reason', '')),
-                ("GATE 4", "Enforcement", gates['gate4']['result'], gates['gate4'].get('reason', ''))
+                ("GATE 2", "Directional Dominance", gates['gate2'].get('result', 'FAILED'), gates['gate2'].get('reason', '')),
+                ("GATE 3", "State-Flip Capacity", gates['gate3'].get('result', 'FAILED'), gates['gate3'].get('reason', '')),
+                ("GATE 4", "Enforcement", gates['gate4'].get('result', 'FAILED'), gates['gate4'].get('reason', ''))
             ]
             
             for idx, (title, subtitle, result_text, reason) in enumerate(gate_data):
@@ -1181,7 +1273,7 @@ def main():
                         <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">{title}</div>
                         <div style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 0.5rem;">{subtitle}</div>
                         <div style="font-weight: bold; margin-bottom: 0.5rem;">{result_text}</div>
-                        <div style="font-size: 0.8rem; opacity: 0.8;">{reason[:50]}...</div>
+                        <div style="font-size: 0.8rem; opacity: 0.8;">{reason[:50]}{'...' if len(reason) > 50 else ''}</div>
                     </div>
                     """, unsafe_allow_html=True)
         
@@ -1209,6 +1301,23 @@ def main():
             st.metric("Pattern Count", alloc['pattern_count'])
         with col4:
             st.metric("Final Multiplier", f"{alloc['final_capital_multiplier']:.1f}x")
+        
+        # Team Stats Summary
+        st.markdown("### 📊 Team Statistics")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown(f"**{home_team}**")
+            st.metric("xG/Match", f"{home_data.get('xg_per_match', 0):.2f}")
+            st.metric("Efficiency", f"{home_data.get('efficiency', 0)*100:.0f}%")
+            st.metric("Last 5 Scored", home_data.get('goals_scored_last_5', 0))
+            st.metric("Last 5 Conceded", home_data.get('goals_conceded_last_5', 0))
+        
+        with col2:
+            st.markdown(f"**{away_team}**")
+            st.metric("xG/Match", f"{away_data.get('xg_per_match', 0):.2f}")
+            st.metric("Efficiency", f"{away_data.get('efficiency', 0)*100:.0f}%")
+            st.metric("Last 5 Scored", away_data.get('goals_scored_last_5', 0))
+            st.metric("Last 5 Conceded", away_data.get('goals_conceded_last_5', 0))
 
 if __name__ == "__main__":
     main()
