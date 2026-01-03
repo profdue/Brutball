@@ -762,6 +762,64 @@ class IntegratedCapitalEngineV71:
                 'has_totals_lock': False
             }
 
+# =================== CSV DATA PROCESSING ===================
+class CSVDataProcessor:
+    """Process CSV data into the expected format"""
+    
+    @staticmethod
+    def process_csv_data(csv_file) -> pd.DataFrame:
+        """Load and process CSV data"""
+        df = pd.read_csv(csv_file)
+        
+        # Ensure required columns exist
+        required_columns = [
+            'team', 'goals_scored_last_5', 'goals_conceded_last_5',
+            'home_xg_per_match', 'away_xg_per_match', 'home_goals_scored',
+            'home_xg_for', 'home_setpiece_pct', 'home_openplay_pct',
+            'home_counter_pct', 'home_goals_conceded', 'home_matches_played',
+            'away_goals_scored', 'away_xg_for', 'away_setpiece_pct',
+            'away_openplay_pct', 'away_counter_pct', 'away_goals_conceded',
+            'away_matches_played'
+        ]
+        
+        # Check for missing columns and create them with defaults if needed
+        for col in required_columns:
+            if col not in df.columns:
+                if 'xg' in col:
+                    df[col] = 1.3  # Default xG value
+                elif 'pct' in col:
+                    df[col] = 0.3  # Default percentage
+                elif 'goals' in col:
+                    df[col] = df['goals_scored_last_5'] if 'scored' in col else df['goals_conceded_last_5']
+                elif 'matches_played' in col:
+                    df[col] = 10  # Default matches played
+                else:
+                    df[col] = 0
+        
+        return df
+    
+    @staticmethod
+    def get_team_data(df: pd.DataFrame, team_name: str) -> Dict:
+        """Extract team data from DataFrame"""
+        team_row = df[df['team'] == team_name]
+        
+        if team_row.empty:
+            raise ValueError(f"Team '{team_name}' not found in CSV data")
+        
+        # Convert to dictionary
+        data = team_row.iloc[0].to_dict()
+        
+        # Ensure numeric types
+        for key in data:
+            if isinstance(data[key], (int, float, np.integer, np.floating)):
+                continue
+            try:
+                data[key] = float(data[key])
+            except:
+                data[key] = 0.0
+        
+        return data
+
 # =================== COMPLETE EXECUTION ENGINE v7.1 ===================
 class FusedLogicEngineV71:
     """COMPLETE FUSED LOGIC ENGINE v7.1 - 6 LAYERS WITH FIXES"""
@@ -799,7 +857,7 @@ class FusedLogicEngineV71:
         # ========== LAYER 3: AGENCY-STATE DETECTION ==========
         # Note: Placeholder - would be populated by actual detection
         all_results['agency_state_results'] = {
-            'WINNER': {'state_locked': False, 'controller': home_name, 'control_delta': 0.3},
+            'WINNER': {'state_locked': False},
             'CLEAN_SHEET': {'state_locked': False},
             'TEAM_NO_SCORE': {'state_locked': False},
             'OPPONENT_UNDER_1_5': {'state_locked': False},
@@ -1087,293 +1145,253 @@ def main():
     
     # Sidebar for inputs
     with st.sidebar:
-        st.header("Match Parameters")
+        st.header("📁 Data Input")
         
-        # Team names
-        home_name = st.text_input("Home Team", value="Milan")
-        away_name = st.text_input("Away Team", value="Cagliari")
+        # CSV Upload
+        uploaded_file = st.file_uploader("Upload CSV Data", type=['csv'])
         
-        st.subheader("Home Team Data (Last 5 Matches)")
-        home_goals_scored = st.number_input("Home Goals Scored (last 5)", value=8, min_value=0)
-        home_goals_conceded = st.number_input("Home Goals Conceded (last 5)", value=3, min_value=0)
-        
-        st.subheader("Away Team Data (Last 5 Matches)")
-        away_goals_scored = st.number_input("Away Goals Scored (last 5)", value=5, min_value=0)
-        away_goals_conceded = st.number_input("Away Goals Conceded (last 5)", value=5, min_value=0)
-        
-        league_avg_xg = st.number_input("League Avg xG", value=1.3, min_value=0.5, max_value=2.5, step=0.1)
-        
-        # Quick test scenarios
-        st.subheader("Test Scenarios")
-        scenario = st.selectbox("Load Scenario", [
-            "Custom Input",
-            "Edge-Derived Lock Example", 
-            "Elite Defense Example",
-            "No Patterns Example"
-        ])
-        
-        if scenario == "Edge-Derived Lock Example":
-            home_name, away_name = "Milan", "Cagliari"
-            home_goals_conceded = 3  # Milan concedes 0.6 avg
-            away_goals_conceded = 5  # Cagliari concedes 1.0 avg (EDGE-DERIVED TRIGGER!)
+        if uploaded_file:
+            # Process CSV
+            processor = CSVDataProcessor()
+            df = processor.process_csv_data(uploaded_file)
             
-        elif scenario == "Elite Defense Example":
-            home_name, away_name = "Juventus", "Pisa"
-            home_goals_conceded = 2  # ≤4 total (ELITE DEFENSE!)
-            away_goals_conceded = 7
-        
-        elif scenario == "No Patterns Example":
-            home_name, away_name = "Team A", "Team B"
-            home_goals_conceded = 8  # >4 total
-            away_goals_conceded = 9  # >1.0 avg
-        
-        analyze_button = st.button("🔍 Analyze Match", type="primary")
+            st.success(f"✅ CSV loaded successfully! {len(df)} teams available")
+            
+            # Show team selection
+            teams = df['team'].tolist()
+            
+            st.subheader("🏟️ Match Selection")
+            home_team = st.selectbox("Home Team", teams, index=0 if teams else None)
+            away_team = st.selectbox("Away Team", teams, index=min(1, len(teams)-1) if len(teams) > 1 else 0)
+            
+            league_avg_xg = st.number_input("League Avg xG", value=1.3, min_value=0.5, max_value=2.5, step=0.1)
+            
+            analyze_button = st.button("🔍 Analyze Match", type="primary")
+        else:
+            st.warning("Please upload a CSV file to begin")
+            analyze_button = False
+            df = None
+            home_team = None
+            away_team = None
     
-    if analyze_button:
-        # Prepare data
-        home_data = {
-            'goals_scored_last_5': home_goals_scored,
-            'goals_conceded_last_5': home_goals_conceded,
-            'home_xg_per_match': 1.6,
-            'home_goals_scored': home_goals_scored * 2,
-            'home_xg_for': home_goals_scored * 2.5,
-            'home_setpiece_pct': 0.3,
-            'home_openplay_pct': 0.6,
-            'home_counter_pct': 0.2,
-            'home_goals_conceded': home_goals_conceded * 2,
-            'home_matches_played': 10,
-            'away_xg_per_match': 1.2,
-            'away_goals_scored': away_goals_scored * 1.5,
-            'away_xg_for': away_goals_scored * 2.0,
-            'away_setpiece_pct': 0.25,
-            'away_openplay_pct': 0.5,
-            'away_counter_pct': 0.1,
-            'away_goals_conceded': away_goals_conceded * 2,
-            'away_matches_played': 10
-        }
-        
-        away_data = {
-            'goals_scored_last_5': away_goals_scored,
-            'goals_conceded_last_5': away_goals_conceded,
-            'home_xg_per_match': 1.4,
-            'home_goals_scored': away_goals_scored * 1.8,
-            'home_xg_for': away_goals_scored * 2.2,
-            'home_setpiece_pct': 0.28,
-            'home_openplay_pct': 0.55,
-            'home_counter_pct': 0.18,
-            'home_goals_conceded': away_goals_conceded * 1.8,
-            'home_matches_played': 10,
-            'away_xg_per_match': 1.1,
-            'away_goals_scored': home_goals_scored * 1.6,
-            'away_xg_for': home_goals_scored * 2.1,
-            'away_setpiece_pct': 0.32,
-            'away_openplay_pct': 0.58,
-            'away_counter_pct': 0.22,
-            'away_goals_conceded': home_goals_conceded * 1.9,
-            'away_matches_played': 10
-        }
-        
-        # Execute analysis
-        engine = FusedLogicEngineV71()
-        results = engine.execute_fused_logic(
-            home_data, away_data, 
-            home_name, away_name,
-            league_avg_xg
-        )
-        
-        # Display results
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            avg_conceded = results['defensive_assessment']['home_avg_conceded']
-            st.metric(f"{home_name} Avg Conceded", f"{avg_conceded:.2f}")
-            if results['elite_defense_home'].get('elite_defense'):
-                st.success("🎯 ELITE DEFENSE PATTERN")
-                st.caption(f"≤4 total goals conceded (100% empirical)")
-            elif avg_conceded <= DEFENSIVE_THRESHOLDS['OPPONENT_UNDER_1_5']:
-                st.success("🔓 EDGE-DERIVED LOCK")
-                st.caption("≤1.0 avg conceded (2/2 empirical)")
-            else:
-                st.info("⚪ Standard Defense")
-        
-        with col2:
-            avg_conceded = results['defensive_assessment']['away_avg_conceded']
-            st.metric(f"{away_name} Avg Conceded", f"{avg_conceded:.2f}")
-            if results['elite_defense_away'].get('elite_defense'):
-                st.success("🎯 ELITE DEFENSE PATTERN")
-                st.caption(f"≤4 total goals conceded (100% empirical)")
-            elif avg_conceded <= DEFENSIVE_THRESHOLDS['OPPONENT_UNDER_1_5']:
-                st.success("🔓 EDGE-DERIVED LOCK")
-                st.caption("≤1.0 avg conceded (2/2 empirical)")
-            else:
-                st.info("⚪ Standard Defense")
-        
-        with col3:
-            capital = results['capital_decision']
-            pattern_status = results['pattern_independence']['combination']
+    # Main content area
+    if analyze_button and df is not None:
+        try:
+            # Get team data
+            processor = CSVDataProcessor()
+            home_data = processor.get_team_data(df, home_team)
+            away_data = processor.get_team_data(df, away_team)
             
-            if capital['capital_mode'] == 'LOCK_MODE':
-                st.success(f"💰 {capital['capital_mode']}")
-                st.metric("Capital Multiplier", "2.0x")
-            else:
-                st.warning(f"💰 {capital['capital_mode']}")
-                st.metric("Capital Multiplier", "1.0x")
-            
-            st.caption(f"Pattern: {pattern_status}")
-        
-        # Pattern Detection Summary
-        st.subheader("🧩 Pattern Detection Summary")
-        
-        pattern_cols = st.columns(4)
-        with pattern_cols[0]:
-            st.metric("Edge-Derived", 
-                     "✅" if results['has_edge_derived_locks'] else "❌",
-                     "2/2 empirical" if results['has_edge_derived_locks'] else "")
-        
-        with pattern_cols[1]:
-            st.metric("Elite Defense", 
-                     "✅" if results['has_elite_defense'] else "❌",
-                     "8/8 empirical" if results['has_elite_defense'] else "")
-        
-        with pattern_cols[2]:
-            st.metric("Winner Lock", 
-                     "✅" if results['has_winner_lock'] else "❌",
-                     "6/6 no-loss" if results['has_winner_lock'] else "")
-        
-        with pattern_cols[3]:
-            totals_lock = results['totals_lock'].get('lock', False)
-            st.metric("Totals Lock", 
-                     "✅" if totals_lock else "❌",
-                     "Under 2.5" if totals_lock else "")
-        
-        # Decision Flow
-        st.subheader("📋 Decision Flow v7.1")
-        decision_matrix = results['decision_matrix']
-        
-        for step in decision_matrix['decision_flow']:
-            col1, col2, col3 = st.columns([0.1, 0.3, 0.6])
+            # Display team stats
+            col1, col2 = st.columns(2)
             
             with col1:
-                st.write(f"**Step {step['step']}**")
+                st.subheader(f"🏠 {home_team}")
+                st.metric("Goals Scored (Last 5)", home_data.get('goals_scored_last_5', 0))
+                st.metric("Goals Conceded (Last 5)", home_data.get('goals_conceded_last_5', 0))
+                st.caption(f"Avg Scored: {home_data.get('goals_scored_last_5', 0)/5:.2f}")
+                st.caption(f"Avg Conceded: {home_data.get('goals_conceded_last_5', 0)/5:.2f}")
             
             with col2:
-                if step.get('blocked', False):
-                    st.error(f"{step['emoji']} {step['decision']}")
-                elif step['emoji'] in ['🔓', '🛡️', '👑', '🔒', '✅']:
-                    st.success(f"{step['emoji']} {step['decision']}")
+                st.subheader(f"✈️ {away_team}")
+                st.metric("Goals Scored (Last 5)", away_data.get('goals_scored_last_5', 0))
+                st.metric("Goals Conceded (Last 5)", away_data.get('goals_conceded_last_5', 0))
+                st.caption(f"Avg Scored: {away_data.get('goals_scored_last_5', 0)/5:.2f}")
+                st.caption(f"Avg Conceded: {away_data.get('goals_conceded_last_5', 0)/5:.2f}")
+            
+            # Execute analysis
+            with st.spinner("Running Fused Logic Analysis..."):
+                engine = FusedLogicEngineV71()
+                results = engine.execute_fused_logic(
+                    home_data, away_data, 
+                    home_team, away_team,
+                    league_avg_xg
+                )
+            
+            # ========== RESULTS DISPLAY ==========
+            st.divider()
+            st.header("📊 Analysis Results")
+            
+            # Quick Stats
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                capital = results['capital_decision']
+                if capital['capital_mode'] == 'LOCK_MODE':
+                    st.success(f"💰 {capital['capital_mode']} (2.0x)")
                 else:
-                    st.info(f"{step['emoji']} {step['decision']}")
+                    st.warning(f"💰 {capital['capital_mode']} (1.0x)")
+                
+                st.metric("Pattern Status", results['pattern_independence']['combination'])
+            
+            with col2:
+                if results['has_edge_derived_locks']:
+                    st.success("🔓 Edge-Derived Locks: YES")
+                else:
+                    st.info("🔓 Edge-Derived Locks: NO")
+                
+                if results['has_elite_defense']:
+                    st.success("🛡️ Elite Defense: YES")
+                else:
+                    st.info("🛡️ Elite Defense: NO")
             
             with col3:
-                st.write(step['explanation'])
-                if step.get('action'):
-                    st.caption(f"*Action: {step['action']}*")
-                if step.get('recommendation'):
-                    st.write(f"**{step['recommendation']}**")
-        
-        # Pattern Distribution
-        st.subheader("📊 Pattern Distribution (25-Match Study)")
-        dist = results['pattern_distribution']
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Total Matches", dist['total_matches'])
-        with col2:
-            st.metric("Actionable", dist['actionable_matches'], 
-                     f"{dist['actionable_matches']/dist['total_matches']*100:.0f}%")
-        with col3:
-            st.metric("Stay-Away", dist['stay_away_matches'],
-                     f"{dist['stay_away_matches']/dist['total_matches']*100:.0f}%")
-        with col4:
-            if decision_matrix['should_stay_away']:
-                st.error("48% hit rate")
-            else:
-                st.success("52% actionable")
-        
-        # Pattern Sources
-        st.subheader("🔍 Pattern Sources Detected")
-        if results['under_15_sources']:
-            for source in results['under_15_sources']:
-                if source.get('type') == 'PRIMARY_SOURCE':
-                    with st.expander(f"🔓 {source['declaration']}", expanded=True):
-                        st.write(f"**Reason:** {source['reason']}")
-                        st.write(f"**Empirical Accuracy:** {source['empirical_accuracy']}")
-                        if source.get('historical_evidence'):
-                            st.write("**Historical Evidence:**")
-                            for evidence in source['historical_evidence'][:3]:
-                                st.caption(f"- {evidence}")
+                if results['totals_lock'].get('lock'):
+                    st.success("🔒 Totals Lock: YES")
                 else:
-                    with st.expander(f"🎯 {source['declaration']}"):
-                        st.write(f"**Reason:** {source['reason']}")
-                        st.write(f"**Empirical Accuracy:** {source['empirical_accuracy']}")
-        else:
-            st.info("No UNDER 1.5 sources detected")
-        
-        # UNDER 3.5 Confidence
-        under_35 = results['under_35_confidence']
-        if under_35.get('tier', 0) > 0:
-            st.subheader("📈 UNDER 3.5 Confidence")
+                    st.info("🔒 Totals Lock: NO")
+                
+                under_35 = results['under_35_confidence']
+                if under_35.get('tier', 0) >= 2:
+                    st.success(f"📊 Under 3.5: Tier {under_35['tier']}")
             
-            col1, col2 = st.columns([0.7, 0.3])
+            # Decision Flow
+            st.subheader("📋 Decision Flow v7.1")
+            decision_matrix = results['decision_matrix']
+            
+            for step in decision_matrix['decision_flow']:
+                col1, col2, col3 = st.columns([0.1, 0.3, 0.6])
+                
+                with col1:
+                    st.write(f"**{step['step']}**")
+                
+                with col2:
+                    if step.get('blocked', False):
+                        st.error(f"{step['emoji']} {step['decision']}")
+                    else:
+                        st.info(f"{step['emoji']} {step['decision']}")
+                
+                with col3:
+                    st.write(step['explanation'])
+                    if step.get('action'):
+                        st.caption(f"*Action: {step['action']}*")
+            
+            # Pattern Distribution
+            st.subheader("📈 Pattern Distribution (25-Match Study)")
+            dist = results['pattern_distribution']
+            
+            col1, col2, col3 = st.columns(3)
             with col1:
+                st.metric("Total Matches", dist['total_matches'])
+            with col2:
+                st.metric("Actionable Matches", dist['actionable_matches'], 
+                         f"{dist['actionable_matches']/dist['total_matches']*100:.0f}%")
+            with col3:
+                st.metric("Stay-Away Matches", dist['stay_away_matches'],
+                         f"{dist['stay_away_matches']/dist['total_matches']*100:.0f}%")
+            
+            # Pattern Sources
+            st.subheader("🔍 Pattern Sources Detected")
+            if results['under_15_sources']:
+                for source in results['under_15_sources']:
+                    if source.get('type') == 'PRIMARY_SOURCE':
+                        st.success(f"🔓 {source['declaration']}")
+                        st.caption(f"*Accuracy: {source['empirical_accuracy']}*")
+                    else:
+                        st.info(f"🎯 {source['declaration']}")
+                        st.caption(f"*Accuracy: {source['empirical_accuracy']}*")
+            else:
+                st.info("No UNDER 1.5 sources detected")
+            
+            # UNDER 3.5 Confidence
+            under_35 = results['under_35_confidence']
+            if under_35.get('tier', 0) > 0:
+                st.subheader("📊 UNDER 3.5 Confidence")
                 confidence_pct = under_35['confidence'] * 100
                 st.progress(under_35['confidence'], 
-                           text=f"Confidence: {confidence_pct:.1f}%")
-                st.write(f"**Description:** {under_35['description']}")
-                if under_35.get('sample_size'):
-                    st.caption(f"Sample Size: {under_35['sample_size']}")
-            
-            with col2:
+                           text=f"Confidence: {confidence_pct:.1f}% - {under_35['description']}")
+                
                 if under_35.get('recommendation'):
-                    st.info(f"**{under_35['recommendation']}**")
-                if under_35.get('stake_multiplier'):
-                    st.metric("Stake Multiplier", f"{under_35['stake_multiplier']:.1f}x")
-        
-        # Final Verdict Box
-        st.subheader("🎯 Final Verdict")
-        
-        verdict_container = st.container()
-        with verdict_container:
-            col1, col2 = st.columns([0.7, 0.3])
+                    st.info(f"**Recommendation:** {under_35['recommendation']}")
             
-            with col1:
+            # Final Verdict
+            st.divider()
+            st.subheader("🎯 Final Verdict")
+            
+            verdict_col1, verdict_col2 = st.columns([0.7, 0.3])
+            
+            with verdict_col1:
                 if decision_matrix['should_stay_away']:
-                    st.error("## 🚫 STAY AWAY RECOMMENDED")
-                    st.write("**Reason:** No proven patterns detected")
-                    st.write("Only heuristic edge available (48% hit rate)")
-                    st.caption("Edge-Mode: 1.0x capital multiplier")
+                    st.error("## 🚫 STAY AWAY")
+                    st.write("No proven patterns detected. Only heuristic edge available.")
+                    st.write("**Reason:** " + results['capital_decision']['reason'])
                 else:
-                    st.success("## ✅ LOCK MODE ACTIVATED")
-                    st.write("**Reason:** Proven patterns detected")
-                    st.write(f"Patterns: {results['pattern_independence']['combination']}")
-                    st.caption(f"Lock-Mode: 2.0x capital multiplier")
+                    st.success("## ✅ BET WITH CONFIDENCE")
+                    st.write("Proven patterns detected. Structural certainty confirmed.")
+                    st.write("**Reason:** " + results['capital_decision']['reason'])
             
-            with col2:
-                if not decision_matrix['should_stay_away']:
-                    st.metric("Capital Authorized", "✅")
-                    st.metric("Multiplier", "2.0x")
-                    st.balloons()
-                else:
-                    st.metric("Capital Authorized", "⚠️")
-                    st.metric("Multiplier", "1.0x")
+            with verdict_col2:
+                st.metric("Capital Multiplier", 
+                         f"{decision_matrix['capital_multiplier']:.1f}x",
+                         "LOCK_MODE" if decision_matrix['capital_multiplier'] == 2.0 else "EDGE_MODE")
+            
+            # Complete Pattern Detection (if available)
+            if PATTERN_DETECTOR_AVAILABLE and 'complete_pattern_analysis' in results:
+                st.subheader("🧩 Complete Pattern Analysis")
+                complete = results['complete_pattern_analysis']
+                
+                if complete.get('has_elite_defense'):
+                    st.success(f"🛡️ Elite Defense Patterns: {len(complete.get('elite_defense_patterns', []))}")
+                
+                if complete.get('has_winner_lock'):
+                    st.success(f"👑 Winner Lock Pattern Detected")
+                
+                if complete.get('under_35_bet'):
+                    st.info(f"📊 Under 3.5 Bet: {complete['under_35_bet']}")
+            
+            # Raw Data (expandable)
+            with st.expander("📄 View Raw Data"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write("**Home Team Data:**")
+                    st.json(home_data)
+                with col2:
+                    st.write("**Away Team Data:**")
+                    st.json(away_data)
+            
+        except Exception as e:
+            st.error(f"Error during analysis: {str(e)}")
+            st.exception(e)
+    
+    elif not uploaded_file:
+        # Show instructions
+        st.info("""
+        ## 📋 How to Use Fused Logic Engine v7.1
         
-        # Complete Pattern Detection (if available)
-        if PATTERN_DETECTOR_AVAILABLE and 'complete_pattern_analysis' in results:
-            st.subheader("🧩 Complete Pattern Analysis")
-            complete = results['complete_pattern_analysis']
-            
-            if complete.get('has_elite_defense'):
-                st.success(f"🛡️ Elite Defense Patterns: {len(complete.get('elite_defense_patterns', []))}")
-            
-            if complete.get('has_winner_lock'):
-                st.success(f"👑 Winner Lock Pattern Detected")
-            
-            if complete.get('under_35_bet'):
-                st.info(f"📊 Under 3.5 Bet: {complete['under_35_bet']}")
+        ### Step 1: Prepare Your CSV
+        Your CSV should contain the following columns:
+        - `team`: Team name
+        - `goals_scored_last_5`: Total goals scored in last 5 matches
+        - `goals_conceded_last_5`: Total goals conceded in last 5 matches
+        - Additional metrics (optional): xG, set piece percentages, etc.
         
-        # Raw data (for debugging)
-        with st.expander("📊 Raw Analysis Data"):
-            st.json(results, expanded=False)
+        ### Step 2: Upload CSV
+        Use the sidebar to upload your CSV file
+        
+        ### Step 3: Select Teams
+        Choose home and away teams from the dropdown lists
+        
+        ### Step 4: Analyze
+        Click "Analyze Match" to run the 6-layer fused logic
+        
+        ### Key Improvements in v7.1:
+        1. **Edge-Derived Locks are VALID patterns** (empirical proof: 2/2 matches)
+        2. **Corrected Stay-Away logic**: Patterns now trigger LOCK_MODE
+        3. **52% actionable rate** (up from 40% in v6.0)
+        """)
+        
+        # Example CSV format
+        example_data = {
+            'team': ['Team A', 'Team B', 'Team C'],
+            'goals_scored_last_5': [7, 6, 5],
+            'goals_conceded_last_5': [4, 3, 2],
+            'home_xg_per_match': [1.6, 1.4, 1.5],
+            'away_xg_per_match': [1.2, 1.1, 1.3]
+        }
+        example_df = pd.DataFrame(example_data)
+        
+        st.subheader("📝 Example CSV Format")
+        st.dataframe(example_df)
 
 if __name__ == "__main__":
     main()
