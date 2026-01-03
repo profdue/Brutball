@@ -1,6 +1,6 @@
 """
 VULNERABILITY-LOCK BETTING SYSTEM (VLBS)
-Complete Streamlit Implementation - Version 1.0
+Streamlit App - Direct GitHub Integration
 """
 
 import streamlit as st
@@ -8,6 +8,8 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import warnings
+from io import StringIO
+import requests
 warnings.filterwarnings('ignore')
 
 # Page configuration
@@ -100,6 +102,16 @@ st.markdown("""
         font-size: 0.75rem;
         font-weight: 600;
     }
+    .league-badge {
+        display: inline-block;
+        background: #1E88E5;
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin: 0.25rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -114,13 +126,36 @@ VLBS_THRESHOLDS = {
     'RULE5_HOME_XGA': 1.3,
 }
 
-# =================== DATA LOADING ===================
+# GitHub repository information
+GITHUB_BASE_URL = "https://raw.githubusercontent.com/profdue/Brutball/main/leagues"
+
+# League files mapping
+LEAGUE_FILES = {
+    "Premier League": "premier-league.csv",
+    "La Liga": "laliga.csv",
+    "Serie A": "serie-a.csv",
+    "Bundesliga": "bundesliga.csv",
+    "Ligue 1": "ligue-1.csv",
+    "Primeira Liga": "primeira-liga.csv",
+    "Eredivisie": "eredivisie.csv"
+}
+
+# =================== GITHUB DATA LOADING ===================
 @st.cache_data(ttl=3600)
-def load_league_data(league_file):
-    """Load and pre-calculate data exactly as per VLBS specification"""
+def load_league_from_github(league_name):
+    """Load league data directly from GitHub"""
     try:
-        # Load CSV
-        df = pd.read_csv(league_file)
+        # Get the filename for the league
+        filename = LEAGUE_FILES.get(league_name)
+        if not filename:
+            st.error(f"League '{league_name}' not found in available leagues")
+            return None
+        
+        # Construct GitHub URL
+        url = f"{GITHUB_BASE_URL}/{filename}"
+        
+        # Load CSV from GitHub
+        df = pd.read_csv(url)
         
         # Clean column names
         df.columns = [col.strip().lower().replace(' ', '_') for col in df.columns]
@@ -134,6 +169,12 @@ def load_league_data(league_file):
             'home_xg_against', 'away_xg_against',
             'goals_scored_last_5', 'goals_conceded_last_5'
         ]
+        
+        # Check for missing columns
+        missing_cols = [col for col in required_columns if col not in df.columns]
+        if missing_cols:
+            st.warning(f"Missing columns in {league_name}: {', '.join(missing_cols)}")
+            return None
         
         # Check for optional columns
         if 'home_goals_conceded_last_5' not in df.columns:
@@ -189,11 +230,31 @@ def load_league_data(league_file):
         
         df['home_away_ratio'] = df.apply(calculate_home_away_ratio, axis=1)
         
+        # Add some defensive vulnerability metrics
+        df['defensive_vulnerability_score'] = df['away_xga_per_match'] * 1.5 + df['avg_conceded_last_5'] * 0.5
+        
+        st.success(f"✅ Loaded {len(df)} teams from {league_name}")
         return df
     
     except Exception as e:
-        st.error(f"Error loading data: {str(e)}")
+        st.error(f"❌ Error loading {league_name}: {str(e)}")
         return None
+
+@st.cache_data(ttl=3600)
+def list_available_leagues():
+    """Check which leagues are available in the GitHub repository"""
+    available_leagues = {}
+    
+    for league_name, filename in LEAGUE_FILES.items():
+        url = f"{GITHUB_BASE_URL}/{filename}"
+        try:
+            response = requests.head(url, timeout=5)
+            if response.status_code == 200:
+                available_leagues[league_name] = filename
+        except:
+            continue
+    
+    return available_leagues
 
 # =================== VLBS RULES IMPLEMENTATION ===================
 def rule1_terrible_away_defense(home_team, away_team):
@@ -427,8 +488,9 @@ def display_match_analysis(home_team, away_team, recommendations, base_stake=0.0
         <div class="no-bet-card">
             <h3>🤔 No Bet Recommended</h3>
             <p>No clear vulnerability detected in this match.</p>
+            <p><strong>Analysis:</strong> {}</p>
         </div>
-        """, unsafe_allow_html=True)
+        """.format(recommendations[0]['reason']), unsafe_allow_html=True)
     else:
         for rec in recommendations:
             stake_percentage = calculate_stake(base_stake, rec) * 100
@@ -473,7 +535,7 @@ def display_team_comparison(home_team, away_team):
             'xG Per Match (Home)', 'xG Per Match (Away)',
             'xGA Per Match (Home)', 'xGA Per Match (Away)',
             'Home/Away Ratio', 'Avg Scored (Last 5)',
-            'Avg Conceded (Last 5)'
+            'Avg Conceded (Last 5)', 'Defensive Vulnerability'
         ],
         home_team['team']: [
             f"{home_team['home_xg_per_match']:.2f}", 
@@ -482,7 +544,8 @@ def display_team_comparison(home_team, away_team):
             f"{home_team['away_xga_per_match']:.2f}",
             f"{home_team['home_away_ratio']:.2f}",
             f"{home_team['avg_scored_last_5']:.2f}",
-            f"{home_team['avg_conceded_last_5']:.2f}"
+            f"{home_team['avg_conceded_last_5']:.2f}",
+            f"{home_team.get('defensive_vulnerability_score', 0):.2f}"
         ],
         away_team['team']: [
             f"{away_team['home_xg_per_match']:.2f}",
@@ -491,119 +554,249 @@ def display_team_comparison(home_team, away_team):
             f"{away_team['away_xga_per_match']:.2f}",
             f"{away_team['home_away_ratio']:.2f}",
             f"{away_team['avg_scored_last_5']:.2f}",
-            f"{away_team['avg_conceded_last_5']:.2f}"
+            f"{away_team['avg_conceded_last_5']:.2f}",
+            f"{away_team.get('defensive_vulnerability_score', 0):.2f}"
         ]
     }
     
     df_comparison = pd.DataFrame(comparison_data)
     st.dataframe(df_comparison, use_container_width=True, hide_index=True)
 
+def display_league_overview(df, league_name):
+    """Display league-wide vulnerability analysis"""
+    st.markdown(f"### 🏆 {league_name} Vulnerability Analysis")
+    
+    # Find most vulnerable away defenses
+    vulnerable_away = df.nlargest(10, 'away_xga_per_match')[['team', 'away_xga_per_match', 'away_matches_played']]
+    vulnerable_away.columns = ['Team', 'Away xGA/Match', 'Away Matches']
+    
+    # Find best home attacks
+    strong_home = df.nlargest(10, 'home_xg_per_match')[['team', 'home_xg_per_match', 'home_matches_played']]
+    strong_home.columns = ['Team', 'Home xG/Match', 'Home Matches']
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("#### 🔥 Most Vulnerable Away Defenses")
+        st.dataframe(vulnerable_away, use_container_width=True, hide_index=True)
+    
+    with col2:
+        st.markdown("#### ⚡ Strongest Home Attacks")
+        st.dataframe(strong_home, use_container_width=True, hide_index=True)
+
 # =================== MAIN APP ===================
 def main():
     # Header
     st.markdown('<h1 class="main-header">⚽ Vulnerability-Lock Betting System (VLBS)</h1>', unsafe_allow_html=True)
-    st.markdown("**Defensive Vulnerability Detection System**")
+    st.markdown("**Defensive Vulnerability Detection System - Direct GitHub Integration**")
+    
+    # Check available leagues
+    with st.spinner("Checking available leagues..."):
+        available_leagues = list_available_leagues()
+    
+    if not available_leagues:
+        st.error("""
+        ❌ No leagues found in GitHub repository!
+        
+        Please ensure:
+        1. Your CSV files are in the `leagues/` folder
+        2. Files are named correctly (e.g., premier-league.csv, laliga.csv)
+        3. Repository is public
+        
+        Available leagues should be at: `https://github.com/profdue/Brutball/tree/main/leagues`
+        """)
+        return
     
     # Sidebar
     with st.sidebar:
         st.markdown("### ⚙️ Configuration")
         
+        # Display available leagues
+        st.markdown(f"#### 📁 Available Leagues ({len(available_leagues)})")
+        for league in available_leagues.keys():
+            st.markdown(f'<span class="league-badge">{league}</span>', unsafe_allow_html=True)
+        
+        # League selection
+        selected_league = st.selectbox(
+            "Select League", 
+            list(available_leagues.keys()),
+            help="Choose a league to analyze"
+        )
+        
         # Bankroll settings
+        st.markdown("---")
+        st.markdown("### 💰 Bankroll Management")
         bankroll = st.number_input("Bankroll ($)", min_value=100, max_value=1000000, value=1000, step=100)
         base_stake_percentage = st.slider("Base Stake (% of bankroll)", 0.5, 5.0, 1.0, 0.5) / 100
         
-        # League selection (you can add more leagues here)
-        league_files = {
-            "Premier League": "premier_league.csv",
-            "La Liga": "laliga.csv", 
-            "Serie A": "serie_a.csv",
-            "Bundesliga": "bundesliga.csv",
-            "Ligue 1": "ligue1.csv"
-        }
+        # Load data button
+        if st.button("🔄 Load League Data", type="primary", use_container_width=True):
+            with st.spinner(f"Loading {selected_league} data from GitHub..."):
+                st.session_state.df = load_league_from_github(selected_league)
+                st.session_state.league_name = selected_league
+                if st.session_state.df is not None:
+                    st.rerun()
         
-        selected_league = st.selectbox("Select League", list(league_files.keys()))
-        
-        # Data source
-        data_source = st.radio("Data Source", ["GitHub", "Local File"])
-        
-        if data_source == "Local File":
-            uploaded_file = st.file_uploader("Upload CSV file", type=['csv'])
-            if uploaded_file:
-                df = load_league_data(uploaded_file)
-            else:
-                st.info("Please upload a CSV file or switch to GitHub source")
-                st.stop()
-        else:
-            # For GitHub, you'll need to provide the actual URLs
-            st.info("For GitHub, you need to update the URLs in the code")
-            st.stop()
-        
-        if df is None:
-            st.error("Failed to load data. Please check your file.")
-            st.stop()
-        
-        # Team selection
         st.markdown("---")
-        st.markdown("### 🏟️ Match Selection")
-        teams = sorted(df['team'].unique())
-        home_team_name = st.selectbox("Home Team", teams)
-        away_team_name = st.selectbox("Away Team", [t for t in teams if t != home_team_name])
+        st.markdown("### 🎯 Quick Stats")
+        if 'df' in st.session_state:
+            st.metric("Teams Loaded", len(st.session_state.df))
+            avg_xga = st.session_state.df['away_xga_per_match'].mean()
+            st.metric("Avg Away xGA", f"{avg_xga:.2f}")
     
     # Main content
-    if 'df' in locals():
-        # Get team data
-        home_team = df[df['team'] == home_team_name].iloc[0].to_dict()
-        away_team = df[df['team'] == away_team_name].iloc[0].to_dict()
+    if 'df' in st.session_state and st.session_state.df is not None:
+        df = st.session_state.df
+        league_name = st.session_state.league_name
         
-        # Analyze match
-        recommendations = analyze_match(home_team, away_team)
+        # Team selection
+        st.markdown("### 🏟️ Match Selection")
         
-        # Display results
-        display_match_analysis(home_team, away_team, recommendations, base_stake_percentage)
+        col1, col2, col3 = st.columns([2, 1, 2])
         
-        # Detailed analysis tabs
-        tab1, tab2, tab3 = st.tabs(["📈 Team Comparison", "⚖️ Rule Analysis", "📚 System Info"])
+        with col1:
+            teams = sorted(df['team'].unique())
+            home_team_name = st.selectbox("Home Team", teams, key="home_select")
         
-        with tab1:
-            display_team_comparison(home_team, away_team)
+        with col2:
+            st.markdown("<br><br><h3 style='text-align: center;'>VS</h3>", unsafe_allow_html=True)
         
-        with tab2:
-            st.markdown("### ⚖️ VLBS Rule Analysis")
-            col1, col2 = st.columns(2)
+        with col3:
+            # Filter out home team from away options
+            away_options = [t for t in teams if t != home_team_name]
+            away_team_name = st.selectbox("Away Team", away_options, key="away_select")
+        
+        # Analyze button
+        if st.button("🔍 Analyze Match", type="primary", use_container_width=True):
+            # Get team data
+            home_team = df[df['team'] == home_team_name].iloc[0].to_dict()
+            away_team = df[df['team'] == away_team_name].iloc[0].to_dict()
             
-            with col1:
-                st.markdown("#### Rule 1: Terrible Away Defense")
-                st.progress(min(away_team['away_xga_per_match'] / 3.0, 1.0))
-                st.metric("Away xGA", f"{away_team['away_xga_per_match']:.2f}", 
-                         f"{away_team['away_xga_per_match'] - VLBS_THRESHOLDS['RULE1_AWAY_XGA']:+.2f} vs threshold")
+            # Analyze match
+            recommendations = analyze_match(home_team, away_team)
             
-            with col2:
-                st.markdown("#### Rule 2: Attack vs Defense Mismatch")
-                col2a, col2b = st.columns(2)
-                with col2a:
-                    st.metric("Home xG", f"{home_team['home_xg_per_match']:.2f}",
-                             f"{home_team['home_xg_per_match'] - VLBS_THRESHOLDS['RULE2_HOME_XG']:+.2f}")
-                with col2b:
-                    st.metric("Away xGA", f"{away_team['away_xga_per_match']:.2f}",
-                             f"{away_team['away_xga_per_match'] - VLBS_THRESHOLDS['RULE2_AWAY_XGA']:+.2f}")
+            # Store in session state
+            st.session_state.home_team = home_team
+            st.session_state.away_team = away_team
+            st.session_state.recommendations = recommendations
+            st.session_state.analyzed = True
         
-        with tab3:
-            st.markdown("### 📚 VLBS System Philosophy")
-            st.info("""
-            **Core Principle**: Find and exploit DEFENSIVE VULNERABILITIES
+        # Display analysis if available
+        if 'analyzed' in st.session_state and st.session_state.analyzed:
+            st.markdown("---")
             
-            **Why it works**:
-            1. Defensive stats are more stable than offensive stats
-            2. Away defense is most predictive - teams struggle to fix defensive issues away from home
-            3. Extreme values matter - teams with away_xga > 2.0 are SYSTEMICALLY broken defensively
-            4. Home advantage is real - captured by home/away splits
+            # Display match analysis
+            display_match_analysis(
+                st.session_state.home_team,
+                st.session_state.away_team,
+                st.session_state.recommendations,
+                base_stake_percentage
+            )
             
-            **Thresholds are empirically derived - DO NOT MODIFY**
-            """)
+            # Detailed analysis tabs
+            tab1, tab2, tab3, tab4 = st.tabs(["📈 Team Comparison", "⚖️ Rule Analysis", "🏆 League Overview", "📚 System Info"])
             
-            st.markdown("#### 📋 Current Thresholds")
-            thresholds_df = pd.DataFrame(list(VLBS_THRESHOLDS.items()), columns=['Rule', 'Threshold'])
-            st.dataframe(thresholds_df, use_container_width=True, hide_index=True)
+            with tab1:
+                display_team_comparison(st.session_state.home_team, st.session_state.away_team)
+            
+            with tab2:
+                st.markdown("### ⚖️ VLBS Rule Analysis")
+                
+                # Rule 1 analysis
+                rule1_cols = st.columns([3, 1])
+                with rule1_cols[0]:
+                    st.markdown("#### Rule 1: Terrible Away Defense")
+                    st.markdown("**Condition:** `away_xga_per_match > 2.0`")
+                
+                with rule1_cols[1]:
+                    away_xga = st.session_state.away_team['away_xga_per_match']
+                    threshold = VLBS_THRESHOLDS['RULE1_AWAY_XGA']
+                    status = "✅ TRIGGERED" if away_xga > threshold else "❌ NOT TRIGGERED"
+                    st.metric("Status", status, f"{away_xga:.2f} vs {threshold}")
+                
+                # Rule 2 analysis
+                rule2_cols = st.columns([3, 1])
+                with rule2_cols[0]:
+                    st.markdown("#### Rule 2: Attack vs Defense Mismatch")
+                    st.markdown("**Condition:** `home_xg > 1.4 AND away_xga > 1.8`")
+                
+                with rule2_cols[1]:
+                    home_xg = st.session_state.home_team['home_xg_per_match']
+                    away_xga = st.session_state.away_team['away_xga_per_match']
+                    condition1 = home_xg > VLBS_THRESHOLDS['RULE2_HOME_XG']
+                    condition2 = away_xga > VLBS_THRESHOLDS['RULE2_AWAY_XGA']
+                    status = "✅ TRIGGERED" if condition1 and condition2 else "❌ NOT TRIGGERED"
+                    st.metric("Status", status)
+            
+            with tab3:
+                display_league_overview(df, league_name)
+            
+            with tab4:
+                st.markdown("### 📚 VLBS System Philosophy")
+                
+                col_info1, col_info2 = st.columns(2)
+                
+                with col_info1:
+                    st.info("""
+                    **Core Principle**: Find and exploit DEFENSIVE VULNERABILITIES
+                    
+                    **Why it works**:
+                    1. Defensive stats are more stable than offensive stats
+                    2. Away defense is most predictive
+                    3. Extreme values matter (>2.0 away xGA)
+                    4. Home advantage is real
+                    """)
+                
+                with col_info2:
+                    st.warning("""
+                    **Thresholds are empirically derived**
+                    - DO NOT MODIFY thresholds
+                    - DO NOT add new rules without testing
+                    - ALWAYS use venue-specific data
+                    - NEVER bet if data quality fails
+                    """)
+                
+                st.markdown("#### 📋 Current Thresholds")
+                thresholds_df = pd.DataFrame(list(VLBS_THRESHOLDS.items()), columns=['Rule', 'Threshold'])
+                st.dataframe(thresholds_df, use_container_width=True, hide_index=True)
+        
+        # Display data preview
+        with st.expander("📁 Data Preview", expanded=False):
+            st.dataframe(df.head(10), use_container_width=True)
+            
+            # Show column information
+            st.markdown("#### 📊 Data Columns")
+            col_info = pd.DataFrame({
+                'Column': df.columns,
+                'Type': df.dtypes.astype(str),
+                'Non-Null': df.notnull().sum()
+            })
+            st.dataframe(col_info, use_container_width=True, height=300)
+    
+    else:
+        # Welcome screen
+        st.markdown("""
+        ## 🚀 Welcome to VLBS Predictor
+        
+        This app implements the **Vulnerability-Lock Betting System** to find and exploit defensive vulnerabilities in football matches.
+        
+        ### How to use:
+        1. **Select a league** from the sidebar
+        2. **Click "Load League Data"** to fetch data from GitHub
+        3. **Choose home and away teams**
+        4. **Click "Analyze Match"** to get VLBS predictions
+        
+        ### Available Leagues:
+        """)
+        
+        for league in available_leagues.keys():
+            st.markdown(f"- **{league}**")
+        
+        st.markdown("""
+        ---
+        **⚡ System Status**: Ready to connect to GitHub
+        **📊 Data Source**: `https://github.com/profdue/Brutball/tree/main/leagues`
+        """)
 
 if __name__ == "__main__":
     main()
