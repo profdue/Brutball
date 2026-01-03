@@ -979,7 +979,7 @@ class FusedLogicEngineV71:
         # Elite Defense Locks
         for lock in all_results.get('under_15_sources', []):
             if lock['source'] == 'ELITE_DEFENSE':
-                decisions['LOCKS_DETECTED'].append(f"ELITE_DEFENSE: {lock['declaration']}")
+                decisions['LOCKS_DETECTED'].append(f"ELITE DEFENSE: {lock['declaration']}")
                 decisions['MARKETS']['OPPONENT_UNDER_1_5'] = {
                     'status': 'LOCKED',
                     'type': 'ELITE_DEFENSE',
@@ -1004,7 +1004,7 @@ class FusedLogicEngineV71:
         
         # Double Chance
         if all_results.get('double_chance', {}).get('state_locked'):
-            decisions['LOCKS_DETECTED'].append(f"DOUBLE_CHANCE: {all_results['double_chance']['declaration']}")
+            decisions['LOCKS_DETECTED'].append(f"DOUBLE CHANCE: {all_results['double_chance']['declaration']}")
             decisions['MARKETS']['DOUBLE_CHANCE'] = {'status': 'LOCKED', 'type': 'DOUBLE_CHANCE'}
         
         # 4. Under 3.5 Confidence
@@ -1029,215 +1029,128 @@ class FusedLogicEngineV71:
 
 # =================== STREAMLIT APP CONFIGURATION ===================
 st.set_page_config(
-    page_title="BRUTBALL v7.1 - FUSED LOGIC SYSTEM (FIXED)",
-    page_icon="🎯🏗️📊",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="BRUTBALL v7.1 - FUSED LOGIC SYSTEM",
+    page_icon="🎯",
+    layout="wide"
 )
 
-# =================== CSS STYLING v7.1 ===================
+# =================== CSS STYLING ===================
 st.markdown("""
     <style>
-    .system-header-v71 {
+    .system-header {
         font-size: 2.5rem;
         font-weight: 900;
-        background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 50%, #10B981 100%);
+        background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         text-align: center;
         margin-bottom: 0.5rem;
         padding-bottom: 1rem;
-        border-bottom: 3px solid #10B981;
+        border-bottom: 3px solid #3B82F6;
     }
-    .system-subheader-v71 {
+    .prediction-box {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 4px solid;
+        margin: 1rem 0;
         text-align: center;
-        color: #6B7280;
-        margin-bottom: 2rem;
-        font-size: 1rem;
     }
-    .fixed-badge {
+    .lock-mode {
+        border-color: #10B981;
+        background: linear-gradient(135deg, #F0FDF4 0%, #E2F7EB 100%);
+    }
+    .edge-mode {
+        border-color: #F59E0B;
+        background: linear-gradient(135deg, #FEF3C7 0%, #FCE9B2 100%);
+    }
+    .stay-away {
+        border-color: #EF4444;
+        background: linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%);
+    }
+    .prediction-title {
+        font-size: 1.8rem;
+        font-weight: 800;
+        margin-bottom: 0.5rem;
+    }
+    .capital-multiplier {
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin: 0.5rem 0;
+    }
+    .pattern-badge {
         display: inline-block;
         padding: 0.25rem 0.75rem;
         border-radius: 20px;
         font-size: 0.8rem;
         font-weight: 700;
         margin: 0.25rem;
+    }
+    .badge-elite {
         background: #10B981;
         color: white;
-        border: 2px solid #059669;
     }
-    .edge-derived-pattern-badge {
-        display: inline-block;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-size: 0.9rem;
-        font-weight: 800;
-        margin: 0.25rem;
-        background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%);
-        color: white;
-        border: 2px solid #1E40AF;
-    }
-    .empirical-proof-box {
-        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
-        padding: 1.5rem;
-        border-radius: 10px;
-        border: 3px solid #10B981;
-        margin: 1rem 0;
-    }
-    .critical-fix-box {
-        background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
-        padding: 1.5rem;
-        border-radius: 10px;
-        border: 3px solid #F59E0B;
-        margin: 1rem 0;
-        font-weight: 700;
-    }
-    .pattern-distribution-v71 {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 10px;
-        border: 3px solid #0EA5E9;
-        margin: 1rem 0;
-    }
-    .distribution-bar {
-        height: 24px;
-        border-radius: 12px;
-        margin: 0.5rem 0;
-        overflow: hidden;
-        position: relative;
-    }
-    .bar-elite-defense {
-        background: #10B981;
-    }
-    .bar-winner-lock {
+    .badge-winner {
         background: #3B82F6;
-    }
-    .bar-edge-derived {
-        background: #8B5CF6;
-    }
-    .bar-both-patterns {
-        background: #F59E0B;
-    }
-    .bar-no-patterns {
-        background: #6B7280;
-    }
-    .bar-label {
-        position: absolute;
-        left: 10px;
-        top: 50%;
-        transform: translateY(-50%);
         color: white;
-        font-weight: 700;
-        font-size: 0.8rem;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
     }
-    .decision-fix-box {
-        background: #ECFDF5;
+    .badge-edge {
+        background: #8B5CF6;
+        color: white;
+    }
+    .lock-item {
+        background: #F9FAFB;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #3B82F6;
+        margin: 0.5rem 0;
+    }
+    .info-section {
+        background: #F3F4F6;
         padding: 1.5rem;
         border-radius: 10px;
-        border: 3px solid #10B981;
         margin: 1rem 0;
     }
-    .pattern-source-card {
+    .metric-box {
         background: white;
         padding: 1rem;
         border-radius: 8px;
         border: 2px solid #E5E7EB;
-        margin: 0.5rem 0;
-    }
-    .source-elite-defense {
-        border-left: 4px solid #10B981;
-    }
-    .source-winner-lock {
-        border-left: 4px solid #3B82F6;
-    }
-    .source-edge-derived {
-        border-left: 4px solid #8B5CF6;
-    }
-    .accuracy-badge {
-        display: inline-block;
-        padding: 0.25rem 0.5rem;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        font-weight: 700;
-        margin-left: 0.5rem;
-    }
-    .accuracy-100 {
-        background: #DCFCE7;
-        color: #065F46;
-    }
-    .actionable-match-box {
-        background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%);
-        padding: 2rem;
-        border-radius: 12px;
-        border: 4px solid #0EA5E9;
         text-align: center;
-        margin: 1.5rem 0;
     }
-    .layer-display-v71 {
+    .metric-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1F2937;
+    }
+    .metric-label {
+        font-size: 0.9rem;
+        color: #6B7280;
+    }
+    .team-box {
+        background: white;
         padding: 1.5rem;
         border-radius: 10px;
-        margin: 1rem 0;
-        border: 3px solid;
-        background: white;
+        border: 2px solid #E5E7EB;
     }
-    .layer-1-v71 {
-        border-color: #10B981;
-        background: linear-gradient(135deg, #F0FDF4 0%, #E2F7EB 100%);
-    }
-    .layer-2-v71 {
-        border-color: #0EA5E9;
-        background: linear-gradient(135deg, #E0F2FE 0%, #C7E6FB 100%);
-    }
-    .layer-3-v71 {
-        border-color: #F59E0B;
-        background: linear-gradient(135deg, #FEF3C7 0%, #FCE9B2 100%);
-    }
-    .layer-4-v71 {
-        border-color: #8B5CF6;
-        background: linear-gradient(135deg, #EDE9FE 0%, #E2DCFD 100%);
-    }
-    .layer-5-v71 {
-        border-color: #EC4899;
-        background: linear-gradient(135deg, #FCE7F3 0%, #F9D4E8 100%);
-    }
-    .layer-6-v71 {
-        border-color: #F97316;
-        background: linear-gradient(135deg, #FFEDD5 0%, #FDE3C2 100%);
-    }
-    .pattern-source-header {
+    .team-name {
         font-size: 1.2rem;
-        font-weight: 800;
-        margin-bottom: 1rem;
-        text-align: center;
+        font-weight: 700;
+        color: #1F2937;
+        margin-bottom: 0.5rem;
     }
-    .empirical-case-study {
-        background: #FEFCE8;
-        padding: 1rem;
-        border-radius: 8px;
-        border: 2px solid #FACC15;
-        margin: 0.5rem 0;
-        font-size: 0.9rem;
+    .stat-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #F3F4F6;
     }
-    .capital-decision-fixed {
-        padding: 2rem;
-        border-radius: 12px;
-        margin: 2rem 0;
-        text-align: center;
-        font-weight: 800;
-        font-size: 1.5rem;
-        background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-        color: white;
-        border: 4px solid #047857;
+    .stat-label {
+        color: #6B7280;
     }
-    .stay-away-fixed {
-        background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
-        padding: 2rem;
-        border-radius: 12px;
-        border: 4px solid #F59E0B;
-        text-align: center;
-        margin: 1.5rem 0;
-        color: #92400E;
+    .stat-value {
+        font-weight: 600;
+        color: #1F2937;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -1247,50 +1160,32 @@ LEAGUES = {
     'Premier League': {
         'filename': 'premier_league.csv',
         'display_name': '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League',
-        'country': 'England',
         'color': '#3B82F6'
     },
     'La Liga': {
         'filename': 'la_liga.csv',
         'display_name': '🇪🇸 La Liga',
-        'country': 'Spain',
         'color': '#EF4444'
     },
     'Bundesliga': {
         'filename': 'bundesliga.csv',
         'display_name': '🇩🇪 Bundesliga',
-        'country': 'Germany',
         'color': '#000000'
     },
     'Serie A': {
         'filename': 'serie_a.csv',
         'display_name': '🇮🇹 Serie A',
-        'country': 'Italy',
         'color': '#10B981'
     },
     'Ligue 1': {
         'filename': 'ligue_1.csv',
         'display_name': '🇫🇷 Ligue 1',
-        'country': 'France',
         'color': '#8B5CF6'
     },
     'Eredivisie': {
         'filename': 'eredivisie.csv',
         'display_name': '🇳🇱 Eredivisie',
-        'country': 'Netherlands',
         'color': '#F59E0B'
-    },
-    'Primeira Liga': {
-        'filename': 'premeira_portugal.csv',
-        'display_name': '🇵🇹 Primeira Liga',
-        'country': 'Portugal',
-        'color': '#DC2626'
-    },
-    'Super Lig': {
-        'filename': 'super_league.csv',
-        'display_name': '🇹🇷 Super Lig',
-        'country': 'Turkey',
-        'color': '#E11D48'
     }
 }
 
@@ -1310,8 +1205,7 @@ def load_and_prepare_data(league_name: str) -> Optional[pd.DataFrame]:
         data_sources = [
             f'leagues/{filename}',
             f'./leagues/{filename}',
-            filename,
-            f'https://raw.githubusercontent.com/profdue/Brutball/main/leagues/{filename}'
+            filename
         ]
         
         df = None
@@ -1332,7 +1226,6 @@ def load_and_prepare_data(league_name: str) -> Optional[pd.DataFrame]:
         # Store metadata
         df.attrs['league_name'] = league_name
         df.attrs['display_name'] = league_config['display_name']
-        df.attrs['country'] = league_config['country']
         df.attrs['color'] = league_config['color']
         
         return df
@@ -1403,246 +1296,31 @@ def calculate_derived_metrics(df: pd.DataFrame) -> pd.DataFrame:
     
     return df
 
-# =================== MAIN APPLICATION v7.1 ===================
+# =================== MAIN APPLICATION ===================
 def main():
-    """Main application function with Fused Logic v7.1 FIXED"""
+    """Main application function"""
     
     # Header
-    st.markdown('<div class="system-header-v71">🎯🏗️📊 BRUTBALL FUSED LOGIC SYSTEM v7.1 (FIXED)</div>', unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="system-subheader-v71">
-        <p><strong>COMPLETE 6-LAYER ARCHITECTURE WITH CRITICAL FIXES APPLIED</strong></p>
-        <p><span class="fixed-badge">FIXED</span> Edge-Derived Locks now recognized as patterns</p>
-        <p><span class="fixed-badge">FIXED</span> Stay-Away logic corrected</p>
-        <p><span class="fixed-badge">FIXED</span> Capital decision aligned with empirical evidence</p>
-        <p><strong>EMPIRICAL PROOF:</strong> Edge-Derived Locks 2/2 (100%) in your data</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Critical Fix Announcement
-    st.markdown("""
-    <div class="critical-fix-box">
-        <h4>🚨 CRITICAL FIX v7.1</h4>
-        <p><strong>Edge-Derived Locks ARE proven patterns (2/2 empirical evidence)</strong></p>
-        <p>Your data proved: Cagliari vs Milan ✓, Parma vs Fiorentina ✓</p>
-        <p><strong>FIXED:</strong> Edge-Derived Locks now trigger LOCK_MODE (2.0x) and override Stay-Away</p>
-        <p><strong>RESULT:</strong> Actionable matches increased from 44% to 52%</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Empirical Proof Section
-    st.markdown("### 📊 EMPIRICAL EVIDENCE v7.1")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.markdown("""
-        <div class="stat-box">
-            <div class="stat-value">8/8</div>
-            <div class="stat-label">Elite Defense Pattern</div>
-            <div style="font-size: 0.8rem; color: #16A34A;">100% accuracy</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("""
-        <div class="stat-box">
-            <div class="stat-value">6/6</div>
-            <div class="stat-label">Winner Lock → Double Chance</div>
-            <div style="font-size: 0.8rem; color: #2563EB;">100% no-loss</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown("""
-        <div class="stat-box">
-            <div class="stat-value">2/2</div>
-            <div class="stat-label">Edge-Derived Locks</div>
-            <div style="font-size: 0.8rem; color: #8B5CF6;">100% accuracy</div>
-            <div style="font-size: 0.7rem; color: #6B7280;">Your empirical proof</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col4:
-        st.markdown("""
-        <div class="stat-box">
-            <div class="stat-value">13/25</div>
-            <div class="stat-label">Actionable Matches</div>
-            <div style="font-size: 0.8rem; color: #F97316;">52% actionable</div>
-            <div style="font-size: 0.7rem; color: #6B7280;">Up from 44%</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Pattern Distribution Visualization
-    st.markdown("### 📈 PATTERN DISTRIBUTION v7.1")
-    
-    pattern_matrix = PatternIndependenceMatrixV71()
-    distribution = pattern_matrix.get_pattern_distribution()
-    
-    st.markdown(f"""
-    <div class="pattern-distribution-v71">
-        <h4>25-MATCH EMPIRICAL DISTRIBUTION (UPDATED)</h4>
-        
-        <div class="distribution-bar">
-            <div class="bar-elite-defense" style="width: {distribution['distribution']['ELITE_DEFENSE_ONLY']/25*100}%">
-                <div class="bar-label">Elite Defense Only: {distribution['distribution']['ELITE_DEFENSE_ONLY']}</div>
-            </div>
-        </div>
-        
-        <div class="distribution-bar">
-            <div class="bar-winner-lock" style="width: {distribution['distribution']['WINNER_LOCK_ONLY']/25*100}%">
-                <div class="bar-label">Winner Lock Only: {distribution['distribution']['WINNER_LOCK_ONLY']}</div>
-            </div>
-        </div>
-        
-        <div class="distribution-bar">
-            <div class="bar-edge-derived" style="width: {distribution['distribution']['EDGE_DERIVED_ONLY']/25*100}%">
-                <div class="bar-label">Edge-Derived Only: {distribution['distribution']['EDGE_DERIVED_ONLY']}</div>
-            </div>
-        </div>
-        
-        <div class="distribution-bar">
-            <div class="bar-both-patterns" style="width: {distribution['distribution']['BOTH_PATTERNS']/25*100}%">
-                <div class="bar-label">Both Patterns: {distribution['distribution']['BOTH_PATTERNS']}</div>
-            </div>
-        </div>
-        
-        <div class="distribution-bar">
-            <div class="bar-no-patterns" style="width: {distribution['distribution']['NO_PATTERNS']/25*100}%">
-                <div class="bar-label">No Patterns: {distribution['distribution']['NO_PATTERNS']}</div>
-            </div>
-        </div>
-        
-        <div style="text-align: center; margin-top: 1rem;">
-            <strong>Actionable Matches:</strong> {distribution['actionable_matches']}/{distribution['total_matches']} ({distribution['actionable_matches']/distribution['total_matches']*100:.0f}%)
-            <span style="color: #10B981; margin-left: 1rem;">↑ +8% from v7.0</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Pattern Source Cards
-    st.markdown("### 🎯 PROVEN PATTERN SOURCES v7.1")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("""
-        <div class="pattern-source-card source-elite-defense">
-            <div style="font-weight: 700; color: #065F46;">🛡️ ELITE DEFENSE</div>
-            <div style="margin: 0.5rem 0;">
-                <span class="accuracy-badge accuracy-100">8/8 (100%)</span>
-            </div>
-            <div style="font-size: 0.9rem; color: #374151;">
-                • Concedes ≤4 total goals last 5<br>
-                • Defense gap > 2.0 vs opponent<br>
-                • Empirical: 100% for UNDER 1.5
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("""
-        <div class="pattern-source-card source-winner-lock">
-            <div style="font-weight: 700; color: #1E40AF;">👑 WINNER LOCK</div>
-            <div style="margin: 0.5rem 0;">
-                <span class="accuracy-badge accuracy-100">6/6 (100%)</span>
-            </div>
-            <div style="font-size: 0.9rem; color: #374151;">
-                • Agency-State detection<br>
-                • 4 Gates + State Preservation<br>
-                • Empirical: 100% no-loss → Double Chance
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown("""
-        <div class="pattern-source-card source-edge-derived">
-            <div style="font-weight: 700; color: #5B21B6;">🔓 EDGE-DERIVED</div>
-            <div style="margin: 0.5rem 0;">
-                <span class="accuracy-badge accuracy-100">2/2 (100%)</span>
-            </div>
-            <div style="font-size: 0.9rem; color: #374151;">
-                • Opponent concedes ≤1.0 avg (last 5)<br>
-                • <strong>Your empirical proof:</strong> 2/2 matches<br>
-                • Triggers LOCK_MODE (2.0x)
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Empirical Case Studies
-    st.markdown("### 🔍 EMPIRICAL CASE STUDIES (YOUR DATA)")
-    
-    st.markdown("""
-    <div class="empirical-case-study">
-        <strong>1. Cagliari vs AC Milan (1-0)</strong>
-        <div style="margin: 0.5rem 0;">
-            • Edge-Derived Lock: ✅ (AC Milan concedes 0.80 ≤ 1.0)<br>
-            • v7.0 said: Stay-Away ✗ (WRONG)<br>
-            • v7.1 says: LOCK_MODE ✓ (CORRECT)<br>
-            • Result: AC Milan UNDER 1.5 WINS ✓
-        </div>
-    </div>
-    
-    <div class="empirical-case-study">
-        <strong>2. Parma vs Fiorentina (1-0)</strong>
-        <div style="margin: 0.5rem 0;">
-            • Edge-Derived Lock: ✅ (Parma concedes 0.80 ≤ 1.0)<br>
-            • v7.0 said: Stay-Away ✗ (WRONG)<br>
-            • v7.1 says: LOCK_MODE ✓ (CORRECT)<br>
-            • Result: Parma UNDER 1.5 WINS ✓
-        </div>
-    </div>
-    
-    <div class="empirical-case-study">
-        <strong>3. Rayo vs Getafe (1-1)</strong>
-        <div style="margin: 0.5rem 0;">
-            • No Edge-Derived Lock: ❌<br>
-            • Totals Lock only (not a pattern)<br>
-            • v7.0 & v7.1 say: Stay-Away ✓ (CORRECT)<br>
-            • Result: Totals Lock LOSES ✗
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Decision Logic Fix
-    st.markdown("""
-    <div class="decision-fix-box">
-        <h4>⚡ DECISION LOGIC FIX v7.1</h4>
-        <div style="margin: 1rem 0;">
-            <strong>OLD (v7.0 - WRONG):</strong><br>
-            <code>if not elite_defense and not winner_lock: STAY_AWAY = True</code>
-        </div>
-        <div style="margin: 1rem 0;">
-            <strong>NEW (v7.1 - CORRECT):</strong><br>
-            <code>if not elite_defense and not winner_lock and not edge_derived: STAY_AWAY = True</code>
-        </div>
-        <div style="color: #065F46; font-weight: 700;">
-            ✅ Edge-Derived Locks are now recognized as proven patterns
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Initialize session state
-    if 'selected_league' not in st.session_state:
-        st.session_state.selected_league = 'Premier League'
+    st.markdown('<div class="system-header">BRUTBALL v7.1 - FUSED LOGIC SYSTEM</div>', unsafe_allow_html=True)
     
     # League selection
     st.markdown("### 🌍 League Selection")
     
-    cols = st.columns(8)
+    cols = st.columns(6)
     leagues = list(LEAGUES.keys())
     
     for idx, (col, league) in enumerate(zip(cols, leagues)):
         with col:
-            config = LEAGUES[league]
             if st.button(
-                config['display_name'],
+                LEAGUES[league]['display_name'],
                 use_container_width=True,
-                type="primary" if st.session_state.selected_league == league else "secondary"
+                key=f"league_{idx}"
             ):
                 st.session_state.selected_league = league
+    
+    # Default league if not selected
+    if 'selected_league' not in st.session_state:
+        st.session_state.selected_league = 'Premier League'
     
     selected_league = st.session_state.selected_league
     config = LEAGUES[selected_league]
@@ -1655,7 +1333,7 @@ def main():
         st.error("Failed to load data. Check CSV files in 'leagues/' directory.")
         return
     
-    # Team selection
+    # Match selection
     st.markdown("### 🏟️ Match Analysis")
     col1, col2 = st.columns(2)
     with col1:
@@ -1664,25 +1342,8 @@ def main():
         away_options = [t for t in sorted(df['team'].unique()) if t != home_team]
         away_team = st.selectbox("Away Team", away_options)
     
-    # Special test cases
-    test_cases = {
-        ('Cagliari', 'AC Milan'): "🧪 EMPIRICAL PROOF CASE 1",
-        ('Parma', 'Fiorentina'): "🧪 EMPIRICAL PROOF CASE 2",
-        ('Rayo Vallecano', 'Getafe'): "🧪 TOTALS LOCK TEST CASE"
-    }
-    
-    current_case = test_cases.get((home_team, away_team))
-    if current_case:
-        st.markdown(f"""
-        <div class="empirical-proof-box">
-            <h4>{current_case}</h4>
-            <p>This match was part of the empirical evidence that proved v7.0 was wrong</p>
-            <p><strong>v7.1 should correctly identify patterns based on your data</strong></p>
-        </div>
-        """, unsafe_allow_html=True)
-    
     # Execute analysis
-    if st.button("🎯 EXECUTE FUSED LOGIC ANALYSIS v7.1 (FIXED)", type="primary", use_container_width=True):
+    if st.button("🎯 EXECUTE FUSED LOGIC ANALYSIS", type="primary", use_container_width=True):
         
         # Get data
         home_data = df[df['team'] == home_team].iloc[0].to_dict()
@@ -1695,384 +1356,315 @@ def main():
             league_avg_xg = 1.3
         
         # Execute fused logic analysis
-        with st.spinner("Executing 6-Layer Fused Logic Analysis v7.1..."):
+        with st.spinner("Executing 6-Layer Fused Logic Analysis..."):
             result = FusedLogicEngineV71.execute_fused_logic(
                 home_data, away_data, home_team, away_team, league_avg_xg
             )
         
         st.markdown("---")
         
-        # Display results
-        st.markdown("### 🎯 FUSED LOGIC SYSTEM VERDICT v7.1 (FIXED)")
+        # =================== PREDICTION SECTION ===================
+        st.markdown("## 🎯 SYSTEM PREDICTIONS")
         
-        # Capital Decision
         capital_decision = result['capital_decision']
         decision_matrix = result['decision_matrix']
         
+        # Capital Decision Display
         if capital_decision['capital_mode'] == 'LOCK_MODE':
-            capital_html = f"""
-            <div class="capital-decision-fixed">
-                🔒 LOCK MODE DETECTED (2.0x MULTIPLIER)
-                <div style="font-size: 1rem; margin-top: 0.5rem;">
-                    {len(capital_decision['locks_present'])} structural locks present
-                </div>
-                <div style="font-size: 0.9rem; margin-top: 0.5rem; background: rgba(255,255,255,0.2); padding: 0.5rem; border-radius: 8px;">
+            st.markdown(f"""
+            <div class="prediction-box lock-mode">
+                <div class="prediction-title">🔒 LOCK MODE DETECTED</div>
+                <div class="capital-multiplier">2.0x CAPITAL MULTIPLIER</div>
+                <div style="margin: 1rem 0; font-size: 1.1rem;">
                     {capital_decision['reason']}
                 </div>
             </div>
-            """
+            """, unsafe_allow_html=True)
         else:
-            capital_html = f"""
-            <div class="stay-away-fixed">
-                ⚠️ EDGE MODE ONLY (1.0x MULTIPLIER)
-                <div style="font-size: 1rem; margin-top: 0.5rem;">
-                    No proven patterns detected
-                </div>
-                <div style="font-size: 0.9rem; margin-top: 0.5rem;">
+            st.markdown(f"""
+            <div class="prediction-box edge-mode">
+                <div class="prediction-title">⚠️ EDGE MODE ONLY</div>
+                <div class="capital-multiplier">1.0x CAPITAL MULTIPLIER</div>
+                <div style="margin: 1rem 0; font-size: 1.1rem;">
                     {capital_decision['reason']}
                 </div>
             </div>
-            """
+            """, unsafe_allow_html=True)
         
-        st.markdown(capital_html, unsafe_allow_html=True)
-        
-        # Pattern Sources
-        if capital_decision.get('pattern_sources'):
-            st.markdown("#### 🎯 PROVEN PATTERN SOURCES DETECTED")
-            
-            for source in capital_decision['pattern_sources']:
-                source_type = source['type']
-                if source_type == 'EDGE_DERIVED':
-                    badge = "🔓"
-                    color = "#5B21B6"
-                elif source_type == 'ELITE_DEFENSE':
-                    badge = "🛡️"
-                    color = "#065F46"
-                else:
-                    badge = "👑"
-                    color = "#1E40AF"
-                
-                st.markdown(f"""
-                <div class="pattern-source-card" style="border-left: 4px solid {color};">
-                    <div style="display: flex; align-items: center;">
-                        <div style="font-size: 1.5rem; margin-right: 0.5rem;">{badge}</div>
-                        <div>
-                            <div style="font-weight: 700; color: {color};">
-                                {source_type} PATTERN
-                            </div>
-                            <div style="font-size: 0.9rem; color: #374151;">
-                                Accuracy: {source['accuracy']}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-        
-        # Decision Matrix
+        # Stay-Away Decision
         if decision_matrix['STAY_AWAY']:
             st.markdown(f"""
-            <div class="stay-away-fixed">
-                <h3>⚠️ STAY-AWAY RECOMMENDATION v7.1</h3>
-                <p>No proven patterns detected in this match</p>
-                <p style="font-size: 0.9rem; color: #92400E;">
-                    Empirical evidence: {decision_matrix['REASON'].split('(')[1].split(')')[0]} matches fall into this category
-                </p>
+            <div class="prediction-box stay-away">
+                <div class="prediction-title">🚫 STAY AWAY RECOMMENDED</div>
+                <div style="margin: 1rem 0; font-size: 1.1rem;">
+                    No proven patterns detected in this match
+                </div>
             </div>
             """, unsafe_allow_html=True)
         else:
             # Show actionable recommendations
             if decision_matrix['LOCKS_DETECTED']:
-                st.markdown("""
-                <div class="actionable-match-box">
-                    <h3>✅ ACTIONABLE MATCH v7.1</h3>
-                    <p>Proven patterns detected - Capital authorized (2.0x multiplier)</p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Edge-Derived Locks get special highlighting
-                edge_derived_locks = [lock for lock in decision_matrix['LOCKS_DETECTED'] if 'EDGE-DERIVED' in lock]
-                if edge_derived_locks:
-                    st.markdown("#### 🔓 EDGE-DERIVED LOCKS (100% EMPIRICAL)")
-                    
-                    for lock in edge_derived_locks:
-                        st.markdown(f"""
-                        <div style="background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 100%); 
-                                    padding: 1.5rem; border-radius: 10px; border: 3px solid #0EA5E9; 
-                                    margin: 1rem 0;">
-                            <div style="display: flex; align-items: center; margin-bottom: 0.5rem;">
-                                <div style="font-size: 2rem; margin-right: 0.5rem;">🔓</div>
-                                <div>
-                                    <div style="font-size: 1.2rem; font-weight: 700; color: #0C4A6E;">
-                                        {lock.replace('EDGE-DERIVED: ', '')}
-                                    </div>
-                                    <div style="font-size: 0.9rem; color: #374151; margin-top: 0.25rem;">
-                                        <span class="edge-derived-pattern-badge">100% EMPIRICAL PROOF</span>
-                                        <span style="margin-left: 0.5rem; color: #6B7280;">Your data proved this works</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                
-                # Other locks
-                other_locks = [lock for lock in decision_matrix['LOCKS_DETECTED'] if 'EDGE-DERIVED' not in lock]
-                if other_locks:
-                    st.markdown("#### 🔒 ADDITIONAL LOCKS")
-                    for lock in other_locks:
-                        st.markdown(f"""
-                        <div style="background: #F0FDF4; padding: 1rem; border-radius: 8px; border-left: 4px solid #16A34A; margin: 0.5rem 0;">
-                            <div style="display: flex; align-items: center;">
-                                <div style="font-size: 1.5rem; margin-right: 0.5rem;">🔒</div>
-                                <div>{lock}</div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                st.markdown("### 🔒 LOCKS DETECTED")
+                for lock in decision_matrix['LOCKS_DETECTED']:
+                    st.markdown(f"""
+                    <div class="lock-item">
+                        <div style="font-weight: 600; margin-bottom: 0.25rem;">{lock}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
             
             if decision_matrix['CONSIDERATIONS']:
-                st.markdown("#### 🔍 ADDITIONAL CONSIDERATIONS")
-                
+                st.markdown("### 🔍 CONSIDERATIONS")
                 for consideration in decision_matrix['CONSIDERATIONS']:
                     st.markdown(f"""
-                    <div style="background: #FEF3C7; padding: 1rem; border-radius: 8px; border-left: 4px solid #F59E0B; margin: 0.5rem 0;">
-                        <div style="display: flex; align-items: center;">
-                            <div style="font-size: 1.5rem; margin-right: 0.5rem;">📊</div>
-                            <div>{consideration}</div>
-                        </div>
+                    <div style="background: #FEF3C7; padding: 1rem; border-radius: 8px; margin: 0.5rem 0;">
+                        {consideration}
                     </div>
                     """, unsafe_allow_html=True)
         
-        # Pattern Independence Analysis
-        pattern_independence = result['pattern_independence']
-        st.markdown("#### 🧩 PATTERN INDEPENDENCE ANALYSIS v7.1")
-        
-        st.markdown(f"""
-        <div class="layer-display-v71 layer-2-v71">
-            <h4>PATTERN COMBINATION</h4>
-            <div style="font-size: 1.5rem; margin: 1rem 0; text-align: center;">
-                {pattern_independence['emoji']} {pattern_independence['combination']}
-            </div>
-            <div style="color: #374151; text-align: center;">
-                {pattern_independence['description']}
-            </div>
-            <div style="margin-top: 1rem; text-align: center;">
-                <div style="font-size: 0.9rem; color: #6B7280;">
-                    Confidence: {pattern_independence['confidence']} 
-                    • Empirical: {pattern_independence['empirical_count']}/25 matches
-                </div>
-                <div style="font-size: 0.8rem; color: #3B82F6; margin-top: 0.5rem;">
-                    Capital Multiplier: {pattern_independence['capital_multiplier']:.1f}x
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # =================== LAYER 1: DEFENSIVE PROOF ===================
-        st.markdown("#### 🛡️ LAYER 1: DEFENSIVE PROOF ENGINE")
-        
-        defensive_assessment = result['defensive_assessment']
+        # =================== TEAM STATS SECTION ===================
+        st.markdown("---")
+        st.markdown("## 📊 TEAM STATISTICS")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("""
-            <div class="layer-display-v71 layer-1-v71">
-                <h4>HOME TEAM DEFENSE</h4>
-                <div style="font-size: 1.5rem; font-weight: 700; color: #065F46; text-align: center;">
-                    {home_avg_conceded:.2f} avg conceded
+            defensive_assessment = result['defensive_assessment']
+            home_conceded_total = home_data.get('goals_conceded_last_5', 0)
+            
+            st.markdown(f"""
+            <div class="team-box">
+                <div class="team-name">{home_team}</div>
+                <div class="stat-row">
+                    <span class="stat-label">Avg Conceded (Last 5)</span>
+                    <span class="stat-value">{defensive_assessment['home_avg_conceded']:.2f}</span>
                 </div>
-                <div style="margin-top: 0.5rem; text-align: center;">
-                    Last 5 matches: {home_conceded_total} goals
+                <div class="stat-row">
+                    <span class="stat-label">Total Conceded (Last 5)</span>
+                    <span class="stat-value">{home_conceded_total}</span>
                 </div>
-                <div style="margin-top: 1rem; text-align: center;">
-                    <span class="accuracy-badge" style="background: {'#DCFCE7' if defensive_assessment['home_avg_conceded'] <= 1.0 else '#F3F4F6'}; 
-                            color: {'#065F46' if defensive_assessment['home_avg_conceded'] <= 1.0 else '#6B7280'};">
-                        UNDER 1.5: {'✅' if defensive_assessment['home_avg_conceded'] <= 1.0 else '❌'}
-                    </span>
-                    <span class="accuracy-badge" style="background: {'#FEF3C7' if defensive_assessment['home_avg_conceded'] <= 1.2 else '#F3F4F6'}; 
-                            color: {'#92400E' if defensive_assessment['home_avg_conceded'] <= 1.2 else '#6B7280'};">
-                        UNDER 2.5: {'🔍' if defensive_assessment['home_avg_conceded'] <= 1.2 else '❌'}
-                    </span>
+                <div class="stat-row">
+                    <span class="stat-label">UNDER 1.5 Signal</span>
+                    <span class="stat-value">{"✅" if defensive_assessment['home_avg_conceded'] <= 1.0 else "❌"}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">UNDER 2.5 Signal</span>
+                    <span class="stat-value">{"🔍" if defensive_assessment['home_avg_conceded'] <= 1.2 else "❌"}</span>
                 </div>
             </div>
-            """.format(
-                home_avg_conceded=defensive_assessment['home_avg_conceded'],
-                home_conceded_total=home_data.get('goals_conceded_last_5', 0)
-            ), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
         
         with col2:
-            st.markdown("""
-            <div class="layer-display-v71 layer-1-v71">
-                <h4>AWAY TEAM DEFENSE</h4>
-                <div style="font-size: 1.5rem; font-weight: 700; color: #065F46; text-align: center;">
-                    {away_avg_conceded:.2f} avg conceded
+            away_conceded_total = away_data.get('goals_conceded_last_5', 0)
+            
+            st.markdown(f"""
+            <div class="team-box">
+                <div class="team-name">{away_team}</div>
+                <div class="stat-row">
+                    <span class="stat-label">Avg Conceded (Last 5)</span>
+                    <span class="stat-value">{defensive_assessment['away_avg_conceded']:.2f}</span>
                 </div>
-                <div style="margin-top: 0.5rem; text-align: center;">
-                    Last 5 matches: {away_conceded_total} goals
+                <div class="stat-row">
+                    <span class="stat-label">Total Conceded (Last 5)</span>
+                    <span class="stat-value">{away_conceded_total}</span>
                 </div>
-                <div style="margin-top: 1rem; text-align: center;">
-                    <span class="accuracy-badge" style="background: {'#DCFCE7' if defensive_assessment['away_avg_conceded'] <= 1.0 else '#F3F4F6'}; 
-                            color: {'#065F46' if defensive_assessment['away_avg_conceded'] <= 1.0 else '#6B7280'};">
-                        UNDER 1.5: {'✅' if defensive_assessment['away_avg_conceded'] <= 1.0 else '❌'}
-                    </span>
-                    <span class="accuracy-badge" style="background: {'#FEF3C7' if defensive_assessment['away_avg_conceded'] <= 1.2 else '#F3F4F6'}; 
-                            color: {'#92400E' if defensive_assessment['away_avg_conceded'] <= 1.2 else '#6B7280'};">
-                        UNDER 2.5: {'🔍' if defensive_assessment['away_avg_conceded'] <= 1.2 else '❌'}
-                    </span>
+                <div class="stat-row">
+                    <span class="stat-label">UNDER 1.5 Signal</span>
+                    <span class="stat-value">{"✅" if defensive_assessment['away_avg_conceded'] <= 1.0 else "❌"}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">UNDER 2.5 Signal</span>
+                    <span class="stat-value">{"🔍" if defensive_assessment['away_avg_conceded'] <= 1.2 else "❌"}</span>
                 </div>
             </div>
-            """.format(
-                away_avg_conceded=defensive_assessment['away_avg_conceded'],
-                away_conceded_total=away_data.get('goals_conceded_last_5', 0)
-            ), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
         
-        # Edge-Derived Lock Detection
+        # =================== INFORMATIONAL SECTION (BELOW PREDICTIONS) ===================
+        st.markdown("---")
+        st.markdown("## 📚 SYSTEM INFORMATION v7.1")
+        
+        # Pattern Distribution
+        pattern_dist = result['pattern_distribution']
+        st.markdown("### 📈 Pattern Distribution (25-match study)")
+        
+        col1, col2, col3, col4, col5 = st.columns(5)
+        
+        with col1:
+            st.markdown(f"""
+            <div class="metric-box">
+                <div class="metric-value">{pattern_dist['distribution']['ELITE_DEFENSE_ONLY']}</div>
+                <div class="metric-label">Elite Defense Only</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown(f"""
+            <div class="metric-box">
+                <div class="metric-value">{pattern_dist['distribution']['WINNER_LOCK_ONLY']}</div>
+                <div class="metric-label">Winner Lock Only</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown(f"""
+            <div class="metric-box">
+                <div class="metric-value">{pattern_dist['distribution']['EDGE_DERIVED_ONLY']}</div>
+                <div class="metric-label">Edge-Derived Only</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col4:
+            st.markdown(f"""
+            <div class="metric-box">
+                <div class="metric-value">{pattern_dist['distribution']['BOTH_PATTERNS']}</div>
+                <div class="metric-label">Both Patterns</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col5:
+            st.markdown(f"""
+            <div class="metric-box">
+                <div class="metric-value">{pattern_dist['distribution']['NO_PATTERNS']}</div>
+                <div class="metric-label">No Patterns</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown(f"""
+        <div style="text-align: center; margin: 1rem 0;">
+            <strong>Actionable Matches:</strong> {pattern_dist['actionable_matches']}/{pattern_dist['total_matches']} ({pattern_dist['actionable_matches']/pattern_dist['total_matches']*100:.0f}%)
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Pattern Independence
+        pattern_independence = result['pattern_independence']
+        st.markdown("### 🧩 Pattern Independence Analysis")
+        
+        st.markdown(f"""
+        <div class="info-section">
+            <div style="font-size: 1.2rem; font-weight: 600; margin-bottom: 0.5rem;">
+                {pattern_independence['emoji']} {pattern_independence['combination']}
+            </div>
+            <div style="margin-bottom: 0.5rem;">{pattern_independence['description']}</div>
+            <div style="font-size: 0.9rem; color: #6B7280;">
+                Confidence: {pattern_independence['confidence']} • Empirical: {pattern_independence['empirical_count']}/25 matches
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Edge-Derived Locks Detection
         under_15_sources = result.get('under_15_sources', [])
         edge_derived_sources = [s for s in under_15_sources if s['source'] == 'EDGE_DERIVED']
         
         if edge_derived_sources:
-            st.markdown("#### 🔓 EDGE-DERIVED LOCK DETECTION")
+            st.markdown("### 🔓 Edge-Derived Lock Detection")
             
             for source in edge_derived_sources:
-                perspective = source['perspective']
-                if perspective == 'BACKING_HOME':
-                    backing = home_team
-                    opponent = away_team
-                else:
-                    backing = away_team
-                    opponent = home_team
-                
                 st.markdown(f"""
-                <div class="layer-display-v71" style="border-color: #8B5CF6; background: linear-gradient(135deg, #EDE9FE 0%, #E2DCFD 100%);">
-                    <div style="text-align: center;">
-                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔓</div>
-                        <div style="font-size: 1.2rem; font-weight: 700; color: #5B21B6;">
-                            {source['declaration'].split('→')[0]}
-                        </div>
-                        <div style="font-size: 1rem; color: #374151; margin: 0.5rem 0;">
-                            {source['declaration'].split('→')[1]}
-                        </div>
-                        <div style="font-size: 0.9rem; color: #6B7280; margin: 0.5rem 0;">
-                            {source['reason']}
-                        </div>
-                        <div style="margin-top: 1rem;">
-                            <span class="edge-derived-pattern-badge">PROVEN PATTERN</span>
-                            <span style="margin-left: 0.5rem; font-size: 0.9rem; color: #5B21B6;">
-                                Your empirical proof: 2/2 (100%)
-                            </span>
-                        </div>
+                <div class="info-section">
+                    <div style="font-weight: 600; margin-bottom: 0.5rem;">{source['declaration']}</div>
+                    <div style="margin-bottom: 0.5rem;">{source['reason']}</div>
+                    <div style="font-size: 0.9rem; color: #6B7280;">
+                        Empirical Accuracy: {source.get('empirical_accuracy', '2/2 (100%)')}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
         
+        # Empirical Evidence
+        st.markdown("### 📊 Empirical Evidence")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown(f"""
+            <div class="info-section">
+                <div style="font-weight: 600; margin-bottom: 0.5rem;">🛡️ Elite Defense Pattern</div>
+                <div>8/8 matches (100%)</div>
+                <div style="font-size: 0.9rem; color: #6B7280; margin-top: 0.5rem;">
+                    Concedes ≤4 total goals in last 5 matches
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown(f"""
+            <div class="info-section">
+                <div style="font-weight: 600; margin-bottom: 0.5rem;">👑 Winner Lock Pattern</div>
+                <div>6/6 matches (100% no-loss)</div>
+                <div style="font-size: 0.9rem; color: #6B7280; margin-top: 0.5rem;">
+                    Agency-State detection → Double Chance
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown(f"""
+            <div class="info-section">
+                <div style="font-weight: 600; margin-bottom: 0.5rem;">🔓 Edge-Derived Pattern</div>
+                <div>2/2 matches (100%)</div>
+                <div style="font-size: 0.9rem; color: #6B7280; margin-top: 0.5rem;">
+                    Opponent concedes ≤1.0 avg (last 5 matches)
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # System Fixes
+        st.markdown("### 🔧 System Fixes v7.1")
+        
+        st.markdown("""
+        <div class="info-section">
+            <div style="font-weight: 600; margin-bottom: 0.5rem;">Critical Fix Applied:</div>
+            <ul style="margin: 0; padding-left: 1.5rem;">
+                <li>Edge-Derived Locks now recognized as proven patterns</li>
+                <li>Stay-Away logic corrected to include Edge-Derived patterns</li>
+                <li>Actionable matches increased from 44% to 52%</li>
+                <li>Empirical proof: 2/2 Edge-Derived Locks successful in your data</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        
         # Export functionality
         st.markdown("---")
-        st.markdown("#### 📤 Export Analysis v7.1")
+        st.markdown("#### 📤 Export Analysis")
         
-        # Prepare export text
-        export_text = f"""BRUTBALL FUSED LOGIC SYSTEM v7.1 - ANALYSIS REPORT (FIXED)
+        export_text = f"""BRUTBALL FUSED LOGIC SYSTEM v7.1 - ANALYSIS REPORT
 ===========================================
-League: {selected_league}
 Match: {home_team} vs {away_team}
-Analysis Time: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
-System Version: v7.1 (CRITICAL FIXES APPLIED)
+League: {selected_league}
 
-CRITICAL FIXES v7.1:
-• Edge-Derived Locks now recognized as proven patterns (100% empirical)
-• Stay-Away logic corrected to include Edge-Derived patterns
-• Capital decision aligned with empirical evidence
-• Pattern distribution updated: 13/25 actionable (52%, up from 44%)
+SYSTEM VERDICT: {capital_decision['capital_mode']} ({capital_decision['multiplier']:.1f}x)
+Reason: {capital_decision['reason']}
+
+TEAM STATISTICS:
+• {home_team}: {defensive_assessment['home_avg_conceded']:.2f} avg conceded (last 5)
+• {away_team}: {defensive_assessment['away_avg_conceded']:.2f} avg conceded (last 5)
+
+PATTERN DETECTION:
+• Combination: {pattern_independence['combination']}
+• Confidence: {pattern_independence['confidence']}
+
+LOCKS DETECTED: {len(decision_matrix['LOCKS_DETECTED'])}
+{chr(10).join(['• ' + lock for lock in decision_matrix['LOCKS_DETECTED']])}
+
+CONSIDERATIONS: {len(decision_matrix['CONSIDERATIONS'])}
+{chr(10).join(['• ' + cons for cons in decision_matrix['CONSIDERATIONS']])}
 
 EMPIRICAL EVIDENCE v7.1:
-• Elite Defense Pattern: 8/8 matches (100% accuracy for UNDER 1.5)
-• Winner Lock → Double Chance: 6/6 matches (100% no-loss)
-• Edge-Derived Locks: 2/2 matches (100% accuracy) - YOUR PROOF
-• Actionable Matches: 13/25 (52%) ↑ +8%
-• Stay-Away Matches: 12/25 (48%) ↓ -8%
+• Edge-Derived Locks: 2/2 (100%) in your data
+• Actionable matches: 13/25 (52%)
+• Fixed: Edge-Derived now recognized as patterns
 
-PATTERN DISTRIBUTION v7.1:
-• Elite Defense Only: {PATTERN_DISTRIBUTION['ELITE_DEFENSE_ONLY']}/25
-• Winner Lock Only: {PATTERN_DISTRIBUTION['WINNER_LOCK_ONLY']}/25
-• Edge-Derived Only: {PATTERN_DISTRIBUTION['EDGE_DERIVED_ONLY']}/25 ← NEW
-• Both Patterns: {PATTERN_DISTRIBUTION['BOTH_PATTERNS']}/25
-• No Patterns: {PATTERN_DISTRIBUTION['NO_PATTERNS']}/25
-
-DEFENSIVE ASSESSMENT (LAST 5 MATCHES):
-• {home_team}: {defensive_assessment['home_avg_conceded']:.2f} avg conceded, {defensive_assessment['home_avg_scored']:.2f} avg scored
-• {away_team}: {defensive_assessment['away_avg_conceded']:.2f} avg conceded, {defensive_assessment['away_avg_scored']:.2f} avg scored
-
-EDGE-DERIVED LOCK ANALYSIS:
-• Backing {home_team}: {away_team} concedes {defensive_assessment['away_avg_conceded']:.2f} avg ({'≤1.0 ✓' if defensive_assessment['away_avg_conceded'] <= 1.0 else '>1.0 ✗'})
-• Backing {away_team}: {home_team} concedes {defensive_assessment['home_avg_conceded']:.2f} avg ({'≤1.0 ✓' if defensive_assessment['home_avg_conceded'] <= 1.0 else '>1.0 ✗'})
-
-PATTERN INDEPENDENCE:
-• Combination: {pattern_independence['combination']}
-• Description: {pattern_independence['description']}
-• Confidence: {pattern_independence['confidence']}
-• Empirical: {pattern_independence['empirical_count']}/25 matches
-• Capital Multiplier: {pattern_independence['capital_multiplier']:.1f}x
-
-CAPITAL DECISION v7.1:
-• Mode: {capital_decision['capital_mode']}
-• Multiplier: {capital_decision['multiplier']:.1f}x
-• Reason: {capital_decision['reason']}
-• System Verdict: {capital_decision['system_verdict']}
-• Has Proven Pattern: {capital_decision['has_proven_pattern']}
-• Has Totals Lock: {capital_decision['has_totals_lock']}
-
-DECISION MATRIX v7.1:
-• Stay-Away: {'YES' if decision_matrix['STAY_AWAY'] else 'NO'} {decision_matrix['REASON'] if decision_matrix['STAY_AWAY'] else ''}
-• Locks Detected: {len(decision_matrix['LOCKS_DETECTED'])}
-• Pattern Sources: {', '.join(decision_matrix['PATTERN_SOURCES']) if decision_matrix.get('PATTERN_SOURCES') else 'None'}
-• Actionable: {'YES' if decision_matrix.get('PATTERN_SUMMARY', {}).get('actionable') else 'NO'}
-
-EDGE-DERIVED EMPIRICAL PROOF (YOUR DATA):
-1. Cagliari vs AC Milan (1-0): Edge-Derived Lock ✓ → AC Milan UNDER 1.5 WINS ✓
-2. Parma vs Fiorentina (1-0): Edge-Derived Lock ✓ → Parma UNDER 1.5 WINS ✓
-3. Rayo vs Getafe (1-1): No Edge-Derived Lock ✗ → Totals Lock LOSES ✗
-
-CRITICAL FIX APPLIED:
-OLD (v7.0 - WRONG): if not elite_defense and not winner_lock: STAY_AWAY = True
-NEW (v7.1 - CORRECT): if not elite_defense and not winner_lock and not edge_derived: STAY_AWAY = True
-
-RESULT: Actionable matches increased from 44% to 52% based on your empirical evidence
-
-===========================================
-BRUTBALL FUSED LOGIC SYSTEM v7.1 (FIXED)
-Complete 6-Layer Architecture with Empirical Validation
-Layer 1: Defensive Proof • Layer 2: Pattern Independence • Layer 3: Agency-State
-Layer 4: Totals Lock • Layer 5: Pattern Combination • Layer 6: Capital Decision
-
-PROVEN PATTERNS v7.1:
-1. Elite Defense (8/8 - 100%)
-2. Winner Lock (6/6 - 100%)
-3. Edge-Derived (2/2 - 100%) ← YOUR EMPIRICAL PROOF
-
-Capital: 2.0x for any proven pattern, 1.0x otherwise
-Actionable: 13/25 matches (52%) ↑ +8%
-Empirical: Based on 25-match study + your 3-match proof
+SYSTEM FIXES:
+• Edge-Derived Locks are proven patterns (100% empirical)
+• Stay-Away logic corrected
+• Actionable matches increased from 44% to 52%
 """
         
         st.download_button(
-            label="📥 Download Complete Analysis Report v7.1",
+            label="📥 Download Analysis Report",
             data=export_text,
-            file_name=f"brutball_v7.1_fixed_{selected_league.replace(' ', '_')}_{home_team}_vs_{away_team}.txt",
+            file_name=f"brutball_v7.1_{selected_league.replace(' ', '_')}_{home_team}_vs_{away_team}.txt",
             mime="text/plain",
             use_container_width=True
         )
-    
-    # Footer
-    st.markdown("---")
-    st.markdown("""
-    <div style="text-align: center; color: #6B7280; font-size: 0.9rem; padding: 1rem;">
-        <p><strong>BRUTBALL FUSED LOGIC SYSTEM v7.1 (FIXED)</strong></p>
-        <p>Complete 6-Layer Architecture with Critical Fixes Applied</p>
-        <p><span class="fixed-badge">FIXED</span> Edge-Derived Locks now recognized as proven patterns</p>
-        <p><span class="fixed-badge">FIXED</span> Stay-Away logic corrected based on empirical evidence</p>
-        <p><span class="fixed-badge">FIXED</span> Capital decision aligned with your 100% proof</p>
-        <p><strong>EMPIRICAL EVIDENCE:</strong> Edge-Derived Locks 2/2 (100%) in your data</p>
-        <p><strong>ACTIONABLE MATCHES:</strong> 13/25 (52%) ↑ +8% • <strong>STAY-AWAY:</strong> 12/25 (48%) ↓ -8%</p>
-    </div>
-    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
