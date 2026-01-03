@@ -1,6 +1,8 @@
 """
-FUSED LOGIC ENGINE v9.1 - THE EMPIRICAL SYNTHESIS
-CORE PHILOSOPHY: Empirical weights beat heuristic rules. League context trumps universal thresholds.
+FUSED LOGIC ENGINE v8.0 - REAL AGENCY-STATE SYSTEM
+CORE PHILOSOPHY: Use ALL available data to run REAL Agency-State analysis
+Combining 4-Gate Winner Lock with Elite Defense and Total Under conditions
+NO HARDCODED TEAM NAMES OR SCORES - ALL DATA FROM CSV
 """
 
 import streamlit as st
@@ -10,23 +12,24 @@ from typing import Dict, List, Optional, Tuple, Any
 import warnings
 warnings.filterwarnings('ignore')
 
-# =================== DATA LOADING & PROCESSING v9.1 ===================
+# =================== DATA LOADING & PROCESSING v8.0 ===================
 @st.cache_data(ttl=3600)
 def load_league_csv(league_name: str, filename: str) -> Optional[pd.DataFrame]:
-    """Load and process league CSV with all v9.1 metrics"""
+    """Load and process league CSV with ALL Agency-State metrics"""
     try:
         url = f"https://raw.githubusercontent.com/profdue/Brutball/main/leagues/{filename}"
         df = pd.read_csv(url)
         
-        # Clean column names
+        # Clean column names for Agency-State analysis
         df.columns = [col.strip().lower().replace(' ', '_') for col in df.columns]
         
         # Calculate totals from available data
         if 'home_goals_scored' in df.columns and 'away_goals_scored' in df.columns:
             df['goals_scored'] = df['home_goals_scored'] + df['away_goals_scored']
         else:
+            # Estimate from available columns
             if 'goals_scored_last_5' in df.columns:
-                df['goals_scored'] = df['goals_scored_last_5'] * 2
+                df['goals_scored'] = df['goals_scored_last_5'] * 2  # Estimate full season
             else:
                 df['goals_scored'] = 0
         
@@ -34,32 +37,32 @@ def load_league_csv(league_name: str, filename: str) -> Optional[pd.DataFrame]:
             df['goals_conceded'] = df['home_goals_conceded'] + df['away_goals_conceded']
         else:
             if 'goals_conceded_last_5' in df.columns:
-                df['goals_conceded'] = df['goals_conceded_last_5'] * 2
+                df['goals_conceded'] = df['goals_conceded_last_5'] * 2  # Estimate
             else:
                 df['goals_conceded'] = 0
         
         if 'home_xg_for' in df.columns and 'away_xg_for' in df.columns:
             df['xg_for'] = df['home_xg_for'] + df['away_xg_for']
         else:
-            df['xg_for'] = df['goals_scored'] * 0.85
+            df['xg_for'] = df['goals_scored'] * 0.85  # Estimate
         
         if 'home_xg_against' in df.columns and 'away_xg_against' in df.columns:
             df['xg_against'] = df['home_xg_against'] + df['away_xg_against']
         else:
-            df['xg_against'] = df['goals_conceded'] * 0.85
+            df['xg_against'] = df['goals_conceded'] * 0.85  # Estimate
         
         # Calculate matches played
         if 'home_matches_played' in df.columns and 'away_matches_played' in df.columns:
             df['matches_played'] = df['home_matches_played'] + df['away_matches_played']
         else:
-            df['matches_played'] = 10
+            df['matches_played'] = 10  # Default
         
         # Calculate per-match averages
         df['goals_per_match'] = df['goals_scored'] / df['matches_played'].replace(0, 1)
         df['xg_per_match'] = df['xg_for'] / df['matches_played'].replace(0, 1)
         df['conceded_per_match'] = df['goals_conceded'] / df['matches_played'].replace(0, 1)
         
-        # Home/away specific averages
+        # Calculate home/away specific averages
         if 'home_matches_played' in df.columns:
             df['home_goals_per_match'] = df['home_goals_scored'] / df['home_matches_played'].replace(0, 1)
         else:
@@ -90,31 +93,48 @@ def load_league_csv(league_name: str, filename: str) -> Optional[pd.DataFrame]:
         else:
             df['away_conceded_per_match'] = df['conceded_per_match']
         
-        # Calculate efficiency (Goals/xG)
-        df['efficiency'] = (df['goals_scored'] / df['xg_for'].replace(0, 1)) * 100
+        # Calculate percentages for Agency-State
+        df['efficiency'] = df['goals_scored'] / df['xg_for'].replace(0, 1)
         
-        # Last 5 averages
+        # Calculate scoring type percentages
+        scoring_cols = [
+            'home_goals_openplay_for', 'home_goals_counter_for', 'home_goals_setpiece_for', 'home_goals_penalty_for',
+            'away_goals_openplay_for', 'away_goals_counter_for', 'away_goals_setpiece_for', 'away_goals_penalty_for'
+        ]
+        
+        for col in scoring_cols:
+            if col not in df.columns:
+                df[col] = 0
+        
+        df['total_goals_openplay'] = df['home_goals_openplay_for'] + df['away_goals_openplay_for']
+        df['total_goals_counter'] = df['home_goals_counter_for'] + df['away_goals_counter_for']
+        df['total_goals_setpiece'] = (df['home_goals_setpiece_for'] + df['home_goals_penalty_for'] + 
+                                     df['away_goals_setpiece_for'] + df['away_goals_penalty_for'])
+        
+        df['setpiece_pct'] = df['total_goals_setpiece'] / df['goals_scored'].replace(0, 1)
+        df['counter_pct'] = df['total_goals_counter'] / df['goals_scored'].replace(0, 1)
+        df['openplay_pct'] = df['total_goals_openplay'] / df['goals_scored'].replace(0, 1)
+        
+        # Calculate last 5 averages
         if 'goals_scored_last_5' in df.columns:
             df['avg_goals_scored_last_5'] = df['goals_scored_last_5'] / 5
         else:
-            df['avg_goals_scored_last_5'] = df['goals_per_match']
+            df['avg_goals_scored_last_5'] = df['goals_per_match'] * 1.0
         
         if 'goals_conceded_last_5' in df.columns:
             df['avg_goals_conceded_last_5'] = df['goals_conceded_last_5'] / 5
         else:
-            df['avg_goals_conceded_last_5'] = df['conceded_per_match']
+            df['avg_goals_conceded_last_5'] = df['conceded_per_match'] * 1.0
         
         # League averages
         if len(df) > 0:
             df['league_avg_goals'] = df['goals_per_match'].mean()
             df['league_avg_conceded'] = df['conceded_per_match'].mean()
             df['league_avg_xg'] = df['xg_per_match'].mean()
-            df['league_avg_efficiency'] = df['efficiency'].mean()
         else:
             df['league_avg_goals'] = 1.3
             df['league_avg_conceded'] = 1.3
             df['league_avg_xg'] = 1.2
-            df['league_avg_efficiency'] = 100
         
         # Form indicators
         if 'form_last_5_overall' in df.columns:
@@ -130,962 +150,1027 @@ def load_league_csv(league_name: str, filename: str) -> Optional[pd.DataFrame]:
         st.error(f"Error loading {league_name}: {str(e)}")
         return None
 
-# =================== LEAGUE PARAMETERS v9.1 ===================
-LEAGUE_PARAMETERS = {
-    'SERIE A': {
-        'name': 'SERIE A',
-        'total_under_threshold': 1.1,
-        'efficiency_filter': 85,
-        'winner_lock_delta_threshold': 0.20,
-        'league_multiplier': 1.2,
-        'success_rate': 0.83,
-        'description': 'UNDER MACHINE - 83% SUCCESS'
-    },
-    'LA LIGA': {
-        'name': 'LA LIGA',
-        'total_under_threshold': 1.1,
-        'efficiency_filter': 90,
-        'winner_lock_delta_threshold': 0.25,
-        'league_multiplier': 1.1,
-        'success_rate': 0.80,
-        'description': 'TACTICAL - 80% SUCCESS'
-    },
-    'PREMIER LEAGUE': {
-        'name': 'PREMIER LEAGUE',
-        'total_under_threshold': 0.9,
-        'efficiency_filter': 80,
-        'winner_lock_delta_threshold': 0.35,
-        'league_multiplier': 0.8,
-        'success_rate': 0.33,
-        'description': 'VOLATILE - 33% SUCCESS'
-    },
-    'DEFAULT': {
-        'name': 'DEFAULT',
-        'total_under_threshold': 1.0,
-        'efficiency_filter': 90,
-        'winner_lock_delta_threshold': 0.25,
-        'league_multiplier': 1.0,
-        'success_rate': 0.65,
-        'description': 'STANDARD LEAGUE'
-    }
+# =================== SYSTEM CONSTANTS v8.0 ===================
+AGENCY_STATE_THRESHOLDS = {
+    'TEMPO_DOMINANCE': 1.4,
+    'SCORING_EFFICIENCY': 0.9,
+    'CRITICAL_AREA_THREAT': 0.25,
+    'REPEATABLE_PATTERNS_OPENPLAY': 0.5,
+    'REPEATABLE_PATTERNS_COUNTER': 0.15,
+    'QUIET_CONTROL_WEIGHT_SEPARATION': 0.1,
+    'DIRECTIONAL_DELTA': 0.25,
+    'MARKET_THRESHOLD_WINNER': 1.1,
+    'MARKET_THRESHOLD_UNDER_1_5': 1.0,
+    'MARKET_THRESHOLD_UNDER_2_5': 1.2,
+    'STATE_FLIP_CHASE_CAPACITY': 1.1,
+    'STATE_FLIP_TEMPO_SURGE': 1.4,
+    'STATE_FLIP_SETPIECE_PCT': 0.25,
+    'STATE_FLIP_COUNTER_PCT': 0.15,
+    'ENFORCEMENT_DEFENSIVE_HOME': 1.2,
+    'ENFORCEMENT_DEFENSIVE_AWAY': 1.3,
+    'ENFORCEMENT_CONSISTENT_THREAT': 1.3,
 }
 
-# =================== PILLAR WEIGHTS v9.1 ===================
-PILLAR_WEIGHTS = {
-    'TOTAL_UNDER': 0.73,  # 73% success
-    'WINNER_LOCK': 0.50,  # 50% success
-    'ELITE_DEFENSE': 0.50  # 50% success
+ELITE_DEFENSE_THRESHOLDS = {
+    'ABSOLUTE_DEFENSE': 4,
+    'AVG_CONCEDED': 0.8,
+    'DEFENSE_GAP': 2.0,
+    'LEAGUE_AVG_CONCEDED': 1.3,
 }
 
-# =================== HELPER FUNCTIONS ===================
+TOTAL_UNDER_THRESHOLDS = {
+    'OFFENSIVE_INCAPACITY': 1.2,
+    'DEFENSIVE_STRENGTH': 1.2,
+    'ELITE_DEFENSE_DOMINANCE': 1.5,
+}
+
+# EMPIRICAL ACCURACY v8.0 (ADJUSTED TO REAL BACKTEST)
+EMPIRICAL_ACCURACY = {
+    'WINNER_LOCK': '80% (4/5 backtest)',
+    'ELITE_DEFENSE': '62.5% (5/8)',
+    'TOTAL_UNDER_2_5': '70% (7/10)',
+    'DOUBLE_CHANCE': '80% (4/5)',
+    'UNDER_3_5_TIER1': '100% theoretical',
+    'UNDER_3_5_TIER2': '87.5% theoretical',
+    'UNDER_3_5_TIER3': '83.3% theoretical',
+}
+
+# TIERED CAPITAL ALLOCATION v8.0
+CAPITAL_TIERS = {
+    'TIER_1': 2.0,
+    'TIER_2': 1.0,
+    'TIER_3': 0.5,
+    'TIER_4': 0.0,
+}
+
+PATTERN_MULTIPLIERS = {
+    'BASE': 1.0,
+    'ADDITIONAL_PATTERN': 0.5,
+    'MAX_MULTIPLIER': 3.0,
+}
+
+# =================== SAFE VALUE HELPER ===================
 def get_safe_value(data: Dict, key: str, default: Any = 0) -> Any:
     """Safely get value from dictionary with default"""
     if not data:
         return default
     return data.get(key, default)
 
-def get_league_parameters(league_name: str) -> Dict:
-    """Get league-specific parameters"""
-    league_upper = league_name.upper()
-    
-    # Match partial league names
-    if 'SERIE' in league_upper or 'ITALY' in league_upper:
-        return LEAGUE_PARAMETERS['SERIE A']
-    elif 'LA LIGA' in league_upper or 'SPAIN' in league_upper:
-        return LEAGUE_PARAMETERS['LA LIGA']
-    elif 'PREMIER' in league_upper or 'ENGLAND' in league_upper:
-        return LEAGUE_PARAMETERS['PREMIER LEAGUE']
-    else:
-        return LEAGUE_PARAMETERS['DEFAULT']
-
-# =================== PILLAR 1: TOTAL UNDER PATTERNS ===================
-class TotalUnderPillar:
-    """PILLAR 1: Total Under Patterns (73% success weight)"""
+# =================== LAYER 1: REAL AGENCY-STATE 4-GATE SYSTEM ===================
+class AgencyState4GateSystem:
+    """REAL 4-GATE AGENCY-STATE ANALYSIS (No hardcoded data)"""
     
     @staticmethod
-    def calculate_paths(home_data: Dict, away_data: Dict, league_params: Dict) -> Dict:
-        """Calculate Total Under paths (0-3)"""
+    def get_team_data_for_perspective(data: Dict, is_home: bool) -> Dict:
+        """Get the correct metrics for home/away perspective"""
+        if is_home:
+            return {
+                'xg_per_match': get_safe_value(data, 'home_xg_per_match', get_safe_value(data, 'xg_per_match', 1.2)),
+                'efficiency': get_safe_value(data, 'efficiency', 0.8),
+                'setpiece_pct': get_safe_value(data, 'setpiece_pct', 0.2),
+                'openplay_pct': get_safe_value(data, 'openplay_pct', 0.6),
+                'counter_pct': get_safe_value(data, 'counter_pct', 0.1),
+                'goals_per_match': get_safe_value(data, 'home_goals_per_match', get_safe_value(data, 'goals_per_match', 1.2)),
+                'conceded_per_match': get_safe_value(data, 'home_conceded_per_match', get_safe_value(data, 'conceded_per_match', 1.2)),
+                'avg_goals_scored_last_5': get_safe_value(data, 'avg_goals_scored_last_5', 1.3),
+                'avg_goals_conceded_last_5': get_safe_value(data, 'avg_goals_conceded_last_5', 1.3),
+                'league_avg_goals': get_safe_value(data, 'league_avg_goals', 1.3),
+                'goals_scored_last_5': get_safe_value(data, 'goals_scored_last_5', 6),
+                'goals_conceded_last_5': get_safe_value(data, 'goals_conceded_last_5', 6),
+            }
+        else:
+            return {
+                'xg_per_match': get_safe_value(data, 'away_xg_per_match', get_safe_value(data, 'xg_per_match', 1.2)),
+                'efficiency': get_safe_value(data, 'efficiency', 0.8),
+                'setpiece_pct': get_safe_value(data, 'setpiece_pct', 0.2),
+                'openplay_pct': get_safe_value(data, 'openplay_pct', 0.6),
+                'counter_pct': get_safe_value(data, 'counter_pct', 0.1),
+                'goals_per_match': get_safe_value(data, 'away_goals_per_match', get_safe_value(data, 'goals_per_match', 1.2)),
+                'conceded_per_match': get_safe_value(data, 'away_conceded_per_match', get_safe_value(data, 'conceded_per_match', 1.2)),
+                'avg_goals_scored_last_5': get_safe_value(data, 'avg_goals_scored_last_5', 1.3),
+                'avg_goals_conceded_last_5': get_safe_value(data, 'avg_goals_conceded_last_5', 1.3),
+                'league_avg_goals': get_safe_value(data, 'league_avg_goals', 1.3),
+                'goals_scored_last_5': get_safe_value(data, 'goals_scored_last_5', 6),
+                'goals_conceded_last_5': get_safe_value(data, 'goals_conceded_last_5', 6),
+            }
+    
+    @staticmethod
+    def gate1_quiet_control(home_data: Dict, away_data: Dict, is_home_perspective: bool) -> Dict:
+        """GATE 1: Quiet Control Identification"""
         try:
-            paths = []
-            path_details = []
+            controller_data = AgencyState4GateSystem.get_team_data_for_perspective(
+                home_data if is_home_perspective else away_data, 
+                is_home_perspective
+            )
+            opponent_data = AgencyState4GateSystem.get_team_data_for_perspective(
+                away_data if is_home_perspective else home_data, 
+                not is_home_perspective
+            )
             
-            # Get metrics
-            home_avg_scored = get_safe_value(home_data, 'avg_goals_scored_last_5', 1.3)
-            away_avg_scored = get_safe_value(away_data, 'avg_goals_scored_last_5', 1.3)
-            home_avg_conceded = get_safe_value(home_data, 'avg_goals_conceded_last_5', 1.3)
-            away_avg_conceded = get_safe_value(away_data, 'avg_goals_conceded_last_5', 1.3)
+            controller_label = "HOME" if is_home_perspective else "AWAY"
             
-            home_efficiency = get_safe_value(home_data, 'efficiency', 100)
-            away_efficiency = get_safe_value(away_data, 'efficiency', 100)
-            home_xg = get_safe_value(home_data, 'xg_per_match', 1.3)
-            away_xg = get_safe_value(away_data, 'xg_per_match', 1.3)
+            criteria_weights = {
+                'tempo_dominance': 1.0,
+                'scoring_efficiency': 1.0,
+                'critical_area_threat': 0.8,
+                'repeatable_patterns': 0.8,
+            }
             
-            threshold = league_params['total_under_threshold']
-            efficiency_threshold = league_params['efficiency_filter']
+            controller_scores = {}
+            opponent_scores = {}
             
-            # PATH A: Offensive Incapacity
-            if home_avg_scored <= threshold and away_avg_scored <= threshold:
-                paths.append(1.0)
-                path_details.append({
-                    'path': 'OFFENSIVE_INCAPACITY',
-                    'reason': f'Both teams avg ≤ {threshold} goals scored (H: {home_avg_scored:.2f}, A: {away_avg_scored:.2f})',
-                    'weight': 1.0
-                })
+            # 1. Tempo Dominance (xG per match > 1.4)
+            controller_xg = get_safe_value(controller_data, 'xg_per_match', 1.0)
+            opponent_xg = get_safe_value(opponent_data, 'xg_per_match', 1.0)
             
-            # PATH B: Defensive Strength
-            if home_avg_conceded <= threshold and away_avg_conceded <= threshold:
-                paths.append(1.0)
-                path_details.append({
-                    'path': 'DEFENSIVE_STRENGTH',
-                    'reason': f'Both teams avg ≤ {threshold} goals conceded (H: {home_avg_conceded:.2f}, A: {away_avg_conceded:.2f})',
-                    'weight': 1.0
-                })
+            controller_scores['tempo_dominance'] = 1 if controller_xg > AGENCY_STATE_THRESHOLDS['TEMPO_DOMINANCE'] else 0
+            opponent_scores['tempo_dominance'] = 1 if opponent_xg > AGENCY_STATE_THRESHOLDS['TEMPO_DOMINANCE'] else 0
             
-            # PATH C: Efficiency Collapse
-            if (home_efficiency < efficiency_threshold and away_efficiency < efficiency_threshold and
-                home_xg < 1.3 and away_xg < 1.3):
-                paths.append(1.0)
-                path_details.append({
-                    'path': 'EFFICIENCY_COLLAPSE',
-                    'reason': f'Both teams inefficient (<{efficiency_threshold}%) and low xG (<1.3)',
-                    'weight': 1.0
-                })
+            # 2. Scoring Efficiency (Goals/xG > 90%)
+            controller_efficiency = get_safe_value(controller_data, 'efficiency', 0.8)
+            opponent_efficiency = get_safe_value(opponent_data, 'efficiency', 0.8)
             
-            # Efficiency bonus (both teams < 100%)
-            efficiency_bonus = 0.0
-            if home_efficiency < 100 and away_efficiency < 100:
-                efficiency_bonus = 0.2
-                path_details.append({
-                    'path': 'EFFICIENCY_BONUS',
-                    'reason': 'Both teams underperforming (<100% efficiency)',
-                    'weight': 0.2
-                })
+            controller_scores['scoring_efficiency'] = 1 if controller_efficiency > AGENCY_STATE_THRESHOLDS['SCORING_EFFICIENCY'] else 0
+            opponent_scores['scoring_efficiency'] = 1 if opponent_efficiency > AGENCY_STATE_THRESHOLDS['SCORING_EFFICIENCY'] else 0
             
-            total_paths = len(paths)
-            total_score = sum(paths) + efficiency_bonus
+            # 3. Critical Area Threat (Set piece goals > 25%)
+            controller_setpiece = get_safe_value(controller_data, 'setpiece_pct', 0.2)
+            opponent_setpiece = get_safe_value(opponent_data, 'setpiece_pct', 0.2)
+            
+            controller_scores['critical_area_threat'] = 1 if controller_setpiece > AGENCY_STATE_THRESHOLDS['CRITICAL_AREA_THREAT'] else 0
+            opponent_scores['critical_area_threat'] = 1 if opponent_setpiece > AGENCY_STATE_THRESHOLDS['CRITICAL_AREA_THREAT'] else 0
+            
+            # 4. Repeatable Patterns (Open play > 50% OR Counter > 15%)
+            controller_openplay = get_safe_value(controller_data, 'openplay_pct', 0.6)
+            controller_counter = get_safe_value(controller_data, 'counter_pct', 0.1)
+            opponent_openplay = get_safe_value(opponent_data, 'openplay_pct', 0.6)
+            opponent_counter = get_safe_value(opponent_data, 'counter_pct', 0.1)
+            
+            controller_patterns = (controller_openplay > AGENCY_STATE_THRESHOLDS['REPEATABLE_PATTERNS_OPENPLAY'] or 
+                                 controller_counter > AGENCY_STATE_THRESHOLDS['REPEATABLE_PATTERNS_COUNTER'])
+            opponent_patterns = (opponent_openplay > AGENCY_STATE_THRESHOLDS['REPEATABLE_PATTERNS_OPENPLAY'] or 
+                               opponent_counter > AGENCY_STATE_THRESHOLDS['REPEATABLE_PATTERNS_COUNTER'])
+            
+            controller_scores['repeatable_patterns'] = 1 if controller_patterns else 0
+            opponent_scores['repeatable_patterns'] = 1 if opponent_patterns else 0
+            
+            # Calculate weighted scores
+            controller_weighted = sum(controller_scores[k] * criteria_weights.get(k, 1.0) 
+                                    for k in controller_scores)
+            opponent_weighted = sum(opponent_scores[k] * criteria_weights.get(k, 1.0) 
+                                  for k in opponent_scores)
+            
+            # Count criteria met (≥2 required)
+            controller_criteria_met = sum(controller_scores.values())
+            opponent_criteria_met = sum(opponent_scores.values())
+            
+            # Decision Logic
+            if controller_criteria_met >= 2 and opponent_criteria_met >= 2:
+                if abs(controller_weighted - opponent_weighted) <= AGENCY_STATE_THRESHOLDS['QUIET_CONTROL_WEIGHT_SEPARATION']:
+                    return {
+                        'gate_passed': False,
+                        'result': 'MUTUAL_CONTROL',
+                        'reason': 'Both teams meet control criteria with minimal separation',
+                        'controller': None,
+                        'weighted_difference': abs(controller_weighted - opponent_weighted)
+                    }
+            
+            # Determine controller
+            if controller_criteria_met >= 2 and controller_weighted > opponent_weighted:
+                return {
+                    'gate_passed': True,
+                    'result': 'CONTROLLER_IDENTIFIED',
+                    'controller': controller_label,
+                    'criteria_met': controller_criteria_met,
+                    'weighted_score': controller_weighted,
+                    'reason': f'{controller_label} meets {controller_criteria_met}/4 criteria with weighted score {controller_weighted:.2f}'
+                }
             
             return {
-                'total_paths': total_paths,
-                'total_score': min(total_score, 3.0),  # Cap at 3.0
-                'path_details': path_details,
-                'efficiency_bonus': efficiency_bonus,
-                'reason': f'Found {total_paths} Total Under path(s)'
+                'gate_passed': False,
+                'result': 'NO_CONTROLLER',
+                'reason': f'Insufficient control criteria (Controller: {controller_criteria_met}/4, Opponent: {opponent_criteria_met}/4)'
             }
             
         except Exception as e:
             return {
-                'total_paths': 0,
-                'total_score': 0.0,
-                'path_details': [],
-                'error': str(e)
+                'gate_passed': False,
+                'result': 'ERROR',
+                'reason': f'Error in Gate 1: {str(e)}'
             }
-
-# =================== PILLAR 2: WINNER LOCK GATES ===================
-class WinnerLockPillar:
-    """PILLAR 2: Winner Lock Gates (50% success weight)"""
     
     @staticmethod
-    def calculate_gates(home_data: Dict, away_data: Dict, league_params: Dict) -> Dict:
-        """Calculate Winner Lock gates (0-4 with decimals)"""
+    def gate2_directional_dominance(controller_data: Dict, opponent_data: Dict, 
+                                   market: str = 'WINNER') -> Dict:
+        """GATE 2: Directional Dominance"""
         try:
-            gates_passed = 0.0
-            gate_details = []
+            market_thresholds = {
+                'WINNER': AGENCY_STATE_THRESHOLDS['MARKET_THRESHOLD_WINNER'],
+                'UNDER_1_5': AGENCY_STATE_THRESHOLDS['MARKET_THRESHOLD_UNDER_1_5'],
+                'UNDER_2_5': AGENCY_STATE_THRESHOLDS['MARKET_THRESHOLD_UNDER_2_5'],
+            }
             
-            # Get metrics for both teams
-            home_xg = get_safe_value(home_data, 'xg_per_match', 1.2)
-            away_xg = get_safe_value(away_data, 'xg_per_match', 1.2)
-            
-            # Determine controller (team with higher xG)
-            if home_xg > away_xg:
-                controller_data = home_data
-                opponent_data = away_data
-                controller_label = 'HOME'
-                is_home = True
-            else:
-                controller_data = away_data
-                opponent_data = home_data
-                controller_label = 'AWAY'
-                is_home = False
+            threshold = market_thresholds.get(market, 1.1)
             
             controller_xg = get_safe_value(controller_data, 'xg_per_match', 1.2)
             opponent_xg = get_safe_value(opponent_data, 'xg_per_match', 1.2)
             
-            # GATE 1: Quiet Control (3.5/4 criteria minimum)
-            gate1_score = 0.0
-            criteria_met = 0
-            
-            # 1. Tempo Dominance (xG > 1.4)
-            if controller_xg > 1.4:
-                criteria_met += 1
-            
-            # 2. Scoring Efficiency (> 90%)
-            controller_eff = get_safe_value(controller_data, 'efficiency', 100)
-            if controller_eff > 90:
-                criteria_met += 1
-                if controller_eff > 90:  # Bonus for high efficiency
-                    gate1_score += 0.1
-            
-            # 3. Critical Area Threat (Set piece > 25%)
-            # Estimate from available data or use default
-            setpiece_pct = 0.2  # Default
-            if setpiece_pct > 0.25:
-                criteria_met += 1
-            
-            # 4. Repeatable Patterns (Open play > 50% OR Counter > 15%)
-            openplay_pct = 0.6  # Default
-            counter_pct = 0.1   # Default
-            if openplay_pct > 0.5 or counter_pct > 0.15:
-                criteria_met += 1
-            
-            # Gate 1 score (3.5/4 minimum = 0.875 per criteria)
-            gate1_score += min(criteria_met * 0.875, 1.0)
-            if gate1_score > 0:
-                gates_passed += gate1_score
-                gate_details.append({
-                    'gate': 'QUIET_CONTROL',
-                    'score': gate1_score,
-                    'reason': f'{controller_label} meets {criteria_met}/4 control criteria'
-                })
-            
-            # GATE 2: Directional Dominance
-            delta_threshold = league_params['winner_lock_delta_threshold']
             control_delta = controller_xg - opponent_xg
             
-            if control_delta > delta_threshold and opponent_xg < 1.1:
-                gates_passed += 1.0
-                gate_details.append({
-                    'gate': 'DIRECTIONAL_DOMINANCE',
-                    'score': 1.0,
-                    'reason': f'Control delta {control_delta:.2f} > {delta_threshold} AND opponent xG {opponent_xg:.2f} < 1.1'
-                })
+            opponent_below_threshold = opponent_xg < threshold
+            sufficient_delta = control_delta > AGENCY_STATE_THRESHOLDS['DIRECTIONAL_DELTA']
             
-            # GATE 3: State-Flip Capacity (3/4 failures minimum)
-            failures = 0
-            
-            # 1. Chase capacity
-            if opponent_xg < 1.1:
-                failures += 1
-            
-            # 2. Tempo surge
-            if opponent_xg < 1.4:
-                failures += 1
-            
-            # 3. Alternate threats
-            opp_setpiece = 0.2
-            opp_counter = 0.1
-            if opp_setpiece < 0.25 and opp_counter < 0.15:
-                failures += 1
-            
-            # 4. Substitution leverage
-            opp_goals_pm = get_safe_value(opponent_data, 'goals_per_match', 1.2)
-            league_avg = get_safe_value(opponent_data, 'league_avg_goals', 1.3)
-            if opp_goals_pm < league_avg * 0.8:
-                failures += 1
-            
-            # Gate 3 score (3/4 minimum = 0.75 per failure)
-            gate3_score = min(failures * 0.75, 1.0)
-            if gate3_score >= 0.75:  # Minimum 3 failures required
-                gates_passed += gate3_score
-                gate_details.append({
-                    'gate': 'STATE_FLIP_CAPACITY',
-                    'score': gate3_score,
-                    'reason': f'Opponent has {failures}/4 state-flip failures'
-                })
-            
-            # GATE 4: Enforcement Without Urgency (2.5/3 methods)
-            methods = 0
-            
-            # 1. Defensive solidity
-            if is_home:
-                concede_avg = get_safe_value(controller_data, 'home_conceded_per_match', 
-                                           get_safe_value(controller_data, 'conceded_per_match', 1.2))
-                if concede_avg < 1.2:
-                    methods += 1
-            else:
-                concede_avg = get_safe_value(controller_data, 'away_conceded_per_match',
-                                           get_safe_value(controller_data, 'conceded_per_match', 1.2))
-                if concede_avg < 1.3:
-                    methods += 1
-            
-            # 2. Alternate scoring
-            if setpiece_pct > 0.25 or counter_pct > 0.15:
-                methods += 1
-            
-            # 3. Consistent threat
-            if controller_xg > 1.3:
-                methods += 1
-            
-            # Gate 4 score (2.5/3 minimum = 0.833 per method)
-            gate4_score = min(methods * 0.833, 1.0)
-            if gate4_score >= 0.833:  # Minimum 2.5 methods required
-                gates_passed += gate4_score
-                gate_details.append({
-                    'gate': 'ENFORCEMENT',
-                    'score': gate4_score,
-                    'reason': f'Controller has {methods}/3 enforcement methods'
-                })
-            
-            return {
-                'controller': controller_label,
-                'gates_passed': gates_passed,
-                'gate_details': gate_details,
-                'score': min(gates_passed, 4.0),  # Cap at 4.0
-                'reason': f'{controller_label} passes {gates_passed:.2f}/4 gates'
-            }
-            
-        except Exception as e:
-            return {
-                'controller': 'ERROR',
-                'gates_passed': 0.0,
-                'gate_details': [],
-                'score': 0.0,
-                'error': str(e)
-            }
-
-# =================== PILLAR 3: ELITE DEFENSE TIERS ===================
-class EliteDefensePillar:
-    """PILLAR 3: Elite Defense Tiers (50% success weight)"""
-    
-    @staticmethod
-    def calculate_tiers(home_data: Dict, away_data: Dict) -> Dict:
-        """Calculate Elite Defense tiers (0-1.5)"""
-        try:
-            results = {}
-            
-            # Analyze home team
-            home_conceded = get_safe_value(home_data, 'goals_conceded_last_5', 6)
-            home_avg_conceded = home_conceded / 5
-            home_league_avg = get_safe_value(home_data, 'league_avg_conceded', 1.3)
-            home_defense_gap = home_league_avg - home_avg_conceded
-            
-            # TIER SYSTEM
-            if home_conceded <= 3 and home_defense_gap > 2.5:  # TRUE ELITE
-                home_tier = 1.5
-                home_tier_name = 'TRUE_ELITE'
-                home_reason = f'Conceded ≤3 last 5 (avg {home_avg_conceded:.2f}), gap {home_defense_gap:.2f} > 2.5'
-            elif home_conceded == 4 and home_defense_gap > 2.0:  # STRONG
-                home_tier = 1.0
-                home_tier_name = 'STRONG'
-                home_reason = f'Conceded 4 last 5 (avg {home_avg_conceded:.2f}), gap {home_defense_gap:.2f} > 2.0'
-            elif home_conceded == 5:  # DECENT
-                home_tier = 0.5
-                home_tier_name = 'DECENT'
-                home_reason = f'Conceded 5 last 5 (avg {home_avg_conceded:.2f})'
-            else:  # NOT ELITE
-                home_tier = 0.0
-                home_tier_name = 'NOT_ELITE'
-                home_reason = f'Conceded {home_conceded} last 5 (avg {home_avg_conceded:.2f}) - not elite'
-            
-            # Analyze away team
-            away_conceded = get_safe_value(away_data, 'goals_conceded_last_5', 6)
-            away_avg_conceded = away_conceded / 5
-            away_league_avg = get_safe_value(away_data, 'league_avg_conceded', 1.3)
-            away_defense_gap = away_league_avg - away_avg_conceded
-            
-            if away_conceded <= 3 and away_defense_gap > 2.5:
-                away_tier = 1.5
-                away_tier_name = 'TRUE_ELITE'
-                away_reason = f'Conceded ≤3 last 5 (avg {away_avg_conceded:.2f}), gap {away_defense_gap:.2f} > 2.5'
-            elif away_conceded == 4 and away_defense_gap > 2.0:
-                away_tier = 1.0
-                away_tier_name = 'STRONG'
-                away_reason = f'Conceded 4 last 5 (avg {away_avg_conceded:.2f}), gap {away_defense_gap:.2f} > 2.0'
-            elif away_conceded == 5:
-                away_tier = 0.5
-                away_tier_name = 'DECENT'
-                away_reason = f'Conceded 5 last 5 (avg {away_avg_conceded:.2f})'
-            else:
-                away_tier = 0.0
-                away_tier_name = 'NOT_ELITE'
-                away_reason = f'Conceded {away_conceded} last 5 (avg {away_avg_conceded:.2f}) - not elite'
-            
-            # Opponent efficiency bonus
-            home_eff = get_safe_value(home_data, 'efficiency', 100)
-            away_eff = get_safe_value(away_data, 'efficiency', 100)
-            
-            efficiency_bonus = 0.0
-            if home_tier > 0 and away_eff < 80:
-                efficiency_bonus += 0.1
-            if away_tier > 0 and home_eff < 80:
-                efficiency_bonus += 0.1
-            
-            total_score = max(home_tier, away_tier) + efficiency_bonus
-            
-            return {
-                'home_tier': home_tier,
-                'home_tier_name': home_tier_name,
-                'home_reason': home_reason,
-                'away_tier': away_tier,
-                'away_tier_name': away_tier_name,
-                'away_reason': away_reason,
-                'total_score': min(total_score, 1.5),  # Cap at 1.5
-                'efficiency_bonus': efficiency_bonus,
-                'reason': f'Highest defense tier: {max(home_tier, away_tier):.1f}'
-            }
-            
-        except Exception as e:
-            return {
-                'home_tier': 0.0,
-                'home_tier_name': 'ERROR',
-                'away_tier': 0.0,
-                'away_tier_name': 'ERROR',
-                'total_score': 0.0,
-                'error': str(e)
-            }
-
-# =================== PROTECTIVE FILTERS ===================
-class ProtectiveFilters:
-    """Protective filters to prevent blowouts and unsustainable streaks"""
-    
-    @staticmethod
-    def check_filters(home_data: Dict, away_data: Dict) -> Dict:
-        """Apply all protective filters"""
-        try:
-            filters_triggered = []
-            penalties = 0.0
-            stay_away = False
-            
-            # FILTER 1: Defensive Collapse Override
-            home_conceded = get_safe_value(home_data, 'goals_conceded_last_5', 6)
-            home_scored = get_safe_value(home_data, 'goals_scored_last_5', 6)
-            away_conceded = get_safe_value(away_data, 'goals_conceded_last_5', 6)
-            away_scored = get_safe_value(away_data, 'goals_scored_last_5', 6)
-            
-            if (home_conceded >= 8 and home_scored >= 8) or (away_conceded >= 8 and away_scored >= 8):
-                filters_triggered.append('DEFENSIVE_COLLAPSE')
-                penalties += 0.5
-            
-            # FILTER 2: Blowout Protection
-            home_xg = get_safe_value(home_data, 'xg_per_match', 1.2)
-            away_xg = get_safe_value(away_data, 'xg_per_match', 1.2)
-            xg_diff = abs(home_xg - away_xg)
-            
-            weaker_conceded = home_conceded if home_xg < away_xg else away_conceded
-            stronger_scored = home_scored if home_xg > away_xg else away_scored
-            
-            if xg_diff > 1.0 and weaker_conceded >= 8 and stronger_scored >= 8:
-                filters_triggered.append('BLOWOUT_RISK')
-                stay_away = True
-            
-            # FILTER 3: Efficiency Extremes
-            home_eff = get_safe_value(home_data, 'efficiency', 100)
-            away_eff = get_safe_value(away_data, 'efficiency', 100)
-            
-            if home_eff > 130 or away_eff > 130:
-                filters_triggered.append('HIGH_EFFICIENCY_EXTREME')
-                # Will be handled in tier adjustment
-            
-            if home_eff < 70 and away_eff < 70:
-                filters_triggered.append('LOW_EFFICIENCY_EXTREME')
-                # Will be handled in tier adjustment
-            
-            # FILTER 4: Sustainability Check
-            # Check if short-term efficiency > 120% but season-long < 100%
-            # For now, use conservative approach
-            if (home_eff > 120 and get_safe_value(home_data, 'league_avg_efficiency', 100) < 100) or \
-               (away_eff > 120 and get_safe_value(away_data, 'league_avg_efficiency', 100) < 100):
-                filters_triggered.append('UNSUSTAINABLE_EFFICIENCY')
-                penalties += 0.3
-            
-            return {
-                'filters_triggered': filters_triggered,
-                'penalties': penalties,
-                'stay_away': stay_away,
-                'reason': f'Triggered: {", ".join(filters_triggered)}' if filters_triggered else 'No filters triggered'
-            }
-            
-        except Exception as e:
-            return {
-                'filters_triggered': ['ERROR'],
-                'penalties': 0.0,
-                'stay_away': False,
-                'error': str(e)
-            }
-
-# =================== GOALLESS DRAW PATTERN ===================
-class GoallessDrawPattern:
-    """Special handling for Goalless Draw pattern"""
-    
-    @staticmethod
-    def check_pattern(home_data: Dict, away_data: Dict, total_under_paths: int) -> Dict:
-        """Check for Goalless Draw conditions"""
-        try:
-            home_xg = get_safe_value(home_data, 'xg_per_match', 1.2)
-            away_xg = get_safe_value(away_data, 'xg_per_match', 1.2)
-            home_eff = get_safe_value(home_data, 'efficiency', 100)
-            away_eff = get_safe_value(away_data, 'efficiency', 100)
-            home_conceded = get_safe_value(home_data, 'goals_conceded_last_5', 6)
-            away_conceded = get_safe_value(away_data, 'goals_conceded_last_5', 6)
-            
-            conditions_met = []
-            
-            # Condition 1: Low xG
-            if home_xg < 1.2 or away_xg < 1.1:
-                conditions_met.append('LOW_XG')
-            
-            # Condition 2: Both inefficient
-            if home_eff < 90 and away_eff < 90:
-                conditions_met.append('LOW_EFFICIENCY')
-            
-            # Condition 3: Both decent defense
-            if home_conceded <= 6 and away_conceded <= 6:
-                conditions_met.append('DECENT_DEFENSE')
-            
-            # Condition 4: Total Under paths
-            if total_under_paths >= 2:
-                conditions_met.append('TOTAL_UNDER_PATHS')
-            
-            # Condition 5: No True Elite Defense
-            if home_conceded > 3 and away_conceded > 3:
-                conditions_met.append('NO_TRUE_ELITE')
-            
-            # Condition 6: No defensive collapse
-            if home_conceded <= 8 and away_conceded <= 8:
-                conditions_met.append('NO_COLLAPSE')
-            
-            is_goalless_draw = len(conditions_met) >= 5  # Need 5/6 conditions
-            
-            return {
-                'is_goalless_draw': is_goalless_draw,
-                'conditions_met': conditions_met,
-                'conditions_total': len(conditions_met),
-                'reason': f'Goalless Draw: {len(conditions_met)}/6 conditions met' if is_goalless_draw else 'Not a Goalless Draw pattern'
-            }
-            
-        except Exception as e:
-            return {
-                'is_goalless_draw': False,
-                'conditions_met': [],
-                'error': str(e)
-            }
-
-# =================== THE EMPIRICAL SYNTHESIS ENGINE v9.1 ===================
-class EmpiricalSynthesisEngineV91:
-    """Main engine for v9.1 empirical synthesis"""
-    
-    @staticmethod
-    def execute_full_analysis(home_data: Dict, away_data: Dict, 
-                            home_name: str, away_name: str,
-                            league_name: str) -> Dict:
-        """Execute complete v9.1 analysis"""
-        try:
-            results = {}
-            results['home_name'] = home_name
-            results['away_name'] = away_name
-            results['league_name'] = league_name
-            
-            # STEP 0: League Identification
-            league_params = get_league_parameters(league_name)
-            results['league_params'] = league_params
-            
-            # STEP 1: Protective Filters
-            filters = ProtectiveFilters.check_filters(home_data, away_data)
-            results['protective_filters'] = filters
-            
-            if filters['stay_away']:
+            if opponent_below_threshold and sufficient_delta:
                 return {
-                    **results,
-                    'final_tier': 5,
-                    'tier_name': 'STAY_AWAY',
-                    'capital_multiplier': 0.0,
-                    'reason': f'Blowout protection triggered: {filters["reason"]}',
-                    'recommendations': []
+                    'gate_passed': True,
+                    'result': 'DIRECTIONAL_DOMINANCE',
+                    'control_delta': control_delta,
+                    'opponent_xg': opponent_xg,
+                    'market_threshold': threshold,
+                    'reason': f'Opponent xG {opponent_xg:.2f} < {threshold} AND delta {control_delta:.2f} > {AGENCY_STATE_THRESHOLDS["DIRECTIONAL_DELTA"]}'
                 }
             
-            # STEP 2: Pillar Calculation
-            # PILLAR 1: Total Under
-            total_under = TotalUnderPillar.calculate_paths(home_data, away_data, league_params)
-            results['total_under'] = total_under
+            return {
+                'gate_passed': False,
+                'result': 'NO_DIRECTIONAL_DOMINANCE',
+                'reason': f'Conditions not met: Opponent xG {opponent_xg:.2f} >= {threshold} OR delta {control_delta:.2f} ≤ {AGENCY_STATE_THRESHOLDS["DIRECTIONAL_DELTA"]}'
+            }
+        except Exception as e:
+            return {
+                'gate_passed': False,
+                'result': 'ERROR',
+                'reason': f'Error in Gate 2: {str(e)}'
+            }
+    
+    @staticmethod
+    def gate3_state_flip_capacity(opponent_data: Dict, market: str = 'WINNER') -> Dict:
+        """GATE 3: State-Flip Capacity (Agency Collapse)"""
+        try:
+            market_requirements = {
+                'WINNER': 2,
+                'UNDER_1_5': 2,
+                'CLEAN_SHEET': 3,
+            }
+            required_failures = market_requirements.get(market, 2)
             
-            # PILLAR 2: Winner Lock
-            winner_lock = WinnerLockPillar.calculate_gates(home_data, away_data, league_params)
-            results['winner_lock'] = winner_lock
+            failures = []
             
-            # PILLAR 3: Elite Defense
-            elite_defense = EliteDefensePillar.calculate_tiers(home_data, away_data)
-            results['elite_defense'] = elite_defense
+            opponent_xg = get_safe_value(opponent_data, 'xg_per_match', 1.2)
+            if opponent_xg < AGENCY_STATE_THRESHOLDS['STATE_FLIP_CHASE_CAPACITY']:
+                failures.append('CHASE_CAPACITY')
             
-            # STEP 3: Goalless Draw Check
-            goalless_draw = GoallessDrawPattern.check_pattern(
-                home_data, away_data, total_under.get('total_paths', 0)
+            if opponent_xg < AGENCY_STATE_THRESHOLDS['STATE_FLIP_TEMPO_SURGE']:
+                failures.append('TEMPO_SURGE')
+            
+            setpiece_pct = get_safe_value(opponent_data, 'setpiece_pct', 0.2)
+            counter_pct = get_safe_value(opponent_data, 'counter_pct', 0.1)
+            
+            if (setpiece_pct < AGENCY_STATE_THRESHOLDS['STATE_FLIP_SETPIECE_PCT'] and 
+                counter_pct < AGENCY_STATE_THRESHOLDS['STATE_FLIP_COUNTER_PCT']):
+                failures.append('ALTERNATE_THREATS')
+            
+            opponent_goals_per_match = get_safe_value(opponent_data, 'goals_per_match', 
+                get_safe_value(opponent_data, 'avg_goals_scored_last_5', 1.0))
+            league_avg = get_safe_value(opponent_data, 'league_avg_goals', 1.3)
+            
+            if opponent_goals_per_match < league_avg * 0.8:
+                failures.append('SUBSTITUTION_LEVERAGE')
+            
+            failure_count = len(failures)
+            
+            if failure_count >= required_failures:
+                return {
+                    'gate_passed': True,
+                    'result': 'STATE_FLIP_CAPACITY_CONFIRMED',
+                    'failure_count': failure_count,
+                    'required_failures': required_failures,
+                    'failures': failures,
+                    'reason': f'Opponent has {failure_count}/{required_failures}+ state-flip failures'
+                }
+            
+            return {
+                'gate_passed': False,
+                'result': 'STATE_FLIP_CAPACITY_INSUFFICIENT',
+                'failure_count': failure_count,
+                'required_failures': required_failures,
+                'failures': failures,
+                'reason': f'Only {failure_count}/{required_failures} state-flip failures'
+            }
+        except Exception as e:
+            return {
+                'gate_passed': False,
+                'result': 'ERROR',
+                'reason': f'Error in Gate 3: {str(e)}'
+            }
+    
+    @staticmethod
+    def gate4_enforcement_without_urgency(controller_data: Dict, is_home: bool) -> Dict:
+        """GATE 4: Enforcement Without Urgency"""
+        try:
+            methods = []
+            
+            if is_home:
+                defensive_threshold = AGENCY_STATE_THRESHOLDS['ENFORCEMENT_DEFENSIVE_HOME']
+            else:
+                defensive_threshold = AGENCY_STATE_THRESHOLDS['ENFORCEMENT_DEFENSIVE_AWAY']
+            
+            concede_avg = get_safe_value(controller_data, 'conceded_per_match', 1.2)
+            if concede_avg < defensive_threshold:
+                methods.append('DEFENSIVE_SOLIDITY')
+            
+            setpiece_pct = get_safe_value(controller_data, 'setpiece_pct', 0.2)
+            counter_pct = get_safe_value(controller_data, 'counter_pct', 0.1)
+            
+            if (setpiece_pct > AGENCY_STATE_THRESHOLDS['CRITICAL_AREA_THREAT'] or 
+                counter_pct > AGENCY_STATE_THRESHOLDS['REPEATABLE_PATTERNS_COUNTER']):
+                methods.append('ALTERNATE_SCORING')
+            
+            xg_per_match = get_safe_value(controller_data, 'xg_per_match', 1.2)
+            if xg_per_match > AGENCY_STATE_THRESHOLDS['ENFORCEMENT_CONSISTENT_THREAT']:
+                methods.append('CONSISTENT_THREAT')
+            
+            method_count = len(methods)
+            
+            if method_count >= 2:
+                return {
+                    'gate_passed': True,
+                    'result': 'ENFORCEMENT_CONFIRMED',
+                    'method_count': method_count,
+                    'methods': methods,
+                    'reason': f'Controller has {method_count}/3+ enforcement methods'
+                }
+            
+            return {
+                'gate_passed': False,
+                'result': 'ENFORCEMENT_INSUFFICIENT',
+                'method_count': method_count,
+                'methods': methods,
+                'reason': f'Only {method_count}/3 enforcement methods'
+            }
+        except Exception as e:
+            return {
+                'gate_passed': False,
+                'result': 'ERROR',
+                'reason': f'Error in Gate 4: {str(e)}'
+            }
+    
+    @staticmethod
+    def run_complete_4gate_analysis(home_data: Dict, away_data: Dict) -> Dict:
+        """Run complete 4-Gate Agency-State analysis from BOTH perspectives"""
+        try:
+            results = {}
+            
+            # Analyze from HOME perspective
+            home_perspective = {}
+            home_perspective['gate1'] = AgencyState4GateSystem.gate1_quiet_control(
+                home_data, away_data, is_home_perspective=True
             )
-            results['goalless_draw'] = goalless_draw
             
-            # STEP 4: Base Score Calculation
-            base_score = (
-                total_under.get('total_score', 0) * PILLAR_WEIGHTS['TOTAL_UNDER'] +
-                winner_lock.get('score', 0) * PILLAR_WEIGHTS['WINNER_LOCK'] +
-                elite_defense.get('total_score', 0) * PILLAR_WEIGHTS['ELITE_DEFENSE']
+            if home_perspective['gate1'].get('gate_passed', False):
+                if home_perspective['gate1'].get('controller') == 'HOME':
+                    controller_data = AgencyState4GateSystem.get_team_data_for_perspective(home_data, True)
+                    opponent_data = AgencyState4GateSystem.get_team_data_for_perspective(away_data, False)
+                else:
+                    controller_data = AgencyState4GateSystem.get_team_data_for_perspective(away_data, False)
+                    opponent_data = AgencyState4GateSystem.get_team_data_for_perspective(home_data, True)
+                
+                home_perspective['gate2'] = AgencyState4GateSystem.gate2_directional_dominance(
+                    controller_data, opponent_data, market='WINNER'
+                )
+                home_perspective['gate3'] = AgencyState4GateSystem.gate3_state_flip_capacity(
+                    opponent_data, market='WINNER'
+                )
+                home_perspective['gate4'] = AgencyState4GateSystem.gate4_enforcement_without_urgency(
+                    controller_data, is_home=(home_perspective['gate1'].get('controller') == 'HOME')
+                )
+            else:
+                home_perspective['gate2'] = {'gate_passed': False, 'result': 'GATE1_FAILED'}
+                home_perspective['gate3'] = {'gate_passed': False, 'result': 'GATE1_FAILED'}
+                home_perspective['gate4'] = {'gate_passed': False, 'result': 'GATE1_FAILED'}
+            
+            # Analyze from AWAY perspective
+            away_perspective = {}
+            away_perspective['gate1'] = AgencyState4GateSystem.gate1_quiet_control(
+                home_data, away_data, is_home_perspective=False
             )
             
-            # STEP 5: Apply Modifiers
-            # League multiplier
-            final_score = base_score * league_params['league_multiplier']
+            if away_perspective['gate1'].get('gate_passed', False):
+                if away_perspective['gate1'].get('controller') == 'AWAY':
+                    controller_data = AgencyState4GateSystem.get_team_data_for_perspective(away_data, False)
+                    opponent_data = AgencyState4GateSystem.get_team_data_for_perspective(home_data, True)
+                else:
+                    controller_data = AgencyState4GateSystem.get_team_data_for_perspective(home_data, True)
+                    opponent_data = AgencyState4GateSystem.get_team_data_for_perspective(away_data, False)
+                
+                away_perspective['gate2'] = AgencyState4GateSystem.gate2_directional_dominance(
+                    controller_data, opponent_data, market='WINNER'
+                )
+                away_perspective['gate3'] = AgencyState4GateSystem.gate3_state_flip_capacity(
+                    opponent_data, market='WINNER'
+                )
+                away_perspective['gate4'] = AgencyState4GateSystem.gate4_enforcement_without_urgency(
+                    controller_data, is_home=(away_perspective['gate1'].get('controller') == 'HOME')
+                )
+            else:
+                away_perspective['gate2'] = {'gate_passed': False, 'result': 'GATE1_FAILED'}
+                away_perspective['gate3'] = {'gate_passed': False, 'result': 'GATE1_FAILED'}
+                away_perspective['gate4'] = {'gate_passed': False, 'result': 'GATE1_FAILED'}
             
-            # Efficiency modifiers
-            home_eff = get_safe_value(home_data, 'efficiency', 100)
-            away_eff = get_safe_value(away_data, 'efficiency', 100)
+            # Determine if ANY perspective has WINNER LOCK
+            home_winner_lock = all([
+                home_perspective['gate1'].get('gate_passed', False),
+                home_perspective['gate2'].get('gate_passed', False),
+                home_perspective['gate3'].get('gate_passed', False),
+                home_perspective['gate4'].get('gate_passed', False)
+            ])
             
-            efficiency_bonus = 0.0
-            if home_eff < 70 and away_eff < 70:
-                efficiency_bonus += 0.3
-            elif home_eff > 130 or away_eff > 130:
-                efficiency_bonus -= 0.3
+            away_winner_lock = all([
+                away_perspective['gate1'].get('gate_passed', False),
+                away_perspective['gate2'].get('gate_passed', False),
+                away_perspective['gate3'].get('gate_passed', False),
+                away_perspective['gate4'].get('gate_passed', False)
+            ])
             
-            # Recent form modifier (simplified)
-            home_form = get_safe_value(home_data, 'form_points_last_5', 0)
-            away_form = get_safe_value(away_data, 'form_points_last_5', 0)
-            form_modifier = (home_form + away_form - 5) * 0.03  # -0.3 to +0.3
+            winner_lock_detected = home_winner_lock or away_winner_lock
             
-            # Apply all modifiers
-            final_score += efficiency_bonus + form_modifier - filters['penalties']
+            if winner_lock_detected:
+                if home_winner_lock:
+                    controller = 'HOME'
+                    controller_team = 'Home Team'
+                    gates = home_perspective
+                else:
+                    controller = 'AWAY'
+                    controller_team = 'Away Team'
+                    gates = away_perspective
+                
+                return {
+                    'winner_lock': True,
+                    'controller': controller,
+                    'controller_team': controller_team,
+                    'gates': gates,
+                    'gate_summary': {
+                        'gate1': gates['gate1'].get('result', 'ERROR'),
+                        'gate2': gates['gate2'].get('result', 'ERROR'),
+                        'gate3': gates['gate3'].get('result', 'ERROR'),
+                        'gate4': gates['gate4'].get('result', 'ERROR')
+                    },
+                    'reason': f'4-Gate Agency-State analysis confirms {controller_team} as market controller',
+                    'accuracy_claim': '80% (4/5 backtest)',
+                    'market_implications': ['DOUBLE_CHANCE', 'WINNER']
+                }
             
-            # Cap at maximum
-            final_score = min(final_score, 5.0)
-            final_score = max(final_score, 0.0)
+            return {
+                'winner_lock': False,
+                'reason': 'No Winner Lock detected - insufficient Agency-State control',
+                'gate_summary': {
+                    'home_perspective': {k: v.get('result', 'ERROR') for k, v in home_perspective.items()},
+                    'away_perspective': {k: v.get('result', 'ERROR') for k, v in away_perspective.items()}
+                }
+            }
+        except Exception as e:
+            return {
+                'winner_lock': False,
+                'reason': f'Error in Agency-State analysis: {str(e)}',
+                'error': str(e)
+            }
+
+# =================== LAYER 2: ELITE DEFENSE PATTERN ===================
+class EliteDefensePattern:
+    """ELITE DEFENSE PATTERN (62.5% accuracy - adjusted)"""
+    
+    @staticmethod
+    def detect_elite_defense(team_data: Dict, opponent_data: Dict, league_avg: float = 1.3) -> Dict:
+        """Detect Elite Defense pattern with REAL thresholds"""
+        try:
+            total_conceded_last_5 = get_safe_value(team_data, 'goals_conceded_last_5', 6)
+            avg_conceded = total_conceded_last_5 / 5
             
-            results['scoring'] = {
-                'base_score': base_score,
-                'league_multiplier': league_params['league_multiplier'],
-                'efficiency_bonus': efficiency_bonus,
-                'form_modifier': form_modifier,
-                'filters_penalties': filters['penalties'],
-                'final_score': final_score
+            opponent_avg_conceded = get_safe_value(opponent_data, 'avg_goals_conceded_last_5', 
+                get_safe_value(opponent_data, 'goals_conceded_last_5', 6) / 5)
+            
+            defense_gap = league_avg - avg_conceded
+            
+            absolute_defense = total_conceded_last_5 <= ELITE_DEFENSE_THRESHOLDS['ABSOLUTE_DEFENSE']
+            avg_defense = avg_conceded <= ELITE_DEFENSE_THRESHOLDS['AVG_CONCEDED']
+            gap_condition = defense_gap > ELITE_DEFENSE_THRESHOLDS['DEFENSE_GAP']
+            relative_advantage = avg_conceded < opponent_avg_conceded * 0.6
+            
+            elite_defense = absolute_defense and (gap_condition or relative_advantage)
+            
+            if elite_defense:
+                return {
+                    'elite_defense': True,
+                    'total_conceded_last_5': total_conceded_last_5,
+                    'avg_conceded': avg_conceded,
+                    'defense_gap': defense_gap,
+                    'relative_advantage': f'{((opponent_avg_conceded - avg_conceded) / opponent_avg_conceded * 100):.1f}% better' if opponent_avg_conceded > 0 else 'N/A',
+                    'recommendations': ['OPPONENT_UNDER_1_5', 'TOTAL_UNDER_2_5', 'TOTAL_UNDER_3_5'],
+                    'accuracy_claim': '62.5% (5/8 backtest)',
+                    'reason': f'Elite defense: {total_conceded_last_5} total conceded last 5 (avg {avg_conceded:.2f})'
+                }
+            
+            return {
+                'elite_defense': False,
+                'total_conceded_last_5': total_conceded_last_5,
+                'avg_conceded': avg_conceded,
+                'reason': f'Not elite: {total_conceded_last_5} conceded last 5 (avg {avg_conceded:.2f})'
+            }
+        except Exception as e:
+            return {
+                'elite_defense': False,
+                'reason': f'Error analyzing defense: {str(e)}'
+            }
+
+# =================== LAYER 3: TOTAL UNDER CONDITIONS ===================
+class TotalUnderConditions:
+    """THREE PATHS TO TOTAL UNDER 2.5 (70% reliability)"""
+    
+    @staticmethod
+    def check_total_under_conditions(home_data: Dict, away_data: Dict, 
+                                   home_elite: bool, away_elite: bool) -> Dict:
+        """Check all three paths for Total Under 2.5"""
+        try:
+            paths = []
+            
+            home_avg_scored = get_safe_value(home_data, 'avg_goals_scored_last_5', 
+                get_safe_value(home_data, 'goals_scored_last_5', 6) / 5)
+            away_avg_scored = get_safe_value(away_data, 'avg_goals_scored_last_5', 
+                get_safe_value(away_data, 'goals_scored_last_5', 6) / 5)
+            home_avg_conceded = get_safe_value(home_data, 'avg_goals_conceded_last_5', 
+                get_safe_value(home_data, 'goals_conceded_last_5', 6) / 5)
+            away_avg_conceded = get_safe_value(away_data, 'avg_goals_conceded_last_5', 
+                get_safe_value(away_data, 'goals_conceded_last_5', 6) / 5)
+            
+            # PATH A: Offensive Incapacity
+            if (home_avg_scored <= TOTAL_UNDER_THRESHOLDS['OFFENSIVE_INCAPACITY'] and 
+                away_avg_scored <= TOTAL_UNDER_THRESHOLDS['OFFENSIVE_INCAPACITY']):
+                paths.append({
+                    'path': 'OFFENSIVE_INCAPACITY',
+                    'condition': f'Both teams avg ≤ {TOTAL_UNDER_THRESHOLDS["OFFENSIVE_INCAPACITY"]} goals scored',
+                    'home_avg': home_avg_scored,
+                    'away_avg': away_avg_scored,
+                    'strength': 'STRONG'
+                })
+            
+            # PATH B: Defensive Strength
+            if (home_avg_conceded <= TOTAL_UNDER_THRESHOLDS['DEFENSIVE_STRENGTH'] and 
+                away_avg_conceded <= TOTAL_UNDER_THRESHOLDS['DEFENSIVE_STRENGTH']):
+                paths.append({
+                    'path': 'DEFENSIVE_STRENGTH',
+                    'condition': f'Both teams avg ≤ {TOTAL_UNDER_THRESHOLDS["DEFENSIVE_STRENGTH"]} goals conceded',
+                    'home_avg': home_avg_conceded,
+                    'away_avg': away_avg_conceded,
+                    'strength': 'STRONG'
+                })
+            
+            # PATH C: Elite Defense Dominance
+            if home_elite and away_avg_scored <= TOTAL_UNDER_THRESHOLDS['ELITE_DEFENSE_DOMINANCE']:
+                paths.append({
+                    'path': 'ELITE_DEFENSE_DOMINANCE_HOME',
+                    'condition': f'Home elite defense + Away avg ≤ {TOTAL_UNDER_THRESHOLDS["ELITE_DEFENSE_DOMINANCE"]} goals scored',
+                    'home_elite': True,
+                    'away_avg_scored': away_avg_scored,
+                    'strength': 'MODERATE'
+                })
+            
+            if away_elite and home_avg_scored <= TOTAL_UNDER_THRESHOLDS['ELITE_DEFENSE_DOMINANCE']:
+                paths.append({
+                    'path': 'ELITE_DEFENSE_DOMINANCE_AWAY',
+                    'condition': f'Away elite defense + Home avg ≤ {TOTAL_UNDER_THRESHOLDS["ELITE_DEFENSE_DOMINANCE"]} goals scored',
+                    'away_elite': True,
+                    'home_avg_scored': home_avg_scored,
+                    'strength': 'MODERATE'
+                })
+            
+            total_under_conditions = len(paths) > 0
+            
+            return {
+                'total_under_conditions': total_under_conditions,
+                'paths': paths,
+                'path_count': len(paths),
+                'primary_recommendation': 'TOTAL_UNDER_2_5' if total_under_conditions else None,
+                'accuracy_claim': '70% (7/10 backtest)',
+                'reason': f'Found {len(paths)} path(s) to Total Under 2.5' if paths else 'No Total Under conditions met'
+            }
+        except Exception as e:
+            return {
+                'total_under_conditions': False,
+                'paths': [],
+                'reason': f'Error analyzing Under conditions: {str(e)}'
+            }
+    
+    @staticmethod
+    def evaluate_under_35_confidence(winner_lock: bool, elite_defense: bool, 
+                                   total_under: bool) -> Dict:
+        """Evaluate UNDER 3.5 confidence tiers"""
+        try:
+            if winner_lock and elite_defense:
+                return {
+                    'tier': 1,
+                    'confidence': 1.0,
+                    'description': 'Elite Defense + Winner Lock (Theoretical maximum)',
+                    'recommendation': 'UNDER_3_5_STRONG',
+                    'stake_multiplier': 1.2
+                }
+            elif elite_defense and not winner_lock:
+                return {
+                    'tier': 2,
+                    'confidence': 0.875,
+                    'description': 'Only Elite Defense (87.5% theoretical)',
+                    'recommendation': 'UNDER_3_5_MODERATE',
+                    'stake_multiplier': 1.0
+                }
+            elif winner_lock and not elite_defense:
+                return {
+                    'tier': 3,
+                    'confidence': 0.833,
+                    'description': 'Only Winner Lock (83.3% theoretical)',
+                    'recommendation': 'UNDER_3_5_MODERATE',
+                    'stake_multiplier': 0.9
+                }
+            elif total_under:
+                return {
+                    'tier': 4,
+                    'confidence': 0.7,
+                    'description': 'Total Under conditions only (70% reliability)',
+                    'recommendation': 'UNDER_3_5_CAUTION',
+                    'stake_multiplier': 0.7
+                }
+            else:
+                return {
+                    'tier': 0,
+                    'confidence': 0.0,
+                    'description': 'No patterns detected',
+                    'recommendation': 'NO_UNDER_3_5',
+                    'stake_multiplier': 0.0
+                }
+        except:
+            return {
+                'tier': 0,
+                'confidence': 0.0,
+                'description': 'Error in confidence calculation',
+                'recommendation': 'NO_UNDER_3_5',
+                'stake_multiplier': 0.0
+            }
+
+# =================== LAYER 4: TIERED CONFIDENCE SYSTEM v8.0 ===================
+class TieredConfidenceSystem:
+    """TIERED CONFIDENCE SYSTEM v8.0"""
+    
+    @staticmethod
+    def determine_tier(winner_lock: bool, elite_defense: bool, total_under: bool) -> Dict:
+        """Determine confidence tier based on patterns"""
+        try:
+            # TIER 1: LOCK MODE (2.0x CAPITAL)
+            if winner_lock and (elite_defense or total_under):
+                return {
+                    'tier': 1,
+                    'name': 'LOCK_MODE',
+                    'capital_multiplier': CAPITAL_TIERS['TIER_1'],
+                    'reason': 'Winner Lock detected + (Elite Defense OR Total Under conditions)',
+                    'recommendations': [
+                        'DOUBLE_CHANCE (Controller win or draw)',
+                        'TOTAL_UNDER_3_5',
+                        'TOTAL_UNDER_2_5 (if Total Under conditions present)',
+                        'OPPONENT_UNDER_1_5 (if facing Elite Defense)'
+                    ],
+                    'stake_sizing': {
+                        'primary': 'FULL',
+                        'secondary': '50%',
+                        'tertiary': '25%'
+                    }
+                }
+            
+            # TIER 2: EDGE MODE (1.0x CAPITAL)
+            elif winner_lock or elite_defense or total_under:
+                return {
+                    'tier': 2,
+                    'name': 'EDGE_MODE',
+                    'capital_multiplier': CAPITAL_TIERS['TIER_2'],
+                    'reason': f'{"Winner Lock" if winner_lock else "Elite Defense" if elite_defense else "Total Under conditions"} alone',
+                    'recommendations': [
+                        'Primary market only based on pattern',
+                        'REDUCED stakes',
+                        'Single bet approach'
+                    ],
+                    'stake_sizing': {
+                        'primary': '70%',
+                        'secondary': '30%',
+                        'tertiary': '0%'
+                    }
+                }
+            
+            # TIER 4: STAY AWAY (no patterns)
+            else:
+                return {
+                    'tier': 4,
+                    'name': 'STAY_AWAY',
+                    'capital_multiplier': CAPITAL_TIERS['TIER_4'],
+                    'reason': 'No proven patterns detected',
+                    'recommendations': ['PASS COMPLETELY'],
+                    'stake_sizing': {'primary': '0%'}
+                }
+        except Exception as e:
+            return {
+                'tier': 4,
+                'name': 'ERROR',
+                'capital_multiplier': 0.0,
+                'reason': f'Error in tier determination: {str(e)}',
+                'recommendations': ['SYSTEM ERROR'],
+                'stake_sizing': {'primary': '0%'}
+            }
+    
+    @staticmethod
+    def calculate_pattern_multiplier(winner_lock: bool, elite_defense: bool, 
+                                   total_under: bool) -> float:
+        """Calculate pattern multiplier (base + 0.5x per additional pattern)"""
+        try:
+            base_multiplier = PATTERN_MULTIPLIERS['BASE']
+            pattern_count = sum([winner_lock, elite_defense, total_under])
+            
+            if pattern_count == 0:
+                return 0.5  # CAUTION MODE default
+            
+            multiplier = base_multiplier + ((pattern_count - 1) * PATTERN_MULTIPLIERS['ADDITIONAL_PATTERN'])
+            
+            return min(multiplier, PATTERN_MULTIPLIERS['MAX_MULTIPLIER'])
+        except:
+            return 1.0
+
+# =================== LAYER 5: DECISION FLOW ENGINE v8.0 ===================
+class DecisionFlowEngineV80:
+    """DECISION FLOW v8.0 - Complete logic execution"""
+    
+    @staticmethod
+    def execute_decision_flow(home_data: Dict, away_data: Dict, 
+                             home_name: str, away_name: str) -> Dict:
+        """Execute complete v8.0 decision flow with error handling"""
+        try:
+            all_results = {}
+            
+            # Store team names
+            all_results['home_name'] = home_name
+            all_results['away_name'] = away_name
+            
+            # ========== STEP 1: RUN AGENCY-STATE 4-GATE ANALYSIS ==========
+            agency_state = AgencyState4GateSystem()
+            all_results['agency_state'] = agency_state.run_complete_4gate_analysis(home_data, away_data)
+            all_results['winner_lock'] = all_results['agency_state'].get('winner_lock', False)
+            
+            # ========== STEP 2: CHECK ELITE DEFENSE ==========
+            elite_defense = EliteDefensePattern()
+            all_results['elite_defense_home'] = elite_defense.detect_elite_defense(
+                home_data, away_data
+            )
+            all_results['elite_defense_away'] = elite_defense.detect_elite_defense(
+                away_data, home_data
+            )
+            all_results['has_elite_defense'] = (
+                all_results['elite_defense_home'].get('elite_defense', False) or 
+                all_results['elite_defense_away'].get('elite_defense', False)
+            )
+            
+            # ========== STEP 3: CHECK TOTAL UNDER CONDITIONS ==========
+            total_under = TotalUnderConditions()
+            all_results['total_under'] = total_under.check_total_under_conditions(
+                home_data, away_data,
+                all_results['elite_defense_home'].get('elite_defense', False),
+                all_results['elite_defense_away'].get('elite_defense', False)
+            )
+            all_results['has_total_under'] = all_results['total_under'].get('total_under_conditions', False)
+            
+            # ========== STEP 4: DETERMINE TIER ==========
+            tier_system = TieredConfidenceSystem()
+            all_results['tier_determination'] = tier_system.determine_tier(
+                all_results['winner_lock'],
+                all_results['has_elite_defense'],
+                all_results['has_total_under']
+            )
+            
+            # ========== STEP 5: UNDER 3.5 CONFIDENCE ==========
+            all_results['under_35_confidence'] = total_under.evaluate_under_35_confidence(
+                all_results['winner_lock'],
+                all_results['has_elite_defense'],
+                all_results['has_total_under']
+            )
+            
+            # ========== STEP 6: CAPITAL ALLOCATION ==========
+            pattern_multiplier = tier_system.calculate_pattern_multiplier(
+                all_results['winner_lock'],
+                all_results['has_elite_defense'],
+                all_results['has_total_under']
+            )
+            
+            final_capital = all_results['tier_determination'].get('capital_multiplier', 0.0) * pattern_multiplier
+            
+            all_results['capital_allocation'] = {
+                'tier_multiplier': all_results['tier_determination'].get('capital_multiplier', 0.0),
+                'pattern_multiplier': pattern_multiplier,
+                'final_capital_multiplier': final_capital,
+                'tier_name': all_results['tier_determination'].get('name', 'ERROR'),
+                'pattern_count': sum([
+                    all_results['winner_lock'],
+                    all_results['has_elite_defense'],
+                    all_results['has_total_under']
+                ])
             }
             
-            # STEP 6: Tier Determination
-            tier_info = EmpiricalSynthesisEngineV91.determine_tier(final_score, goalless_draw['is_goalless_draw'])
-            results['tier_info'] = tier_info
+            # ========== STEP 7: GENERATE RECOMMENDATIONS ==========
+            all_results['recommendations'] = DecisionFlowEngineV80.generate_recommendations_safe(all_results)
             
-            # STEP 7: Capital Allocation
-            capital_info = EmpiricalSynthesisEngineV91.calculate_capital(tier_info, results)
-            results['capital_info'] = capital_info
+            # ========== STEP 8: DECISION FLOW SUMMARY ==========
+            all_results['decision_flow'] = DecisionFlowEngineV80.create_decision_flow_summary_safe(all_results)
             
-            # STEP 8: Recommendations
-            recommendations = EmpiricalSynthesisEngineV91.generate_recommendations(results)
-            results['recommendations'] = recommendations
-            
-            # STEP 9: Final Output
-            results['final_tier'] = tier_info['tier']
-            results['tier_name'] = tier_info['name']
-            results['capital_multiplier'] = capital_info['final_multiplier']
-            results['reason'] = EmpiricalSynthesisEngineV91.generate_final_reason(results)
-            
-            return results
+            return all_results
             
         except Exception as e:
             return {
-                'error': f'Analysis error: {str(e)}',
+                'error': f'Fatal error in decision flow: {str(e)}',
                 'home_name': home_name,
                 'away_name': away_name,
-                'final_tier': 5,
-                'tier_name': 'ERROR',
-                'capital_multiplier': 0.0,
-                'reason': f'System error: {str(e)}'
+                'tier_determination': {'name': 'ERROR', 'capital_multiplier': 0.0, 'reason': str(e)},
+                'capital_allocation': {'final_capital_multiplier': 0.0},
+                'recommendations': [],
+                'decision_flow': []
             }
     
     @staticmethod
-    def determine_tier(score: float, is_goalless_draw: bool) -> Dict:
-        """Determine confidence tier based on score"""
-        if is_goalless_draw:
-            return {
-                'tier': 'GD',
-                'name': 'GOALLESS_DRAW_SPECIAL',
-                'score': score,
-                'description': 'Special Goalless Draw pattern detected'
-            }
-        elif score >= 4.0:
-            return {
-                'tier': 1,
-                'name': 'LOCK_MODE',
-                'score': score,
-                'description': 'High confidence across multiple pillars'
-            }
-        elif score >= 3.0:
-            return {
-                'tier': 2,
-                'name': 'EDGE_MODE',
-                'score': score,
-                'description': 'Strong signal from 2+ pillars'
-            }
-        elif score >= 2.0:
-            return {
-                'tier': 3,
-                'name': 'VALUE_MODE',
-                'score': score,
-                'description': 'Moderate signal from 1-2 pillars'
-            }
-        elif score >= 1.0:
-            return {
-                'tier': 4,
-                'name': 'CAUTION_MODE',
-                'score': score,
-                'description': 'Weak signal, heuristic edge only'
-            }
-        else:
-            return {
-                'tier': 5,
-                'name': 'STAY_AWAY',
-                'score': score,
-                'description': 'No edge detected'
-            }
-    
-    @staticmethod
-    def calculate_capital(tier_info: Dict, results: Dict) -> Dict:
-        """Calculate capital allocation"""
-        tier = tier_info['tier']
-        
-        # Base capital multipliers
-        if tier == 'GD':  # Goalless Draw Special
-            base_multiplier = 1.5  # Will be multiplied by whatever tier it would be
-        elif tier == 1:  # LOCK MODE
-            base_multiplier = 3.0 + min((tier_info['score'] - 4.0) * 2.5, 1.0)  # 3-4x
-        elif tier == 2:  # EDGE MODE
-            base_multiplier = 2.0
-        elif tier == 3:  # VALUE MODE
-            base_multiplier = 1.5
-        elif tier == 4:  # CAUTION MODE
-            base_multiplier = 1.0
-        else:  # STAY AWAY
-            base_multiplier = 0.0
-        
-        # Pattern bonuses
-        pattern_bonus = 0.0
-        
-        # Count strong pillars (score > 0.5 of max)
-        strong_pillars = 0
-        if results.get('total_under', {}).get('total_score', 0) >= 1.5:
-            strong_pillars += 1
-        if results.get('winner_lock', {}).get('score', 0) >= 2.0:
-            strong_pillars += 1
-        if results.get('elite_defense', {}).get('total_score', 0) >= 0.75:
-            strong_pillars += 1
-        
-        # Bonus for multiple strong pillars
-        if strong_pillars >= 2:
-            pattern_bonus += 0.5
-        
-        # Efficiency bonus
-        if results['scoring']['efficiency_bonus'] > 0.3:
-            pattern_bonus += 0.5
-        
-        # No filters triggered bonus
-        filters = results.get('protective_filters', {})
-        if not filters.get('filters_triggered', []):
-            pattern_bonus += 0.5
-        
-        # Apply pattern bonus
-        final_multiplier = base_multiplier + pattern_bonus
-        
-        # Maximum cap
-        final_multiplier = min(final_multiplier, 5.0)
-        
-        # For Goalless Draw, apply to what would have been the tier
-        if tier == 'GD':
-            # Determine what tier it would have been without GD
-            score = tier_info['score']
-            if score >= 4.0:
-                underlying_tier = 1
-            elif score >= 3.0:
-                underlying_tier = 2
-            elif score >= 2.0:
-                underlying_tier = 3
-            elif score >= 1.0:
-                underlying_tier = 4
-            else:
-                underlying_tier = 5
-            
-            # Get base multiplier for that tier
-            if underlying_tier == 1:
-                underlying_mult = 3.0
-            elif underlying_tier == 2:
-                underlying_mult = 2.0
-            elif underlying_tier == 3:
-                underlying_mult = 1.5
-            elif underlying_tier == 4:
-                underlying_mult = 1.0
-            else:
-                underlying_mult = 0.0
-            
-            final_multiplier = underlying_mult * 1.5  # 1.5x for GD
-        
-        return {
-            'base_multiplier': base_multiplier,
-            'pattern_bonus': pattern_bonus,
-            'final_multiplier': final_multiplier,
-            'strong_pillars': strong_pillars
-        }
-    
-    @staticmethod
-    def generate_recommendations(results: Dict) -> List[Dict]:
-        """Generate betting recommendations"""
+    def generate_recommendations_safe(results: Dict) -> List[Dict]:
+        """SAFE recommendation generation with error handling"""
         recommendations = []
         
-        tier_name = results.get('tier_name', '')
-        if tier_name in ['STAY_AWAY', 'ERROR']:
-            return recommendations
-        
-        home_name = results.get('home_name', 'Home')
-        away_name = results.get('away_name', 'Away')
-        
-        # Goalless Draw Special
-        if results.get('goalless_draw', {}).get('is_goalless_draw', False):
-            recommendations.append({
-                'market': 'CORRECT_SCORE',
-                'selection': '0-0',
-                'confidence': 'HIGH',
-                'reason': 'Goalless Draw pattern detected',
-                'stake': 'PRIMARY'
-            })
-            recommendations.append({
-                'market': 'TOTAL_UNDER_1_5',
-                'selection': 'Under 1.5 Goals',
-                'confidence': 'HIGH',
-                'reason': 'Supporting Goalless Draw pattern',
-                'stake': 'SECONDARY'
-            })
-            recommendations.append({
-                'market': 'DRAW',
-                'selection': 'Draw',
-                'confidence': 'MEDIUM',
-                'reason': 'Goalless implies draw',
-                'stake': 'TERTIARY'
-            })
-            return recommendations
-        
-        # Determine strongest pillar
-        pillar_scores = {
-            'TOTAL_UNDER': results.get('total_under', {}).get('total_score', 0),
-            'WINNER_LOCK': results.get('winner_lock', {}).get('score', 0),
-            'ELITE_DEFENSE': results.get('elite_defense', {}).get('total_score', 0)
-        }
-        
-        strongest_pillar = max(pillar_scores.items(), key=lambda x: x[1])[0]
-        
-        # Primary market by strongest pillar
-        if strongest_pillar == 'TOTAL_UNDER':
-            recommendations.append({
-                'market': 'TOTAL_UNDER_2_5',
-                'selection': 'Under 2.5 Goals',
-                'confidence': 'HIGH' if pillar_scores['TOTAL_UNDER'] >= 2.0 else 'MEDIUM',
-                'reason': f'Total Under paths: {results.get("total_under", {}).get("total_paths", 0)}',
-                'stake': 'PRIMARY'
-            })
-            recommendations.append({
-                'market': 'TOTAL_UNDER_3_5',
-                'selection': 'Under 3.5 Goals',
-                'confidence': 'MEDIUM',
-                'reason': 'Supporting Total Under pattern',
-                'stake': 'SECONDARY'
-            })
-        
-        elif strongest_pillar == 'WINNER_LOCK':
-            controller = results.get('winner_lock', {}).get('controller', 'HOME')
-            controller_name = home_name if controller == 'HOME' else away_name
+        try:
+            # Safely get team names
+            home_name = results.get('home_name', 'Home Team')
+            away_name = results.get('away_name', 'Away Team')
             
-            recommendations.append({
-                'market': 'DOUBLE_CHANCE',
-                'selection': f'{controller_name} win or draw',
-                'confidence': 'HIGH' if pillar_scores['WINNER_LOCK'] >= 2.5 else 'MEDIUM',
-                'reason': f'Winner Lock: {results.get("winner_lock", {}).get("gates_passed", 0):.2f}/4 gates',
-                'stake': 'PRIMARY'
-            })
-        
-        elif strongest_pillar == 'ELITE_DEFENSE':
-            elite_data = results.get('elite_defense', {})
-            home_tier = elite_data.get('home_tier', 0)
-            away_tier = elite_data.get('away_tier', 0)
-            
-            if home_tier > away_tier:
-                recommendations.append({
-                    'market': 'OPPONENT_UNDER_1_5',
-                    'selection': f'{away_name} Under 1.5',
-                    'confidence': 'HIGH' if home_tier >= 1.0 else 'MEDIUM',
-                    'reason': f'Home Elite Defense: {elite_data.get("home_tier_name", "")}',
-                    'stake': 'PRIMARY'
-                })
-            elif away_tier > home_tier:
-                recommendations.append({
-                    'market': 'OPPONENT_UNDER_1_5',
-                    'selection': f'{home_name} Under 1.5',
-                    'confidence': 'HIGH' if away_tier >= 1.0 else 'MEDIUM',
-                    'reason': f'Away Elite Defense: {elite_data.get("away_tier_name", "")}',
-                    'stake': 'PRIMARY'
-                })
-            
-            recommendations.append({
-                'market': 'TOTAL_UNDER_2_5',
-                'selection': 'Under 2.5 Goals',
-                'confidence': 'MEDIUM',
-                'reason': 'Supporting Elite Defense pattern',
-                'stake': 'SECONDARY'
-            })
-        
-        # Add secondary markets if multiple pillars strong
-        strong_count = sum(1 for score in pillar_scores.values() if score >= 1.0)
-        if strong_count >= 2:
-            # Add alternate market based on second strongest pillar
-            sorted_pillars = sorted(pillar_scores.items(), key=lambda x: x[1], reverse=True)
-            if len(sorted_pillars) > 1:
-                second_pillar = sorted_pillars[1][0]
+            # DOUBLE CHANCE from Winner Lock
+            if results.get('winner_lock', False):
+                agency_state = results.get('agency_state', {})
+                controller = agency_state.get('controller', 'UNKNOWN')
                 
-                if second_pillar == 'TOTAL_UNDER' and strongest_pillar != 'TOTAL_UNDER':
+                if controller == 'HOME':
+                    selection = f"{home_name} win or draw"
+                elif controller == 'AWAY':
+                    selection = f"{away_name} win or draw"
+                else:
+                    selection = "Win or draw"
+                
+                recommendations.append({
+                    'market': 'DOUBLE_CHANCE',
+                    'selection': selection,
+                    'confidence': 'HIGH',
+                    'reason': 'Winner Lock detected → Double Chance implied',
+                    'accuracy': '80% (4/5 backtest)',
+                    'stake_sizing': 'PRIMARY' if results.get('tier_determination', {}).get('tier', 0) == 1 else 'SECONDARY'
+                })
+            
+            # OPPONENT UNDER 1.5 from Elite Defense
+            if results.get('has_elite_defense', False):
+                elite_home = results.get('elite_defense_home', {}).get('elite_defense', False)
+                elite_away = results.get('elite_defense_away', {}).get('elite_defense', False)
+                
+                if elite_home:
                     recommendations.append({
-                        'market': 'TOTAL_UNDER_2_5',
-                        'selection': 'Under 2.5 Goals',
-                        'confidence': 'MEDIUM',
-                        'reason': 'Secondary Total Under signal',
-                        'stake': 'SECONDARY'
+                        'market': 'OPPONENT_UNDER_1_5',
+                        'selection': f"{away_name} Under 1.5",
+                        'confidence': 'MODERATE',
+                        'reason': 'Facing Elite Defense (Home)',
+                        'accuracy': '62.5% (5/8 backtest)',
+                        'stake_sizing': 'SECONDARY'
                     })
+                
+                if elite_away:
+                    recommendations.append({
+                        'market': 'OPPONENT_UNDER_1_5',
+                        'selection': f"{home_name} Under 1.5",
+                        'confidence': 'MODERATE',
+                        'reason': 'Facing Elite Defense (Away)',
+                        'accuracy': '62.5% (5/8 backtest)',
+                        'stake_sizing': 'SECONDARY'
+                    })
+            
+            # TOTAL UNDER 2.5 from Total Under conditions
+            if results.get('has_total_under', False):
+                total_under = results.get('total_under', {})
+                path_count = total_under.get('path_count', 0)
+                
+                recommendations.append({
+                    'market': 'TOTAL_UNDER_2_5',
+                    'selection': 'Under 2.5 Goals',
+                    'confidence': 'HIGH',
+                    'reason': f'{path_count} path(s) to Under 2.5 confirmed',
+                    'accuracy': '70% (7/10 backtest)',
+                    'stake_sizing': 'PRIMARY' if not results.get('winner_lock', False) else 'SECONDARY'
+                })
+            
+            # TOTAL UNDER 3.5 from confidence tier
+            under35 = results.get('under_35_confidence', {})
+            tier = under35.get('tier', 0)
+            
+            if tier > 0:
+                confidence_levels = ['VERY HIGH', 'HIGH', 'MODERATE', 'LOW', 'VERY LOW']
+                confidence_idx = min(tier, len(confidence_levels) - 1)
+                
+                recommendations.append({
+                    'market': 'TOTAL_UNDER_3_5',
+                    'selection': 'Under 3.5 Goals',
+                    'confidence': confidence_levels[confidence_idx],
+                    'reason': under35.get('description', 'Patterns detected'),
+                    'accuracy': f'{under35.get("confidence", 0)*100:.1f}% theoretical',
+                    'stake_sizing': 'SECONDARY' if results.get('winner_lock', False) else 'PRIMARY'
+                })
+            
+        except Exception as e:
+            # Return at least empty recommendations on error
+            pass
         
         return recommendations
     
     @staticmethod
-    def generate_final_reason(results: Dict) -> str:
-        """Generate final reason for the decision"""
-        tier_name = results.get('tier_name', '')
+    def create_decision_flow_summary_safe(results: Dict) -> List[Dict]:
+        """SAFE decision flow summary"""
+        flow = []
         
-        if tier_name == 'STAY_AWAY':
-            filters = results.get('protective_filters', {})
-            return f"Stay Away: {filters.get('reason', 'Protective filters triggered')}"
+        try:
+            # Step 1
+            winner_lock = results.get('winner_lock', False)
+            agency_reason = results.get('agency_state', {}).get('reason', '')
+            flow.append({
+                'step': 1,
+                'action': 'RUN AGENCY-STATE 4-GATE ANALYSIS',
+                'result': 'WINNER LOCK DETECTED' if winner_lock else 'NO WINNER LOCK',
+                'details': agency_reason[:100] + '...' if len(agency_reason) > 100 else agency_reason,
+                'passed': winner_lock
+            })
+            
+            # Step 2
+            has_elite = results.get('has_elite_defense', False)
+            elite_home = results.get('elite_defense_home', {}).get('elite_defense', False)
+            elite_away = results.get('elite_defense_away', {}).get('elite_defense', False)
+            flow.append({
+                'step': 2,
+                'action': 'CHECK ELITE DEFENSE',
+                'result': 'ELITE DEFENSE PRESENT' if has_elite else 'NO ELITE DEFENSE',
+                'details': f'Home: {elite_home}, Away: {elite_away}',
+                'passed': has_elite
+            })
+            
+            # Step 3
+            has_total_under = results.get('has_total_under', False)
+            total_under_reason = results.get('total_under', {}).get('reason', '')
+            path_count = results.get('total_under', {}).get('path_count', 0)
+            flow.append({
+                'step': 3,
+                'action': 'CHECK TOTAL UNDER CONDITIONS',
+                'result': f'{path_count} PATH(S) CONFIRMED' if has_total_under else 'NO PATHS',
+                'details': total_under_reason[:100] + '...' if len(total_under_reason) > 100 else total_under_reason,
+                'passed': has_total_under
+            })
+            
+            # Step 4
+            tier_name = results.get('tier_determination', {}).get('name', 'ERROR')
+            tier_reason = results.get('tier_determination', {}).get('reason', '')
+            flow.append({
+                'step': 4,
+                'action': 'DETERMINE CONFIDENCE TIER',
+                'result': tier_name,
+                'details': tier_reason[:100] + '...' if len(tier_reason) > 100 else tier_reason,
+                'passed': tier_name not in ['STAY_AWAY', 'ERROR']
+            })
+            
+            # Step 5
+            capital = results.get('capital_allocation', {})
+            final_mult = capital.get('final_capital_multiplier', 0.0)
+            tier_mult = capital.get('tier_multiplier', 0.0)
+            pattern_mult = capital.get('pattern_multiplier', 0.0)
+            flow.append({
+                'step': 5,
+                'action': 'CAPITAL ALLOCATION',
+                'result': f'{final_mult:.1f}x CAPITAL',
+                'details': f'Tier: {tier_mult:.1f}x × Patterns: {pattern_mult:.1f}x',
+                'passed': final_mult > 0
+            })
+            
+        except Exception:
+            # Return minimal flow on error
+            flow = [{
+                'step': 1,
+                'action': 'ERROR',
+                'result': 'ANALYSIS FAILED',
+                'details': 'Error creating decision flow',
+                'passed': False
+            }]
         
-        if tier_name == 'GOALLESS_DRAW_SPECIAL':
-            gd = results.get('goalless_draw', {})
-            return f"Goalless Draw Pattern: {gd.get('conditions_total', 0)}/6 conditions met"
-        
-        scoring = results.get('scoring', {})
-        final_score = scoring.get('final_score', 0)
-        
-        reasons = []
-        
-        # Add pillar reasons
-        tu = results.get('total_under', {})
-        if tu.get('total_score', 0) > 0:
-            reasons.append(f"Total Under: {tu.get('total_paths', 0)} paths")
-        
-        wl = results.get('winner_lock', {})
-        if wl.get('score', 0) > 0:
-            reasons.append(f"Winner Lock: {wl.get('gates_passed', 0):.2f}/4 gates")
-        
-        ed = results.get('elite_defense', {})
-        if ed.get('total_score', 0) > 0:
-            reasons.append(f"Elite Defense: {ed.get('total_score', 0):.1f} tier")
-        
-        # Add league context
-        league = results.get('league_params', {}).get('description', 'Standard League')
-        
-        if reasons:
-            return f"Final Score: {final_score:.2f}/5.0 | {league} | " + " | ".join(reasons)
-        else:
-            return f"Final Score: {final_score:.2f}/5.0 | Minimal signals detected"
+        return flow
 
-# =================== STREAMLIT UI v9.1 ===================
+# =================== STREAMLIT UI v8.0 ===================
 def main():
-    """Fused Logic Engine v9.1 Streamlit App"""
+    """Fused Logic Engine v8.0 Streamlit App"""
     
     st.set_page_config(
-        page_title="Fused Logic Engine v9.1 - The Empirical Synthesis",
-        page_icon="🧠",
+        page_title="Fused Logic Engine v8.0 - REAL Agency-State System",
+        page_icon="🎯",
         layout="wide"
     )
     
@@ -1102,21 +1187,21 @@ def main():
     .tier-1 { background: linear-gradient(135deg, #059669 0%, #047857 100%) !important; }
     .tier-2 { background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%) !important; }
     .tier-3 { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important; }
-    .tier-4 { background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%) !important; }
-    .tier-5 { background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%) !important; }
-    .tier-gd { background: linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%) !important; }
-    .pillar-card { background: linear-gradient(135deg, #0EA5E9 0%, #0369A1 100%) !important; }
-    .filter-card { background: linear-gradient(135deg, #F97316 0%, #EA580C 100%) !important; }
+    .tier-4 { background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%) !important; }
+    .agency-gate { background: linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%) !important; }
+    .elite-defense { background: linear-gradient(135deg, #F97316 0%, #EA580C 100%) !important; }
+    .total-under { background: linear-gradient(135deg, #0EA5E9 0%, #0369A1 100%) !important; }
     </style>
     """, unsafe_allow_html=True)
     
     # Header
     st.markdown("""
     <div style="text-align: center; padding: 2rem 0;">
-        <h1 style="color: #1E3A8A;">🧠 FUSED LOGIC ENGINE v9.1</h1>
+        <h1 style="color: #1E3A8A;">🎯 FUSED LOGIC ENGINE v8.0</h1>
         <div style="color: #4B5563; font-size: 1.1rem; max-width: 800px; margin: 0 auto;">
-            <strong>THE EMPIRICAL SYNTHESIS:</strong> Weighted Pillars • League Parameterization • Protective Filters<br>
-            Empirical weights beat heuristic rules. League context trumps universal thresholds.
+            <strong>REAL AGENCY-STATE SYSTEM:</strong> 4-Gate Winner Lock + Elite Defense + Total Under Conditions<br>
+            Tiered Confidence System • REAL Data Analysis • Adjusted Accuracy Claims<br>
+            <span style="color: #DC2626; font-weight: bold;">NO HARDCODED TEAM NAMES OR SCORES - ALL DATA FROM CSV</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1157,51 +1242,33 @@ def main():
                         st.session_state.df = df
                         st.session_state.selected_league = league_name
                         st.session_state.analysis_result = None
-                        st.success(f"✅ Loaded {len(df)} teams")
+                        st.success(f"✅ Loaded {len(df)} teams with Agency-State metrics")
                         st.rerun()
         
-        # League info
-        if st.session_state.selected_league:
-            league_params = get_league_parameters(st.session_state.selected_league)
+        # Debug info
+        if st.session_state.df is not None:
             st.markdown("---")
-            st.markdown("### 📊 League Parameters")
-            st.write(f"**{league_params['description']}**")
-            st.write(f"Total Under threshold: {league_params['total_under_threshold']}")
-            st.write(f"Efficiency filter: <{league_params['efficiency_filter']}%")
-            st.write(f"Winner Lock Δ: >{league_params['winner_lock_delta_threshold']}")
-            st.write(f"League multiplier: {league_params['league_multiplier']}x")
+            st.markdown("### 📊 Data Info")
+            st.write(f"Teams: {len(st.session_state.df)}")
+            st.write(f"Columns: {len(st.session_state.df.columns)}")
     
     # Main content
     if st.session_state.df is None:
         st.info("👆 Select a league from the sidebar to begin")
         
-        # Show pillar weights
-        st.markdown("### ⚖️ Empirical Pillar Weights")
+        # Show empirical accuracy claims
+        st.markdown("### 📊 Empirical Accuracy (v8.0 Adjusted)")
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Total Under", "73% weight", "73% empirical success")
+            st.metric("Winner Lock", "80%", "4/5 backtest")
         with col2:
-            st.metric("Winner Lock", "50% weight", "50% empirical success")
+            st.metric("Elite Defense", "62.5%", "5/8 backtest")
         with col3:
-            st.metric("Elite Defense", "50% weight", "50% empirical success")
-        
-        # League success rates
-        st.markdown("### 📈 League Success Rates")
-        leagues_cols = st.columns(4)
-        leagues = [
-            ("Serie A", "83%", "UNDER MACHINE"),
-            ("La Liga", "80%", "TACTICAL"),
-            ("Premier League", "33%", "VOLATILE"),
-            ("Other Leagues", "65%", "STANDARD")
-        ]
-        for idx, (name, rate, desc) in enumerate(leagues):
-            with leagues_cols[idx]:
-                st.metric(name, rate, desc)
+            st.metric("Total Under 2.5", "70%", "7/10 backtest")
         
         return
     
     df = st.session_state.df
-    league_name = st.session_state.selected_league
     
     # Match selection
     st.markdown("### 📥 Match Selection")
@@ -1221,11 +1288,11 @@ def main():
         if not home_row.empty:
             home_data = home_row.iloc[0].to_dict()
             home_xg = get_safe_value(home_data, 'xg_per_match', 1.2)
-            home_eff = get_safe_value(home_data, 'efficiency', 100)
+            home_eff = get_safe_value(home_data, 'efficiency', 0.8) * 100
             home_scored = get_safe_value(home_data, 'goals_scored_last_5', 0)
             home_conceded = get_safe_value(home_data, 'goals_conceded_last_5', 0)
             
-            st.info(f"**Metrics:** {home_xg:.2f} xG/match, {home_eff:.0f}% efficiency")
+            st.info(f"**Agency-State Metrics:** {home_xg:.2f} xG/match, {home_eff:.0f}% efficiency")
             st.info(f"**Last 5:** {home_scored} scored, {home_conceded} conceded")
     
     with col2:
@@ -1237,30 +1304,40 @@ def main():
         if not away_row.empty:
             away_data = away_row.iloc[0].to_dict()
             away_xg = get_safe_value(away_data, 'xg_per_match', 1.2)
-            away_eff = get_safe_value(away_data, 'efficiency', 100)
+            away_eff = get_safe_value(away_data, 'efficiency', 0.8) * 100
             away_scored = get_safe_value(away_data, 'goals_scored_last_5', 0)
             away_conceded = get_safe_value(away_data, 'goals_conceded_last_5', 0)
             
-            st.info(f"**Metrics:** {away_xg:.2f} xG/match, {away_eff:.0f}% efficiency")
+            st.info(f"**Agency-State Metrics:** {away_xg:.2f} xG/match, {away_eff:.0f}% efficiency")
             st.info(f"**Last 5:** {away_scored} scored, {away_conceded} conceded")
     
     # Run analysis button
-    if st.button("🧠 EXECUTE EMPIRICAL SYNTHESIS v9.1", type="primary", use_container_width=True):
-        with st.spinner("Executing empirical synthesis analysis..."):
+    if st.button("🚀 RUN AGENCY-STATE ANALYSIS v8.0", type="primary", use_container_width=True):
+        with st.spinner("Executing 4-Gate Agency-State analysis..."):
             try:
-                engine = EmpiricalSynthesisEngineV91()
-                result = engine.execute_full_analysis(
-                    home_data, away_data, home_team, away_team, league_name
+                engine = DecisionFlowEngineV80()
+                result = engine.execute_decision_flow(
+                    home_data, away_data, home_team, away_team
                 )
                 st.session_state.analysis_result = result
                 
+                # Check for errors in result
                 if 'error' in result:
                     st.error(f"❌ Analysis error: {result['error']}")
                 else:
-                    st.success("✅ Empirical synthesis complete!")
+                    st.success("✅ Agency-State analysis complete!")
                     
             except Exception as e:
                 st.error(f"❌ Fatal error: {str(e)}")
+                st.session_state.analysis_result = {
+                    'error': str(e),
+                    'home_name': home_team,
+                    'away_name': away_team,
+                    'tier_determination': {'name': 'ERROR', 'capital_multiplier': 0.0},
+                    'capital_allocation': {'final_capital_multiplier': 0.0},
+                    'recommendations': [],
+                    'decision_flow': []
+                }
     
     # Display results
     if st.session_state.analysis_result:
@@ -1268,207 +1345,210 @@ def main():
         
         # Check for error
         if 'error' in result:
-            st.error(f"Analysis failed: {result['error']}")
+            st.error(f"❌ Analysis failed: {result['error']}")
             return
         
         # Tier Banner
-        tier_name = result.get('tier_name', '')
-        tier_map = {
-            'LOCK_MODE': ('tier-1', '🎯', 1),
-            'EDGE_MODE': ('tier-2', '📊', 2),
-            'VALUE_MODE': ('tier-3', '💰', 3),
-            'CAUTION_MODE': ('tier-4', '⚠️', 4),
-            'STAY_AWAY': ('tier-5', '🚫', 5),
-            'GOALLESS_DRAW_SPECIAL': ('tier-gd', '0-0', 'GD'),
-            'ERROR': ('tier-5', '❌', 5)
-        }
-        
-        tier_class, tier_emoji, tier_num = tier_map.get(tier_name, ('tier-4', '❓', 0))
+        tier = result['tier_determination']
+        tier_class = f"tier-{tier.get('tier', 4)}"
         
         st.markdown(f"""
         <div class="pattern-card {tier_class}" style="text-align: center;">
-            <div style="font-size: 3rem; margin-bottom: 0.5rem;">{tier_emoji}</div>
-            <h2 style="margin: 0;">{tier_name.replace('_', ' ')}</h2>
-            <div style="font-size: 2.5rem; font-weight: bold; margin: 0.5rem 0;">
-                {result.get('capital_multiplier', 0.0):.1f}x CAPITAL
+            <div style="font-size: 3rem; margin-bottom: 0.5rem;">
+                {'🎯' if tier.get('tier') == 1 else '📊' if tier.get('tier') == 2 else '⚠️' if tier.get('tier') == 3 else '🚫'}
             </div>
-            <div style="color: rgba(255,255,255,0.9); font-size: 0.9rem;">
-                {result.get('reason', '')}
+            <h2 style="margin: 0;">{tier.get('name', 'ERROR')}</h2>
+            <div style="font-size: 2.5rem; font-weight: bold; margin: 0.5rem 0;">
+                {result.get('capital_allocation', {}).get('final_capital_multiplier', 0.0):.1f}x CAPITAL
+            </div>
+            <div style="color: rgba(255,255,255,0.9);">
+                {tier.get('reason', '')}
             </div>
         </div>
         """, unsafe_allow_html=True)
         
-        # Scoring Breakdown
-        st.markdown("### ⚖️ Scoring Breakdown")
-        scoring = result.get('scoring', {})
+        # Decision Flow
+        st.markdown("### 📋 Decision Flow v8.0")
+        decision_flow = result.get('decision_flow', [])
+        for step in decision_flow:
+            with st.container():
+                cols = st.columns([0.1, 0.2, 0.4, 0.3])
+                with cols[0]:
+                    st.write(f"**{step.get('step', '?')}**")
+                with cols[1]:
+                    st.write(f"{'✅' if step.get('passed', False) else '❌'} {step.get('action', '')}")
+                with cols[2]:
+                    st.write(f"**{step.get('result', '')}**")
+                    details = step.get('details', '')
+                    if details:
+                        st.caption(details)
+                with cols[3]:
+                    if step.get('step') == 5:
+                        st.metric("Multiplier", f"{result.get('capital_allocation', {}).get('final_capital_multiplier', 0.0):.1f}x")
         
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Final Score", f"{scoring.get('final_score', 0):.2f}/5.0")
-        with col2:
-            st.metric("League Multiplier", f"{result.get('league_params', {}).get('league_multiplier', 1.0)}x")
-        with col3:
-            efficiency = scoring.get('efficiency_bonus', 0)
-            st.metric("Efficiency Bonus", f"{efficiency:+.2f}")
-        with col4:
-            penalties = scoring.get('filters_penalties', 0)
-            st.metric("Filter Penalties", f"{penalties:+.2f}")
-        
-        # Three Pillars
-        st.markdown("### 🏛️ The Three Empirical Pillars")
+        # Pattern Detections
+        st.markdown("### 🔍 Pattern Detections")
         
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            tu = result.get('total_under', {})
-            st.markdown(f"""
-            <div class="pillar-card" style="padding: 1rem; border-radius: 10px; text-align: center;">
-                <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">📉</div>
-                <h3 style="margin: 0.5rem 0;">TOTAL UNDER</h3>
-                <div style="font-size: 1.2rem; font-weight: bold;">{tu.get('total_paths', 0)}/3 paths</div>
-                <div style="font-size: 0.9rem; opacity: 0.9; margin-top: 0.5rem;">
-                    Score: {tu.get('total_score', 0):.2f} × 73% weight
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            if tu.get('path_details'):
-                with st.expander("Path Details"):
-                    for path in tu['path_details']:
-                        st.caption(f"• {path.get('path', '')}: {path.get('reason', '')}")
-        
-        with col2:
-            wl = result.get('winner_lock', {})
-            st.markdown(f"""
-            <div class="pillar-card" style="padding: 1rem; border-radius: 10px; text-align: center;">
-                <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🎯</div>
-                <h3 style="margin: 0.5rem 0;">WINNER LOCK</h3>
-                <div style="font-size: 1.2rem; font-weight: bold;">{wl.get('gates_passed', 0):.2f}/4 gates</div>
-                <div style="font-size: 0.9rem; opacity: 0.9; margin-top: 0.5rem;">
-                    Controller: {wl.get('controller', 'N/A')} × 50% weight
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            if wl.get('gate_details'):
-                with st.expander("Gate Details"):
-                    for gate in wl['gate_details']:
-                        st.caption(f"• {gate.get('gate', '')}: {gate.get('reason', '')}")
-        
-        with col3:
-            ed = result.get('elite_defense', {})
-            st.markdown(f"""
-            <div class="pillar-card" style="padding: 1rem; border-radius: 10px; text-align: center;">
-                <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">🛡️</div>
-                <h3 style="margin: 0.5rem 0;">ELITE DEFENSE</h3>
-                <div style="font-size: 1.2rem; font-weight: bold;">{ed.get('total_score', 0):.2f}/1.5 tier</div>
-                <div style="font-size: 0.9rem; opacity: 0.9; margin-top: 0.5rem;">
-                    Home: {ed.get('home_tier_name', '')} × 50% weight
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            with st.expander("Defense Details"):
-                st.caption(f"• Home: {ed.get('home_reason', '')}")
-                st.caption(f"• Away: {ed.get('away_reason', '')}")
-        
-        # Protective Filters
-        st.markdown("### 🛡️ Protective Filters")
-        filters = result.get('protective_filters', {})
-        
-        if filters.get('filters_triggered'):
-            st.markdown(f"""
-            <div class="filter-card" style="padding: 1rem; border-radius: 10px;">
-                <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
-                    <span style="font-size: 1.5rem;">⚠️</span>
-                    <div>
-                        <h3 style="margin: 0;">Filters Triggered</h3>
-                        <div style="font-size: 0.9rem;">{filters.get('reason', '')}</div>
+            if result.get('winner_lock', False):
+                st.markdown(f"""
+                <div class="pattern-card agency-gate">
+                    <div style="text-align: center;">
+                        <div style="font-size: 2rem;">🎯</div>
+                        <h3 style="margin: 0.5rem 0;">WINNER LOCK</h3>
+                        <div style="font-size: 0.9rem;">4-Gate Agency-State Analysis</div>
+                        <div style="margin-top: 0.5rem; background: rgba(255,255,255,0.2); padding: 0.5rem; border-radius: 5px;">
+                            📈 80% accuracy (4/5)
+                        </div>
                     </div>
                 </div>
-                <div style="background: rgba(255,255,255,0.2); padding: 0.5rem; border-radius: 5px;">
-                    Penalties: -{filters.get('penalties', 0):.2f} points
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div style="background: #F3F4F6; padding: 1.5rem; border-radius: 10px; text-align: center;">
+                    <div style="font-size: 2rem; color: #9CA3AF;">🎯</div>
+                    <h3 style="margin: 0.5rem 0; color: #6B7280;">NO WINNER LOCK</h3>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.info("✅ No protective filters triggered")
+                """, unsafe_allow_html=True)
         
-        # Goalless Draw Pattern
-        gd = result.get('goalless_draw', {})
-        if gd.get('is_goalless_draw', False):
-            st.markdown(f"""
-            <div class="pattern-card tier-gd" style="text-align: center;">
-                <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎯</div>
-                <h3 style="margin: 0;">GOALLESS DRAW PATTERN DETECTED</h3>
-                <div style="color: rgba(255,255,255,0.9); margin-top: 0.5rem;">
-                    {gd.get('conditions_total', 0)}/6 conditions met
+        with col2:
+            if result.get('has_elite_defense', False):
+                st.markdown(f"""
+                <div class="pattern-card elite-defense">
+                    <div style="text-align: center;">
+                        <div style="font-size: 2rem;">🛡️</div>
+                        <h3 style="margin: 0.5rem 0;">ELITE DEFENSE</h3>
+                        <div style="font-size: 0.9rem;">≤4 conceded last 5 matches</div>
+                        <div style="margin-top: 0.5rem; background: rgba(255,255,255,0.2); padding: 0.5rem; border-radius: 5px;">
+                            📈 62.5% accuracy (5/8)
+                        </div>
+                    </div>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div style="background: #F3F4F6; padding: 1.5rem; border-radius: 10px; text-align: center;">
+                    <div style="font-size: 2rem; color: #9CA3AF;">🛡️</div>
+                    <h3 style="margin: 0.5rem 0; color: #6B7280;">NO ELITE DEFENSE</h3>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        with col3:
+            if result.get('has_total_under', False):
+                path_count = result.get('total_under', {}).get('path_count', 0)
+                st.markdown(f"""
+                <div class="pattern-card total-under">
+                    <div style="text-align: center;">
+                        <div style="font-size: 2rem;">📉</div>
+                        <h3 style="margin: 0.5rem 0;">TOTAL UNDER</h3>
+                        <div style="font-size: 0.9rem;">{path_count} path(s) confirmed</div>
+                        <div style="margin-top: 0.5rem; background: rgba(255,255,255,0.2); padding: 0.5rem; border-radius: 5px;">
+                            📈 70% accuracy (7/10)
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div style="background: #F3F4F6; padding: 1.5rem; border-radius: 10px; text-align: center;">
+                    <div style="font-size: 2rem; color: #9CA3AF;">📉</div>
+                    <h3 style="margin: 0.5rem 0; color: #6B7280;">NO TOTAL UNDER</h3>
+                </div>
+                """, unsafe_allow_html=True)
         
         # Recommendations
-        st.markdown("### 💰 Betting Recommendations")
+        st.markdown("### 💰 Bet Recommendations")
         recommendations = result.get('recommendations', [])
-        
         if recommendations:
             for rec in recommendations:
                 with st.container():
-                    cols = st.columns([0.25, 0.35, 0.2, 0.2])
+                    cols = st.columns([0.3, 0.4, 0.2, 0.1])
                     with cols[0]:
                         st.markdown(f"**{rec.get('market', '')}**")
                     with cols[1]:
                         st.write(rec.get('selection', ''))
-                        st.caption(rec.get('reason', ''))
+                        reason = rec.get('reason', '')
+                        if reason:
+                            st.caption(reason)
                     with cols[2]:
-                        st.metric("Confidence", rec.get('confidence', ''))
+                        accuracy = rec.get('accuracy', '')
+                        if accuracy:
+                            st.metric("Confidence", rec.get('confidence', ''), accuracy)
+                        else:
+                            st.metric("Confidence", rec.get('confidence', ''))
                     with cols[3]:
-                        st.caption(f"**{rec.get('stake', '')}**")
+                        st.caption(f"**{rec.get('stake_sizing', '')}**")
         else:
             st.info("No bet recommendations - consider staying away")
         
+        # Agency-State Gate Details
+        if result.get('winner_lock', False) and result.get('agency_state', {}).get('gates'):
+            st.markdown("### ⚙️ Agency-State 4-Gate Analysis")
+            gates = result['agency_state']['gates']
+            
+            gate_cols = st.columns(4)
+            gate_data = [
+                ("GATE 1", "Quiet Control", gates['gate1'].get('result', ''), gates['gate1'].get('reason', '')),
+                ("GATE 2", "Directional Dominance", gates['gate2'].get('result', ''), gates['gate2'].get('reason', '')),
+                ("GATE 3", "State-Flip Capacity", gates['gate3'].get('result', ''), gates['gate3'].get('reason', '')),
+                ("GATE 4", "Enforcement", gates['gate4'].get('result', ''), gates['gate4'].get('reason', ''))
+            ]
+            
+            for idx, (title, subtitle, result_text, reason) in enumerate(gate_data):
+                with gate_cols[idx]:
+                    st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%); 
+                                color: white; padding: 1rem; border-radius: 10px; text-align: center;">
+                        <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">{title}</div>
+                        <div style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 0.5rem;">{subtitle}</div>
+                        <div style="font-weight: bold; margin-bottom: 0.5rem;">{result_text}</div>
+                        <div style="font-size: 0.8rem; opacity: 0.8;">{reason[:50]}{'...' if len(reason) > 50 else ''}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+        
+        # Empirical Evidence
+        st.markdown("### 📈 Empirical Evidence (v8.0 Adjusted)")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Winner Lock", "80%", "4/5 backtest (NOT 100%)")
+        with col2:
+            st.metric("Elite Defense", "62.5%", "5/8 backtest (NOT 100%)")
+        with col3:
+            st.metric("Total Under 2.5", "70%", "7/10 (MOST RELIABLE)")
+        
         # Capital Allocation Details
         st.markdown("### 💸 Capital Allocation Details")
-        capital = result.get('capital_info', {})
+        alloc = result.get('capital_allocation', {})
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Base Multiplier", f"{capital.get('base_multiplier', 0.0):.1f}x")
+            st.metric("Tier Multiplier", f"{alloc.get('tier_multiplier', 0.0):.1f}x")
         with col2:
-            st.metric("Pattern Bonus", f"{capital.get('pattern_bonus', 0.0):.1f}x")
+            st.metric("Pattern Multiplier", f"{alloc.get('pattern_multiplier', 0.0):.1f}x")
         with col3:
-            st.metric("Final Multiplier", f"{capital.get('final_multiplier', 0.0):.1f}x")
+            st.metric("Pattern Count", alloc.get('pattern_count', 0))
         with col4:
-            st.metric("Strong Pillars", capital.get('strong_pillars', 0))
+            st.metric("Final Multiplier", f"{alloc.get('final_capital_multiplier', 0.0):.1f}x")
         
-        # Team Statistics
+        # Team Stats Summary
         st.markdown("### 📊 Team Statistics")
         col1, col2 = st.columns(2)
-        
         with col1:
             st.markdown(f"**{home_team}**")
             st.metric("xG/Match", f"{get_safe_value(home_data, 'xg_per_match', 0):.2f}")
-            st.metric("Efficiency", f"{get_safe_value(home_data, 'efficiency', 0):.0f}%")
+            st.metric("Efficiency", f"{get_safe_value(home_data, 'efficiency', 0)*100:.0f}%")
             st.metric("Last 5 Scored", get_safe_value(home_data, 'goals_scored_last_5', 0))
             st.metric("Last 5 Conceded", get_safe_value(home_data, 'goals_conceded_last_5', 0))
         
         with col2:
             st.markdown(f"**{away_team}**")
             st.metric("xG/Match", f"{get_safe_value(away_data, 'xg_per_match', 0):.2f}")
-            st.metric("Efficiency", f"{get_safe_value(away_data, 'efficiency', 0):.0f}%")
+            st.metric("Efficiency", f"{get_safe_value(away_data, 'efficiency', 0)*100:.0f}%")
             st.metric("Last 5 Scored", get_safe_value(away_data, 'goals_scored_last_5', 0))
             st.metric("Last 5 Conceded", get_safe_value(away_data, 'goals_conceded_last_5', 0))
-        
-        # League Context
-        st.markdown("### 🌍 League Context")
-        league_params = result.get('league_params', {})
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("League", league_params.get('description', ''))
-        with col2:
-            st.metric("Success Rate", f"{league_params.get('success_rate', 0)*100:.0f}%")
-        with col3:
-            st.metric("Total Under Threshold", f"≤{league_params.get('total_under_threshold', 1.0)}")
-        with col4:
-            st.metric("Efficiency Filter", f"<{league_params.get('efficiency_filter', 90)}%")
 
 if __name__ == "__main__":
     main()
