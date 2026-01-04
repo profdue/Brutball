@@ -1,746 +1,822 @@
 """
-VULNERABILITY-LOCK BETTING SYSTEM (VLBS)
-Complete Streamlit Implementation - Version 1.0
-Direct GitHub CSV Integration
+BRUTBALL v6.4 - DOUBLE CHANCE ARCHITECTURE
+Complete Implementation for Direct CSV Integration
 """
 
-import streamlit as st
 import pandas as pd
 import numpy as np
+from typing import Dict, List, Optional, Tuple
+import json
 from datetime import datetime
-import requests
-import io
-import warnings
-warnings.filterwarnings('ignore')
+import os
 
-# Page configuration
-st.set_page_config(
-    page_title="VLBS Predictor",
-    page_icon="⚽",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# ============================================================================
+# SYSTEM CONSTANTS (IMMUTABLE)
+# ============================================================================
 
-# Custom CSS for beautiful UI
-st.markdown("""
-<style>
-    .main-header {
-        font-size: 2.5rem;
-        color: #1E88E5;
-        font-weight: 700;
-        margin-bottom: 1rem;
-    }
-    .sub-header {
-        font-size: 1.5rem;
-        color: #424242;
-        font-weight: 600;
-        margin-top: 1.5rem;
-    }
-    .bet-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 1.5rem;
-        border-radius: 15px;
-        margin: 1rem 0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }
-    .no-bet-card {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        color: #333;
-        padding: 1.5rem;
-        border-radius: 15px;
-        margin: 1rem 0;
-        border: 1px solid #ddd;
-    }
-    .high-confidence {
-        background: linear-gradient(135deg, #FF416C 0%, #FF4B2B 100%);
-    }
-    .medium-confidence {
-        background: linear-gradient(135deg, #4A00E0 0%, #8E2DE2 100%);
-    }
-    .low-confidence {
-        background: linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%);
-    }
-    .metric-card {
-        background: white;
-        padding: 1rem;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        margin: 0.5rem 0;
-        border-left: 4px solid #1E88E5;
-    }
-    .rule-tag {
-        display: inline-block;
-        background: #FF6B6B;
-        color: white;
-        padding: 0.25rem 0.75rem;
-        border-radius: 20px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        margin: 0.25rem;
-    }
-    .success-badge {
-        background: #4CAF50;
-        color: white;
-        padding: 0.25rem 0.75rem;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
-    .warning-badge {
-        background: #FF9800;
-        color: white;
-        padding: 0.25rem 0.75rem;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
-    .danger-badge {
-        background: #F44336;
-        color: white;
-        padding: 0.25rem 0.75rem;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
-    .league-badge {
-        display: inline-block;
-        background: #1E88E5;
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-size: 0.9rem;
-        font-weight: 600;
-        margin: 0.25rem;
-    }
-</style>
-""", unsafe_allow_html=True)
+# GATE THRESHOLDS
+CONTROL_CRITERIA_REQUIRED = 2
+QUIET_CONTROL_SEPARATION_THRESHOLD = 0.1
+DIRECTION_THRESHOLD = 0.25
+STATE_FLIP_FAILURES_REQUIRED = 2
+ENFORCEMENT_METHODS_REQUIRED = 2
+TOTALS_LOCK_THRESHOLD = 1.2
+UNDER_GOALS_THRESHOLD = 2.5
 
-# =================== CONSTANTS ===================
-VLBS_THRESHOLDS = {
-    'RULE1_AWAY_XGA': 2.0,
-    'RULE2_HOME_XG': 1.4,
-    'RULE2_AWAY_XGA': 1.8,
-    'RULE3_HOME_AWAY_RATIO': 1.8,
-    'RULE4_AVG_SCORED': 1.0,
-    'RULE5_AWAY_XG': 0.9,
-    'RULE5_HOME_XGA': 1.3,
+# MARKET-SPECIFIC CONFIGURATION
+MARKET_THRESHOLDS = {
+    'DOUBLE_CHANCE': {
+        'opponent_xg_max': 1.3,
+        'recent_concede_max': None,
+        'state_flip_failures': 2,
+        'enforcement_methods': 2,
+        'urgency_required': False,
+        'bet_label': "Double Chance (Win OR Draw)",
+        'declaration_template': "🔒 DOUBLE CHANCE LOCKED\n{controller} cannot lose\nCovers Win OR Draw"
+    },
+    'CLEAN_SHEET': {
+        'opponent_xg_max': 0.8,
+        'recent_concede_max': 0.8,
+        'state_flip_failures': 3,
+        'enforcement_methods': 2,
+        'urgency_required': False,
+        'bet_label': "Clean Sheet",
+        'declaration_template': "🔒 CLEAN SHEET LOCKED\n{controller} will not concede"
+    },
+    'TEAM_NO_SCORE': {
+        'opponent_xg_max': 0.6,
+        'recent_concede_max': 0.6,
+        'state_flip_failures': 4,
+        'enforcement_methods': 3,
+        'urgency_required': False,
+        'bet_label': "Team No Score",
+        'declaration_template': "🔒 TEAM NO SCORE LOCKED\n{opponent} will not score"
+    },
+    'OPPONENT_UNDER_1_5': {
+        'opponent_xg_max': 1.0,
+        'recent_concede_max': 1.0,
+        'state_flip_failures': 2,
+        'enforcement_methods': 2,
+        'urgency_required': False,
+        'bet_label': "Opponent Under 1.5 Goals",
+        'declaration_template': "🔒 OPPONENT UNDER 1.5 LOCKED\n{opponent} cannot score >1"
+    }
 }
 
-# GitHub raw URLs for your CSV files
-GITHUB_CSV_URLS = {
-    "Premier League": "https://raw.githubusercontent.com/profdue/Brutball/main/leagues/premier_league.csv",
-    "La Liga": "https://raw.githubusercontent.com/profdue/Brutball/main/leagues/la_liga.csv",
-    "Serie A": "https://raw.githubusercontent.com/profdue/Brutball/main/leagues/serie_a.csv",
-    "Bundesliga": "https://raw.githubusercontent.com/profdue/Brutball/main/leagues/bundesliga.csv",
-    "Ligue 1": "https://raw.githubusercontent.com/profdue/Brutball/main/leagues/ligue_1.csv",
-    "Eredivisie": "https://raw.githubusercontent.com/profdue/Brutball/main/leagues/eredivisie.csv",
-    "Primeira Liga": "https://raw.githubusercontent.com/profdue/Brutball/main/leagues/premeira_portugal.csv",
-    "Super League": "https://raw.githubusercontent.com/profdue/Brutball/main/leagues/super_league.csv"
-}
+CAPITAL_MULTIPLIERS = {'EDGE_MODE': 1.0, 'LOCK_MODE': 2.0}
 
-# =================== DATA LOADING ===================
-@st.cache_data(ttl=3600)
-def load_league_data_from_github(league_name):
-    """Load CSV data directly from GitHub with VLBS pre-calculations"""
-    try:
-        url = GITHUB_CSV_URLS.get(league_name)
-        if not url:
-            return None
+# ============================================================================
+# DATA LOADING & VALIDATION
+# ============================================================================
+
+class BrutballDataLoader:
+    """Loads and validates CSV data from GitHub/local"""
+    
+    REQUIRED_COLUMNS = [
+        'team',
+        'home_matches_played', 'away_matches_played',
+        'home_goals_scored', 'away_goals_scored',
+        'home_goals_conceded', 'away_goals_conceded',
+        'home_xg_for', 'away_xg_for',
+        'home_xg_against', 'away_xg_against',
+        'goals_scored_last_5', 'goals_conceded_last_5',
+        'home_goals_conceded_last_5', 'away_goals_conceded_last_5'
+    ]
+    
+    @staticmethod
+    def load_league_data(league_name: str) -> pd.DataFrame:
+        """Load CSV from leagues folder"""
+        csv_path = f"leagues/{league_name}.csv"
         
-        # Load CSV directly from GitHub
-        response = requests.get(url)
-        response.raise_for_status()
+        if not os.path.exists(csv_path):
+            raise FileNotFoundError(f"CSV not found: {csv_path}")
         
-        # Read CSV content
-        df = pd.read_csv(io.StringIO(response.text))
+        df = pd.read_csv(csv_path)
         
-        # Clean column names - handle different possible formats
-        df.columns = [col.strip().lower().replace(' ', '_') for col in df.columns]
-        
-        # Debug: Show available columns
-        st.sidebar.info(f"📊 {league_name}: {len(df)} teams loaded")
-        
-        # ========== VLBS PRE-CALCULATIONS (Section 2) ==========
-        
-        # Check for required columns
-        required_base = ['team', 'home_matches_played', 'away_matches_played']
-        missing_columns = [col for col in required_base if col not in df.columns]
-        
-        if missing_columns:
-            st.error(f"Missing required columns: {missing_columns}")
-            return None
-        
-        # Handle different possible column name formats
-        column_mapping = {}
-        
-        # xG columns
-        xg_columns = [
-            ('home_xg_for', ['home_xg_for', 'home_xg', 'home_expected_goals']),
-            ('away_xg_for', ['away_xg_for', 'away_xg', 'away_expected_goals']),
-            ('home_xg_against', ['home_xg_against', 'home_xga', 'home_expected_goals_against']),
-            ('away_xg_against', ['away_xg_against', 'away_xga', 'away_expected_goals_against'])
-        ]
-        
-        for target, possibilities in xg_columns:
-            column_mapping[target] = None
-            for possible in possibilities:
-                if possible in df.columns:
-                    column_mapping[target] = possible
-                    break
-        
-        # Last 5 columns
-        last5_columns = [
-            ('goals_scored_last_5', ['goals_scored_last_5', 'last_5_goals_scored']),
-            ('goals_conceded_last_5', ['goals_conceded_last_5', 'last_5_goals_conceded']),
-            ('home_goals_conceded_last_5', ['home_goals_conceded_last_5', 'last_5_home_goals_conceded']),
-            ('away_goals_conceded_last_5', ['away_goals_conceded_last_5', 'last_5_away_goals_conceded'])
-        ]
-        
-        for target, possibilities in last5_columns:
-            column_mapping[target] = None
-            for possible in possibilities:
-                if possible in df.columns:
-                    column_mapping[target] = possible
-                    break
-        
-        # Create VLBS calculation columns
-        # Venue-specific averages
-        df['home_xg_per_match'] = df.apply(
-            lambda x: x[column_mapping['home_xg_for']] / x['home_matches_played'] 
-            if column_mapping['home_xg_for'] and pd.notnull(x[column_mapping['home_xg_for']]) and x['home_matches_played'] > 0 else 0, 
-            axis=1
-        )
-        
-        df['away_xg_per_match'] = df.apply(
-            lambda x: x[column_mapping['away_xg_for']] / x['away_matches_played'] 
-            if column_mapping['away_xg_for'] and pd.notnull(x[column_mapping['away_xg_for']]) and x['away_matches_played'] > 0 else 0, 
-            axis=1
-        )
-        
-        df['home_xga_per_match'] = df.apply(
-            lambda x: x[column_mapping['home_xg_against']] / x['home_matches_played'] 
-            if column_mapping['home_xg_against'] and pd.notnull(x[column_mapping['home_xg_against']]) and x['home_matches_played'] > 0 else 0, 
-            axis=1
-        )
-        
-        df['away_xga_per_match'] = df.apply(
-            lambda x: x[column_mapping['away_xg_against']] / x['away_matches_played'] 
-            if column_mapping['away_xg_against'] and pd.notnull(x[column_mapping['away_xg_against']]) and x['away_matches_played'] > 0 else 0, 
-            axis=1
-        )
-        
-        # Recent form (last 5 matches)
-        if column_mapping['goals_scored_last_5']:
-            df['avg_scored_last_5'] = df[column_mapping['goals_scored_last_5']] / 5
-        else:
-            df['avg_scored_last_5'] = 0
-        
-        if column_mapping['goals_conceded_last_5']:
-            df['avg_conceded_last_5'] = df[column_mapping['goals_conceded_last_5']] / 5
-        else:
-            df['avg_conceded_last_5'] = 0
-        
-        # Home/away conceded last 5
-        if column_mapping['home_goals_conceded_last_5']:
-            df['home_avg_conceded_last_5'] = df.apply(
-                lambda x: x[column_mapping['home_goals_conceded_last_5']] / 5 
-                if pd.notnull(x[column_mapping['home_goals_conceded_last_5']]) else x['avg_conceded_last_5'], 
-                axis=1
-            )
-        else:
-            df['home_avg_conceded_last_5'] = df['avg_conceded_last_5']
-        
-        if column_mapping['away_goals_conceded_last_5']:
-            df['away_avg_conceded_last_5'] = df.apply(
-                lambda x: x[column_mapping['away_goals_conceded_last_5']] / 5 
-                if pd.notnull(x[column_mapping['away_goals_conceded_last_5']]) else x['avg_conceded_last_5'], 
-                axis=1
-            )
-        else:
-            df['away_avg_conceded_last_5'] = df['avg_conceded_last_5']
-        
-        # Home/Away performance ratio (critical)
-        def calculate_home_away_ratio(row):
-            if row['away_xg_per_match'] > 0:
-                return row['home_xg_per_match'] / row['away_xg_per_match']
-            else:
-                return 999  # Treat as infinite home advantage
-        
-        df['home_away_ratio'] = df.apply(calculate_home_away_ratio, axis=1)
-        
-        # Fill NaN values
-        df = df.fillna(0)
+        # Validate required columns
+        missing_cols = [col for col in BrutballDataLoader.REQUIRED_COLUMNS 
+                       if col not in df.columns]
+        if missing_cols:
+            raise ValueError(f"Missing required columns: {missing_cols}")
         
         return df
     
-    except Exception as e:
-        st.error(f"Error loading {league_name}: {str(e)}")
+    @staticmethod
+    def get_team_data(df: pd.DataFrame, team_name: str) -> Dict:
+        """Extract and pre-calculate team data"""
+        team_row = df[df['team'] == team_name].iloc[0]
+        
+        # Convert numpy types to Python native
+        data = {}
+        for col in df.columns:
+            val = team_row[col]
+            if pd.isna(val):
+                data[col] = None
+            elif isinstance(val, (np.integer, np.int64)):
+                data[col] = int(val)
+            elif isinstance(val, (np.floating, np.float64)):
+                data[col] = float(val)
+            else:
+                data[col] = val
+        
+        # Pre-calculations
+        data['home_xg_per_match'] = (data['home_xg_for'] / data['home_matches_played'] 
+                                    if data['home_matches_played'] > 0 else 0)
+        data['away_xg_per_match'] = (data['away_xg_for'] / data['away_matches_played'] 
+                                    if data['away_matches_played'] > 0 else 0)
+        data['home_xga_per_match'] = (data['home_xg_against'] / data['home_matches_played'] 
+                                      if data['home_matches_played'] > 0 else 0)
+        data['away_xga_per_match'] = (data['away_xg_against'] / data['away_matches_played'] 
+                                      if data['away_matches_played'] > 0 else 0)
+        
+        # Last 5 averages
+        data['avg_scored_last_5'] = data['goals_scored_last_5'] / 5
+        data['avg_conceded_last_5'] = data['goals_conceded_last_5'] / 5
+        data['home_avg_conceded_last_5'] = (data['home_goals_conceded_last_5'] / 5 
+                                           if data.get('home_goals_conceded_last_5') is not None 
+                                           else data['avg_conceded_last_5'])
+        data['away_avg_conceded_last_5'] = (data['away_goals_conceded_last_5'] / 5 
+                                           if data.get('away_goals_conceded_last_5') is not None 
+                                           else data['avg_conceded_last_5'])
+        
+        return data
+
+# ============================================================================
+# TIER 1: v6.0 EDGE DETECTION ENGINE
+# ============================================================================
+
+class EdgeDetectionEngine:
+    """Tier 1: Heuristic identification of structural advantages"""
+    
+    @staticmethod
+    def evaluate_control_criteria(team_data: Dict) -> Tuple[float, List[str]]:
+        """Evaluate 4 control criteria and return weighted score"""
+        criteria_passed = []
+        weighted_score = 0.0
+        
+        # 1. Tempo dominance (xG > 1.4) - weight: 1.0
+        avg_xg = (team_data.get('home_xg_per_match', 0) + team_data.get('away_xg_per_match', 0)) / 2
+        if avg_xg > 1.4:
+            criteria_passed.append("Tempo")
+            weighted_score += 1.0
+        
+        # 2. Scoring efficiency (goals/xG > 90%) - weight: 1.0
+        total_goals = team_data.get('home_goals_scored', 0) + team_data.get('away_goals_scored', 0)
+        total_xg = team_data.get('home_xg_for', 0) + team_data.get('away_xg_for', 0)
+        if total_xg > 0 and (total_goals / total_xg) > 0.9:
+            criteria_passed.append("Efficiency")
+            weighted_score += 1.0
+        
+        # 3. Critical area threat (set pieces > 25%) - weight: 0.8
+        # Note: Need setpiece data - using placeholder
+        # If we don't have setpiece data, skip this criteria
+        setpiece_pct = team_data.get('home_setpiece_pct', 0)  # Would need this column
+        if setpiece_pct > 0.25:
+            criteria_passed.append("SetPiece")
+            weighted_score += 0.8
+        else:
+            # Count as passed if no data (as per spec)
+            pass
+        
+        # 4. Repeatable patterns (open play > 50% OR counter > 15%) - weight: 0.8
+        # Using goals scored as proxy
+        if team_data['avg_scored_last_5'] > 1.5:  # Proxy for scoring patterns
+            criteria_passed.append("Patterns")
+            weighted_score += 0.8
+        
+        return weighted_score, criteria_passed
+    
+    @staticmethod
+    def analyze_match(home_data: Dict, away_data: Dict) -> Dict:
+        """Main edge detection analysis"""
+        home_score, home_criteria = EdgeDetectionEngine.evaluate_control_criteria(home_data)
+        away_score, away_criteria = EdgeDetectionEngine.evaluate_control_criteria(away_data)
+        
+        # Identify controller
+        controller = None
+        if len(home_criteria) >= CONTROL_CRITERIA_REQUIRED and len(away_criteria) >= CONTROL_CRITERIA_REQUIRED:
+            if abs(home_score - away_score) > QUIET_CONTROL_SEPARATION_THRESHOLD:
+                controller = 'HOME' if home_score > away_score else 'AWAY'
+        elif len(home_criteria) >= CONTROL_CRITERIA_REQUIRED:
+            controller = 'HOME'
+        elif len(away_criteria) >= CONTROL_CRITERIA_REQUIRED:
+            controller = 'AWAY'
+        
+        # Goals environment check
+        combined_xg = home_data['home_xg_per_match'] + away_data['away_xg_per_match']
+        max_xg = max(home_data['home_xg_per_match'], away_data['away_xg_per_match'])
+        goals_environment = (combined_xg >= 2.8 and max_xg >= 1.6)
+        
+        # Decision tree
+        if controller and goals_environment:
+            action = f"BACK {controller} & OVER 2.5"
+            confidence = 7.5
+        elif controller:
+            action = f"BACK {controller}"
+            confidence = 8.0
+        elif goals_environment:
+            action = "OVER 2.5"
+            confidence = 6.0
+        else:
+            action = "UNDER 2.5"
+            confidence = 5.5
+        
+        # Stake calculation
+        if confidence >= 8.0:
+            base_stake = 2.5
+        elif confidence >= 7.0:
+            base_stake = 2.0
+        elif confidence >= 6.0:
+            base_stake = 1.5
+        else:
+            base_stake = 1.0
+        
+        return {
+            'controller': controller,
+            'action': action,
+            'confidence': confidence,
+            'base_stake': base_stake,
+            'goals_environment': goals_environment,
+            'home_score': home_score,
+            'away_score': away_score,
+            'home_criteria': home_criteria,
+            'away_criteria': away_criteria
+        }
+
+# ============================================================================
+# TIER 1+: EDGE-DERIVED UNDER 1.5 LOCKS
+# ============================================================================
+
+class EdgeDerivedLocks:
+    """Extract binary UNDER 1.5 predictions from defensive trends"""
+    
+    @staticmethod
+    def generate_under_locks(home_data: Dict, away_data: Dict) -> List[Dict]:
+        """Generate UNDER 1.5 locks based on defensive trends"""
+        locks = []
+        
+        # Check home team's defense for away opponent under 1.5
+        if home_data['avg_conceded_last_5'] <= 1.0:
+            confidence = EdgeDerivedLocks._get_confidence_tier(away_data['avg_scored_last_5'])
+            locks.append({
+                'market': 'OPPONENT_UNDER_1_5',
+                'team': away_data['team'],
+                'defensive_team': home_data['team'],
+                'confidence': confidence,
+                'avg_conceded': home_data['avg_conceded_last_5'],
+                'opponent_avg_scored': away_data['avg_scored_last_5'],
+                'bet_label': f"{away_data['team']} to score UNDER 1.5 goals"
+            })
+        
+        # Check away team's defense for home opponent under 1.5
+        if away_data['avg_conceded_last_5'] <= 1.0:
+            confidence = EdgeDerivedLocks._get_confidence_tier(home_data['avg_scored_last_5'])
+            locks.append({
+                'market': 'OPPONENT_UNDER_1_5',
+                'team': home_data['team'],
+                'defensive_team': away_data['team'],
+                'confidence': confidence,
+                'avg_conceded': away_data['avg_conceded_last_5'],
+                'opponent_avg_scored': home_data['avg_scored_last_5'],
+                'bet_label': f"{home_data['team']} to score UNDER 1.5 goals"
+            })
+        
+        return locks
+    
+    @staticmethod
+    def _get_confidence_tier(opponent_avg_scored: float) -> str:
+        """Determine confidence tier based on opponent's scoring average"""
+        if opponent_avg_scored <= 1.4:
+            return "VERY STRONG 🔵"
+        elif opponent_avg_scored <= 1.6:
+            return "STRONG 🟢"
+        elif opponent_avg_scored <= 1.8:
+            return "WEAK 🟡"
+        else:
+            return "VERY WEAK 🔴"
+
+# ============================================================================
+# TIER 2: AGENCY-STATE LOCK ENGINE v6.4
+# ============================================================================
+
+class AgencyStateLockEngine:
+    """Tier 2: Evaluate structural control via 4 Gates"""
+    
+    def __init__(self, home_data: Dict, away_data: Dict):
+        self.home_data = home_data
+        self.away_data = away_data
+        
+    def check_market(self, market: str) -> Optional[Dict]:
+        """Check if a specific market is locked via 4 Gates"""
+        thresholds = MARKET_THRESHOLDS[market]
+        
+        # Determine controller from edge detection
+        edge_result = EdgeDetectionEngine.analyze_match(self.home_data, self.away_data)
+        if not edge_result['controller']:
+            return None
+        
+        if edge_result['controller'] == 'HOME':
+            controller_data = self.home_data
+            opponent_data = self.away_data
+            controller_xg = self.home_data['home_xg_per_match']
+            opponent_xg = self.away_data['away_xg_per_match']
+            controller_is_home = True
+        else:
+            controller_data = self.away_data
+            opponent_data = self.home_data
+            controller_xg = self.away_data['away_xg_per_match']
+            opponent_xg = self.home_data['home_xg_per_match']
+            controller_is_home = False
+        
+        # GATE 1: Quiet Control Identification
+        if not self._gate1_quiet_control(edge_result):
+            return None
+        
+        # GATE 2: Directional Dominance
+        if not self._gate2_directional_dominance(controller_xg, opponent_xg, thresholds['opponent_xg_max']):
+            return None
+        
+        # GATE 3: Agency Collapse
+        if not self._gate3_agency_collapse(opponent_data, thresholds['state_flip_failures']):
+            return None
+        
+        # GATE 4: State Preservation & Enforcement
+        if not self._gate4_state_preservation(controller_data, opponent_data, market, thresholds):
+            return None
+        
+        # All gates passed - market is LOCKED
+        return {
+            'market': market,
+            'controller': controller_data['team'],
+            'opponent': opponent_data['team'],
+            'controller_is_home': controller_is_home,
+            'control_delta': controller_xg - opponent_xg,
+            'bet_label': thresholds['bet_label'],
+            'declaration': thresholds['declaration_template'].format(
+                controller=controller_data['team'],
+                opponent=opponent_data['team']
+            ),
+            'capital_mode': 'LOCK_MODE'
+        }
+    
+    def _gate1_quiet_control(self, edge_result: Dict) -> bool:
+        """Gate 1: Quiet Control Identification"""
+        if not edge_result['controller']:
+            return False
+        
+        # Check for mutual control
+        if (len(edge_result['home_criteria']) >= CONTROL_CRITERIA_REQUIRED and 
+            len(edge_result['away_criteria']) >= CONTROL_CRITERIA_REQUIRED):
+            if abs(edge_result['home_score'] - edge_result['away_score']) <= QUIET_CONTROL_SEPARATION_THRESHOLD:
+                return False  # Mutual control, no single controller
+        
+        return True
+    
+    def _gate2_directional_dominance(self, controller_xg: float, opponent_xg: float, opponent_threshold: float) -> bool:
+        """Gate 2: Directional Dominance"""
+        delta = controller_xg - opponent_xg
+        return (delta > DIRECTION_THRESHOLD and opponent_xg < opponent_threshold)
+    
+    def _gate3_agency_collapse(self, opponent_data: Dict, required_failures: int) -> bool:
+        """Gate 3: Agency Collapse - opponent failure checks"""
+        failures = 0
+        
+        # 1. Chase capacity (xG < 1.1)
+        if opponent_data['avg_scored_last_5'] < 1.1:
+            failures += 1
+        
+        # 2. Tempo surge capability (xG < 1.4)
+        if opponent_data['avg_scored_last_5'] < 1.4:
+            failures += 1
+        
+        # 3. Alternate threat channels (simplified)
+        # Using recent scoring as proxy - if low scoring, likely lacks alternate threats
+        if opponent_data['avg_scored_last_5'] < 1.2:
+            failures += 1
+        
+        # 4. Substitution leverage (goals/match < league_avg * 0.8)
+        # Using league average of 1.3 as default
+        if opponent_data['avg_scored_last_5'] < (1.3 * 0.8):
+            failures += 1
+        
+        return failures >= required_failures
+    
+    def _gate4_state_preservation(self, controller_data: Dict, opponent_data: Dict, 
+                                  market: str, thresholds: Dict) -> bool:
+        """Gate 4: State Preservation & Enforcement"""
+        
+        # PART A: Defensive Preservation (for defensive markets only)
+        if market != 'DOUBLE_CHANCE':
+            recent_concede = (controller_data['home_avg_conceded_last_5'] 
+                            if controller_data.get('is_home', True) 
+                            else controller_data['away_avg_conceded_last_5'])
+            
+            if recent_concede > thresholds['recent_concede_max']:
+                return False  # Gate 4A overrides earlier gates
+        
+        # PART B: Non-Urgent Enforcement
+        methods = 0
+        
+        # 1. Defensive solidity
+        concede_avg = (controller_data['home_avg_conceded_last_5'] 
+                      if controller_data.get('is_home', True) 
+                      else controller_data['away_avg_conceded_last_5'])
+        
+        if (controller_data.get('is_home', True) and concede_avg < 1.2) or \
+           (not controller_data.get('is_home', True) and concede_avg < 1.3):
+            methods += 1
+        
+        # 2. Alternate scoring channels (simplified)
+        if controller_data['avg_scored_last_5'] > 1.2:
+            methods += 1
+        
+        # 3. Consistent threat
+        controller_xg = (controller_data['home_xg_per_match'] 
+                        if controller_data.get('is_home', True) 
+                        else controller_data['away_xg_per_match'])
+        if controller_xg > 1.3:
+            methods += 1
+        
+        # 4. Ball retention capability (scoring efficiency)
+        total_goals = controller_data.get('home_goals_scored', 0) + controller_data.get('away_goals_scored', 0)
+        total_xg = controller_data.get('home_xg_for', 0) + controller_data.get('away_xg_for', 0)
+        if total_xg > 0 and (total_goals / total_xg) > 0.85:
+            methods += 1
+        
+        return methods >= thresholds['enforcement_methods']
+
+# ============================================================================
+# TIER 3: TOTALS LOCK ENGINE
+# ============================================================================
+
+class TotalsLockEngine:
+    """Tier 3: Identify structural low-scoring matches"""
+    
+    @staticmethod
+    def check_totals_lock(home_data: Dict, away_data: Dict) -> Optional[Dict]:
+        """Check for Totals ≤ 2.5 lock"""
+        home_avg_scored = home_data['avg_scored_last_5']
+        away_avg_scored = away_data['avg_scored_last_5']
+        
+        if home_avg_scored <= TOTALS_LOCK_THRESHOLD and away_avg_scored <= TOTALS_LOCK_THRESHOLD:
+            return {
+                'market': 'TOTALS_UNDER_2_5',
+                'condition': f"Both teams ≤ {TOTALS_LOCK_THRESHOLD} avg goals (last 5)",
+                'home_avg_scored': home_avg_scored,
+                'away_avg_scored': away_avg_scored,
+                'bet_label': "UNDER 2.5 Goals",
+                'declaration': f"🔒 TOTALS LOCKED\nDual low-offense trend confirmed",
+                'capital_mode': 'LOCK_MODE'
+            }
         return None
 
-# =================== VLBS RULES IMPLEMENTATION ===================
-def rule1_terrible_away_defense(home_team, away_team):
-    """RULE 1: TERRIBLE AWAY DEFENSE LOCK (Highest Priority)"""
-    condition = away_team['away_xga_per_match'] > VLBS_THRESHOLDS['RULE1_AWAY_XGA']
-    
-    if condition:
-        return {
-            'rule_triggered': 'RULE_1_TERRIBLE_AWAY_DEFENSE',
-            'bet': 'HOME_WIN',
-            'market': 'Match Winner',
-            'confidence': 'HIGH',
-            'stake_multiplier': 2.0,
-            'reason': f"Away team concedes {away_team['away_xga_per_match']:.2f} xG/match away (critical threshold: >2.0)",
-            'data_evidence': {
-                'home_xg_per_match': home_team['home_xg_per_match'],
-                'away_xga_per_match': away_team['away_xga_per_match'],
-                'threshold_violation': f"+{away_team['away_xga_per_match'] - 2.0:.2f} above 2.0"
-            }
-        }
-    return None
+# ============================================================================
+# MAIN BRUTBALL v6.4 ENGINE
+# ============================================================================
 
-def rule2_attack_defense_mismatch(home_team, away_team):
-    """RULE 2: HOME ATTACK vs AWAY DEFENSE MISMATCH"""
-    condition = (
-        home_team['home_xg_per_match'] > VLBS_THRESHOLDS['RULE2_HOME_XG'] and 
-        away_team['away_xga_per_match'] > VLBS_THRESHOLDS['RULE2_AWAY_XGA']
-    )
+class Brutballv64:
+    """Main BRUTBALL v6.4 Engine - Integrates all tiers"""
     
-    if condition:
-        return {
-            'rule_triggered': 'RULE_2_ATTACK_DEFENSE_MISMATCH',
-            'bet': 'HOME_WIN',
-            'market': 'Match Winner',
-            'confidence': 'HIGH',
-            'stake_multiplier': 1.5,
-            'reason': f"Home attack ({home_team['home_xg_per_match']:.2f} xG) vs weak away defense ({away_team['away_xga_per_match']:.2f} xGA)",
-            'data_evidence': {
-                'home_xg_per_match': home_team['home_xg_per_match'],
-                'away_xga_per_match': away_team['away_xga_per_match'],
-                'home_threshold': f"{home_team['home_xg_per_match']:.2f} > {VLBS_THRESHOLDS['RULE2_HOME_XG']}",
-                'away_threshold': f"{away_team['away_xga_per_match']:.2f} > {VLBS_THRESHOLDS['RULE2_AWAY_XGA']}"
-            }
-        }
-    return None
-
-def rule3_extreme_home_advantage(home_team, away_team):
-    """RULE 3: EXTREME HOME ADVANTAGE"""
-    condition = home_team['home_away_ratio'] > VLBS_THRESHOLDS['RULE3_HOME_AWAY_RATIO']
+    def __init__(self, league_name: str):
+        self.league_name = league_name
+        self.df = BrutballDataLoader.load_league_data(league_name)
+        self.predictions = []
     
-    if condition:
-        return {
-            'rule_triggered': 'RULE_3_EXTREME_HOME_ADVANTAGE',
-            'bet': 'HOME_WIN',
-            'market': 'Match Winner',
-            'confidence': 'MEDIUM',
-            'stake_multiplier': 1.0,
-            'reason': f"Home/away performance ratio: {home_team['home_away_ratio']:.2f}x (threshold: >1.8x)",
-            'data_evidence': {
-                'home_xg_per_match': home_team['home_xg_per_match'],
-                'away_xg_per_match': home_team['away_xg_per_match'],
-                'home_away_ratio': home_team['home_away_ratio'],
-                'threshold': f"{home_team['home_away_ratio']:.2f} > {VLBS_THRESHOLDS['RULE3_HOME_AWAY_RATIO']}"
-            }
-        }
-    return None
-
-def rule4_dual_low_offense_under(home_team, away_team):
-    """RULE 4: DUAL LOW-OFFENSE UNDER"""
-    condition = (
-        home_team['avg_scored_last_5'] < VLBS_THRESHOLDS['RULE4_AVG_SCORED'] and 
-        away_team['avg_scored_last_5'] < VLBS_THRESHOLDS['RULE4_AVG_SCORED']
-    )
-    
-    if condition:
-        return {
-            'rule_triggered': 'RULE_4_DUAL_LOW_OFFENSE_UNDER',
-            'bet': 'UNDER_2_5',
-            'market': 'Total Goals',
-            'confidence': 'MEDIUM',
-            'stake_multiplier': 1.0,
-            'reason': f"Both teams low scoring: Home {home_team['avg_scored_last_5']:.1f}, Away {away_team['avg_scored_last_5']:.1f} goals/match (last 5)",
-            'data_evidence': {
-                'home_avg_scored_last_5': home_team['avg_scored_last_5'],
-                'away_avg_scored_last_5': away_team['avg_scored_last_5'],
-                'threshold': f"both < {VLBS_THRESHOLDS['RULE4_AVG_SCORED']}"
-            }
-        }
-    return None
-
-def rule5_clean_sheet_no(home_team, away_team):
-    """RULE 5: CLEAN SHEET NO FOR TERRIBLE AWAY ATTACK"""
-    condition = (
-        away_team['away_xg_per_match'] < VLBS_THRESHOLDS['RULE5_AWAY_XG'] and 
-        home_team['home_xga_per_match'] < VLBS_THRESHOLDS['RULE5_HOME_XGA']
-    )
-    
-    if condition:
-        return {
-            'rule_triggered': 'RULE_5_CLEAN_SHEET_NO',
-            'bet': 'AWAY_NO_SCORE',
-            'market': 'Both Teams to Score',
-            'confidence': 'MEDIUM',
-            'stake_multiplier': 1.0,
-            'reason': f"Away attack weak ({away_team['away_xg_per_match']:.2f} xG) vs home defense solid ({home_team['home_xga_per_match']:.2f} xGA)",
-            'data_evidence': {
-                'away_xg_per_match': away_team['away_xg_per_match'],
-                'home_xga_per_match': home_team['home_xga_per_match'],
-                'away_threshold': f"{away_team['away_xg_per_match']:.2f} < {VLBS_THRESHOLDS['RULE5_AWAY_XG']}",
-                'home_threshold': f"{home_team['home_xga_per_match']:.2f} < {VLBS_THRESHOLDS['RULE5_HOME_XGA']}"
-            }
-        }
-    return None
-
-# =================== MAIN ANALYSIS FUNCTION ===================
-def analyze_match(home_team, away_team):
-    """Main analysis function - returns betting recommendations"""
-    recommendations = []
-    
-    # Check Rule 1 (Highest priority)
-    rec1 = rule1_terrible_away_defense(home_team, away_team)
-    if rec1:
-        recommendations.append(rec1)
-        # Rule 1 is so strong, return immediately
-        return recommendations
-    
-    # Check Rule 2 (Second priority)
-    rec2 = rule2_attack_defense_mismatch(home_team, away_team)
-    if rec2:
-        recommendations.append(rec2)
-    
-    # Check Rule 3 (Third priority)
-    rec3 = rule3_extreme_home_advantage(home_team, away_team)
-    if rec3:
-        recommendations.append(rec3)
-    
-    # Check Under rules (if no strong winner bet found)
-    if not recommendations:
-        rec4 = rule4_dual_low_offense_under(home_team, away_team)
-        if rec4:
-            recommendations.append(rec4)
+    def analyze_match(self, home_team: str, away_team: str, bankroll: float = 1000, base_stake_pct: float = 0.5) -> Dict:
+        """Complete match analysis"""
+        # Load team data
+        home_data = BrutballDataLoader.get_team_data(self.df, home_team)
+        away_data = BrutballDataLoader.get_team_data(self.df, away_team)
+        home_data['team'] = home_team
+        away_data['team'] = away_team
+        home_data['is_home'] = True
+        away_data['is_home'] = False
         
-        rec5 = rule5_clean_sheet_no(home_team, away_team)
-        if rec5:
-            recommendations.append(rec5)
-    
-    # If still nothing
-    if not recommendations:
-        recommendations.append({
-            'bet': 'NO_BET',
-            'reason': 'No clear edge found',
-            'data_evidence': {
-                'home_xg_per_match': home_team['home_xg_per_match'],
-                'away_xga_per_match': away_team['away_xga_per_match'],
-                'home_away_ratio': home_team['home_away_ratio']
-            }
+        results = {
+            'match': f"{home_team} vs {away_team}",
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'home_data': {k: v for k, v in home_data.items() if not isinstance(v, (dict, list))},
+            'away_data': {k: v for k, v in away_data.items() if not isinstance(v, (dict, list))},
+            'analysis': {}
+        }
+        
+        # TIER 1: Edge Detection
+        edge_result = EdgeDetectionEngine.analyze_match(home_data, away_data)
+        results['analysis']['edge_detection'] = edge_result
+        
+        # TIER 1+: Edge-Derived Under 1.5 Locks
+        edge_locks = EdgeDerivedLocks.generate_under_locks(home_data, away_data)
+        results['analysis']['edge_derived_locks'] = edge_locks
+        
+        # TIER 2: Agency-State Locks
+        agency_engine = AgencyStateLockEngine(home_data, away_data)
+        agency_locks = []
+        
+        for market in ['DOUBLE_CHANCE', 'CLEAN_SHEET', 'TEAM_NO_SCORE', 'OPPONENT_UNDER_1_5']:
+            lock = agency_engine.check_market(market)
+            if lock:
+                agency_locks.append(lock)
+        
+        results['analysis']['agency_locks'] = agency_locks
+        
+        # TIER 3: Totals Lock
+        totals_lock = TotalsLockEngine.check_totals_lock(home_data, away_data)
+        results['analysis']['totals_lock'] = totals_lock
+        
+        # CAPITAL DECISION
+        any_lock = bool(edge_locks or agency_locks or totals_lock)
+        capital_mode = 'LOCK_MODE' if any_lock else 'EDGE_MODE'
+        multiplier = CAPITAL_MULTIPLIERS[capital_mode]
+        
+        # FINAL STAKE CALCULATION
+        base_stake_amount = (bankroll * base_stake_pct / 100)
+        final_stake = base_stake_amount * multiplier
+        
+        results['capital'] = {
+            'bankroll': bankroll,
+            'base_stake_pct': base_stake_pct,
+            'base_stake_amount': base_stake_amount,
+            'capital_mode': capital_mode,
+            'multiplier': multiplier,
+            'final_stake': final_stake
+        }
+        
+        # SYSTEM VERDICT
+        if totals_lock:
+            verdict = "DUAL LOW-OFFENSE STATE DETECTED"
+        elif agency_locks:
+            verdict = "AGENCY-STATE CONTROL DETECTED"
+        elif edge_locks:
+            verdict = "EDGE-DERIVED DEFENSIVE CONTROL DETECTED"
+        else:
+            verdict = "STRUCTURAL EDGE DETECTED"
+        
+        results['verdict'] = verdict
+        
+        # BET RECOMMENDATIONS
+        recommendations = []
+        
+        # Agency locks first
+        for lock in agency_locks:
+            recommendations.append({
+                'type': 'AGENCY_LOCK',
+                'market': lock['bet_label'],
+                'stake_pct': (final_stake / bankroll) * 100,
+                'stake_amount': final_stake,
+                'reason': lock['declaration'],
+                'confidence': 'HIGH'
+            })
+        
+        # Edge-derived locks
+        for lock in edge_locks:
+            recommendations.append({
+                'type': 'EDGE_DERIVED',
+                'market': lock['bet_label'],
+                'stake_pct': (final_stake / bankroll) * 100,
+                'stake_amount': final_stake,
+                'reason': f"Defensive trend: {lock['defensive_team']} concedes avg {lock['avg_conceded']:.1f}",
+                'confidence': lock['confidence']
+            })
+        
+        # Totals lock
+        if totals_lock:
+            recommendations.append({
+                'type': 'TOTALS_LOCK',
+                'market': totals_lock['bet_label'],
+                'stake_pct': (final_stake / bankroll) * 100,
+                'stake_amount': final_stake,
+                'reason': totals_lock['declaration'],
+                'confidence': 'HIGH'
+            })
+        
+        # Edge action (if no locks)
+        if not recommendations:
+            recommendations.append({
+                'type': 'EDGE_ACTION',
+                'market': edge_result['action'],
+                'stake_pct': (base_stake_amount / bankroll) * 100,
+                'stake_amount': base_stake_amount,
+                'reason': f"Edge detection: {edge_result['confidence']}/10 confidence",
+                'confidence': 'MEDIUM'
+            })
+        
+        results['recommendations'] = recommendations
+        
+        # Store for tracking
+        self.predictions.append({
+            'match': results['match'],
+            'timestamp': results['timestamp'],
+            'recommendations': recommendations,
+            'actual_score': None,
+            'actual_goals': None
         })
-    
-    return recommendations
-
-# =================== STAKE CALCULATION ===================
-def calculate_stake(base_stake, recommendation):
-    """Calculate stake based on confidence level"""
-    stake_multipliers = {
-        'HIGH': 2.0,    # Rule 1 bets
-        'MEDIUM': 1.5,  # Rule 2 bets  
-        'LOW': 1.0      # Rule 3+ bets
-    }
-    
-    if recommendation['bet'] == 'NO_BET':
-        return 0.0
-    
-    multiplier = recommendation.get('stake_multiplier', 1.0)
-    confidence = recommendation.get('confidence', 'LOW')
-    
-    stake = base_stake * stake_multipliers.get(confidence, 1.0) * multiplier
-    
-    # Cap at 5% of bankroll
-    return min(stake, 0.05)
-
-# =================== VALIDATION CHECKS ===================
-def validate_data(home_team, away_team):
-    """Ensure data quality before analysis"""
-    checks = []
-    
-    # Check minimum matches played
-    if home_team.get('home_matches_played', 0) < 5:
-        checks.append(f"⚠️ Home team only {home_team.get('home_matches_played', 0)} home matches")
-    
-    if away_team.get('away_matches_played', 0) < 5:
-        checks.append(f"⚠️ Away team only {away_team.get('away_matches_played', 0)} away matches")
-    
-    # Check for data anomalies
-    if home_team.get('home_xga_per_match', 0) > 3.0:
-        checks.append(f"⚠️ Home xGA suspiciously high: {home_team.get('home_xga_per_match', 0):.2f}")
-    
-    if away_team.get('away_xga_per_match', 0) > 3.0:
-        checks.append(f"⚠️ Away xGA suspiciously high: {away_team.get('away_xga_per_match', 0):.2f}")
-    
-    return checks
-
-# =================== UI COMPONENTS ===================
-def display_match_analysis(home_team, away_team, recommendations, base_stake=0.01, league_name=""):
-    """Display beautiful match analysis"""
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        if league_name:
-            st.markdown(f'<span class="league-badge">{league_name}</span>', unsafe_allow_html=True)
         
-        st.markdown(f"### 🏆 {home_team['team']} vs {away_team['team']}")
-        
-        # Display key metrics
-        metric_cols = st.columns(4)
-        with metric_cols[0]:
-            st.metric("Home xG/Match", f"{home_team['home_xg_per_match']:.2f}")
-        with metric_cols[1]:
-            st.metric("Away xGA/Match", f"{away_team['away_xga_per_match']:.2f}")
-        with metric_cols[2]:
-            st.metric("Home/Away Ratio", f"{home_team['home_away_ratio']:.2f}")
-        with metric_cols[3]:
-            st.metric("Form (Last 5)", f"{home_team['avg_scored_last_5']:.1f}-{away_team['avg_scored_last_5']:.1f}")
+        return results
     
-    with col2:
-        validation_checks = validate_data(home_team, away_team)
-        if validation_checks:
-            with st.expander("Data Quality Warnings", expanded=False):
-                for check in validation_checks:
-                    st.warning(check)
+    def get_available_teams(self) -> List[str]:
+        """Get list of available teams in league"""
+        return self.df['team'].tolist()
     
-    # Display recommendations
-    if recommendations[0]['bet'] == 'NO_BET':
-        st.markdown("""
-        <div class="no-bet-card">
-            <h3>🤔 No Bet Recommended</h3>
-            <p>No clear vulnerability detected in this match.</p>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        for rec in recommendations:
-            stake_percentage = calculate_stake(base_stake, rec) * 100
-            
-            # Determine confidence class
-            conf_class = ""
-            if rec['confidence'] == 'HIGH':
-                conf_class = "high-confidence"
-            elif rec['confidence'] == 'MEDIUM':
-                conf_class = "medium-confidence"
-            else:
-                conf_class = "low-confidence"
-            
-            st.markdown(f"""
-            <div class="bet-card {conf_class}">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <span class="rule-tag">{rec['rule_triggered'].replace('_', ' ')}</span>
-                        <h3 style="margin: 0.5rem 0; color: white;">🎯 Bet: {rec['bet'].replace('_', ' ')}</h3>
-                    </div>
-                    <div style="text-align: right;">
-                        <div class="success-badge" style="font-size: 1.2rem;">{stake_percentage:.1f}%</div>
-                        <div style="font-size: 0.9rem; margin-top: 0.25rem;">Stake</div>
-                    </div>
-                </div>
-                <p style="margin: 1rem 0;"><strong>Market:</strong> {rec['market']}</p>
-                <p style="margin: 1rem 0;"><strong>Reason:</strong> {rec['reason']}</p>
-                <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px; margin-top: 1rem;">
-                    <strong>Data Evidence:</strong>
-                    <pre style="margin: 0; color: white; font-size: 0.9rem;">{rec.get('data_evidence', {})}</pre>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+    def save_predictions(self, filename: str = "predictions.json"):
+        """Save predictions to JSON file"""
+        with open(filename, 'w') as f:
+            json.dump(self.predictions, f, indent=2)
+    
+    def load_actual_results(self, results_file: str):
+        """Load actual match results and calculate accuracy"""
+        # Implementation for loading results
+        pass
 
-def display_team_comparison(home_team, away_team):
-    """Display detailed team comparison"""
-    st.markdown("### 📊 Detailed Team Comparison")
-    
-    # Create comparison dataframe
-    comparison_data = {
-        'Metric': [
-            'xG Per Match (Home)', 'xG Per Match (Away)',
-            'xGA Per Match (Home)', 'xGA Per Match (Away)',
-            'Home/Away Ratio', 'Avg Scored (Last 5)',
-            'Avg Conceded (Last 5)', 'Home Matches', 'Away Matches'
-        ],
-        home_team['team']: [
-            f"{home_team['home_xg_per_match']:.2f}", 
-            f"{home_team['away_xg_per_match']:.2f}",
-            f"{home_team['home_xga_per_match']:.2f}",
-            f"{home_team['away_xga_per_match']:.2f}",
-            f"{home_team['home_away_ratio']:.2f}",
-            f"{home_team['avg_scored_last_5']:.2f}",
-            f"{home_team['avg_conceded_last_5']:.2f}",
-            f"{home_team.get('home_matches_played', 'N/A')}",
-            f"{home_team.get('away_matches_played', 'N/A')}"
-        ],
-        away_team['team']: [
-            f"{away_team['home_xg_per_match']:.2f}",
-            f"{away_team['away_xg_per_match']:.2f}",
-            f"{away_team['home_xga_per_match']:.2f}",
-            f"{away_team['away_xga_per_match']:.2f}",
-            f"{away_team['home_away_ratio']:.2f}",
-            f"{away_team['avg_scored_last_5']:.2f}",
-            f"{away_team['avg_conceded_last_5']:.2f}",
-            f"{away_team.get('home_matches_played', 'N/A')}",
-            f"{away_team.get('away_matches_played', 'N/A')}"
-        ]
-    }
-    
-    df_comparison = pd.DataFrame(comparison_data)
-    st.dataframe(df_comparison, use_container_width=True, hide_index=True)
+# ============================================================================
+# STREAMLIT APP INTERFACE
+# ============================================================================
 
-# =================== MAIN APP ===================
-def main():
-    # Header
-    st.markdown('<h1 class="main-header">⚽ Vulnerability-Lock Betting System (VLBS)</h1>', unsafe_allow_html=True)
-    st.markdown("**Defensive Vulnerability Detection System**")
-    st.markdown("*Direct GitHub CSV Integration*")
-    
-    # Sidebar
-    with st.sidebar:
-        st.markdown("### ⚙️ Configuration")
+def create_streamlit_app():
+    """Create Streamlit web interface"""
+    try:
+        import streamlit as st
         
-        # Bankroll settings
-        bankroll = st.number_input("Bankroll ($)", min_value=100, max_value=1000000, value=1000, step=100)
-        base_stake_percentage = st.slider("Base Stake (% of bankroll)", 0.5, 5.0, 1.0, 0.5) / 100
+        st.set_page_config(page_title="BRUTBALL v6.4", layout="wide")
+        
+        st.title("⚽ BRUTBALL v6.4 - Double Chance Architecture")
+        st.markdown("### Defensive Vulnerability Detection System")
+        
+        # Configuration
+        col1, col2 = st.columns(2)
+        with col1:
+            bankroll = st.number_input("Bankroll ($)", min_value=100, max_value=100000, value=1000, step=100)
+        with col2:
+            base_stake_pct = st.number_input("Base Stake (% of bankroll)", min_value=0.1, max_value=10.0, value=0.5, step=0.1)
         
         # League selection
-        st.markdown("### 📁 Select League")
-        selected_league = st.selectbox(
-            "Choose League", 
-            list(GITHUB_CSV_URLS.keys()),
-            help="Data will be loaded directly from GitHub"
-        )
+        leagues = [f.replace('.csv', '') for f in os.listdir('leagues') if f.endswith('.csv')]
+        selected_league = st.selectbox("📁 Select League", leagues)
         
-        # Load data button
-        load_data = st.button("📥 Load League Data", type="primary")
+        if selected_league:
+            try:
+                engine = Brutballv64(selected_league)
+                teams = engine.get_available_teams()
+                
+                # Match selection
+                col3, col4 = st.columns(2)
+                with col3:
+                    home_team = st.selectbox("🏟️ Home Team", teams)
+                with col4:
+                    away_team = st.selectbox("Away Team", [t for t in teams if t != home_team])
+                
+                if st.button("Analyze Match", type="primary"):
+                    with st.spinner("Running BRUTBALL v6.4 Analysis..."):
+                        result = engine.analyze_match(home_team, away_team, bankroll, base_stake_pct)
+                        
+                        # Display results
+                        st.markdown("---")
+                        st.subheader(f"🏆 {result['match']}")
+                        
+                        # Capital mode
+                        capital_mode = result['capital']['capital_mode']
+                        st.metric("Capital Mode", capital_mode, 
+                                 f"{result['capital']['multiplier']}x multiplier")
+                        
+                        # Verdict
+                        st.info(f"**System Verdict:** {result['verdict']}")
+                        
+                        # Recommendations
+                        st.subheader("🎯 Betting Recommendations")
+                        for rec in result['recommendations']:
+                            with st.expander(f"{rec['market']} - {rec['stake_pct']:.1f}% stake (${rec['stake_amount']:.2f})"):
+                                st.write(f"**Type:** {rec['type']}")
+                                st.write(f"**Confidence:** {rec['confidence']}")
+                                st.write(f"**Reasoning:** {rec['reason']}")
+                        
+                        # Raw data (collapsible)
+                        with st.expander("📊 Detailed Analysis Data"):
+                            st.json(result)
+                
+                # Team comparison
+                st.markdown("---")
+                st.subheader("📈 Team Comparison")
+                if home_team and away_team:
+                    try:
+                        home_data = BrutballDataLoader.get_team_data(engine.df, home_team)
+                        away_data = BrutballDataLoader.get_team_data(engine.df, away_team)
+                        
+                        comparison_data = {
+                            'Metric': ['xG/Match (Home/Away)', 'Avg Goals Last 5', 'Avg Conceded Last 5'],
+                            home_team: [
+                                f"{home_data.get('home_xg_per_match', 0):.2f}",
+                                f"{home_data['avg_scored_last_5']:.1f}",
+                                f"{home_data['avg_conceded_last_5']:.1f}"
+                            ],
+                            away_team: [
+                                f"{away_data.get('away_xg_per_match', 0):.2f}",
+                                f"{away_data['avg_scored_last_5']:.1f}",
+                                f"{away_data['avg_conceded_last_5']:.1f}"
+                            ]
+                        }
+                        
+                        st.dataframe(comparison_data, use_container_width=True)
+                    except Exception as e:
+                        st.error(f"Error loading team data: {e}")
+                
+            except Exception as e:
+                st.error(f"Error: {e}")
+                st.error("Make sure the CSV file is in the 'leagues' folder with correct format.")
         
-        if load_data or 'df' not in st.session_state:
-            with st.spinner(f"Loading {selected_league} data from GitHub..."):
-                df = load_league_data_from_github(selected_league)
-                if df is not None:
-                    st.session_state.df = df
-                    st.session_state.current_league = selected_league
-                    st.success(f"✅ {len(df)} teams loaded from {selected_league}")
-        
-        if 'df' not in st.session_state:
-            st.info("👈 Click 'Load League Data' to start")
-            st.stop()
-        
-        df = st.session_state.df
-        
-        # Team selection
-        st.markdown("---")
-        st.markdown("### 🏟️ Match Selection")
-        teams = sorted(df['team'].unique())
-        
-        if len(teams) == 0:
-            st.error("No teams found in the data")
-            st.stop()
-        
-        home_team_name = st.selectbox("Home Team", teams)
-        away_team_name = st.selectbox("Away Team", [t for t in teams if t != home_team_name])
+        # System info
+        with st.expander("📚 System Info"):
+            st.markdown("""
+            **BRUTBALL v6.4 Architecture:**
+            - **Tier 1:** Edge Detection (v6.0)
+            - **Tier 1+:** Edge-Derived Under 1.5 Locks
+            - **Tier 2:** Agency-State Lock Engine
+            - **Tier 3:** Totals Lock Engine
+            
+            **Primary Market:** Double Chance (Win OR Draw)
+            **Data Source:** Last 5 matches only for trend-based logic
+            """)
     
-    # Main content
-    if 'df' in st.session_state:
-        df = st.session_state.df
-        current_league = st.session_state.get('current_league', 'Unknown League')
-        
-        # Get team data
-        home_team_row = df[df['team'] == home_team_name]
-        away_team_row = df[df['team'] == away_team_name]
-        
-        if len(home_team_row) == 0 or len(away_team_row) == 0:
-            st.error("Team not found in data")
-            st.stop()
-        
-        home_team = home_team_row.iloc[0].to_dict()
-        away_team = away_team_row.iloc[0].to_dict()
-        
-        # Analyze match
-        recommendations = analyze_match(home_team, away_team)
-        
-        # Display results
-        display_match_analysis(home_team, away_team, recommendations, base_stake_percentage, current_league)
-        
-        # Detailed analysis tabs
-        tab1, tab2, tab3 = st.tabs(["📈 Team Comparison", "⚖️ Rule Analysis", "📚 System Info"])
-        
-        with tab1:
-            display_team_comparison(home_team, away_team)
-        
-        with tab2:
-            st.markdown("### ⚖️ VLBS Rule Analysis")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("#### Rule 1: Terrible Away Defense")
-                away_xga = away_team['away_xga_per_match']
-                progress = min(away_xga / 3.0, 1.0)
-                st.progress(progress)
-                threshold_diff = away_xga - VLBS_THRESHOLDS['RULE1_AWAY_XGA']
-                st.metric("Away xGA", f"{away_xga:.2f}", 
-                         f"{threshold_diff:+.2f} vs threshold")
-                
-                st.markdown("#### Rule 3: Extreme Home Advantage")
-                home_ratio = home_team['home_away_ratio']
-                st.metric("Home/Away Ratio", f"{home_ratio:.2f}",
-                         f"{home_ratio - VLBS_THRESHOLDS['RULE3_HOME_AWAY_RATIO']:+.2f}")
-            
-            with col2:
-                st.markdown("#### Rule 2: Attack vs Defense Mismatch")
-                col2a, col2b = st.columns(2)
-                with col2a:
-                    home_xg = home_team['home_xg_per_match']
-                    st.metric("Home xG", f"{home_xg:.2f}",
-                             f"{home_xg - VLBS_THRESHOLDS['RULE2_HOME_XG']:+.2f}")
-                with col2b:
-                    away_xga = away_team['away_xga_per_match']
-                    st.metric("Away xGA", f"{away_xga:.2f}",
-                             f"{away_xga - VLBS_THRESHOLDS['RULE2_AWAY_XGA']:+.2f}")
-                
-                st.markdown("#### Under Rules")
-                col3a, col3b = st.columns(2)
-                with col3a:
-                    home_avg = home_team['avg_scored_last_5']
-                    st.metric("Home Avg Scored", f"{home_avg:.2f}",
-                             f"{home_avg - VLBS_THRESHOLDS['RULE4_AVG_SCORED']:+.2f}")
-                with col3b:
-                    away_avg = away_team['avg_scored_last_5']
-                    st.metric("Away Avg Scored", f"{away_avg:.2f}",
-                             f"{away_avg - VLBS_THRESHOLDS['RULE4_AVG_SCORED']:+.2f}")
-        
-        with tab3:
-            st.markdown("### 📚 VLBS System Philosophy")
-            col1, col2 = st.columns([2, 1])
-            
-            with col1:
-                st.info("""
-                **Core Principle**: Find and exploit DEFENSIVE VULNERABILITIES
-                
-                **Why it works**:
-                1. Defensive stats are more stable than offensive stats
-                2. Away defense is most predictive - teams struggle to fix defensive issues away from home
-                3. Extreme values matter - teams with away_xga > 2.0 are SYSTEMICALLY broken defensively
-                4. Home advantage is real - captured by home/away splits
-                
-                **Thresholds are empirically derived - DO NOT MODIFY**
-                """)
-            
-            with col2:
-                st.markdown("#### 📋 Current Thresholds")
-                thresholds_df = pd.DataFrame(list(VLBS_THRESHOLDS.items()), columns=['Rule', 'Threshold'])
-                st.dataframe(thresholds_df, use_container_width=True, hide_index=True)
-            
-            st.markdown("---")
-            st.markdown("### 🔍 Data Quality Summary")
-            total_teams = len(df)
-            teams_with_data = len(df[df['home_matches_played'] >= 5])
-            st.metric("Total Teams", total_teams)
-            st.metric("Teams with ≥5 Home Matches", teams_with_data, 
-                     f"{(teams_with_data/total_teams*100):.1f}%")
+    except ImportError:
+        print("Streamlit not installed. Running in console mode...")
+        run_console_mode()
+
+def run_console_mode():
+    """Run in console mode if Streamlit not available"""
+    print("=" * 60)
+    print("BRUTBALL v6.4 - Console Mode")
+    print("=" * 60)
     
-    else:
-        st.info("👈 Select a league and load data from the sidebar to get started")
+    # Get league files
+    leagues_dir = "leagues"
+    if not os.path.exists(leagues_dir):
+        print(f"Creating {leagues_dir} directory...")
+        os.makedirs(leagues_dir)
+        print("Please place your CSV files in the 'leagues' folder.")
+        return
+    
+    league_files = [f for f in os.listdir(leagues_dir) if f.endswith('.csv')]
+    
+    if not league_files:
+        print("No CSV files found in 'leagues' folder.")
+        print("Please add your league CSV files.")
+        return
+    
+    print("\nAvailable leagues:")
+    for i, f in enumerate(league_files, 1):
+        print(f"{i}. {f.replace('.csv', '')}")
+    
+    try:
+        choice = int(input("\nSelect league (number): "))
+        league_name = league_files[choice-1].replace('.csv', '')
+        
+        engine = Brutballv64(league_name)
+        teams = engine.get_available_teams()
+        
+        print(f"\nTeams in {league_name}:")
+        for i, team in enumerate(teams, 1):
+            print(f"{i}. {team}")
+        
+        home_idx = int(input("\nSelect home team (number): ")) - 1
+        away_idx = int(input("Select away team (number): ")) - 1
+        
+        home_team = teams[home_idx]
+        away_team = teams[away_idx]
+        
+        print(f"\nAnalyzing: {home_team} vs {away_team}")
+        
+        result = engine.analyze_match(home_team, away_team)
+        
+        print("\n" + "=" * 60)
+        print(f"RESULT: {result['match']}")
+        print(f"Verdict: {result['verdict']}")
+        print(f"Capital Mode: {result['capital']['capital_mode']} ({result['capital']['multiplier']}x)")
+        print("\nRecommendations:")
+        
+        for rec in result['recommendations']:
+            print(f"- {rec['market']}")
+            print(f"  Stake: ${rec['stake_amount']:.2f} ({rec['stake_pct']:.1f}%)")
+            print(f"  Confidence: {rec['confidence']}")
+            print(f"  Reason: {rec['reason']}")
+            print()
+        
+        # Save option
+        save = input("Save results to JSON? (y/n): ")
+        if save.lower() == 'y':
+            engine.save_predictions()
+            print("Results saved to predictions.json")
+        
+    except (ValueError, IndexError) as e:
+        print(f"Error: {e}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+
+# ============================================================================
+# MAIN EXECUTION
+# ============================================================================
 
 if __name__ == "__main__":
-    main()
+    # Try to run Streamlit, fall back to console
+    try:
+        create_streamlit_app()
+    except Exception as e:
+        print(f"Streamlit error: {e}")
+        run_console_mode()
