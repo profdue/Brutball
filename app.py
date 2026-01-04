@@ -638,7 +638,8 @@ def create_certainty_card(recommendation: Dict):
     badge_class = "perfect-badge" if is_perfect_lock else "certainty-badge"
     badge_text = "PERFECT LOCK" if is_perfect_lock else "100% WIN RATE"
     
-    st.markdown(f"""
+    # Build the HTML string
+    html = f"""
     <div class="{card_class}">
         <div style="display: flex; align-items: flex-start; justify-content: space-between;">
             <div style="flex: 1;">
@@ -675,7 +676,10 @@ def create_certainty_card(recommendation: Dict):
             </div>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """
+    
+    # Render with unsafe_allow_html
+    st.markdown(html, unsafe_allow_html=True)
 
 def create_team_badge(team_name: str, is_home: bool = True):
     badge_type = "🏠 HOME" if is_home else "✈️ AWAY"
