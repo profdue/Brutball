@@ -1,19 +1,19 @@
 team,season_position,home_matches_played,home_goals_scored,home_goals_conceded,home_xg_for,home_xg_against,away_matches_played,away_goals_scored,away_goals_conceded,away_xg_for,away_xg_against,goals_scored_last_5,goals_conceded_last_5,home_goals_conceded_last_5,away_goals_conceded_last_5,defenders_out,form_last_5_overall,form_last_5_home,form_last_5_away,home_goals_openplay_for,home_goals_counter_for,home_goals_setpiece_for,home_goals_penalty_for,home_goals_owngoal_for,away_goals_openplay_for,away_goals_counter_for,away_goals_setpiece_for,away_goals_penalty_for,away_goals_owngoal_for,home_goals_openplay_against,home_goals_counter_against,home_goals_setpiece_against,home_goals_penalty_against,home_goals_owngoal_against,away_goals_openplay_against,away_goals_counter_against,away_goals_setpiece_against,away_goals_penalty_against,away_goals_owngoal_against
-FC Porto,1,7,14,2,13.17,3.14,7,16,2,14.24,4.16,19,3,2,1,3,WWWWW,WWWDW,WWWWW,8,1,3,2,0,10,0,5,1,0,1,0,1,0,0,1,0,0,0,1
-Sporting CP,2,7,23,3,18.04,4.46,7,15,4,15.64,5.23,25,4,1,3,2,WDWWW,WWWDW,DWWWW,13,0,6,3,1,12,1,2,0,0,2,0,0,1,0,2,0,2,0,0
-Benfica,3,7,15,6,16.53,5.64,7,15,2,12.73,5.76,23,6,5,1,1,WDWDW,DDWWD,WWWDW,8,0,2,5,0,11,0,2,2,0,4,0,1,0,1,2,0,0,0,0
-Gil Vicente,4,7,9,5,10.32,6.06,8,10,4,9.29,9.51,14,7,3,4,2,DDDLD,DLWWW,DDDWL,5,1,1,2,0,4,1,5,0,0,2,0,1,1,1,2,0,1,1,0
-Braga,5,7,12,5,12.71,6.42,8,14,8,17.19,10.85,15,8,3,5,2,LWWWW,WWWLL,LWWLD,5,1,2,4,0,5,0,4,2,3,4,0,1,0,0,7,0,0,1,0
-Famalicao,6,8,11,5,13.0,10.35,6,7,4,10.11,5.65,13,7,3,4,1,WLDLW,WLLWD,WDDDW,6,2,3,0,0,3,0,4,0,0,3,0,1,0,1,2,0,1,1,0
-Vitoria Guimaraes,7,7,11,8,8.87,8.86,7,4,9,7.26,10.0,11,9,5,4,1,WDWWL,DWLDW,WWLLW,4,1,5,1,0,1,0,2,1,0,4,0,3,0,1,3,4,1,1,0
-Moreirense,8,7,12,11,7.83,10.34,8,9,13,9.28,15.14,16,18,10,8,0,DLDDL,LDWWW,DDLWL,8,1,3,0,0,6,1,2,0,0,5,1,3,2,0,4,1,3,5,0
-Estoril,9,8,13,11,12.0,12.81,7,10,14,9.93,14.9,15,17,8,9,0,WLDLW,WDWDL,LLWDL,7,0,4,1,1,6,0,2,1,1,7,0,3,1,0,6,2,3,3,0
-Rio Ave,10,7,7,12,7.77,13.87,8,12,12,9.18,14.69,11,14,9,5,0,DLWDD,LDLLW,DWDWD,5,0,1,1,0,9,1,0,1,1,8,0,2,2,0,8,0,4,0,0
-Alverca,11,7,6,10,11.69,9.28,7,9,10,6.57,11.22,11,11,5,6,2,LWWDL,WD LWW,LWLLW,1,1,2,1,1,4,2,2,1,0,7,1,1,1,0,6,0,3,1,0
-Santa Clara,12,8,7,6,10.98,6.76,7,4,9,6.93,9.23,8,10,4,6,0,DLWDL,DWLLL,LDLLD,2,0,2,3,0,2,0,0,2,0,4,0,2,0,0,4,0,5,0,0
-Nacional,13,7,9,14,10.81,14.4,8,8,7,8.93,12.67,13,13,8,5,3,DWLLD,WLLWL,DLDDW,2,0,3,4,0,4,1,3,0,0,11,1,2,0,0,3,0,1,3,0
-Estrela,14,8,10,9,14.61,9.44,7,7,13,6.18,12.86,14,16,4,12,0,DLWLD,DWDLW,LLWLD,7,1,1,1,0,5,0,0,2,0,3,1,4,1,0,6,1,4,2,0
-Casa Pia,15,7,7,15,5.65,12.7,8,9,14,9.03,14.41,12,21,11,10,0,WDLDD,DLDDD,WL DLL,2,1,3,1,0,6,0,2,0,1,7,2,4,2,0,7,0,4,3,0
-Arouca,16,8,8,17,7.03,13.94,7,7,20,3.99,15.9,8,24,11,13,2,DWLLL,WLDLL,LLLWD,6,0,2,0,0,4,0,3,0,0,11,1,3,0,2,8,1,5,5,1
-Tondela,17,7,3,11,10.64,12.02,8,6,16,13.45,14.18,7,17,8,9,1,LLLWL,LLLLD,LWDLW,1,0,0,2,0,2,0,2,2,0,9,0,1,1,0,10,0,2,3,1
-AVS Futebol SAD,18,8,7,16,9.14,15.61,7,4,23,6.18,14.43,8,28,10,18,2,DLLLD,DLDDD,LLLLL,7,0,0,0,0,4,0,0,0,0,6,0,7,3,0,16,1,4,2,0
+FC Porto,1,8,16,2,15.98,3.42,9,20,2,16.42,5.04,11,1,2,1,3,WWWWW,WWWWD,WWWWW,9,1,3,3,0,13,0,6,1,0,1,0,1,0,0,1,0,0,0,1
+Sporting CP,2,8,27,3,21.7,4.6,9,20,6,20.08,7.7,16,3,1,2,4,WDWWD,WWWWD,WDWDW,15,0,8,3,1,15,2,2,0,1,2,0,0,1,0,3,1,2,0,0
+Benfica,3,9,19,7,20.31,7.01,8,17,4,14.3,7.72,11,4,4,4,1,WDWWD,WDWDW,WDWW D,10,0,2,7,0,11,1,3,2,0,5,0,1,0,1,3,0,0,1,0
+Gil Vicente,4,8,10,6,12.07,7.75,9,12,6,10.87,10.92,6,6,4,2,0,DDDDD,DWDDW,DDDDW,6,1,1,2,0,4,1,7,0,0,3,0,1,1,1,4,0,1,1,0
+Braga,5,8,14,7,14.66,7.98,9,17,11,20.02,12.17,8,7,4,7,2,DDLWW,WDWWL,DLWWL,6,1,2,5,0,7,0,4,3,3,4,1,2,0,0,7,1,2,1,0
+Vitoria Guimaraes,6,9,14,13,10.62,13.15,8,4,9,8.95,10.35,4,5,8,4,1,WDWLD,WLDLW,WWLLD,6,2,5,1,0,1,0,2,1,0,7,1,3,0,2,3,4,1,1,0
+Moreirense,7,7,12,11,7.83,10.34,9,11,13,11.23,15.55,7,9,10,5,0,WD LDD,LD LWW,WDDLW,8,1,3,0,0,8,1,2,0,0,5,1,3,2,0,4,1,3,5,0
+Famalicao,8,9,13,8,15.46,11.24,8,7,6,11.39,9.15,7,7,6,6,1,LLLWL,WLWLL,LLD WD,7,2,3,0,1,3,0,4,0,0,6,0,1,0,1,2,0,1,3,0
+Estoril,9,9,17,12,13.41,13.67,8,11,17,11.14,17.49,9,11,8,10,1,LWWLD,WDWDW,LLLWD,8,0,5,1,3,7,0,2,1,1,8,0,3,1,0,8,2,3,4,0
+Rio Ave,10,8,10,13,9.89,15.72,9,12,16,9.32,18.41,7,9,7,9,0,WLDLW,WLDLW,LDWDW,6,1,2,1,0,9,1,0,1,1,8,0,3,2,0,10,0,6,0,0
+Alverca,11,9,7,13,14.65,11.74,8,10,14,7.43,12.63,3,8,8,6,0,WLLLW,WLWDL,LLWLW,1,1,2,2,1,5,2,2,1,0,9,1,2,1,0,7,0,4,1,2
+Estrela,12,9,13,12,15.92,12.28,8,10,15,7.06,15.31,10,9,7,14,1,DWDLW,DDWDL,WLLWL,7,2,3,1,0,8,0,0,2,0,5,1,4,2,0,7,1,4,2,1
+Santa Clara,13,9,7,7,11.17,7.61,7,4,9,6.93,9.23,2,3,3,6,3,LD LWD,LDWLW,LDLLD,2,0,2,3,0,2,0,0,2,0,5,0,2,0,0,4,0,5,0,0
+Nacional,14,7,9,14,10.81,14.4,9,9,9,10.69,13.68,7,8,8,7,1,LDWLL,WL LWL,LDLLD,2,0,3,4,0,5,1,3,0,0,11,1,2,0,0,5,0,1,3,0
+Casa Pia,15,8,7,15,6.0,14.39,9,10,17,10.83,16.56,4,6,10,11,2,LDWDL,DDLLD,WLDL L,2,1,3,1,0,6,0,3,0,1,7,2,4,2,0,8,1,5,3,0
+Arouca,16,9,10,19,8.44,15.53,8,8,23,5.11,16.36,5,8,9,15,1,LDDWL,DLWLD,LDLLL,8,0,2,0,0,5,0,3,0,0,11,1,5,0,2,8,1,8,5,1
+Tondela,17,8,6,12,11.18,13.08,8,6,16,13.45,14.18,6,8,9,7,1,WLLLW,LLLLW,WLDLW,1,0,3,2,0,2,0,2,2,0,10,0,1,1,0,10,0,2,3,1
+AVS Futebol SAD,18,9,7,18,9.59,17.78,8,4,25,6.46,17.24,3,14,9,17,0,LLDLL,DLDDL,LLLLL,7,0,0,0,0,4,0,0,0,0,8,0,7,3,0,17,1,4,3,0
