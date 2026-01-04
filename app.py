@@ -661,6 +661,7 @@ def create_certainty_card(recommendation: Dict):
                     </span>
                 </div>
             </div>
+            """, unsafe_allow_html=True)
             
             <div style="text-align: right; margin-left: 20px;">
                 <div style="font-size: 28px; font-weight: 700; color: {recommendation['color']};">
