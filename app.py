@@ -989,29 +989,32 @@ def main():
                         st.markdown("""
                         <div class="config-card">
                             <h4 style="margin-top: 0;">🎯 Transformation Process</h4>
-                            <div style="color: #D1D5DB; margin: 15px 0;">
-                                1. **System Detection**: Original system analyzes match (52.6% accuracy)<br>
-                                2. **Certainty Transformation**: Automatically applies 100% win rate rules<br>
-                                3. **Output**: Only certainty bets shown (19/19 historical wins)
+                            <div style="color: #D1D5DB; margin: 15px 0; line-height: 1.6;">
+                                <ol>
+                                    <li><strong>System Detection:</strong> Original system analyzes match (52.6% accuracy)</li>
+                                    <li><strong>Certainty Transformation:</strong> Automatically applies 100% win rate rules</li>
+                                    <li><strong>Output:</strong> Only certainty bets shown (19/19 historical wins)</li>
+                                </ol>
                             </div>
-                            
+                        
                             <h4 style="margin-top: 20px;">🛡️ Key Transformations</h4>
-                            <div style="color: #D1D5DB;">
-                                • "BACK HOME & OVER 2.5" → **"HOME DOUBLE CHANCE & OVER 1.5"**<br>
-                                • "UNDER 2.5" → **"UNDER 3.5"**<br>
-                                • "BACK AWAY" → **"AWAY DOUBLE CHANCE"**<br>
-                                • Perfect locks remain unchanged
-                            </div>
-                            
+                            <ul style="color: #D1D5DB; line-height: 1.6;">
+                                <li>"BACK HOME & OVER 2.5" → <strong>HOME DOUBLE CHANCE & OVER 1.5</strong></li>
+                                <li>"UNDER 2.5" → <strong>UNDER 3.5</strong></li>
+                                <li>"BACK AWAY" → <strong>AWAY DOUBLE CHANCE</strong></li>
+                                <li>Perfect locks remain unchanged</li>
+                            </ul>
+                        
                             <h4 style="margin-top: 20px;">📈 Empirical Evidence</h4>
-                            <div style="color: #D1D5DB;">
-                                • **19 matches analyzed**<br>
-                                • **19/19 wins** with transformed bets<br>
-                                • **0% loss rate**<br>
-                                • **+31.22% ROI** on total stakes
-                            </div>
+                            <ul style="color: #D1D5DB; line-height: 1.6;">
+                                <li><strong>19 matches analyzed</strong></li>
+                                <li><strong>19/19 wins</strong> with transformed bets</li>
+                                <li><strong>0% loss rate</strong></li>
+                                <li><strong>+31.22% ROI</strong> on total stakes</li>
+                            </ul>
                         </div>
                         """, unsafe_allow_html=True)
+
         
         except Exception as e:
             st.error(f"❌ Error: {str(e)}")
