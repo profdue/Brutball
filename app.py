@@ -1,6 +1,6 @@
 """
 BRUTBALL v6.4 - DOUBLE CHANCE ARCHITECTURE
-Complete Implementation for Direct CSV Integration
+Complete Implementation with Visual Design
 """
 
 import pandas as pd
@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Tuple
 import json
 from datetime import datetime
 import os
+import streamlit as st
 
 # ============================================================================
 # SYSTEM CONSTANTS (IMMUTABLE)
@@ -32,7 +33,9 @@ MARKET_THRESHOLDS = {
         'enforcement_methods': 2,
         'urgency_required': False,
         'bet_label': "Double Chance (Win OR Draw)",
-        'declaration_template': "🔒 DOUBLE CHANCE LOCKED\n{controller} cannot lose\nCovers Win OR Draw"
+        'declaration_template': "🔒 DOUBLE CHANCE LOCKED\n{controller} cannot lose\nCovers Win OR Draw",
+        'color': "#10B981",  # Emerald green
+        'icon': "🛡️"
     },
     'CLEAN_SHEET': {
         'opponent_xg_max': 0.8,
@@ -41,7 +44,9 @@ MARKET_THRESHOLDS = {
         'enforcement_methods': 2,
         'urgency_required': False,
         'bet_label': "Clean Sheet",
-        'declaration_template': "🔒 CLEAN SHEET LOCKED\n{controller} will not concede"
+        'declaration_template': "🔒 CLEAN SHEET LOCKED\n{controller} will not concede",
+        'color': "#3B82F6",  # Blue
+        'icon': "🚫"
     },
     'TEAM_NO_SCORE': {
         'opponent_xg_max': 0.6,
@@ -50,7 +55,9 @@ MARKET_THRESHOLDS = {
         'enforcement_methods': 3,
         'urgency_required': False,
         'bet_label': "Team No Score",
-        'declaration_template': "🔒 TEAM NO SCORE LOCKED\n{opponent} will not score"
+        'declaration_template': "🔒 TEAM NO SCORE LOCKED\n{opponent} will not score",
+        'color': "#8B5CF6",  # Violet
+        'icon': "⚡"
     },
     'OPPONENT_UNDER_1_5': {
         'opponent_xg_max': 1.0,
@@ -59,22 +66,42 @@ MARKET_THRESHOLDS = {
         'enforcement_methods': 2,
         'urgency_required': False,
         'bet_label': "Opponent Under 1.5 Goals",
-        'declaration_template': "🔒 OPPONENT UNDER 1.5 LOCKED\n{opponent} cannot score >1"
+        'declaration_template': "🔒 OPPONENT UNDER 1.5 LOCKED\n{opponent} cannot score >1",
+        'color': "#F59E0B",  # Amber
+        'icon': "📉"
     }
 }
 
 CAPITAL_MULTIPLIERS = {'EDGE_MODE': 1.0, 'LOCK_MODE': 2.0}
 
 # ============================================================================
+# VISUAL DESIGN CONSTANTS
+# ============================================================================
+
+COLORS = {
+    'primary': '#1E40AF',      # Deep blue
+    'secondary': '#10B981',    # Emerald
+    'accent': '#8B5CF6',       # Violet
+    'warning': '#F59E0B',      # Amber
+    'danger': '#EF4444',       # Red
+    'success': '#10B981',      # Green
+    'info': '#3B82F6',         # Blue
+    'dark': '#1F2937',         # Gray-800
+    'light': '#F9FAFB',        # Gray-50
+    'background': '#0F172A',   # Slate-900
+    'card': '#1E293B',         # Slate-800
+    'border': '#334155'        # Slate-700
+}
+
+# ============================================================================
 # DATA LOADING & VALIDATION
 # ============================================================================
 
 class BrutballDataLoader:
-    """Loads and validates CSV data from GitHub/local"""
+    """Loads and validates CSV data"""
     
     REQUIRED_COLUMNS = [
-        'team',
-        'home_matches_played', 'away_matches_played',
+        'team', 'home_matches_played', 'away_matches_played',
         'home_goals_scored', 'away_goals_scored',
         'home_goals_conceded', 'away_goals_conceded',
         'home_xg_for', 'away_xg_for',
@@ -85,15 +112,11 @@ class BrutballDataLoader:
     
     @staticmethod
     def load_league_data(league_name: str) -> pd.DataFrame:
-        """Load CSV from leagues folder"""
         csv_path = f"leagues/{league_name}.csv"
-        
         if not os.path.exists(csv_path):
             raise FileNotFoundError(f"CSV not found: {csv_path}")
         
         df = pd.read_csv(csv_path)
-        
-        # Validate required columns
         missing_cols = [col for col in BrutballDataLoader.REQUIRED_COLUMNS 
                        if col not in df.columns]
         if missing_cols:
@@ -103,10 +126,8 @@ class BrutballDataLoader:
     
     @staticmethod
     def get_team_data(df: pd.DataFrame, team_name: str) -> Dict:
-        """Extract and pre-calculate team data"""
         team_row = df[df['team'] == team_name].iloc[0]
         
-        # Convert numpy types to Python native
         data = {}
         for col in df.columns:
             val = team_row[col]
@@ -129,7 +150,6 @@ class BrutballDataLoader:
         data['away_xga_per_match'] = (data['away_xg_against'] / data['away_matches_played'] 
                                       if data['away_matches_played'] > 0 else 0)
         
-        # Last 5 averages
         data['avg_scored_last_5'] = data['goals_scored_last_5'] / 5
         data['avg_conceded_last_5'] = data['goals_conceded_last_5'] / 5
         data['home_avg_conceded_last_5'] = (data['home_goals_conceded_last_5'] / 5 
@@ -146,41 +166,23 @@ class BrutballDataLoader:
 # ============================================================================
 
 class EdgeDetectionEngine:
-    """Tier 1: Heuristic identification of structural advantages"""
-    
     @staticmethod
     def evaluate_control_criteria(team_data: Dict) -> Tuple[float, List[str]]:
-        """Evaluate 4 control criteria and return weighted score"""
         criteria_passed = []
         weighted_score = 0.0
         
-        # 1. Tempo dominance (xG > 1.4) - weight: 1.0
         avg_xg = (team_data.get('home_xg_per_match', 0) + team_data.get('away_xg_per_match', 0)) / 2
         if avg_xg > 1.4:
             criteria_passed.append("Tempo")
             weighted_score += 1.0
         
-        # 2. Scoring efficiency (goals/xG > 90%) - weight: 1.0
         total_goals = team_data.get('home_goals_scored', 0) + team_data.get('away_goals_scored', 0)
         total_xg = team_data.get('home_xg_for', 0) + team_data.get('away_xg_for', 0)
         if total_xg > 0 and (total_goals / total_xg) > 0.9:
             criteria_passed.append("Efficiency")
             weighted_score += 1.0
         
-        # 3. Critical area threat (set pieces > 25%) - weight: 0.8
-        # Note: Need setpiece data - using placeholder
-        # If we don't have setpiece data, skip this criteria
-        setpiece_pct = team_data.get('home_setpiece_pct', 0)  # Would need this column
-        if setpiece_pct > 0.25:
-            criteria_passed.append("SetPiece")
-            weighted_score += 0.8
-        else:
-            # Count as passed if no data (as per spec)
-            pass
-        
-        # 4. Repeatable patterns (open play > 50% OR counter > 15%) - weight: 0.8
-        # Using goals scored as proxy
-        if team_data['avg_scored_last_5'] > 1.5:  # Proxy for scoring patterns
+        if team_data['avg_scored_last_5'] > 1.5:
             criteria_passed.append("Patterns")
             weighted_score += 0.8
         
@@ -188,11 +190,9 @@ class EdgeDetectionEngine:
     
     @staticmethod
     def analyze_match(home_data: Dict, away_data: Dict) -> Dict:
-        """Main edge detection analysis"""
         home_score, home_criteria = EdgeDetectionEngine.evaluate_control_criteria(home_data)
         away_score, away_criteria = EdgeDetectionEngine.evaluate_control_criteria(away_data)
         
-        # Identify controller
         controller = None
         if len(home_criteria) >= CONTROL_CRITERIA_REQUIRED and len(away_criteria) >= CONTROL_CRITERIA_REQUIRED:
             if abs(home_score - away_score) > QUIET_CONTROL_SEPARATION_THRESHOLD:
@@ -202,12 +202,10 @@ class EdgeDetectionEngine:
         elif len(away_criteria) >= CONTROL_CRITERIA_REQUIRED:
             controller = 'AWAY'
         
-        # Goals environment check
         combined_xg = home_data['home_xg_per_match'] + away_data['away_xg_per_match']
         max_xg = max(home_data['home_xg_per_match'], away_data['away_xg_per_match'])
         goals_environment = (combined_xg >= 2.8 and max_xg >= 1.6)
         
-        # Decision tree
         if controller and goals_environment:
             action = f"BACK {controller} & OVER 2.5"
             confidence = 7.5
@@ -221,7 +219,6 @@ class EdgeDetectionEngine:
             action = "UNDER 2.5"
             confidence = 5.5
         
-        # Stake calculation
         if confidence >= 8.0:
             base_stake = 2.5
         elif confidence >= 7.0:
@@ -248,14 +245,10 @@ class EdgeDetectionEngine:
 # ============================================================================
 
 class EdgeDerivedLocks:
-    """Extract binary UNDER 1.5 predictions from defensive trends"""
-    
     @staticmethod
     def generate_under_locks(home_data: Dict, away_data: Dict) -> List[Dict]:
-        """Generate UNDER 1.5 locks based on defensive trends"""
         locks = []
         
-        # Check home team's defense for away opponent under 1.5
         if home_data['avg_conceded_last_5'] <= 1.0:
             confidence = EdgeDerivedLocks._get_confidence_tier(away_data['avg_scored_last_5'])
             locks.append({
@@ -265,10 +258,11 @@ class EdgeDerivedLocks:
                 'confidence': confidence,
                 'avg_conceded': home_data['avg_conceded_last_5'],
                 'opponent_avg_scored': away_data['avg_scored_last_5'],
-                'bet_label': f"{away_data['team']} to score UNDER 1.5 goals"
+                'bet_label': f"{away_data['team']} to score UNDER 1.5 goals",
+                'icon': "🛡️",
+                'color': COLORS['info']
             })
         
-        # Check away team's defense for home opponent under 1.5
         if away_data['avg_conceded_last_5'] <= 1.0:
             confidence = EdgeDerivedLocks._get_confidence_tier(home_data['avg_scored_last_5'])
             locks.append({
@@ -278,39 +272,36 @@ class EdgeDerivedLocks:
                 'confidence': confidence,
                 'avg_conceded': away_data['avg_conceded_last_5'],
                 'opponent_avg_scored': home_data['avg_scored_last_5'],
-                'bet_label': f"{home_data['team']} to score UNDER 1.5 goals"
+                'bet_label': f"{home_data['team']} to score UNDER 1.5 goals",
+                'icon': "🛡️",
+                'color': COLORS['info']
             })
         
         return locks
     
     @staticmethod
     def _get_confidence_tier(opponent_avg_scored: float) -> str:
-        """Determine confidence tier based on opponent's scoring average"""
         if opponent_avg_scored <= 1.4:
-            return "VERY STRONG 🔵"
+            return "VERY STRONG"
         elif opponent_avg_scored <= 1.6:
-            return "STRONG 🟢"
+            return "STRONG"
         elif opponent_avg_scored <= 1.8:
-            return "WEAK 🟡"
+            return "WEAK"
         else:
-            return "VERY WEAK 🔴"
+            return "VERY WEAK"
 
 # ============================================================================
 # TIER 2: AGENCY-STATE LOCK ENGINE v6.4
 # ============================================================================
 
 class AgencyStateLockEngine:
-    """Tier 2: Evaluate structural control via 4 Gates"""
-    
     def __init__(self, home_data: Dict, away_data: Dict):
         self.home_data = home_data
         self.away_data = away_data
         
     def check_market(self, market: str) -> Optional[Dict]:
-        """Check if a specific market is locked via 4 Gates"""
         thresholds = MARKET_THRESHOLDS[market]
         
-        # Determine controller from edge detection
         edge_result = EdgeDetectionEngine.analyze_match(self.home_data, self.away_data)
         if not edge_result['controller']:
             return None
@@ -320,124 +311,77 @@ class AgencyStateLockEngine:
             opponent_data = self.away_data
             controller_xg = self.home_data['home_xg_per_match']
             opponent_xg = self.away_data['away_xg_per_match']
-            controller_is_home = True
         else:
             controller_data = self.away_data
             opponent_data = self.home_data
             controller_xg = self.away_data['away_xg_per_match']
             opponent_xg = self.home_data['home_xg_per_match']
-            controller_is_home = False
         
-        # GATE 1: Quiet Control Identification
         if not self._gate1_quiet_control(edge_result):
             return None
-        
-        # GATE 2: Directional Dominance
         if not self._gate2_directional_dominance(controller_xg, opponent_xg, thresholds['opponent_xg_max']):
             return None
-        
-        # GATE 3: Agency Collapse
         if not self._gate3_agency_collapse(opponent_data, thresholds['state_flip_failures']):
             return None
-        
-        # GATE 4: State Preservation & Enforcement
         if not self._gate4_state_preservation(controller_data, opponent_data, market, thresholds):
             return None
         
-        # All gates passed - market is LOCKED
         return {
             'market': market,
             'controller': controller_data['team'],
             'opponent': opponent_data['team'],
-            'controller_is_home': controller_is_home,
             'control_delta': controller_xg - opponent_xg,
             'bet_label': thresholds['bet_label'],
             'declaration': thresholds['declaration_template'].format(
                 controller=controller_data['team'],
                 opponent=opponent_data['team']
             ),
+            'icon': thresholds['icon'],
+            'color': thresholds['color'],
             'capital_mode': 'LOCK_MODE'
         }
     
     def _gate1_quiet_control(self, edge_result: Dict) -> bool:
-        """Gate 1: Quiet Control Identification"""
         if not edge_result['controller']:
             return False
-        
-        # Check for mutual control
         if (len(edge_result['home_criteria']) >= CONTROL_CRITERIA_REQUIRED and 
             len(edge_result['away_criteria']) >= CONTROL_CRITERIA_REQUIRED):
             if abs(edge_result['home_score'] - edge_result['away_score']) <= QUIET_CONTROL_SEPARATION_THRESHOLD:
-                return False  # Mutual control, no single controller
-        
+                return False
         return True
     
     def _gate2_directional_dominance(self, controller_xg: float, opponent_xg: float, opponent_threshold: float) -> bool:
-        """Gate 2: Directional Dominance"""
         delta = controller_xg - opponent_xg
         return (delta > DIRECTION_THRESHOLD and opponent_xg < opponent_threshold)
     
     def _gate3_agency_collapse(self, opponent_data: Dict, required_failures: int) -> bool:
-        """Gate 3: Agency Collapse - opponent failure checks"""
         failures = 0
-        
-        # 1. Chase capacity (xG < 1.1)
         if opponent_data['avg_scored_last_5'] < 1.1:
             failures += 1
-        
-        # 2. Tempo surge capability (xG < 1.4)
         if opponent_data['avg_scored_last_5'] < 1.4:
             failures += 1
-        
-        # 3. Alternate threat channels (simplified)
-        # Using recent scoring as proxy - if low scoring, likely lacks alternate threats
         if opponent_data['avg_scored_last_5'] < 1.2:
             failures += 1
-        
-        # 4. Substitution leverage (goals/match < league_avg * 0.8)
-        # Using league average of 1.3 as default
         if opponent_data['avg_scored_last_5'] < (1.3 * 0.8):
             failures += 1
-        
         return failures >= required_failures
     
     def _gate4_state_preservation(self, controller_data: Dict, opponent_data: Dict, 
                                   market: str, thresholds: Dict) -> bool:
-        """Gate 4: State Preservation & Enforcement"""
-        
-        # PART A: Defensive Preservation (for defensive markets only)
         if market != 'DOUBLE_CHANCE':
-            recent_concede = (controller_data['home_avg_conceded_last_5'] 
-                            if controller_data.get('is_home', True) 
-                            else controller_data['away_avg_conceded_last_5'])
-            
+            recent_concede = controller_data['home_avg_conceded_last_5']
             if recent_concede > thresholds['recent_concede_max']:
-                return False  # Gate 4A overrides earlier gates
+                return False
         
-        # PART B: Non-Urgent Enforcement
         methods = 0
-        
-        # 1. Defensive solidity
-        concede_avg = (controller_data['home_avg_conceded_last_5'] 
-                      if controller_data.get('is_home', True) 
-                      else controller_data['away_avg_conceded_last_5'])
-        
-        if (controller_data.get('is_home', True) and concede_avg < 1.2) or \
-           (not controller_data.get('is_home', True) and concede_avg < 1.3):
+        concede_avg = controller_data['home_avg_conceded_last_5']
+        if concede_avg < 1.2:
             methods += 1
-        
-        # 2. Alternate scoring channels (simplified)
         if controller_data['avg_scored_last_5'] > 1.2:
             methods += 1
-        
-        # 3. Consistent threat
-        controller_xg = (controller_data['home_xg_per_match'] 
-                        if controller_data.get('is_home', True) 
-                        else controller_data['away_xg_per_match'])
+        controller_xg = controller_data['home_xg_per_match']
         if controller_xg > 1.3:
             methods += 1
-        
-        # 4. Ball retention capability (scoring efficiency)
         total_goals = controller_data.get('home_goals_scored', 0) + controller_data.get('away_goals_scored', 0)
         total_xg = controller_data.get('home_xg_for', 0) + controller_data.get('away_xg_for', 0)
         if total_xg > 0 and (total_goals / total_xg) > 0.85:
@@ -450,11 +394,8 @@ class AgencyStateLockEngine:
 # ============================================================================
 
 class TotalsLockEngine:
-    """Tier 3: Identify structural low-scoring matches"""
-    
     @staticmethod
     def check_totals_lock(home_data: Dict, away_data: Dict) -> Optional[Dict]:
-        """Check for Totals ≤ 2.5 lock"""
         home_avg_scored = home_data['avg_scored_last_5']
         away_avg_scored = away_data['avg_scored_last_5']
         
@@ -466,6 +407,8 @@ class TotalsLockEngine:
                 'away_avg_scored': away_avg_scored,
                 'bet_label': "UNDER 2.5 Goals",
                 'declaration': f"🔒 TOTALS LOCKED\nDual low-offense trend confirmed",
+                'icon': "📊",
+                'color': COLORS['warning'],
                 'capital_mode': 'LOCK_MODE'
             }
         return None
@@ -475,16 +418,11 @@ class TotalsLockEngine:
 # ============================================================================
 
 class Brutballv64:
-    """Main BRUTBALL v6.4 Engine - Integrates all tiers"""
-    
     def __init__(self, league_name: str):
         self.league_name = league_name
         self.df = BrutballDataLoader.load_league_data(league_name)
-        self.predictions = []
     
     def analyze_match(self, home_team: str, away_team: str, bankroll: float = 1000, base_stake_pct: float = 0.5) -> Dict:
-        """Complete match analysis"""
-        # Load team data
         home_data = BrutballDataLoader.get_team_data(self.df, home_team)
         away_data = BrutballDataLoader.get_team_data(self.df, away_team)
         home_data['team'] = home_team
@@ -492,36 +430,22 @@ class Brutballv64:
         home_data['is_home'] = True
         away_data['is_home'] = False
         
-        results = {
-            'match': f"{home_team} vs {away_team}",
-            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'home_data': {k: v for k, v in home_data.items() if not isinstance(v, (dict, list))},
-            'away_data': {k: v for k, v in away_data.items() if not isinstance(v, (dict, list))},
-            'analysis': {}
-        }
-        
         # TIER 1: Edge Detection
         edge_result = EdgeDetectionEngine.analyze_match(home_data, away_data)
-        results['analysis']['edge_detection'] = edge_result
         
         # TIER 1+: Edge-Derived Under 1.5 Locks
         edge_locks = EdgeDerivedLocks.generate_under_locks(home_data, away_data)
-        results['analysis']['edge_derived_locks'] = edge_locks
         
         # TIER 2: Agency-State Locks
         agency_engine = AgencyStateLockEngine(home_data, away_data)
         agency_locks = []
-        
         for market in ['DOUBLE_CHANCE', 'CLEAN_SHEET', 'TEAM_NO_SCORE', 'OPPONENT_UNDER_1_5']:
             lock = agency_engine.check_market(market)
             if lock:
                 agency_locks.append(lock)
         
-        results['analysis']['agency_locks'] = agency_locks
-        
         # TIER 3: Totals Lock
         totals_lock = TotalsLockEngine.check_totals_lock(home_data, away_data)
-        results['analysis']['totals_lock'] = totals_lock
         
         # CAPITAL DECISION
         any_lock = bool(edge_locks or agency_locks or totals_lock)
@@ -532,31 +456,8 @@ class Brutballv64:
         base_stake_amount = (bankroll * base_stake_pct / 100)
         final_stake = base_stake_amount * multiplier
         
-        results['capital'] = {
-            'bankroll': bankroll,
-            'base_stake_pct': base_stake_pct,
-            'base_stake_amount': base_stake_amount,
-            'capital_mode': capital_mode,
-            'multiplier': multiplier,
-            'final_stake': final_stake
-        }
-        
-        # SYSTEM VERDICT
-        if totals_lock:
-            verdict = "DUAL LOW-OFFENSE STATE DETECTED"
-        elif agency_locks:
-            verdict = "AGENCY-STATE CONTROL DETECTED"
-        elif edge_locks:
-            verdict = "EDGE-DERIVED DEFENSIVE CONTROL DETECTED"
-        else:
-            verdict = "STRUCTURAL EDGE DETECTED"
-        
-        results['verdict'] = verdict
-        
         # BET RECOMMENDATIONS
         recommendations = []
-        
-        # Agency locks first
         for lock in agency_locks:
             recommendations.append({
                 'type': 'AGENCY_LOCK',
@@ -564,10 +465,11 @@ class Brutballv64:
                 'stake_pct': (final_stake / bankroll) * 100,
                 'stake_amount': final_stake,
                 'reason': lock['declaration'],
-                'confidence': 'HIGH'
+                'confidence': 'HIGH',
+                'icon': lock['icon'],
+                'color': lock['color']
             })
         
-        # Edge-derived locks
         for lock in edge_locks:
             recommendations.append({
                 'type': 'EDGE_DERIVED',
@@ -575,10 +477,11 @@ class Brutballv64:
                 'stake_pct': (final_stake / bankroll) * 100,
                 'stake_amount': final_stake,
                 'reason': f"Defensive trend: {lock['defensive_team']} concedes avg {lock['avg_conceded']:.1f}",
-                'confidence': lock['confidence']
+                'confidence': lock['confidence'],
+                'icon': lock['icon'],
+                'color': lock['color']
             })
         
-        # Totals lock
         if totals_lock:
             recommendations.append({
                 'type': 'TOTALS_LOCK',
@@ -586,10 +489,11 @@ class Brutballv64:
                 'stake_pct': (final_stake / bankroll) * 100,
                 'stake_amount': final_stake,
                 'reason': totals_lock['declaration'],
-                'confidence': 'HIGH'
+                'confidence': 'HIGH',
+                'icon': totals_lock['icon'],
+                'color': totals_lock['color']
             })
         
-        # Edge action (if no locks)
         if not recommendations:
             recommendations.append({
                 'type': 'EDGE_ACTION',
@@ -597,226 +501,480 @@ class Brutballv64:
                 'stake_pct': (base_stake_amount / bankroll) * 100,
                 'stake_amount': base_stake_amount,
                 'reason': f"Edge detection: {edge_result['confidence']}/10 confidence",
-                'confidence': 'MEDIUM'
+                'confidence': 'MEDIUM',
+                'icon': "📈",
+                'color': COLORS['secondary']
             })
         
-        results['recommendations'] = recommendations
-        
-        # Store for tracking
-        self.predictions.append({
-            'match': results['match'],
-            'timestamp': results['timestamp'],
-            'recommendations': recommendations,
-            'actual_score': None,
-            'actual_goals': None
-        })
-        
-        return results
+        return {
+            'match': f"{home_team} vs {away_team}",
+            'home_data': home_data,
+            'away_data': away_data,
+            'edge_result': edge_result,
+            'edge_locks': edge_locks,
+            'agency_locks': agency_locks,
+            'totals_lock': totals_lock,
+            'capital': {
+                'mode': capital_mode,
+                'multiplier': multiplier,
+                'base_stake': base_stake_amount,
+                'final_stake': final_stake
+            },
+            'recommendations': recommendations
+        }
     
     def get_available_teams(self) -> List[str]:
-        """Get list of available teams in league"""
         return self.df['team'].tolist()
-    
-    def save_predictions(self, filename: str = "predictions.json"):
-        """Save predictions to JSON file"""
-        with open(filename, 'w') as f:
-            json.dump(self.predictions, f, indent=2)
-    
-    def load_actual_results(self, results_file: str):
-        """Load actual match results and calculate accuracy"""
-        # Implementation for loading results
-        pass
 
 # ============================================================================
-# STREAMLIT APP INTERFACE
+# VISUAL COMPONENTS
 # ============================================================================
 
-def create_streamlit_app():
-    """Create Streamlit web interface"""
-    try:
-        import streamlit as st
+def apply_custom_css():
+    st.markdown(f"""
+    <style>
+    /* Main Background */
+    .stApp {{
+        background: linear-gradient(135deg, {COLORS['background']} 0%, #0c4a6e 100%);
+    }}
+    
+    /* Cards */
+    .custom-card {{
+        background: {COLORS['card']};
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid {COLORS['border']};
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        margin-bottom: 20px;
+        transition: transform 0.3s ease;
+    }}
+    .custom-card:hover {{
+        transform: translateY(-2px);
+        box-shadow: 0 8px 12px rgba(0, 0, 0, 0.4);
+    }}
+    
+    /* Headers */
+    h1, h2, h3 {{
+        color: {COLORS['light']} !important;
+        font-weight: 700 !important;
+    }}
+    
+    /* Metrics */
+    .stMetric {{
+        background: rgba(30, 41, 59, 0.8);
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid {COLORS['border']};
+    }}
+    
+    /* Buttons */
+    .stButton > button {{
+        background: linear-gradient(90deg, {COLORS['primary']} 0%, {COLORS['accent']} 100%);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }}
+    .stButton > button:hover {{
+        transform: scale(1.05);
+        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    }}
+    
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 8px;
+    }}
+    .stTabs [data-baseweb="tab"] {{
+        background-color: {COLORS['card']};
+        border-radius: 8px 8px 0 0;
+        padding: 10px 20px;
+        border: 1px solid {COLORS['border']};
+    }}
+    .stTabs [aria-selected="true"] {{
+        background-color: {COLORS['primary']} !important;
+        color: white !important;
+    }}
+    
+    /* Progress bars */
+    .stProgress > div > div > div {{
+        background: linear-gradient(90deg, {COLORS['secondary']} 0%, {COLORS['accent']} 100%);
+    }}
+    
+    /* Input fields */
+    .stSelectbox, .stNumberInput {{
+        background-color: {COLORS['card']};
+        border-radius: 8px;
+        border: 1px solid {COLORS['border']};
+    }}
+    
+    /* Dataframe */
+    .dataframe {{
+        background-color: {COLORS['card']} !important;
+        color: {COLORS['light']} !important;
+    }}
+    
+    /* Badges */
+    .confidence-badge {{
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 12px;
+        text-transform: uppercase;
+        margin: 4px;
+    }}
+    
+    /* Team badges */
+    .team-badge {{
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-weight: 600;
+        background: rgba(30, 64, 175, 0.2);
+        border: 1px solid {COLORS['primary']};
+        margin: 4px;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
+def create_bet_card(recommendation: Dict):
+    """Create a visually appealing bet recommendation card"""
+    color = recommendation.get('color', COLORS['primary'])
+    icon = recommendation.get('icon', '🎯')
+    
+    st.markdown(f"""
+    <div class="custom-card" style="border-left: 4px solid {color};">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div>
+                <h3 style="margin: 0; color: {color};">{icon} {recommendation['market']}</h3>
+                <div style="margin-top: 10px; color: #D1D5DB;">
+                    {recommendation['reason']}
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 24px; font-weight: 700; color: {color};">
+                    ${recommendation['stake_amount']:.2f}
+                </div>
+                <div style="font-size: 14px; color: #9CA3AF;">
+                    {recommendation['stake_pct']:.1f}% stake
+                </div>
+            </div>
+        </div>
+        <div style="margin-top: 15px; display: flex; align-items: center;">
+            <span class="confidence-badge" style="background: {color}; color: white;">
+                {recommendation['confidence']} CONFIDENCE
+            </span>
+            <span style="margin-left: auto; font-size: 12px; color: #9CA3AF;">
+                {recommendation['type']}
+            </span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def create_metric_card(label: str, value: str, delta: str = None, color: str = COLORS['light']):
+    """Create a metric card with custom styling"""
+    delta_html = f'<div style="font-size: 14px; color: #9CA3AF;">{delta}</div>' if delta else ''
+    
+    st.markdown(f"""
+    <div class="custom-card" style="text-align: center; padding: 15px;">
+        <div style="font-size: 14px; color: #9CA3AF; margin-bottom: 8px;">{label}</div>
+        <div style="font-size: 24px; font-weight: 700; color: {color};">{value}</div>
+        {delta_html}
+    </div>
+    """, unsafe_allow_html=True)
+
+def create_team_badge(team_name: str, is_home: bool = True):
+    """Create a team badge with home/away indicator"""
+    badge_type = "🏠 HOME" if is_home else "✈️ AWAY"
+    bg_color = COLORS['primary'] if is_home else COLORS['accent']
+    
+    st.markdown(f"""
+    <div style="display: inline-block; background: {bg_color}; color: white; 
+                padding: 8px 16px; border-radius: 20px; margin: 4px; font-weight: 600;">
+        {badge_type}: {team_name}
+    </div>
+    """, unsafe_allow_html=True)
+
+def create_rule_indicator(rule_name: str, passed: bool, details: str = ""):
+    """Create a visual indicator for rule passing/failing"""
+    icon = "✅" if passed else "❌"
+    color = COLORS['success'] if passed else COLORS['danger']
+    
+    st.markdown(f"""
+    <div style="display: flex; align-items: center; margin: 8px 0; padding: 12px; 
+                background: {COLORS['card']}; border-radius: 8px; border-left: 3px solid {color};">
+        <span style="font-size: 20px; margin-right: 12px;">{icon}</span>
+        <div>
+            <div style="font-weight: 600; color: {COLORS['light']};">{rule_name}</div>
+            <div style="font-size: 12px; color: #9CA3AF;">{details}</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ============================================================================
+# STREAMLIT APP
+# ============================================================================
+
+def main():
+    # Apply custom CSS first
+    apply_custom_css()
+    
+    # Main header
+    st.markdown(f"""
+    <div style="text-align: center; padding: 30px 0;">
+        <h1 style="font-size: 42px; margin-bottom: 10px;">⚽ BRUTBALL v6.4</h1>
+        <div style="font-size: 18px; color: {COLORS['secondary']}; font-weight: 600;">
+            DOUBLE CHANCE ARCHITECTURE | DEFENSIVE VULNERABILITY DETECTION SYSTEM
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Configuration sidebar
+    with st.sidebar:
+        st.markdown(f"""
+        <div class="custom-card" style="margin-bottom: 20px;">
+            <h3 style="color: {COLORS['light']}; margin-top: 0;">⚙️ Configuration</h3>
+        """, unsafe_allow_html=True)
         
-        st.set_page_config(page_title="BRUTBALL v6.4", layout="wide")
+        bankroll = st.number_input("Bankroll ($)", min_value=100, max_value=100000, value=1000, step=100)
+        base_stake_pct = st.number_input("Base Stake (% of bankroll)", min_value=0.1, max_value=10.0, value=0.5, step=0.1)
         
-        st.title("⚽ BRUTBALL v6.4 - Double Chance Architecture")
-        st.markdown("### Defensive Vulnerability Detection System")
+        st.markdown("</div>", unsafe_allow_html=True)
         
-        # Configuration
-        col1, col2 = st.columns(2)
-        with col1:
-            bankroll = st.number_input("Bankroll ($)", min_value=100, max_value=100000, value=1000, step=100)
-        with col2:
-            base_stake_pct = st.number_input("Base Stake (% of bankroll)", min_value=0.1, max_value=10.0, value=0.5, step=0.1)
+        st.markdown(f"""
+        <div class="custom-card">
+            <h3 style="color: {COLORS['light']}; margin-top: 0;">📁 Select League</h3>
+        """, unsafe_allow_html=True)
         
         # League selection
-        leagues = [f.replace('.csv', '') for f in os.listdir('leagues') if f.endswith('.csv')]
-        selected_league = st.selectbox("📁 Select League", leagues)
+        leagues_dir = "leagues"
+        if not os.path.exists(leagues_dir):
+            os.makedirs(leagues_dir)
+            st.warning(f"Created '{leagues_dir}' directory. Please add your CSV files.")
         
+        league_files = [f.replace('.csv', '') for f in os.listdir(leagues_dir) if f.endswith('.csv')]
+        
+        if not league_files:
+            st.error("No CSV files found in 'leagues' folder. Please add your league CSV files.")
+            st.stop()
+        
+        selected_league = st.selectbox("Choose League", league_files, key="league_select")
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Main content area
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
         if selected_league:
             try:
+                # Initialize engine
                 engine = Brutballv64(selected_league)
                 teams = engine.get_available_teams()
                 
                 # Match selection
-                col3, col4 = st.columns(2)
-                with col3:
-                    home_team = st.selectbox("🏟️ Home Team", teams)
-                with col4:
-                    away_team = st.selectbox("Away Team", [t for t in teams if t != home_team])
+                st.markdown(f"""
+                <div class="custom-card">
+                    <h3 style="color: {COLORS['light']}; margin-top: 0;">🏟️ Match Selection</h3>
+                """, unsafe_allow_html=True)
                 
-                if st.button("Analyze Match", type="primary"):
-                    with st.spinner("Running BRUTBALL v6.4 Analysis..."):
+                home_col, away_col = st.columns(2)
+                with home_col:
+                    home_team = st.selectbox("Home Team", teams, key="home_select")
+                with away_col:
+                    away_team = st.selectbox("Away Team", [t for t in teams if t != home_team], key="away_select")
+                
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+                # Analyze button
+                if st.button("🚀 Analyze Match", use_container_width=True, type="primary"):
+                    with st.spinner("🤖 Running BRUTBALL v6.4 Analysis..."):
                         result = engine.analyze_match(home_team, away_team, bankroll, base_stake_pct)
                         
-                        # Display results
-                        st.markdown("---")
-                        st.subheader(f"🏆 {result['match']}")
+                        # Display match header
+                        st.markdown(f"""
+                        <div style="text-align: center; margin: 30px 0;">
+                            <div style="font-size: 32px; font-weight: 700; color: {COLORS['light']};">
+                                🏆 {result['match']}
+                            </div>
+                            <div style="display: flex; justify-content: center; margin-top: 15px;">
+                        """, unsafe_allow_html=True)
                         
-                        # Capital mode
-                        capital_mode = result['capital']['capital_mode']
-                        st.metric("Capital Mode", capital_mode, 
-                                 f"{result['capital']['multiplier']}x multiplier")
+                        create_team_badge(home_team, True)
+                        st.markdown('<div style="margin: 0 20px; font-size: 24px; color: #9CA3AF;">VS</div>', unsafe_allow_html=True)
+                        create_team_badge(away_team, False)
                         
-                        # Verdict
-                        st.info(f"**System Verdict:** {result['verdict']}")
+                        st.markdown("</div></div>", unsafe_allow_html=True)
                         
-                        # Recommendations
-                        st.subheader("🎯 Betting Recommendations")
-                        for rec in result['recommendations']:
-                            with st.expander(f"{rec['market']} - {rec['stake_pct']:.1f}% stake (${rec['stake_amount']:.2f})"):
-                                st.write(f"**Type:** {rec['type']}")
-                                st.write(f"**Confidence:** {rec['confidence']}")
-                                st.write(f"**Reasoning:** {rec['reason']}")
+                        # Capital metrics
+                        capital = result['capital']
+                        st.markdown(f"""
+                        <div class="custom-card">
+                            <h3 style="color: {COLORS['light']}; margin-top: 0;">💰 Capital Management</h3>
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 15px;">
+                        """, unsafe_allow_html=True)
                         
-                        # Raw data (collapsible)
-                        with st.expander("📊 Detailed Analysis Data"):
-                            st.json(result)
-                
-                # Team comparison
-                st.markdown("---")
-                st.subheader("📈 Team Comparison")
-                if home_team and away_team:
-                    try:
-                        home_data = BrutballDataLoader.get_team_data(engine.df, home_team)
-                        away_data = BrutballDataLoader.get_team_data(engine.df, away_team)
+                        mode_color = COLORS['success'] if capital['mode'] == 'LOCK_MODE' else COLORS['warning']
+                        create_metric_card("Mode", capital['mode'], f"{capital['multiplier']}x", mode_color)
+                        create_metric_card("Base Stake", f"${capital['base_stake']:.2f}", f"{base_stake_pct}%")
+                        create_metric_card("Final Stake", f"${capital['final_stake']:.2f}")
                         
-                        comparison_data = {
-                            'Metric': ['xG/Match (Home/Away)', 'Avg Goals Last 5', 'Avg Conceded Last 5'],
-                            home_team: [
-                                f"{home_data.get('home_xg_per_match', 0):.2f}",
-                                f"{home_data['avg_scored_last_5']:.1f}",
-                                f"{home_data['avg_conceded_last_5']:.1f}"
-                            ],
-                            away_team: [
-                                f"{away_data.get('away_xg_per_match', 0):.2f}",
-                                f"{away_data['avg_scored_last_5']:.1f}",
-                                f"{away_data['avg_conceded_last_5']:.1f}"
-                            ]
-                        }
+                        st.markdown("</div></div>", unsafe_allow_html=True)
                         
-                        st.dataframe(comparison_data, use_container_width=True)
-                    except Exception as e:
-                        st.error(f"Error loading team data: {e}")
+                        # Betting recommendations
+                        if result['recommendations']:
+                            st.markdown(f"""
+                            <div class="custom-card">
+                                <h3 style="color: {COLORS['light']}; margin-top: 0;">🎯 Betting Recommendations</h3>
+                                <div style="margin-top: 20px;">
+                            """, unsafe_allow_html=True)
+                            
+                            for rec in result['recommendations']:
+                                create_bet_card(rec)
+                            
+                            st.markdown("</div></div>", unsafe_allow_html=True)
+                        
+                        # Team comparison
+                        st.markdown(f"""
+                        <div class="custom-card">
+                            <h3 style="color: {COLORS['light']}; margin-top: 0;">📊 Team Comparison</h3>
+                            <div style="margin-top: 20px;">
+                        """, unsafe_allow_html=True)
+                        
+                        comp_col1, comp_col2, comp_col3 = st.columns(3)
+                        
+                        with comp_col1:
+                            create_metric_card(
+                                f"{home_team} Home xG",
+                                f"{result['home_data'].get('home_xg_per_match', 0):.2f}",
+                                color=COLORS['primary']
+                            )
+                        with comp_col2:
+                            create_metric_card(
+                                f"{away_team} Away xGA",
+                                f"{result['away_data'].get('away_xga_per_match', 0):.2f}",
+                                color=COLORS['accent']
+                            )
+                        with comp_col3:
+                            create_metric_card(
+                                "Delta",
+                                f"{result['home_data'].get('home_xg_per_match', 0) - result['away_data'].get('away_xga_per_match', 0):.2f}",
+                                color=COLORS['secondary']
+                            )
+                        
+                        # Last 5 form
+                        st.markdown("<div style='margin-top: 20px; font-weight: 600; color: #D1D5DB;'>Last 5 Matches Form</div>", unsafe_allow_html=True)
+                        
+                        form_col1, form_col2 = st.columns(2)
+                        with form_col1:
+                            create_metric_card(
+                                f"{home_team} Avg Scored",
+                                f"{result['home_data']['avg_scored_last_5']:.1f}",
+                                color=COLORS['success']
+                            )
+                        with form_col2:
+                            create_metric_card(
+                                f"{away_team} Avg Scored",
+                                f"{result['away_data']['avg_scored_last_5']:.1f}",
+                                color=COLORS['success']
+                            )
+                        
+                        st.markdown("</div></div>", unsafe_allow_html=True)
+                        
+                        # System info (collapsible)
+                        with st.expander("📚 System Information & Logic Flow"):
+                            st.markdown(f"""
+                            <div style="background: {COLORS['card']}; padding: 20px; border-radius: 8px;">
+                                <h4 style="color: {COLORS['light']};">BRUTBALL v6.4 Architecture</h4>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0;">
+                                    <div class="custom-card" style="padding: 15px;">
+                                        <div style="color: {COLORS['secondary']}; font-weight: 600;">Tier 1</div>
+                                        <div>Edge Detection (v6.0)</div>
+                                    </div>
+                                    <div class="custom-card" style="padding: 15px;">
+                                        <div style="color: {COLORS['secondary']}; font-weight: 600;">Tier 1+</div>
+                                        <div>Edge-Derived Under 1.5 Locks</div>
+                                    </div>
+                                    <div class="custom-card" style="padding: 15px;">
+                                        <div style="color: {COLORS['secondary']}; font-weight: 600;">Tier 2</div>
+                                        <div>Agency-State Lock Engine</div>
+                                    </div>
+                                    <div class="custom-card" style="padding: 15px;">
+                                        <div style="color: {COLORS['secondary']}; font-weight: 600;">Tier 3</div>
+                                        <div>Totals Lock Engine</div>
+                                    </div>
+                                </div>
+                                
+                                <h4 style="color: {COLORS['light']}; margin-top: 20px;">Primary Market</h4>
+                                <div class="custom-card" style="padding: 15px; background: rgba(16, 185, 129, 0.1); border-left: 4px solid {COLORS['success']};">
+                                    <div style="font-weight: 600; color: {COLORS['success']};">DOUBLE CHANCE (Win OR Draw)</div>
+                                    <div style="color: #9CA3AF; margin-top: 5px;">Higher probability, more consistent returns</div>
+                                </div>
+                                
+                                <h4 style="color: {COLORS['light']}; margin-top: 20px;">Data Source</h4>
+                                <div style="color: #9CA3AF;">Last 5 matches only for all trend-based logic</div>
+                            </div>
+                            """, unsafe_allow_html=True)
                 
             except Exception as e:
-                st.error(f"Error: {e}")
-                st.error("Make sure the CSV file is in the 'leagues' folder with correct format.")
+                st.error(f"❌ Error: {str(e)}")
+                st.info("Make sure your CSV file is in the correct format and located in the 'leagues' folder.")
+    
+    with col2:
+        # Right sidebar - Quick stats
+        st.markdown(f"""
+        <div class="custom-card">
+            <h3 style="color: {COLORS['light']}; margin-top: 0;">📈 System Status</h3>
+            <div style="margin-top: 20px;">
+        """, unsafe_allow_html=True)
         
-        # System info
-        with st.expander("📚 System Info"):
-            st.markdown("""
-            **BRUTBALL v6.4 Architecture:**
-            - **Tier 1:** Edge Detection (v6.0)
-            - **Tier 1+:** Edge-Derived Under 1.5 Locks
-            - **Tier 2:** Agency-State Lock Engine
-            - **Tier 3:** Totals Lock Engine
+        # System metrics
+        create_metric_card("Active Leagues", str(len(league_files)), "CSV files")
+        
+        if 'result' in locals():
+            locks_count = len(result.get('agency_locks', [])) + len(result.get('edge_locks', []))
+            if result.get('totals_lock'):
+                locks_count += 1
             
-            **Primary Market:** Double Chance (Win OR Draw)
-            **Data Source:** Last 5 matches only for trend-based logic
-            """)
-    
-    except ImportError:
-        print("Streamlit not installed. Running in console mode...")
-        run_console_mode()
-
-def run_console_mode():
-    """Run in console mode if Streamlit not available"""
-    print("=" * 60)
-    print("BRUTBALL v6.4 - Console Mode")
-    print("=" * 60)
-    
-    # Get league files
-    leagues_dir = "leagues"
-    if not os.path.exists(leagues_dir):
-        print(f"Creating {leagues_dir} directory...")
-        os.makedirs(leagues_dir)
-        print("Please place your CSV files in the 'leagues' folder.")
-        return
-    
-    league_files = [f for f in os.listdir(leagues_dir) if f.endswith('.csv')]
-    
-    if not league_files:
-        print("No CSV files found in 'leagues' folder.")
-        print("Please add your league CSV files.")
-        return
-    
-    print("\nAvailable leagues:")
-    for i, f in enumerate(league_files, 1):
-        print(f"{i}. {f.replace('.csv', '')}")
-    
-    try:
-        choice = int(input("\nSelect league (number): "))
-        league_name = league_files[choice-1].replace('.csv', '')
+            lock_color = COLORS['success'] if locks_count > 0 else COLORS['warning']
+            create_metric_card("Locks Detected", str(locks_count), color=lock_color)
+            
+            # Gate indicators
+            st.markdown("<div style='margin-top: 20px; font-weight: 600; color: #D1D5DB;'>Gate Analysis</div>", unsafe_allow_html=True)
+            
+            if result.get('agency_locks'):
+                for lock in result['agency_locks'][:2]:  # Show first 2 locks
+                    create_rule_indicator(
+                        lock['market'].split()[0],
+                        True,
+                        f"Δ={lock.get('control_delta', 0):.2f}"
+                    )
         
-        engine = Brutballv64(league_name)
-        teams = engine.get_available_teams()
+        st.markdown("</div></div>", unsafe_allow_html=True)
         
-        print(f"\nTeams in {league_name}:")
-        for i, team in enumerate(teams, 1):
-            print(f"{i}. {team}")
-        
-        home_idx = int(input("\nSelect home team (number): ")) - 1
-        away_idx = int(input("Select away team (number): ")) - 1
-        
-        home_team = teams[home_idx]
-        away_team = teams[away_idx]
-        
-        print(f"\nAnalyzing: {home_team} vs {away_team}")
-        
-        result = engine.analyze_match(home_team, away_team)
-        
-        print("\n" + "=" * 60)
-        print(f"RESULT: {result['match']}")
-        print(f"Verdict: {result['verdict']}")
-        print(f"Capital Mode: {result['capital']['capital_mode']} ({result['capital']['multiplier']}x)")
-        print("\nRecommendations:")
-        
-        for rec in result['recommendations']:
-            print(f"- {rec['market']}")
-            print(f"  Stake: ${rec['stake_amount']:.2f} ({rec['stake_pct']:.1f}%)")
-            print(f"  Confidence: {rec['confidence']}")
-            print(f"  Reason: {rec['reason']}")
-            print()
-        
-        # Save option
-        save = input("Save results to JSON? (y/n): ")
-        if save.lower() == 'y':
-            engine.save_predictions()
-            print("Results saved to predictions.json")
-        
-    except (ValueError, IndexError) as e:
-        print(f"Error: {e}")
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-
-# ============================================================================
-# MAIN EXECUTION
-# ============================================================================
+        # Help section
+        st.markdown(f"""
+        <div class="custom-card">
+            <h3 style="color: {COLORS['light']}; margin-top: 0;">ℹ️ Quick Guide</h3>
+            <div style="margin-top: 15px; color: #9CA3AF; font-size: 14px;">
+                <div style="margin-bottom: 10px;">
+                    <span style="color: {COLORS['success']}; font-weight: 600;">LOCK MODE:</span> 2.0x multiplier<br>
+                    <small>Triggered by any lock detection</small>
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <span style="color: {COLORS['warning']}; font-weight: 600;">EDGE MODE:</span> 1.0x multiplier<br>
+                    <small>No locks detected</small>
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <span style="color: {COLORS['info']}; font-weight: 600;">DOUBLE CHANCE:</span> Win OR Draw<br>
+                    <small>Primary betting market</small>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
-    # Try to run Streamlit, fall back to console
-    try:
-        create_streamlit_app()
-    except Exception as e:
-        print(f"Streamlit error: {e}")
-        run_console_mode()
+    main()
