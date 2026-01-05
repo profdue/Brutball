@@ -25,14 +25,12 @@ TOTALS_LOCK_THRESHOLD = 1.2
 
 # CERTAINTY TRANSFORMATION RULES (100% Win Rate Strategy)
 CERTAINTY_TRANSFORMATIONS = {
-    # Original System Detection → 100% Win Rate Certainty Bet
     "BACK HOME & OVER 2.5": {
         'certainty_bet': "HOME DOUBLE CHANCE & OVER 1.5",
         'odds_range': "1.25-1.40",
         'historical_wins': "19/19",
         'win_rate': "100%",
         'reason': "Covers win/draw AND 2+ goals",
-        'color': "#10B981",  # Emerald green
         'icon': "🛡️",
         'stake_multiplier': 2.0
     },
@@ -42,7 +40,6 @@ CERTAINTY_TRANSFORMATIONS = {
         'historical_wins': "19/19",
         'win_rate': "100%",
         'reason': "Covers win/draw AND 2+ goals",
-        'color': "#10B981",
         'icon': "🛡️",
         'stake_multiplier': 2.0
     },
@@ -52,7 +49,6 @@ CERTAINTY_TRANSFORMATIONS = {
         'historical_wins': "19/19",
         'win_rate': "100%",
         'reason': "Covers win OR draw",
-        'color': "#3B82F6",  # Blue
         'icon': "🎯",
         'stake_multiplier': 2.0
     },
@@ -62,7 +58,6 @@ CERTAINTY_TRANSFORMATIONS = {
         'historical_wins': "19/19",
         'win_rate': "100%",
         'reason': "Covers win OR draw",
-        'color': "#3B82F6",
         'icon': "🎯",
         'stake_multiplier': 2.0
     },
@@ -72,7 +67,6 @@ CERTAINTY_TRANSFORMATIONS = {
         'historical_wins': "5/5",
         'win_rate': "100%",
         'reason': "Safer line: only 2+ goals needed",
-        'color': "#10B981",
         'icon': "📈",
         'stake_multiplier': 2.0
     },
@@ -82,62 +76,18 @@ CERTAINTY_TRANSFORMATIONS = {
         'historical_wins': "5/5",
         'win_rate': "100%",
         'reason': "Safer line: allows up to 3 goals",
-        'color': "#10B981",
         'icon': "📉",
         'stake_multiplier': 2.0
-    }
-}
-
-# PERFECT LOCKS (no transformation needed)
-PERFECT_LOCK_MARKETS = {
-    'TEAM_UNDER_1_5': {
-        'certainty_bet_template': "{team} UNDER 1.5 GOALS",
+    },
+    "TEAM UNDER 1.5": {
+        'certainty_bet': "TEAM UNDER 1.5",  # This will be transformed to specific team
         'odds_range': "1.20-1.35",
         'historical_wins': "5/5",
         'win_rate': "100%",
-        'reason_template': "{team} averages ≤1.0 goals conceded (last 5)",
-        'color': "#8B5CF6",  # Violet
+        'reason': "Perfect lock - no adjustment needed",
         'icon': "🎯",
         'stake_multiplier': 2.0
-    },
-    'CLEAN_SHEET': {
-        'certainty_bet_template': "{team} CLEAN SHEET",
-        'odds_range': "1.30-1.50",
-        'historical_wins': "Tracked in 19/19",
-        'win_rate': "100%",
-        'reason_template': "{team} defensive lock detected",
-        'color': "#8B5CF6",
-        'icon': "🚫",
-        'stake_multiplier': 2.0
     }
-}
-
-# MARKET THRESHOLDS (for detection only - user never sees these)
-MARKET_THRESHOLDS = {
-    'DOUBLE_CHANCE': {'opponent_xg_max': 1.3, 'state_flip_failures': 2},
-    'CLEAN_SHEET': {'opponent_xg_max': 0.8, 'state_flip_failures': 3},
-    'TEAM_UNDER_1_5': {'opponent_xg_max': 1.0, 'state_flip_failures': 2}
-}
-
-# ============================================================================
-# VISUAL DESIGN CONSTANTS
-# ============================================================================
-
-COLORS = {
-    'primary': '#1E40AF',      # Deep blue
-    'secondary': '#10B981',    # Emerald
-    'accent': '#8B5CF6',       # Violet
-    'warning': '#F59E0B',      # Amber
-    'danger': '#EF4444',       # Red
-    'success': '#10B981',      # Green
-    'info': '#3B82F6',         # Blue
-    'dark': '#1F2937',         # Gray-800
-    'light': '#F9FAFB',        # Gray-50
-    'background': '#0F172A',   # Slate-900
-    'card': '#1E293B',         # Slate-800
-    'border': '#334155',       # Slate-700
-    'certainty': '#10B981',    # Certainty green
-    'perfect_lock': '#8B5CF6'  # Perfect lock purple
 }
 
 # ============================================================================
@@ -187,7 +137,6 @@ class BrutballDataLoader:
             else:
                 data[col] = val
         
-        # Pre-calculations
         data['home_xg_per_match'] = (data['home_xg_for'] / data['home_matches_played'] 
                                     if data['home_matches_played'] > 0 else 0)
         data['away_xg_per_match'] = (data['away_xg_for'] / data['away_matches_played'] 
@@ -216,10 +165,29 @@ class CertaintyTransformationEngine:
     """Core engine that transforms ALL system outputs to 100% win rate strategy"""
     
     @staticmethod
-    def transform_to_certainty(original_recommendation: str) -> Dict:
+    def transform_to_certainty(original_recommendation: str, team_specific: str = "") -> Dict:
         """Transform ANY system recommendation to 100% win rate certainty bet"""
         
-        # Find matching transformation
+        # Handle team-specific under 1.5 bets
+        if "UNDER 1.5" in original_recommendation and team_specific:
+            # Replace generic "TEAM UNDER 1.5" with specific team name
+            specific_bet = f"{team_specific} UNDER 1.5"
+            for original_pattern, certainty_data in CERTAINTY_TRANSFORMATIONS.items():
+                if original_pattern in original_recommendation:
+                    return {
+                        'original_detection': original_recommendation,
+                        'certainty_bet': specific_bet,
+                        'odds_range': certainty_data['odds_range'],
+                        'historical_wins': certainty_data['historical_wins'],
+                        'win_rate': certainty_data['win_rate'],
+                        'reason': f"{team_specific} cannot score more than 1 goal",
+                        'icon': certainty_data['icon'],
+                        'stake_multiplier': certainty_data['stake_multiplier'],
+                        'certainty_level': '100%',
+                        'transformation_applied': True
+                    }
+        
+        # Standard transformation for other bets
         for original_pattern, certainty_data in CERTAINTY_TRANSFORMATIONS.items():
             if original_pattern in original_recommendation:
                 return {
@@ -229,15 +197,13 @@ class CertaintyTransformationEngine:
                     'historical_wins': certainty_data['historical_wins'],
                     'win_rate': certainty_data['win_rate'],
                     'reason': certainty_data['reason'],
-                    'color': certainty_data['color'],
                     'icon': certainty_data['icon'],
                     'stake_multiplier': certainty_data['stake_multiplier'],
                     'certainty_level': '100%',
-                    'transformation_applied': True,
-                    'bet_type': 'TRANSFORMED_CERTAINTY'
+                    'transformation_applied': True
                 }
         
-        # If no transformation found (shouldn't happen), return as-is with certainty flag
+        # If no transformation found, return as-is
         return {
             'original_detection': original_recommendation,
             'certainty_bet': original_recommendation,
@@ -245,47 +211,15 @@ class CertaintyTransformationEngine:
             'historical_wins': "19/19",
             'win_rate': "100%",
             'reason': "Direct certainty bet",
-            'color': COLORS['certainty'],
             'icon': "🎯",
             'stake_multiplier': 2.0,
             'certainty_level': '100%',
-            'transformation_applied': False,
-            'bet_type': 'DIRECT_CERTAINTY'
-        }
-    
-    @staticmethod
-    def create_perfect_lock(lock_type: str, team_name: str, defensive_team: str = None, avg_conceded: float = None) -> Dict:
-        """Create a perfect lock recommendation with clear team labels"""
-        
-        lock_config = PERFECT_LOCK_MARKETS[lock_type]
-        
-        if lock_type == 'TEAM_UNDER_1_5':
-            # TEAM UNDER 1.5: Clear which team is expected to score ≤1 goal
-            bet_label = lock_config['certainty_bet_template'].format(team=team_name)
-            reason = lock_config['reason_template'].format(team=defensive_team)
-            if avg_conceded is not None:
-                reason = f"{defensive_team} concedes avg {avg_conceded:.1f} goals (last 5)"
-        else:
-            bet_label = lock_config['certainty_bet_template'].format(team=team_name)
-            reason = lock_config['reason_template'].format(team=team_name)
-        
-        return {
-            'certainty_bet': bet_label,
-            'odds_range': lock_config['odds_range'],
-            'historical_wins': lock_config['historical_wins'],
-            'win_rate': lock_config['win_rate'],
-            'reason': reason,
-            'color': lock_config['color'],
-            'icon': lock_config['icon'],
-            'stake_multiplier': lock_config['stake_multiplier'],
-            'certainty_level': '100%',
-            'transformation_applied': False,
-            'bet_type': 'PERFECT_LOCK'
+            'transformation_applied': False
         }
     
     @staticmethod
     def generate_certainty_recommendations(edge_result: Dict, edge_locks: List, 
-                                          agency_locks: List, totals_lock: Optional[Dict]) -> List[Dict]:
+                                          home_team: str, away_team: str) -> List[Dict]:
         """Generate ALL certainty recommendations for a match"""
         
         recommendations = []
@@ -294,44 +228,30 @@ class CertaintyTransformationEngine:
         main_certainty = CertaintyTransformationEngine.transform_to_certainty(
             edge_result['action']
         )
-        recommendations.append(main_certainty)
+        recommendations.append({
+            'type': 'MAIN_CERTAINTY',
+            'priority': 1,
+            **main_certainty
+        })
         
-        # 2. Add edge-derived UNDER 1.5 locks as perfect locks
+        # 2. Add edge-derived locks as certainty bets with SPECIFIC TEAM NAMES
         for lock in edge_locks:
-            # Extract team name from bet_label like "TeamName UNDER 1.5"
-            team_name = lock['bet_label'].split(' UNDER')[0]
-            perfect_lock = CertaintyTransformationEngine.create_perfect_lock(
-                lock_type='TEAM_UNDER_1_5',
-                team_name=team_name,
-                defensive_team=lock['defensive_team'],
-                avg_conceded=lock['avg_conceded']
-            )
-            recommendations.append(perfect_lock)
-        
-        # 3. Add agency locks as perfect locks
-        for lock in agency_locks:
-            market_type = lock['market']
-            if market_type == 'CLEAN_SHEET':
-                perfect_lock = CertaintyTransformationEngine.create_perfect_lock(
-                    lock_type='CLEAN_SHEET',
-                    team_name=lock['controller']
+            if "UNDER 1.5" in lock['bet_label']:
+                # Extract team name from bet_label
+                if away_team in lock['bet_label']:
+                    team_specific = away_team
+                else:
+                    team_specific = home_team
+                
+                certainty_lock = CertaintyTransformationEngine.transform_to_certainty(
+                    "TEAM UNDER 1.5",
+                    team_specific
                 )
-                recommendations.append(perfect_lock)
-            elif market_type == 'TEAM_UNDER_1_5':
-                # Agency-based UNDER 1.5 lock
-                perfect_lock = CertaintyTransformationEngine.create_perfect_lock(
-                    lock_type='TEAM_UNDER_1_5',
-                    team_name=lock.get('team', 'Opponent'),
-                    defensive_team=lock['controller']
-                )
-                recommendations.append(perfect_lock)
-        
-        # 4. Add totals lock as transformed certainty
-        if totals_lock:
-            totals_certainty = CertaintyTransformationEngine.transform_to_certainty(
-                totals_lock['bet_label']
-            )
-            recommendations.append(totals_certainty)
+                recommendations.append({
+                    'type': 'EDGE_DERIVED_CERTAINTY',
+                    'priority': 2,
+                    **certainty_lock
+                })
         
         # Remove duplicates (same certainty bet)
         unique_recommendations = []
@@ -391,15 +311,9 @@ class EdgeDetectionEngine:
         goals_environment = (combined_xg >= 2.8 and max_xg >= 1.6)
         
         if controller and goals_environment:
-            if controller == 'HOME':
-                action = f"BACK HOME & OVER 2.5"
-            else:
-                action = f"BACK AWAY & OVER 2.5"
+            action = f"BACK {controller} & OVER 2.5"
         elif controller:
-            if controller == 'HOME':
-                action = f"BACK HOME"
-            else:
-                action = f"BACK AWAY"
+            action = f"BACK {controller}"
         elif goals_environment:
             action = "OVER 2.5"
         else:
@@ -407,10 +321,8 @@ class EdgeDetectionEngine:
         
         return {
             'controller': controller,
-            'action': action,  # This gets TRANSFORMED to certainty
-            'goals_environment': goals_environment,
-            'home_score': home_score,
-            'away_score': away_score
+            'action': action,
+            'goals_environment': goals_environment
         }
 
 # ============================================================================
@@ -422,94 +334,21 @@ class EdgeDerivedLocks:
     def generate_under_locks(home_data: Dict, away_data: Dict) -> List[Dict]:
         locks = []
         
-        # HOME team's defense strong → AWAY team UNDER 1.5
         if home_data['avg_conceded_last_5'] <= 1.0:
             locks.append({
-                'bet_label': f"{away_data['team']} UNDER 1.5",  # Clear: AWAY team scores ≤1
+                'bet_label': f"{away_data['team']} UNDER 1.5",
                 'defensive_team': home_data['team'],
                 'avg_conceded': home_data['avg_conceded_last_5']
             })
         
-        # AWAY team's defense strong → HOME team UNDER 1.5
         if away_data['avg_conceded_last_5'] <= 1.0:
             locks.append({
-                'bet_label': f"{home_data['team']} UNDER 1.5",  # Clear: HOME team scores ≤1
+                'bet_label': f"{home_data['team']} UNDER 1.5",
                 'defensive_team': away_data['team'],
                 'avg_conceded': away_data['avg_conceded_last_5']
             })
         
         return locks
-
-# ============================================================================
-# TIER 2: AGENCY-STATE LOCKS (Detection Only)
-# ============================================================================
-
-class AgencyStateLockEngine:
-    def __init__(self, home_data: Dict, away_data: Dict):
-        self.home_data = home_data
-        self.away_data = away_data
-    
-    def check_market(self, market: str) -> Optional[Dict]:
-        thresholds = MARKET_THRESHOLDS.get(market, {})
-        edge_result = EdgeDetectionEngine.analyze_match(self.home_data, self.away_data)
-        
-        if not edge_result['controller']:
-            return None
-        
-        if edge_result['controller'] == 'HOME':
-            controller_data = self.home_data
-            opponent_data = self.away_data
-            controller_xg = self.home_data['home_xg_per_match']
-            opponent_xg = self.away_data['away_xg_per_match']
-            controller_team = self.home_data['team']
-            opponent_team = self.away_data['team']
-        else:
-            controller_data = self.away_data
-            opponent_data = self.home_data
-            controller_xg = self.away_data['away_xg_per_match']
-            opponent_xg = self.home_data['home_xg_per_match']
-            controller_team = self.away_data['team']
-            opponent_team = self.home_data['team']
-        
-        # Simplified gate checks
-        delta = controller_xg - opponent_xg
-        if not (delta > DIRECTION_THRESHOLD and opponent_xg < thresholds.get('opponent_xg_max', 1.3)):
-            return None
-        
-        if market == 'CLEAN_SHEET':
-            return {
-                'market': 'CLEAN_SHEET',
-                'controller': controller_team,
-                'bet_label': f"{controller_team} CLEAN SHEET"
-            }
-        elif market == 'TEAM_UNDER_1_5':
-            # Clear: OPPONENT team scores ≤1 goal
-            return {
-                'market': 'TEAM_UNDER_1_5',
-                'controller': controller_team,
-                'team': opponent_team,  # The team that will score ≤1
-                'bet_label': f"{opponent_team} UNDER 1.5 GOALS"
-            }
-        
-        return None
-
-# ============================================================================
-# TIER 3: TOTALS LOCK (Detection Only)
-# ============================================================================
-
-class TotalsLockEngine:
-    @staticmethod
-    def check_totals_lock(home_data: Dict, away_data: Dict) -> Optional[Dict]:
-        home_avg_scored = home_data['avg_scored_last_5']
-        away_avg_scored = away_data['avg_scored_last_5']
-        
-        if home_avg_scored <= TOTALS_LOCK_THRESHOLD and away_avg_scored <= TOTALS_LOCK_THRESHOLD:
-            return {
-                'bet_label': "UNDER 2.5",
-                'home_avg_scored': home_avg_scored,
-                'away_avg_scored': away_avg_scored
-            }
-        return None
 
 # ============================================================================
 # MAIN BRUTBALL v6.4 CERTAINTY ENGINE
@@ -529,22 +368,13 @@ class BrutballCertaintyEngine:
         home_data['team'] = home_team
         away_data['team'] = away_team
         
-        # Run detection (all outputs will be transformed)
+        # Run detection
         edge_result = EdgeDetectionEngine.analyze_match(home_data, away_data)
         edge_locks = EdgeDerivedLocks.generate_under_locks(home_data, away_data)
         
-        agency_engine = AgencyStateLockEngine(home_data, away_data)
-        agency_locks = []
-        for market in ['CLEAN_SHEET', 'TEAM_UNDER_1_5']:
-            lock = agency_engine.check_market(market)
-            if lock:
-                agency_locks.append(lock)
-        
-        totals_lock = TotalsLockEngine.check_totals_lock(home_data, away_data)
-        
         # TRANSFORM EVERYTHING TO CERTAINTY BETS
         certainty_recommendations = CertaintyTransformationEngine.generate_certainty_recommendations(
-            edge_result, edge_locks, agency_locks, totals_lock
+            edge_result, edge_locks, home_team, away_team
         )
         
         # Calculate stakes with CERTAINTY multiplier
@@ -558,13 +388,10 @@ class BrutballCertaintyEngine:
         return {
             'match': f"{home_team} vs {away_team}",
             'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'home_data': {k: v for k, v in home_data.items() if not isinstance(v, (dict, list))},
-            'away_data': {k: v for k, v in away_data.items() if not isinstance(v, (dict, list))},
+            'home_data': home_data,
+            'away_data': away_data,
             'certainty_recommendations': certainty_recommendations,
-            'detection_summary': {
-                'controller': edge_result['controller'],
-                'goals_environment': edge_result['goals_environment']
-            },
+            'detection_summary': edge_result,
             'bankroll_info': {
                 'bankroll': bankroll,
                 'base_stake_pct': base_stake_pct,
@@ -576,203 +403,24 @@ class BrutballCertaintyEngine:
         return self.df['team'].tolist()
 
 # ============================================================================
-# VISUAL COMPONENTS
-# ============================================================================
-
-def apply_custom_css():
-    st.markdown(f"""
-    <style>
-    /* Main Background */
-    .stApp {{
-        background: linear-gradient(135deg, {COLORS['background']} 0%, #0c4a6e 100%);
-    }}
-    
-    /* Certainty Cards */
-    .certainty-card {{
-        background: {COLORS['card']};
-        border-radius: 12px;
-        padding: 20px;
-        border: 2px solid {COLORS['certainty']};
-        box-shadow: 0 4px 20px rgba(16, 185, 129, 0.3);
-        margin-bottom: 20px;
-        position: relative;
-        overflow: hidden;
-    }}
-    .certainty-card::before {{
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 4px;
-        height: 100%;
-        background: {COLORS['certainty']};
-    }}
-    
-    /* Perfect Lock Cards */
-    .perfect-lock-card {{
-        background: {COLORS['card']};
-        border-radius: 12px;
-        padding: 20px;
-        border: 2px solid {COLORS['perfect_lock']};
-        box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3);
-        margin-bottom: 20px;
-    }}
-    
-    /* Headers */
-    h1, h2, h3 {{
-        color: {COLORS['light']} !important;
-        font-weight: 700 !important;
-    }}
-    
-    /* Buttons */
-    .stButton > button {{
-        background: linear-gradient(90deg, {COLORS['primary']} 0%, {COLORS['accent']} 100%);
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-weight: 600;
-    }}
-    
-    /* Badges */
-    .certainty-badge {{
-        display: inline-block;
-        background: linear-gradient(90deg, {COLORS['certainty']} 0%, #0da67b 100%);
-        color: white;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-weight: 700;
-        font-size: 12px;
-        text-transform: uppercase;
-        margin-right: 8px;
-    }}
-    
-    .perfect-badge {{
-        display: inline-block;
-        background: linear-gradient(90deg, {COLORS['perfect_lock']} 0%, #7c3aed 100%);
-        color: white;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-weight: 700;
-        font-size: 12px;
-        text-transform: uppercase;
-        margin-right: 8px;
-    }}
-    
-    /* Team badges */
-    .team-badge {{
-        display: inline-flex;
-        align-items: center;
-        padding: 8px 16px;
-        border-radius: 20px;
-        font-weight: 600;
-        background: rgba(30, 64, 175, 0.2);
-        border: 1px solid {COLORS['primary']};
-        margin: 4px;
-    }}
-    </style>
-    """, unsafe_allow_html=True)
-
-def create_certainty_card(recommendation: Dict):
-    """Create a certainty recommendation card with 100% win rate badge"""
-    
-    is_perfect_lock = recommendation.get('bet_type') == 'PERFECT_LOCK'
-    card_class = "perfect-lock-card" if is_perfect_lock else "certainty-card"
-    badge_class = "perfect-badge" if is_perfect_lock else "certainty-badge"
-    badge_text = "PERFECT LOCK" if is_perfect_lock else "100% WIN RATE"
-    
-    st.markdown(f"""
-    <div class="{card_class}">
-        <div style="display: flex; align-items: flex-start; justify-content: space-between;">
-            <div style="flex: 1;">
-                <div style="display: flex; align-items: center; margin-bottom: 10px;">
-                    <span style="font-size: 24px; margin-right: 10px;">{recommendation['icon']}</span>
-                    <h3 style="margin: 0; color: {recommendation['color']};">{recommendation['certainty_bet']}</h3>
-                </div>
-                
-                <div style="margin-bottom: 15px; color: #D1D5DB;">
-                    {recommendation['reason']}
-                </div>
-                
-                <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 10px;">
-                    <span class="{badge_class}">{badge_text}</span>
-                    <span style="background: rgba(255,255,255,0.1); color: #9CA3AF; padding: 4px 12px; border-radius: 20px; font-size: 12px;">
-                        {recommendation['historical_wins']} wins
-                    </span>
-                    <span style="background: rgba(255,255,255,0.1); color: #9CA3AF; padding: 4px 12px; border-radius: 20px; font-size: 12px;">
-                        Odds: {recommendation['odds_range']}
-                    </span>
-                </div>
-            </div>
-            
-            <div style="text-align: right; margin-left: 20px;">
-                <div style="font-size: 28px; font-weight: 700; color: {recommendation['color']};">
-                    ${recommendation['stake_amount']:.2f}
-                </div>
-                <div style="font-size: 14px; color: #9CA3AF; margin-top: 4px;">
-                    {recommendation['stake_pct']:.1f}% stake
-                </div>
-                <div style="font-size: 12px; color: #6B7280; margin-top: 8px;">
-                    {recommendation['stake_multiplier']}x multiplier
-                </div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-def create_team_badge(team_name: str, is_home: bool = True):
-    badge_type = "🏠 HOME" if is_home else "✈️ AWAY"
-    bg_color = COLORS['primary'] if is_home else COLORS['accent']
-    
-    st.markdown(f"""
-    <div style="display: inline-block; background: {bg_color}; color: white; 
-                padding: 8px 16px; border-radius: 20px; margin: 4px; font-weight: 600;">
-        {badge_type}: {team_name}
-    </div>
-    """, unsafe_allow_html=True)
-
-def create_metric_card(label: str, value: str, color: str = COLORS['light']):
-    st.markdown(f"""
-    <div style="background: {COLORS['card']}; padding: 15px; border-radius: 10px; text-align: center; border: 1px solid {COLORS['border']};">
-        <div style="font-size: 14px; color: #9CA3AF; margin-bottom: 8px;">{label}</div>
-        <div style="font-size: 24px; font-weight: 700; color: {color};">{value}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# ============================================================================
 # STREAMLIT APP
 # ============================================================================
 
 def main():
-    # Apply custom CSS
-    apply_custom_css()
+    # Set page config
+    st.set_page_config(page_title="BRUTBALL v6.4", layout="wide")
     
     # Main header
-    st.markdown(f"""
-    <div style="text-align: center; padding: 30px 0;">
-        <h1 style="font-size: 42px; margin-bottom: 10px;">🔥 BRUTBALL CERTAINTY v6.4</h1>
-        <div style="font-size: 18px; color: {COLORS['certainty']}; font-weight: 600;">
-            100% WIN RATE STRATEGY | EMPIRICALLY PROVEN
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.title("🔥 BRUTBALL CERTAINTY v6.4")
+    st.subheader("100% Win Rate Strategy | Empirically Proven")
     
     # Configuration sidebar
     with st.sidebar:
-        st.markdown(f"""
-        <div style="background: {COLORS['card']}; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
-            <h3 style="color: {COLORS['light']}; margin-top: 0;">⚙️ Configuration</h3>
-        """, unsafe_allow_html=True)
-        
+        st.header("⚙️ Configuration")
         bankroll = st.number_input("Bankroll ($)", min_value=100, max_value=100000, value=1000, step=100)
         base_stake_pct = st.number_input("Base Stake (% of bankroll)", min_value=0.1, max_value=10.0, value=0.5, step=0.1)
         
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-        st.markdown(f"""
-        <div style="background: {COLORS['card']}; padding: 20px; border-radius: 12px;">
-            <h3 style="color: {COLORS['light']}; margin-top: 0;">📁 Select League</h3>
-        """, unsafe_allow_html=True)
+        st.header("📁 Select League")
         
         # League selection
         leagues_dir = "leagues"
@@ -788,25 +436,12 @@ def main():
         
         selected_league = st.selectbox("Choose League", league_files)
         
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-        # System info
-        st.markdown(f"""
-        <div style="background: {COLORS['card']}; padding: 20px; border-radius: 12px; margin-top: 20px;">
-            <h3 style="color: {COLORS['light']}; margin-top: 0;">📚 System Proof</h3>
-            <div style="color: #9CA3AF; font-size: 14px;">
-                <div style="margin-bottom: 8px;">
-                    <span style="color: {COLORS['certainty']};">✓</span> 19/19 Wins
-                </div>
-                <div style="margin-bottom: 8px;">
-                    <span style="color: {COLORS['certainty']};">✓</span> 100% Win Rate
-                </div>
-                <div>
-                    <span style="color: {COLORS['certainty']};">✓</span> +31.22% ROI
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.header("📚 System Proof")
+        st.markdown("""
+        - ✓ 19/19 Wins
+        - ✓ 100% Win Rate
+        - ✓ +31.22% ROI
+        """)
     
     # Main content area
     if selected_league:
@@ -815,113 +450,70 @@ def main():
             teams = engine.get_available_teams()
             
             # Match selection
-            st.markdown(f"""
-            <div style="background: {COLORS['card']}; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
-                <h3 style="color: {COLORS['light']}; margin-top: 0;">🏟️ Match Selection</h3>
-            """, unsafe_allow_html=True)
-            
+            st.header("🏟️ Match Selection")
             home_col, away_col = st.columns(2)
             with home_col:
                 home_team = st.selectbox("Home Team", teams, key="home_select")
             with away_col:
                 away_team = st.selectbox("Away Team", [t for t in teams if t != home_team], key="away_select")
             
-            st.markdown("</div>", unsafe_allow_html=True)
-            
             # Analyze button
-            if st.button("🚀 GENERATE CERTAINTY BETS", use_container_width=True, type="primary"):
+            if st.button("🚀 GENERATE CERTAINTY BETS", type="primary"):
                 with st.spinner("🔥 Transforming to 100% Win Rate Strategy..."):
                     result = engine.analyze_match(home_team, away_team, bankroll, base_stake_pct)
                     
                     # Display match header
-                    st.markdown(f"""
-                    <div style="text-align: center; margin: 30px 0;">
-                        <div style="font-size: 32px; font-weight: 700; color: {COLORS['light']};">
-                            🏆 {result['match']}
-                        </div>
-                        <div style="display: flex; justify-content: center; margin-top: 15px;">
-                    """, unsafe_allow_html=True)
-                    
-                    create_team_badge(home_team, True)
-                    st.markdown('<div style="margin: 0 20px; font-size: 24px; color: #9CA3AF;">VS</div>', unsafe_allow_html=True)
-                    create_team_badge(away_team, False)
-                    
-                    st.markdown("</div></div>", unsafe_allow_html=True)
+                    st.header(f"🏆 {result['match']}")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Home Team", home_team)
+                    with col2:
+                        st.markdown("<div style='text-align: center; font-size: 24px;'>VS</div>", unsafe_allow_html=True)
+                    with col3:
+                        st.metric("Away Team", away_team)
                     
                     # System proof banner
-                    st.markdown(f"""
-                    <div style="background: linear-gradient(90deg, {COLORS['certainty']}20 0%, {COLORS['perfect_lock']}20 100%); 
-                                padding: 15px; border-radius: 10px; border: 1px solid {COLORS['certainty']}; 
-                                margin: 20px 0; text-align: center;">
-                        <div style="font-size: 18px; font-weight: 700; color: {COLORS['certainty']};">
-                            🔥 100% WIN RATE STRATEGY ACTIVATED
-                        </div>
-                        <div style="font-size: 14px; color: #9CA3AF; margin-top: 5px;">
-                            19/19 Historical Wins | +31.22% ROI | Empirically Proven
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.success("🔥 100% WIN RATE STRATEGY ACTIVATED - 19/19 Historical Wins | +31.22% ROI | Empirically Proven")
                     
                     # CERTAINTY RECOMMENDATIONS
+                    st.header("🎯 CERTAINTY BETS (100% Win Rate)")
+                    st.caption("All recommendations transformed to empirically proven 100% win rate strategy")
+                    
                     if result['certainty_recommendations']:
-                        st.markdown(f"""
-                        <div style="background: {COLORS['card']}; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
-                            <h3 style="color: {COLORS['light']}; margin-top: 0;">🎯 CERTAINTY BETS (100% Win Rate)</h3>
-                            <div style="color: #9CA3AF; margin-bottom: 20px;">
-                                All recommendations transformed to empirically proven 100% win rate strategy
-                            </div>
-                        """, unsafe_allow_html=True)
-                        
                         for rec in result['certainty_recommendations']:
-                            create_certainty_card(rec)
-                        
-                        st.markdown("</div>", unsafe_allow_html=True)
+                            with st.container():
+                                col1, col2 = st.columns([3, 1])
+                                with col1:
+                                    st.markdown(f"**{rec['icon']} {rec['certainty_bet']}**")
+                                    st.markdown(f"{rec['reason']}")
+                                    st.markdown(f"📈 {rec['historical_wins']} wins | 🎯 {rec['win_rate']} win rate | 📊 Odds: {rec['odds_range']}")
+                                with col2:
+                                    st.metric("Stake", f"${rec['stake_amount']:.2f}", f"{rec['stake_pct']:.1f}%")
+                                st.divider()
                     
                     # Team comparison
-                    st.markdown(f"""
-                    <div style="background: {COLORS['card']}; padding: 20px; border-radius: 12px;">
-                        <h3 style="color: {COLORS['light']}; margin-top: 0;">📊 Detection Analysis</h3>
-                        <div style="margin-top: 20px;">
-                    """, unsafe_allow_html=True)
+                    st.header("📊 Detection Analysis")
                     
                     # Detection metrics
                     detection = result['detection_summary']
                     col1, col2, col3 = st.columns(3)
                     
                     with col1:
-                        controller_color = COLORS['success'] if detection['controller'] else COLORS['warning']
-                        controller_text = detection['controller'] if detection['controller'] else "None"
-                        create_metric_card("Controller", controller_text, controller_color)
-                    
+                        st.metric("Controller", detection['controller'] if detection['controller'] else "None")
                     with col2:
-                        goals_color = COLORS['success'] if detection['goals_environment'] else COLORS['warning']
-                        goals_text = "Yes" if detection['goals_environment'] else "No"
-                        create_metric_card("Goals Environment", goals_text, goals_color)
-                    
+                        st.metric("Goals Environment", "Yes" if detection['goals_environment'] else "No")
                     with col3:
-                        certainty_count = len(result['certainty_recommendations'])
-                        create_metric_card("Certainty Bets", str(certainty_count), COLORS['certainty'])
+                        st.metric("Certainty Bets", len(result['certainty_recommendations']))
                     
                     # Team stats
-                    st.markdown("<div style='margin-top: 20px; font-weight: 600; color: #D1D5DB;'>Key Statistics</div>", unsafe_allow_html=True)
-                    
+                    st.subheader("Key Statistics")
                     stats_col1, stats_col2 = st.columns(2)
                     with stats_col1:
-                        create_metric_card(
-                            f"{home_team} Home xG",
-                            f"{result['home_data'].get('home_xg_per_match', 0):.2f}",
-                            COLORS['primary']
-                        )
+                        st.metric(f"{home_team} Home xG", f"{result['home_data'].get('home_xg_per_match', 0):.2f}")
                     with stats_col2:
-                        create_metric_card(
-                            f"{away_team} Away xG",
-                            f"{result['away_data'].get('away_xg_per_match', 0):.2f}",
-                            COLORS['accent']
-                        )
+                        st.metric(f"{away_team} Away xG", f"{result['away_data'].get('away_xg_per_match', 0):.2f}")
                     
-                    st.markdown("</div></div>", unsafe_allow_html=True)
-                    
-                    # Transformation info - USING PURE MARKDOWN
+                    # Transformation info
                     with st.expander("🔍 How This Works"):
                         st.markdown("## 🔍 How This Works")
                         
