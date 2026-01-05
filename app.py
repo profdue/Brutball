@@ -447,6 +447,7 @@ def main():
         margin: 1rem 0;
         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         transition: transform 0.3s ease;
+        position: relative;
     }
     
     .bet-card:hover {
@@ -774,12 +775,13 @@ def main():
                         if result['certainty_recommendations']:
                             recommendations = sorted(result['certainty_recommendations'], key=lambda x: x['priority'])
                             
-                            for i, rec in enumerate(recommendations):
+                            for rec in recommendations:
                                 # Determine border color based on priority
                                 border_color = "#4CAF50" if rec['priority'] == 1 else "#2196F3" if rec['priority'] == 2 else "#FF9800"
                                 
-                                st.markdown(f"""
-                                <div class="bet-card" style="border-left-color: {border_color}; position: relative;">
+                                # Create bet card with PROPER HTML formatting
+                                card_html = f"""
+                                <div class="bet-card" style="border-left-color: {border_color};">
                                     <div class="priority-badge">P{rec['priority']}</div>
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div style="flex: 1;">
@@ -821,10 +823,20 @@ def main():
                                             </div>
                                         </div>
                                     </div>
-                                    
-                                    {f'<div style="margin-top: 1rem; padding: 0.5rem; background: #f8f9fa; border-radius: 8px; font-size: 0.9rem; color: #666;"><strong>Transformed from:</strong> {rec["original_detection"]}</div>' if rec.get('transformation_applied') else ''}
-                                </div>
-                                """, unsafe_allow_html=True)
+                                """
+                                
+                                # Add transformation info if applicable
+                                if rec.get('transformation_applied', False):
+                                    card_html += f"""
+                                    <div style="margin-top: 1rem; padding: 0.5rem; background: #f8f9fa; border-radius: 8px; font-size: 0.9rem; color: #666;">
+                                        <strong>Transformed from:</strong> {rec['original_detection']}
+                                    </div>
+                                    """
+                                
+                                # Close the card div
+                                card_html += "</div>"
+                                
+                                st.markdown(card_html, unsafe_allow_html=True)
                         
                         # Detection Metrics
                         st.markdown('<h2 class="section-header">📊 DETECTION ANALYSIS</h2>', unsafe_allow_html=True)
@@ -863,50 +875,52 @@ def main():
                         stats_col1, stats_col2 = st.columns(2)
                         
                         with stats_col1:
+                            home_stats = result['home_data']
                             st.markdown(f"""
                             <div class="metric-card">
                                 <h4 style="color: #667eea; margin-bottom: 1rem;">{home_team} (Home)</h4>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                                     <div>
                                         <div style="font-size: 0.9rem; color: #666;">xG per Match</div>
-                                        <div style="font-size: 1.3rem; font-weight: bold;">{result['home_data'].get('home_xg_per_match', 0):.2f}</div>
+                                        <div style="font-size: 1.3rem; font-weight: bold;">{home_stats.get('home_xg_per_match', 0):.2f}</div>
                                     </div>
                                     <div>
                                         <div style="font-size: 0.9rem; color: #666;">Avg Scored Last 5</div>
-                                        <div style="font-size: 1.3rem; font-weight: bold;">{result['home_data'].get('avg_scored_last_5', 0):.2f}</div>
+                                        <div style="font-size: 1.3rem; font-weight: bold;">{home_stats.get('avg_scored_last_5', 0):.2f}</div>
                                     </div>
                                     <div>
                                         <div style="font-size: 0.9rem; color: #666;">Goals Conceded</div>
-                                        <div style="font-size: 1.3rem; font-weight: bold;">{result['home_data'].get('home_goals_conceded', 0):.0f}</div>
+                                        <div style="font-size: 1.3rem; font-weight: bold;">{home_stats.get('home_goals_conceded', 0):.0f}</div>
                                     </div>
                                     <div>
                                         <div style="font-size: 0.9rem; color: #666;">Matches Played</div>
-                                        <div style="font-size: 1.3rem; font-weight: bold;">{result['home_data'].get('home_matches_played', 0):.0f}</div>
+                                        <div style="font-size: 1.3rem; font-weight: bold;">{home_stats.get('home_matches_played', 0):.0f}</div>
                                     </div>
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
                         
                         with stats_col2:
+                            away_stats = result['away_data']
                             st.markdown(f"""
                             <div class="metric-card">
                                 <h4 style="color: #667eea; margin-bottom: 1rem;">{away_team} (Away)</h4>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                                     <div>
                                         <div style="font-size: 0.9rem; color: #666;">xG per Match</div>
-                                        <div style="font-size: 1.3rem; font-weight: bold;">{result['away_data'].get('away_xg_per_match', 0):.2f}</div>
+                                        <div style="font-size: 1.3rem; font-weight: bold;">{away_stats.get('away_xg_per_match', 0):.2f}</div>
                                     </div>
                                     <div>
                                         <div style="font-size: 0.9rem; color: #666;">Avg Scored Last 5</div>
-                                        <div style="font-size: 1.3rem; font-weight: bold;">{result['away_data'].get('avg_scored_last_5', 0):.2f}</div>
+                                        <div style="font-size: 1.3rem; font-weight: bold;">{away_stats.get('avg_scored_last_5', 0):.2f}</div>
                                     </div>
                                     <div>
                                         <div style="font-size: 0.9rem; color: #666;">Goals Conceded</div>
-                                        <div style="font-size: 1.3rem; font-weight: bold;">{result['away_data'].get('away_goals_conceded', 0):.0f}</div>
+                                        <div style="font-size: 1.3rem; font-weight: bold;">{away_stats.get('away_goals_conceded', 0):.0f}</div>
                                     </div>
                                     <div>
                                         <div style="font-size: 0.9rem; color: #666;">Matches Played</div>
-                                        <div style="font-size: 1.3rem; font-weight: bold;">{result['away_data'].get('away_matches_played', 0):.0f}</div>
+                                        <div style="font-size: 1.3rem; font-weight: bold;">{away_stats.get('away_matches_played', 0):.0f}</div>
                                     </div>
                                 </div>
                             </div>
