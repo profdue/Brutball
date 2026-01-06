@@ -321,15 +321,15 @@ class EdgeDetectionEngine:
         
         # FIXED: Controller must have minimum 2 criteria
         if len(home_criteria) >= CONTROL_CRITERIA_REQUIRED and len(away_criteria) >= CONTROL_CRITERIA_REQUIRED:
-            if abs(home_score - away_score) > QUIET_CONTROL_SEPARATION_THRESHOLD:
-                # FIX: Require controller to have at least 2 criteria
-                if home_score > away_score and len(home_criteria) >= 2:
+            score_diff = abs(home_score - away_score)
+            if score_diff > QUIET_CONTROL_SEPARATION_THRESHOLD + epsilon:
+                if home_score > away_score:
                     controller = 'HOME'
-                elif away_score > home_score and len(away_criteria) >= 2:
-                    controller = 'AWAY'
-        elif len(home_criteria) >= CONTROL_CRITERIA_REQUIRED and len(away_criteria) < 2:
+                else:
+                     controller = 'AWAY'
+        elif len(home_criteria) >= CONTROL_CRITERIA_REQUIRED:
             controller = 'HOME'
-        elif len(away_criteria) >= CONTROL_CRITERIA_REQUIRED and len(home_criteria) < 2:
+        elif len(away_criteria) >= CONTROL_CRITERIA_REQUIRED:
             controller = 'AWAY'
         
         # Goals environment
