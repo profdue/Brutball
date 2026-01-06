@@ -327,9 +327,9 @@ class EdgeDetectionEngine:
                     controller = 'HOME'
                 elif away_score > home_score and len(away_criteria) >= 2:
                     controller = 'AWAY'
-        elif len(home_criteria) >= CONTROL_CRITERIA_REQUIRED:
+        elif len(home_criteria) >= CONTROL_CRITERIA_REQUIRED and len(away_criteria) < 2:
             controller = 'HOME'
-        elif len(away_criteria) >= CONTROL_CRITERIA_REQUIRED:
+        elif len(away_criteria) >= CONTROL_CRITERIA_REQUIRED and len(home_criteria) < 2:
             controller = 'AWAY'
         
         # Goals environment
