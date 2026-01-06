@@ -1,10 +1,10 @@
 """
 BRUTBALL v6.4 - CERTAINTY TRANSFORMATION SYSTEM
 100% Win Rate Strategy Implementation
-TARGETED FIXES APPLIED:
-1. Team UNDER 1.5 logic fixed with evidence-based approach
-2. Control detection requires minimum criteria
-3. UNDER 2.5 bets added for moderate evidence
+FINAL FIXED VERSION:
+1. Team UNDER bets use evidence-based approach (UNDER 1.5 or 2.5)
+2. Control detection fixed with epsilon for floating point comparison
+3. Controller requires opponent to have <2 criteria when only one team strong
 """
 
 import pandas as pd
@@ -281,7 +281,7 @@ class CertaintyTransformationEngine:
         return unique_recommendations
 
 # ============================================================================
-# TIER 1: EDGE DETECTION ENGINE (Detection Only)
+# TIER 1: EDGE DETECTION ENGINE (Detection Only) - FIXED VERSION
 # ============================================================================
 
 class EdgeDetectionEngine:
@@ -318,18 +318,21 @@ class EdgeDetectionEngine:
         away_score, away_criteria = EdgeDetectionEngine.evaluate_control_criteria(away_data)
         
         controller = None
+        EPSILON = 0.001  # For floating point comparison
         
-        # FIXED: Controller must have minimum 2 criteria
+        # FIXED CONTROL DETECTION LOGIC
         if len(home_criteria) >= CONTROL_CRITERIA_REQUIRED and len(away_criteria) >= CONTROL_CRITERIA_REQUIRED:
             score_diff = abs(home_score - away_score)
-            if score_diff > QUIET_CONTROL_SEPARATION_THRESHOLD + epsilon:
-                if home_score > away_score:
+            if score_diff > QUIET_CONTROL_SEPARATION_THRESHOLD + EPSILON:
+                # Controller must have at least 2 criteria
+                if home_score > away_score and len(home_criteria) >= 2:
                     controller = 'HOME'
-                else:
-                     controller = 'AWAY'
-        elif len(home_criteria) >= CONTROL_CRITERIA_REQUIRED:
+                elif away_score > home_score and len(away_criteria) >= 2:
+                    controller = 'AWAY'
+            # If scores are too close (difference <= 0.1), no clear controller
+        elif len(home_criteria) >= CONTROL_CRITERIA_REQUIRED and len(away_criteria) < 2:
             controller = 'HOME'
-        elif len(away_criteria) >= CONTROL_CRITERIA_REQUIRED:
+        elif len(away_criteria) >= CONTROL_CRITERIA_REQUIRED and len(home_criteria) < 2:
             controller = 'AWAY'
         
         # Goals environment
