@@ -1,10 +1,10 @@
 """
 BRUTBALL v6.4 - CERTAINTY TRANSFORMATION SYSTEM
 100% Win Rate Strategy Implementation
-FINAL FIXED VERSION:
-1. Team UNDER bets use evidence-based approach (UNDER 1.5 or 2.5)
+FINAL CORRECTED VERSION:
+1. Team UNDER bets: Clear evidence → UNDER 1.5, Unclear → UNDER 2.5
 2. Control detection fixed with epsilon for floating point comparison
-3. Controller requires opponent to have <2 criteria when only one team strong
+3. All fixes applied while preserving original interface
 """
 
 import pandas as pd
@@ -92,7 +92,7 @@ CERTAINTY_TRANSFORMATIONS = {
         'icon': "🎯",
         'stake_multiplier': 2.0
     },
-    # NEW: ADDED FOR EVIDENCE-BASED TEAM UNDER BETS
+    # NEW: ADDED FOR UNCLEAR EVIDENCE TEAM UNDER BETS
     "TEAM UNDER 2.5": {
         'certainty_bet': "TEAM UNDER 2.5",
         'odds_range': "1.10-1.20",
@@ -100,7 +100,7 @@ CERTAINTY_TRANSFORMATIONS = {
         'win_rate': "100%",
         'reason': "Safe defensive matchup bet",
         'icon': "🎯",
-        'stake_multiplier': 1.5  # Lower multiplier for moderate confidence
+        'stake_multiplier': 1.5  # Lower multiplier for unclear evidence
     }
 }
 
@@ -357,7 +357,7 @@ class EdgeDetectionEngine:
         }
 
 # ============================================================================
-# TIER 1+: EDGE-DERIVED LOCKS (Detection Only) - FIXED VERSION
+# TIER 1+: EDGE-DERIVED LOCKS (Detection Only) - CORRECTED VERSION
 # ============================================================================
 
 class EdgeDerivedLocks:
@@ -368,34 +368,36 @@ class EdgeDerivedLocks:
                                 defender_name: str, attacker_name: str) -> Optional[Dict]:
         """
         Generate appropriate team goal bet based on evidence strength
-        Returns: bet details or None if no bet
+        YOUR CORRECT LOGIC:
+        - Clear evidence (attack ≤1.0): UNDER 1.5
+        - Unclear evidence (attack 1.0-1.2): UNDER 2.5  
+        - No evidence (attack >1.2): No bet
         """
-        defense_strength = defender_data['avg_conceded_last_5']
         attack_weakness = attacker_data['avg_scored_last_5']
         
-        # STRONG EVIDENCE: Elite defense AND poor attack → UNDER 1.5
-        if defense_strength <= 0.8 and attack_weakness <= 0.8:
+        # CLEAR EVIDENCE: Attack ≤ 1.0 goals/game → UNDER 1.5
+        if attack_weakness <= 1.0:
             return {
                 'bet_label': f"{attacker_name} UNDER 1.5",
                 'defensive_team': defender_name,
                 'offensive_team': attacker_name,
-                'defense_strength': defense_strength,
                 'attack_weakness': attack_weakness,
-                'evidence_level': 'STRONG'
+                'evidence_level': 'CLEAR',
+                'reason': f"{attacker_name} very weak attack ({attack_weakness:.1f} goals/game)"
             }
         
-        # MODERATE EVIDENCE: Either strong defense OR poor attack → UNDER 2.5
-        elif defense_strength <= 1.0 or attack_weakness <= 1.0:
+        # UNCLEAR EVIDENCE: Attack 1.0-1.2 goals/game → UNDER 2.5
+        elif attack_weakness <= 1.2:
             return {
                 'bet_label': f"{attacker_name} UNDER 2.5",
                 'defensive_team': defender_name,
                 'offensive_team': attacker_name,
-                'defense_strength': defense_strength,
                 'attack_weakness': attack_weakness,
-                'evidence_level': 'MODERATE'
+                'evidence_level': 'UNCLEAR',
+                'reason': f"{attacker_name} moderate attack ({attack_weakness:.1f} goals/game)"
             }
         
-        # WEAK EVIDENCE: No bet
+        # NO EVIDENCE: Attack > 1.2 goals/game → No bet
         else:
             return None
     
@@ -446,7 +448,7 @@ class BrutballCertaintyEngine:
         # Edge detection
         edge_result = EdgeDetectionEngine.analyze_match(home_data, away_data)
         
-        # FIXED: Use evidence-based team goal bets
+        # CORRECTED: Use evidence-based team goal bets
         edge_locks = EdgeDerivedLocks.generate_under_locks(home_data, away_data, home_team, away_team)
         
         # Certainty transformations
@@ -595,12 +597,12 @@ def main():
         margin-left: 0.5rem;
     }
     
-    .evidence-strong {
+    .evidence-clear {
         background: #4CAF50;
         color: white;
     }
     
-    .evidence-moderate {
+    .evidence-unclear {
         background: #FF9800;
         color: white;
     }
@@ -777,11 +779,11 @@ def main():
                             for rec in recommendations:
                                 # Determine border color based on bet type
                                 if 'UNDER 1.5' in rec['certainty_bet']:
-                                    border_color = "#4CAF50"  # Green for strong evidence
-                                    evidence_badge = '<span class="evidence-badge evidence-strong">STRONG EVIDENCE</span>'
+                                    border_color = "#4CAF50"  # Green for clear evidence
+                                    evidence_badge = '<span class="evidence-badge evidence-clear">CLEAR EVIDENCE</span>'
                                 elif 'UNDER 2.5' in rec['certainty_bet']:
-                                    border_color = "#FF9800"  # Orange for moderate evidence
-                                    evidence_badge = '<span class="evidence-badge evidence-moderate">MODERATE EVIDENCE</span>'
+                                    border_color = "#FF9800"  # Orange for unclear evidence
+                                    evidence_badge = '<span class="evidence-badge evidence-unclear">UNCLEAR EVIDENCE</span>'
                                 elif rec['priority'] == 1:
                                     border_color = "#667eea"  # Blue for main bet
                                     evidence_badge = ''
